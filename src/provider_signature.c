@@ -6,14 +6,10 @@
 
 static OSSL_FUNC_signature_newctx_fn p11prov_sig_newctx;
 static OSSL_FUNC_signature_freectx_fn p11prov_sig_freectx;
-/* static OSSL_FUNC_signature_dupctx_fn p11prov_sig_dupctx; */
 static OSSL_FUNC_signature_sign_init_fn p11prov_sig_sign_init;
 static OSSL_FUNC_signature_sign_fn p11prov_sig_sign;
-/* static OSSL_FUNC_signature_digest_sign_init_fn p11prov_sig_digest_sign_init;
-static OSSL_FUNC_signature_digest_sign_update_fn p11prov_sig_digest_update;
-static OSSL_FUNC_signature_digest_sign_final_fn p11prov_sig_digest_sign_final;
-static OSSL_FUNC_signature_digest_sign_fn p11prov_sig_digest_sign;
-static OSSL_FUNC_signature_digest_verify_final_fn p11prov_sig_digest_verify_final; */
+static OSSL_FUNC_signature_verify_init_fn p11prov_sig_verify_init;
+static OSSL_FUNC_signature_verify_fn p11prov_sig_verify;
 static OSSL_FUNC_signature_get_ctx_params_fn p11prov_sig_get_ctx_params;
 static OSSL_FUNC_signature_set_ctx_params_fn p11prov_sig_set_ctx_params;
 static OSSL_FUNC_signature_gettable_ctx_params_fn p11prov_sig_gettable_ctx_params;
@@ -54,6 +50,7 @@ static void p11prov_sig_freectx(void *ctx)
     struct p11prov_sig_ctx *sigctx = (struct p11prov_sig_ctx *)ctx;
 
     p11prov_key_free(sigctx->key);
+    OPENSSL_free(sigctx->properties);
     OPENSSL_free(sigctx);
 }
 
@@ -146,6 +143,77 @@ endsess:
     return result;
 }
 
+static int p11prov_sig_verify_init(void *ctx, void *provkey,
+                                   const OSSL_PARAM params[])
+{
+    struct p11prov_sig_ctx *sigctx = (struct p11prov_sig_ctx *)ctx;
+    P11PROV_OBJECT *obj = (P11PROV_OBJECT *)provkey;
+
+    p11prov_debug("verify init (ctx=%p, key=%p, params=%p)\n",
+                  ctx, provkey, params);
+
+    if (!p11prov_object_check_key(obj, false)) return RET_OSSL_ERR;
+
+    sigctx->key = p11prov_object_get_key(obj);
+
+    return p11prov_sig_set_ctx_params(ctx, params);
+}
+
+static int p11prov_sig_verify(void *ctx, const unsigned char *sig,
+                              size_t siglen, const unsigned char *tbs,
+                              size_t tbslen)
+{
+    struct p11prov_sig_ctx *sigctx = (struct p11prov_sig_ctx *)ctx;
+    CK_FUNCTION_LIST *f;
+    CK_MECHANISM mechanism;
+    CK_SESSION_HANDLE session;
+    CK_SLOT_ID slotid;
+    CK_OBJECT_HANDLE handle;
+    int result = RET_OSSL_ERR;
+    int ret;
+
+    p11prov_debug("verify (ctx=%p)\n", ctx);
+
+    f = provider_ctx_fns(sigctx->provctx);
+    if (f == NULL) return RET_OSSL_ERR;
+    slotid = p11prov_key_slotid(sigctx->key);
+    if (slotid == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
+    handle = p11prov_key_hanlde(sigctx->key);
+    if (handle == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
+
+    mechanism.mechanism = CKM_RSA_PKCS;
+    mechanism.pParameter = NULL;
+    mechanism.ulParameterLen  = 0;
+
+    ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
+    if (ret != CKR_OK) {
+        p11prov_debug("OpenSession failed %d\n", ret);
+        return RET_OSSL_ERR;
+    }
+
+    ret = f->C_VerifyInit(session, &mechanism, handle);
+    if (ret != CKR_OK) {
+        p11prov_debug("VerifyInit failed %d\n", ret);
+        goto endsess;
+    }
+
+    ret = f->C_Verify(session, (void *)tbs, tbslen, (void *)sig, siglen);
+    if (ret != CKR_OK) {
+        p11prov_debug("Verify failed %d\n", ret);
+        goto endsess;
+    }
+
+    result = RET_OSSL_OK;
+
+endsess:
+    ret = f->C_CloseSession(session);
+    if (ret != CKR_OK) {
+        p11prov_debug("Failed to close session (%d)\n", ret);
+    }
+
+    return result;
+}
+
 static OSSL_ITEM padding_map[] = {
     { RSA_PKCS1_PADDING,        OSSL_PKEY_RSA_PAD_MODE_PKCSV15 },
     { RSA_NO_PADDING,           OSSL_PKEY_RSA_PAD_MODE_NONE },
@@ -225,10 +293,18 @@ static const OSSL_PARAM *p11prov_sig_settable_ctx_params(void *ctx, void *prov)
 
 
 const OSSL_DISPATCH p11prov_rsa_signature_functions[] = {
-    { OSSL_FUNC_SIGNATURE_NEWCTX, (void (*)(void))p11prov_sig_newctx },
-    { OSSL_FUNC_SIGNATURE_FREECTX, (void (*)(void))p11prov_sig_freectx },
-    { OSSL_FUNC_SIGNATURE_SIGN_INIT, (void (*)(void))p11prov_sig_sign_init },
-    { OSSL_FUNC_SIGNATURE_SIGN, (void (*)(void))p11prov_sig_sign },
+    { OSSL_FUNC_SIGNATURE_NEWCTX,
+        (void (*)(void))p11prov_sig_newctx },
+    { OSSL_FUNC_SIGNATURE_FREECTX,
+        (void (*)(void))p11prov_sig_freectx },
+    { OSSL_FUNC_SIGNATURE_SIGN_INIT,
+        (void (*)(void))p11prov_sig_sign_init },
+    { OSSL_FUNC_SIGNATURE_SIGN,
+        (void (*)(void))p11prov_sig_sign },
+    { OSSL_FUNC_SIGNATURE_VERIFY_INIT,
+        (void (*)(void))p11prov_sig_verify_init },
+    { OSSL_FUNC_SIGNATURE_VERIFY,
+        (void (*)(void))p11prov_sig_verify },
     { OSSL_FUNC_SIGNATURE_GET_CTX_PARAMS,
         (void (*)(void))p11prov_sig_get_ctx_params },
     { OSSL_FUNC_SIGNATURE_GETTABLE_CTX_PARAMS,
