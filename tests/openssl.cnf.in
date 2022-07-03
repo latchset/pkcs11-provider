@@ -1,0 +1,26 @@
+HOME = .
+
+ # Use this in order to automatically load providers.
+openssl_conf = openssl_init
+
+config_diagnostics = 1
+
+[openssl_init]
+providers = provider_sect
+
+[provider_sect]
+default = default_sect
+pkcs11 = pkcs11_sect
+base = base_sect
+
+[base_sect]
+activate = 1
+
+[default_sect]
+activate = 1
+
+[pkcs11_sect]
+module = $(libtoollibs)/pkcs11prov.so
+pkcs11-module-path = /usr/lib64/libsoftokn3.so
+pkcs11-module-init-args = configDir=$(testsdir)/tokens
+activate = 1
