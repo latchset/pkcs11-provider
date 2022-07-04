@@ -357,8 +357,6 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle,
         return RET_OSSL_ERR;
     }
 
-    pthread_mutex_init(&ctx->lock, 0);
-
     /* get module path */
     core_params[0] = OSSL_PARAM_construct_utf8_ptr(
                         P11PROV_PKCS11_MODULE_PATH,

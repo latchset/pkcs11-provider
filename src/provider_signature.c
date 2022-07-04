@@ -112,7 +112,7 @@ static int p11prov_sig_sign(void *ctx, unsigned char *sig,
     if (f == NULL) return RET_OSSL_ERR;
     slotid = p11prov_key_slotid(sigctx->priv_key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
-    handle = p11prov_key_hanlde(sigctx->priv_key);
+    handle = p11prov_key_handle(sigctx->priv_key);
     if (handle == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
 
     mechanism.mechanism = CKM_RSA_PKCS;
@@ -183,7 +183,7 @@ static int p11prov_sig_verify(void *ctx, const unsigned char *sig,
     if (f == NULL) return RET_OSSL_ERR;
     slotid = p11prov_key_slotid(sigctx->pub_key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
-    handle = p11prov_key_hanlde(sigctx->pub_key);
+    handle = p11prov_key_handle(sigctx->pub_key);
     if (handle == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
 
     mechanism.mechanism = CKM_RSA_PKCS;

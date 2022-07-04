@@ -54,7 +54,7 @@ void p11prov_key_free(P11PROV_KEY *key);
 CK_ATTRIBUTE *p11prov_key_attr(P11PROV_KEY *key, CK_ATTRIBUTE_TYPE type);
 CK_KEY_TYPE p11prov_key_type(P11PROV_KEY *key);
 CK_SLOT_ID p11prov_key_slotid(P11PROV_KEY *key);
-CK_OBJECT_HANDLE p11prov_key_hanlde(P11PROV_KEY *key);
+CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key);
 
 int find_keys(PROVIDER_CTX *provctx,
               P11PROV_KEY **priv, P11PROV_KEY **pub,

@@ -88,7 +88,7 @@ CK_SLOT_ID p11prov_key_slotid(P11PROV_KEY *key)
     return CK_UNAVAILABLE_INFORMATION;
 }
 
-CK_OBJECT_HANDLE p11prov_key_hanlde(P11PROV_KEY *key)
+CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key)
 {
     if (key) return key->handle;
     return CK_UNAVAILABLE_INFORMATION;
@@ -208,11 +208,6 @@ static int object_fetch_attributes(CK_FUNCTION_LIST *f,
     return ret;
 }
 
-static P11PROV_KEY *find_key(CK_FUNCTION_LIST *f, CK_SLOT_ID slotid,
-                             CK_OBJECT_CLASS class,
-                             const unsigned char *id, size_t id_len,
-                             const char *label);
-
 static int fetch_rsa_key(CK_FUNCTION_LIST *f,
                          CK_OBJECT_CLASS class,
                          CK_SESSION_HANDLE session,
@@ -233,6 +228,10 @@ static int fetch_rsa_key(CK_FUNCTION_LIST *f,
         FA_ASSIGN_ALL(attrs[1], CKA_PUBLIC_EXPONENT, &e, &e_len, true, true);
         ret = object_fetch_attributes(f, session, object, attrs, 2);
         if (ret != CKR_OK) {
+            /* free any allocated memory */
+            OPENSSL_free(n);
+            OPENSSL_free(e);
+
             if (class == CKO_PRIVATE_KEY) {
                 /* A private key may not always return these */
                 return CKR_OK;
@@ -333,6 +332,8 @@ int find_keys(PROVIDER_CTX *provctx,
     P11PROV_KEY *key = NULL;
     int result = CKR_GENERAL_ERROR;
     int ret;
+
+    if (f == NULL) return result;
 
     ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
     if (ret != CKR_OK) {
