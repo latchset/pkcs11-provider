@@ -46,20 +46,30 @@ void p11prov_debug(const char *fmt, ...);
 /* Key Management */
 extern const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[];
 
-/* Object Stores */
-typedef struct p11prov_object P11PROV_OBJECT;
+/* Keys */
 typedef struct p11prov_key P11PROV_KEY;
 
-void p11prov_object_free(P11PROV_OBJECT *obj);
-bool p11prov_object_check_key(P11PROV_OBJECT *obj, bool need_private);
-int p11prov_object_export_public_rsa_key(P11PROV_OBJECT *obj,
-                                         OSSL_CALLBACK *cb_fn, void *cb_arg);
-P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJECT *obj);
-
+P11PROV_KEY *p11prov_key_ref(P11PROV_KEY *key);
 void p11prov_key_free(P11PROV_KEY *key);
 CK_ATTRIBUTE *p11prov_key_attr(P11PROV_KEY *key, CK_ATTRIBUTE_TYPE type);
+CK_KEY_TYPE p11prov_key_type(P11PROV_KEY *key);
 CK_SLOT_ID p11prov_key_slotid(P11PROV_KEY *key);
 CK_OBJECT_HANDLE p11prov_key_hanlde(P11PROV_KEY *key);
+
+int find_keys(PROVIDER_CTX *provctx,
+              P11PROV_KEY **priv, P11PROV_KEY **pub,
+              CK_SLOT_ID slotid, CK_OBJECT_CLASS class,
+              const unsigned char *id, size_t id_len,
+              const char *label);
+
+/* Object Stores */
+typedef struct p11prov_object P11PROV_OBJECT;
+
+void p11prov_object_free(P11PROV_OBJECT *obj);
+bool p11prov_object_check_key(P11PROV_OBJECT *obj, bool priv);
+int p11prov_object_export_public_rsa_key(P11PROV_OBJECT *obj,
+                                         OSSL_CALLBACK *cb_fn, void *cb_arg);
+P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJECT *obj, bool priv);
 
 extern const OSSL_DISPATCH p11prov_object_store_functions[];
 

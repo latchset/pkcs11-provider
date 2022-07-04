@@ -19,7 +19,8 @@ struct p11prov_sig_ctx {
     PROVIDER_CTX *provctx;
     char *properties;
 
-    P11PROV_KEY *key;
+    P11PROV_KEY *priv_key;
+    P11PROV_KEY *pub_key;
 
     int pad_mode;
 };
@@ -49,7 +50,8 @@ static void p11prov_sig_freectx(void *ctx)
 {
     struct p11prov_sig_ctx *sigctx = (struct p11prov_sig_ctx *)ctx;
 
-    p11prov_key_free(sigctx->key);
+    p11prov_key_free(sigctx->priv_key);
+    p11prov_key_free(sigctx->pub_key);
     OPENSSL_free(sigctx->properties);
     OPENSSL_free(sigctx);
 }
@@ -63,9 +65,9 @@ static int p11prov_sig_sign_init(void *ctx, void *provkey,
     p11prov_debug("sign init (ctx=%p, key=%p, params=%p)\n",
                   ctx, provkey, params);
 
-    if (!p11prov_object_check_key(obj, true)) return RET_OSSL_ERR;
-
-    sigctx->key = p11prov_object_get_key(obj);
+    sigctx->priv_key = p11prov_object_get_key(obj, true);
+    if (sigctx->priv_key == NULL) return RET_OSSL_ERR;
+    sigctx->pub_key = p11prov_object_get_key(obj, false);
 
     return p11prov_sig_set_ctx_params(ctx, params);
 }
@@ -82,12 +84,16 @@ static int p11prov_sig_sign(void *ctx, unsigned char *sig,
     CK_SLOT_ID slotid;
     CK_OBJECT_HANDLE handle;
     CK_ULONG sig_size = sigsize;
+    P11PROV_KEY *mod_key;
     int result = RET_OSSL_ERR;
     int ret;
 
     p11prov_debug("sign (ctx=%p)\n", ctx);
 
-    modulus = p11prov_key_attr(sigctx->key, CKA_MODULUS);
+    if (sigctx->pub_key) mod_key = sigctx->pub_key;
+    else mod_key = sigctx->priv_key;
+
+    modulus = p11prov_key_attr(mod_key, CKA_MODULUS);
     if (modulus == NULL) return RET_OSSL_ERR;
 
     if (sig == NULL) {
@@ -104,9 +110,9 @@ static int p11prov_sig_sign(void *ctx, unsigned char *sig,
 
     f = provider_ctx_fns(sigctx->provctx);
     if (f == NULL) return RET_OSSL_ERR;
-    slotid = p11prov_key_slotid(sigctx->key);
+    slotid = p11prov_key_slotid(sigctx->priv_key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
-    handle = p11prov_key_hanlde(sigctx->key);
+    handle = p11prov_key_hanlde(sigctx->priv_key);
     if (handle == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
 
     mechanism.mechanism = CKM_RSA_PKCS;
@@ -152,9 +158,8 @@ static int p11prov_sig_verify_init(void *ctx, void *provkey,
     p11prov_debug("verify init (ctx=%p, key=%p, params=%p)\n",
                   ctx, provkey, params);
 
-    if (!p11prov_object_check_key(obj, false)) return RET_OSSL_ERR;
-
-    sigctx->key = p11prov_object_get_key(obj);
+    sigctx->pub_key = p11prov_object_get_key(obj, false);
+    if (sigctx->pub_key == NULL) return RET_OSSL_ERR;
 
     return p11prov_sig_set_ctx_params(ctx, params);
 }
@@ -176,9 +181,9 @@ static int p11prov_sig_verify(void *ctx, const unsigned char *sig,
 
     f = provider_ctx_fns(sigctx->provctx);
     if (f == NULL) return RET_OSSL_ERR;
-    slotid = p11prov_key_slotid(sigctx->key);
+    slotid = p11prov_key_slotid(sigctx->pub_key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
-    handle = p11prov_key_hanlde(sigctx->key);
+    handle = p11prov_key_hanlde(sigctx->pub_key);
     if (handle == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
 
     mechanism.mechanism = CKM_RSA_PKCS;
