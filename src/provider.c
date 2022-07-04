@@ -385,24 +385,3 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle,
     *provctx = ctx;
     return RET_OSSL_OK;
 }
-
-void p11prov_debug(const char *fmt, ...)
-{
-    static int lazy_init = 0;
-    va_list args;
-
-    if (lazy_init == 0) {
-        char *env = getenv("PKCS11_PROVIDER_DEBUG");
-        if (env) {
-            lazy_init = 1;
-        } else {
-            lazy_init = -1;
-        }
-    }
-    if (lazy_init > 0) {
-        va_start(args, fmt);
-        vfprintf(stderr, fmt, args);
-        va_end(args);
-        fflush(stderr);
-    }
-}

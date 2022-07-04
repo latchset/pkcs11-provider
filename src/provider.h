@@ -41,7 +41,11 @@ struct p11prov_slot {
 CK_FUNCTION_LIST *provider_ctx_fns(PROVIDER_CTX *ctx);
 int provider_ctx_lock_slots(PROVIDER_CTX *ctx, struct p11prov_slot **slots);
 void provider_ctx_unlock_slots(PROVIDER_CTX *ctx, struct p11prov_slot **slots);
+
+/* Debugging */
 void p11prov_debug(const char *fmt, ...);
+void p11prov_debug_mechanism(PROVIDER_CTX *ctx, CK_SLOT_ID slotid,
+                             CK_MECHANISM_TYPE type);
 
 /* Key Management */
 extern const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[];

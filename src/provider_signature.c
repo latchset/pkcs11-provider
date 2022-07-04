@@ -350,6 +350,10 @@ static int p11prov_sig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
             return RET_OSSL_ERR;
         }
         sigctx->mechtype = mechtype;
+
+        p11prov_debug_mechanism(sigctx->provctx,
+                                p11prov_key_slotid(sigctx->pub_key),
+                                sigctx->mechtype);
     }
 
     return RET_OSSL_OK;

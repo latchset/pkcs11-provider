@@ -6,6 +6,7 @@ SHARED_EXT=@SHARED_EXT@
 
 pkcs11prov_la_SOURCES = \
 	provider.c \
+	provider_debug.c \
 	provider_keys.c \
 	provider_store.c \
 	provider_keymgmt.c \
