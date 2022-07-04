@@ -22,7 +22,9 @@ struct p11prov_sig_ctx {
     P11PROV_KEY *priv_key;
     P11PROV_KEY *pub_key;
 
-    int pad_mode;
+    char *digest_name;
+
+    CK_MECHANISM_TYPE mechtype;
 };
 
 static void *p11prov_sig_newctx(void *provctx, const char *properties)
@@ -53,6 +55,7 @@ static void p11prov_sig_freectx(void *ctx)
     p11prov_key_free(sigctx->priv_key);
     p11prov_key_free(sigctx->pub_key);
     OPENSSL_free(sigctx->properties);
+    OPENSSL_free(sigctx->digest_name);
     OPENSSL_free(sigctx);
 }
 
@@ -68,6 +71,9 @@ static int p11prov_sig_sign_init(void *ctx, void *provkey,
     sigctx->priv_key = p11prov_object_get_key(obj, true);
     if (sigctx->priv_key == NULL) return RET_OSSL_ERR;
     sigctx->pub_key = p11prov_object_get_key(obj, false);
+
+    /* PKCS1.5 is the defautl */
+    sigctx->mechtype = CKM_RSA_PKCS;
 
     return p11prov_sig_set_ctx_params(ctx, params);
 }
@@ -115,7 +121,7 @@ static int p11prov_sig_sign(void *ctx, unsigned char *sig,
     handle = p11prov_key_handle(sigctx->priv_key);
     if (handle == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
 
-    mechanism.mechanism = CKM_RSA_PKCS;
+    mechanism.mechanism = sigctx->mechtype;
     mechanism.pParameter = NULL;
     mechanism.ulParameterLen  = 0;
 
@@ -127,6 +133,11 @@ static int p11prov_sig_sign(void *ctx, unsigned char *sig,
 
     ret = f->C_SignInit(session, &mechanism, handle);
     if (ret != CKR_OK) {
+        if (ret == CKR_MECHANISM_INVALID ||
+            ret == CKR_MECHANISM_PARAM_INVALID) {
+            ERR_raise(ERR_LIB_PROV,
+                      PROV_R_ILLEGAL_OR_UNSUPPORTED_PADDING_MODE);
+        }
         p11prov_debug("SignInit failed %d\n", ret);
         goto endsess;
     }
@@ -161,6 +172,9 @@ static int p11prov_sig_verify_init(void *ctx, void *provkey,
     sigctx->pub_key = p11prov_object_get_key(obj, false);
     if (sigctx->pub_key == NULL) return RET_OSSL_ERR;
 
+    /* PKCS1.5 is the defautl */
+    sigctx->mechtype = CKM_RSA_PKCS;
+
     return p11prov_sig_set_ctx_params(ctx, params);
 }
 
@@ -186,7 +200,7 @@ static int p11prov_sig_verify(void *ctx, const unsigned char *sig,
     handle = p11prov_key_handle(sigctx->pub_key);
     if (handle == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
 
-    mechanism.mechanism = CKM_RSA_PKCS;
+    mechanism.mechanism = sigctx->mechtype;
     mechanism.pParameter = NULL;
     mechanism.ulParameterLen  = 0;
 
@@ -198,6 +212,11 @@ static int p11prov_sig_verify(void *ctx, const unsigned char *sig,
 
     ret = f->C_VerifyInit(session, &mechanism, handle);
     if (ret != CKR_OK) {
+        if (ret == CKR_MECHANISM_INVALID ||
+            ret == CKR_MECHANISM_PARAM_INVALID) {
+            ERR_raise(ERR_LIB_PROV,
+                      PROV_R_ILLEGAL_OR_UNSUPPORTED_PADDING_MODE);
+        }
         p11prov_debug("VerifyInit failed %d\n", ret);
         goto endsess;
     }
@@ -219,23 +238,63 @@ endsess:
     return result;
 }
 
-static OSSL_ITEM padding_map[] = {
-    { RSA_PKCS1_PADDING,        OSSL_PKEY_RSA_PAD_MODE_PKCSV15 },
-    { RSA_NO_PADDING,           OSSL_PKEY_RSA_PAD_MODE_NONE },
-    { RSA_X931_PADDING,         OSSL_PKEY_RSA_PAD_MODE_X931 },
-    { RSA_PKCS1_PSS_PADDING,    OSSL_PKEY_RSA_PAD_MODE_PSS },
-    { 0,                        NULL     }
+static struct {
+    CK_MECHANISM_TYPE type;
+    unsigned int ossl_id;
+    const char *string;
+} padding_map[] = {
+    { CKM_RSA_X_509, RSA_NO_PADDING, OSSL_PKEY_RSA_PAD_MODE_NONE },
+    { CKM_RSA_PKCS, RSA_PKCS1_PADDING, OSSL_PKEY_RSA_PAD_MODE_PKCSV15 },
+    { CKM_RSA_PKCS_OAEP, RSA_PKCS1_OAEP_PADDING, OSSL_PKEY_RSA_PAD_MODE_OAEP },
+    { CKM_RSA_X9_31, RSA_X931_PADDING, OSSL_PKEY_RSA_PAD_MODE_X931 },
+    { CKM_RSA_PKCS_PSS, RSA_PKCS1_PSS_PADDING, OSSL_PKEY_RSA_PAD_MODE_PSS },
+    { CK_UNAVAILABLE_INFORMATION, 0, NULL }
 };
 
-static int p11prov_sig_get_ctx_params(void *vprsactx, OSSL_PARAM *params)
+static int p11prov_sig_get_ctx_params(void *ctx, OSSL_PARAM *params)
 {
-    return RET_OSSL_ERR;
+    struct p11prov_sig_ctx *sigctx = (struct p11prov_sig_ctx *)ctx;
+    OSSL_PARAM *p;
+    int ret;
+
+    p11prov_debug("sign get ctx params (ctx=%p, params=%p)\n",
+                  ctx, params);
+
+    if (params == NULL) return RET_OSSL_OK;
+
+    p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_PAD_MODE);
+    if (p) {
+        ret = RET_OSSL_ERR;
+        for (int i = 0; padding_map[i].string != NULL; i++) {
+            if (padding_map[i].type == sigctx->mechtype) {
+                switch (p->data_type) {
+                case OSSL_PARAM_INTEGER:
+                    ret = OSSL_PARAM_set_int(p, padding_map[i].ossl_id);
+                    break;
+                case OSSL_PARAM_UTF8_STRING:
+                    ret = OSSL_PARAM_set_utf8_string(p, padding_map[i].string);
+                    break;
+                }
+                break;
+            }
+        }
+        if (ret != RET_OSSL_OK) return ret;
+    }
+
+    p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_DIGEST);
+    if (p && sigctx->digest_name) {
+        ret = OSSL_PARAM_set_utf8_string(p, sigctx->digest_name);
+        if (ret != RET_OSSL_OK) return ret;
+    }
+
+    return RET_OSSL_OK;
 }
 
 static int p11prov_sig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 {
     struct p11prov_sig_ctx *sigctx = (struct p11prov_sig_ctx *)ctx;
     const OSSL_PARAM *p;
+    int ret;
 
     p11prov_debug("sign set ctx params (ctx=%p, params=%p)\n",
                   ctx, params);
@@ -244,8 +303,6 @@ static int p11prov_sig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     /* possible sig params:
         OSSL_SIGNATURE_PARAM_ALGORITHM_ID
-        OSSL_SIGNATURE_PARAM_PAD_MODE
-        OSSL_SIGNATURE_PARAM_DIGEST
         OSSL_SIGNATURE_PARAM_PROPERTIES
         OSSL_SIGNATURE_PARAM_PSS_SALTLEN
         OSSL_SIGNATURE_PARAM_MGF1_DIGEST
@@ -253,24 +310,46 @@ static int p11prov_sig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         OSSL_SIGNATURE_PARAM_DIGEST_SIZE
      */
 
+    p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_DIGEST);
+    if (p) {
+        ret = OSSL_PARAM_get_utf8_string(p, &sigctx->digest_name, 0);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+
     p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_PAD_MODE);
     if (p) {
-        int pad_mode;
-
+        CK_MECHANISM_TYPE mechtype = CK_UNAVAILABLE_INFORMATION;
         if (p->data_type == OSSL_PARAM_INTEGER) {
+            int pad_mode;
             /* legacy pad mode number */
-            if (!OSSL_PARAM_get_int(p, &pad_mode)) return 0;
-        } else if (p->data_type == OSSL_PARAM_UTF8_STRING) {
-            if (p->data == NULL) return 0;
-            for (int i = 0; padding_map[i].id != 0; i++) {
-                if (strcmp(p->data, padding_map[i].ptr) == 0) {
-                    pad_mode = padding_map[i].id;
+            ret = OSSL_PARAM_get_int(p, &pad_mode);
+            if (ret != RET_OSSL_OK) return ret;
+            for (int i = 0; padding_map[i].string != NULL; i++) {
+                if (padding_map[i].ossl_id == pad_mode) {
+                    mechtype = padding_map[i].type;
                     break;
+                }
+            }
+        } else if (p->data_type == OSSL_PARAM_UTF8_STRING) {
+            if (p->data) {
+                for (int i = 0; padding_map[i].string != NULL; i++) {
+                    if (strcmp(p->data, padding_map[i].string) == 0) {
+                        mechtype = padding_map[i].type;
+                        break;
+                    }
                 }
             }
         } else {
             return RET_OSSL_ERR;
         }
+        if (mechtype == CK_UNAVAILABLE_INFORMATION) {
+            ERR_raise(ERR_LIB_PROV,
+                      PROV_R_ILLEGAL_OR_UNSUPPORTED_PADDING_MODE);
+            return RET_OSSL_ERR;
+        }
+        sigctx->mechtype = mechtype;
     }
 
     return RET_OSSL_OK;
@@ -280,6 +359,7 @@ static const OSSL_PARAM *p11prov_sig_gettable_ctx_params(void *ctx, void *prov)
 {
     static const OSSL_PARAM params[] = {
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_PAD_MODE, NULL, 0),
+        OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_DIGEST, NULL, 0),
         OSSL_PARAM_END
     };
     return params;
@@ -290,6 +370,7 @@ static const OSSL_PARAM *p11prov_sig_settable_ctx_params(void *ctx, void *prov)
     static const OSSL_PARAM params[] = {
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_PAD_MODE, NULL, 0),
         /* TODO: support rsa_padding_mode */
+        OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_DIGEST, NULL, 0),
         OSSL_PARAM_END
     };
     return params;
