@@ -47,9 +47,6 @@ void p11prov_debug(const char *fmt, ...);
 void p11prov_debug_mechanism(PROVIDER_CTX *ctx, CK_SLOT_ID slotid,
                              CK_MECHANISM_TYPE type);
 
-/* Key Management */
-extern const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[];
-
 /* Keys */
 typedef struct p11prov_key P11PROV_KEY;
 
@@ -66,7 +63,7 @@ int find_keys(PROVIDER_CTX *provctx,
               const unsigned char *id, size_t id_len,
               const char *label);
 
-/* Object Stores */
+/* Object Store */
 typedef struct p11prov_object P11PROV_OBJECT;
 
 void p11prov_object_free(P11PROV_OBJECT *obj);
@@ -75,9 +72,27 @@ int p11prov_object_export_public_rsa_key(P11PROV_OBJECT *obj,
                                          OSSL_CALLBACK *cb_fn, void *cb_arg);
 P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJECT *obj, bool priv);
 
-extern const OSSL_DISPATCH p11prov_object_store_functions[];
 
-/* Signatures */
+/* dispatching */
+#define DECL_DISPATCH_FUNC(type, prefix, name) \
+    static OSSL_FUNC_##type##_##name##_fn prefix##_##name
+
+#define DISPATCH_RSAKM_FN(name) \
+    DECL_DISPATCH_FUNC(keymgmt, p11prov_rsakm, name)
+#define DISPATCH_RSAKM_ELEM(NAME, name) \
+    { OSSL_FUNC_KEYMGMT_##NAME, (void(*)(void))p11prov_rsakm_##name }
+extern const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[];
+
+#define DISPATCH_STORE_FN(name) \
+    DECL_DISPATCH_FUNC(store, p11prov_store, name)
+#define DISPATCH_STORE_ELEM(NAME, name) \
+    { OSSL_FUNC_STORE_##NAME, (void(*)(void))p11prov_store_##name }
+extern const OSSL_DISPATCH p11prov_store_functions[];
+
+#define DISPATCH_RSASIG_FN(name) \
+    DECL_DISPATCH_FUNC(signature, p11prov_rsasig, name)
+#define DISPATCH_RSASIG_ELEM(NAME, name) \
+    { OSSL_FUNC_SIGNATURE_##NAME, (void(*)(void))p11prov_rsasig_##name }
 extern const OSSL_DISPATCH p11prov_rsa_signature_functions[];
 
 #endif /* _PROVIDER_H */

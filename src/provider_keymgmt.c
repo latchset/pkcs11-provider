@@ -2,50 +2,52 @@
 
 #include "provider.h"
 
-static OSSL_FUNC_keymgmt_new_fn p11prov_rsa_new;
-static OSSL_FUNC_keymgmt_gen_init_fn p11prov_rsa_gen_init;
-static OSSL_FUNC_keymgmt_gen_fn p11prov_rsa_gen;
-static OSSL_FUNC_keymgmt_gen_cleanup_fn p11prov_rsa_gen_cleanup;
-static OSSL_FUNC_keymgmt_load_fn p11prov_rsa_load;
-static OSSL_FUNC_keymgmt_free_fn p11prov_rsa_free;
-static OSSL_FUNC_keymgmt_has_fn p11prov_rsa_has;
-static OSSL_FUNC_keymgmt_import_fn p11prov_rsa_import;
-static OSSL_FUNC_keymgmt_import_types_fn p11prov_rsa_import_types;
-static OSSL_FUNC_keymgmt_export_fn p11prov_rsa_export;
-static OSSL_FUNC_keymgmt_export_types_fn p11prov_rsa_export_types;
-static OSSL_FUNC_keymgmt_query_operation_name_fn p11prov_rsa_query_operation_name;
-static OSSL_FUNC_keymgmt_get_params_fn p11prov_rsa_get_params;
+DISPATCH_RSAKM_FN(new);
+DISPATCH_RSAKM_FN(gen_init);
+DISPATCH_RSAKM_FN(gen);
+DISPATCH_RSAKM_FN(gen_cleanup);
+DISPATCH_RSAKM_FN(load);
+DISPATCH_RSAKM_FN(free);
+DISPATCH_RSAKM_FN(has);
+DISPATCH_RSAKM_FN(import);
+DISPATCH_RSAKM_FN(import_types);
+DISPATCH_RSAKM_FN(export);
+DISPATCH_RSAKM_FN(export_types);
+DISPATCH_RSAKM_FN(query_operation_name);
+DISPATCH_RSAKM_FN(get_params);
+DISPATCH_RSAKM_FN(gettable_params);
 
-static void *p11prov_rsa_new(void *provctx)
+static void *p11prov_rsakm_new(void *provctx)
 {
     p11prov_debug("new\n");
     return NULL;
 }
 
-static void *p11prov_rsa_gen_init(void *provctx, int selection,
-                          const OSSL_PARAM params[])
+static void *p11prov_rsakm_gen_init(void *provctx, int selection,
+                                    const OSSL_PARAM params[])
 {
     p11prov_debug("gen_init\n");
     return NULL;
 }
 
-static void *p11prov_rsa_gen(void *genctx, OSSL_CALLBACK *osslcb, void *cbarg)
+static void *p11prov_rsakm_gen(void *genctx,
+                               OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
-    p11prov_debug("gen %p %p %p\n", genctx, osslcb, cbarg);
+    p11prov_debug("gen %p %p %p\n", genctx, cb_fn, cb_arg);
     return NULL;
 }
-static void p11prov_rsa_gen_cleanup(void *genctx)
+static void p11prov_rsakm_gen_cleanup(void *genctx)
 {
     p11prov_debug("gen_cleanup %p\n", genctx);
 }
 
-static void p11prov_rsa_free(void *key)
+static void p11prov_rsakm_free(void *key)
 {
     p11prov_debug("free %p\n", key);
     p11prov_object_free((P11PROV_OBJECT *)key);
 }
 
-static void *p11prov_rsa_load(const void *reference, size_t reference_sz)
+static void *p11prov_rsakm_load(const void *reference, size_t reference_sz)
 {
     P11PROV_OBJECT *obj = NULL;
 
@@ -60,7 +62,7 @@ static void *p11prov_rsa_load(const void *reference, size_t reference_sz)
     return obj;
 }
 
-static int p11prov_rsa_has(const void *keydata, int selection)
+static int p11prov_rsakm_has(const void *keydata, int selection)
 {
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)keydata;
 
@@ -79,15 +81,15 @@ static int p11prov_rsa_has(const void *keydata, int selection)
     return 1;
 }
 
-static int p11prov_rsa_import(void *keydata, int selection,
-                              const OSSL_PARAM params[])
+static int p11prov_rsakm_import(void *keydata, int selection,
+                                const OSSL_PARAM params[])
 {
     p11prov_debug("import %p\n", keydata);
     return 0;
 }
 
-static int p11prov_rsa_export(void *keydata, int selection,
-                      OSSL_CALLBACK *cb_fn, void *cb_arg)
+static int p11prov_rsakm_export(void *keydata, int selection,
+                                OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)keydata;
 
@@ -102,29 +104,29 @@ static int p11prov_rsa_export(void *keydata, int selection,
     return 0;
 }
 
-static const OSSL_PARAM p11prov_rsa_key_types[] = {
+static const OSSL_PARAM p11prov_rsakm_key_types[] = {
     OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_N, NULL, 0),
     OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_E, NULL, 0),
     OSSL_PARAM_END
 };
 
-static const OSSL_PARAM *p11prov_rsa_import_types(int selection)
+static const OSSL_PARAM *p11prov_rsakm_import_types(int selection)
 {
     p11prov_debug("import types\n");
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY)
-        return p11prov_rsa_key_types;
+        return p11prov_rsakm_key_types;
     return NULL;
 }
 
-static const OSSL_PARAM *p11prov_rsa_export_types(int selection)
+static const OSSL_PARAM *p11prov_rsakm_export_types(int selection)
 {
     p11prov_debug("export types\n");
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY)
-        return p11prov_rsa_key_types;
+        return p11prov_rsakm_key_types;
     return NULL;
 }
 
-static const char *p11prov_rsa_query_operation_name(int operation_id)
+static const char *p11prov_rsakm_query_operation_name(int operation_id)
 {
     switch (operation_id) {
     case OSSL_OP_SIGNATURE:
@@ -134,7 +136,7 @@ static const char *p11prov_rsa_query_operation_name(int operation_id)
     }
 }
 
-static int p11prov_rsa_secbits(int bits)
+static int p11prov_rsakm_secbits(int bits)
 {
     /* common values from various NIST documents */
     switch (bits) {
@@ -166,7 +168,7 @@ static int p11prov_rsa_secbits(int bits)
     if (bits < 2048) return 0;
 }
 
-static int p11prov_rsa_get_params(void *keydata, OSSL_PARAM params[])
+static int p11prov_rsakm_get_params(void *keydata, OSSL_PARAM params[])
 {
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)keydata;
     CK_ATTRIBUTE *modulus;
@@ -199,7 +201,7 @@ static int p11prov_rsa_get_params(void *keydata, OSSL_PARAM params[])
     p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_SECURITY_BITS);
     if (p) {
         /* TODO: as above, plus use log() for intermediate values */
-        int secbits = p11prov_rsa_secbits(modulus->ulValueLen * 8);
+        int secbits = p11prov_rsakm_secbits(modulus->ulValueLen * 8);
         ret = OSSL_PARAM_set_int(p, secbits);
         if (ret != RET_OSSL_OK) goto done;
     }
@@ -215,7 +217,7 @@ done:
     return ret;
 }
 
-static const OSSL_PARAM *p11prov_rsa_gettable_params(void *provctx)
+static const OSSL_PARAM *p11prov_rsakm_gettable_params(void *provctx)
 {
     static const OSSL_PARAM params[] = {
         OSSL_PARAM_int(OSSL_PKEY_PARAM_BITS, NULL),
@@ -231,21 +233,19 @@ static const OSSL_PARAM *p11prov_rsa_gettable_params(void *provctx)
 
 
 const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[] = {
-    { OSSL_FUNC_KEYMGMT_NEW, (void (*)(void))p11prov_rsa_new },
-    { OSSL_FUNC_KEYMGMT_GEN_INIT, (void (*)(void))p11prov_rsa_gen_init },
-    { OSSL_FUNC_KEYMGMT_GEN, (void (*)(void))p11prov_rsa_gen },
-    { OSSL_FUNC_KEYMGMT_GEN_CLEANUP, (void (*)(void))p11prov_rsa_gen_cleanup },
-    { OSSL_FUNC_KEYMGMT_LOAD, (void (*)(void))p11prov_rsa_load },
-    { OSSL_FUNC_KEYMGMT_FREE, (void (*)(void))p11prov_rsa_free },
-    { OSSL_FUNC_KEYMGMT_HAS, (void (*)(void))p11prov_rsa_has },
-    { OSSL_FUNC_KEYMGMT_IMPORT, (void (*)(void))p11prov_rsa_import },
-    { OSSL_FUNC_KEYMGMT_IMPORT_TYPES, (void (*)(void))p11prov_rsa_import_types },
-    { OSSL_FUNC_KEYMGMT_EXPORT, (void (*)(void))p11prov_rsa_export },
-    { OSSL_FUNC_KEYMGMT_EXPORT_TYPES, (void (*)(void))p11prov_rsa_export_types },
-    { OSSL_FUNC_KEYMGMT_QUERY_OPERATION_NAME,
-        (void(*)(void))p11prov_rsa_query_operation_name },
-    { OSSL_FUNC_KEYMGMT_GET_PARAMS, (void (*) (void))p11prov_rsa_get_params },
-    { OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS,
-        (void (*) (void))p11prov_rsa_gettable_params },
+    DISPATCH_RSAKM_ELEM(NEW, new),
+    DISPATCH_RSAKM_ELEM(GEN_INIT, gen_init),
+    DISPATCH_RSAKM_ELEM(GEN, gen),
+    DISPATCH_RSAKM_ELEM(GEN_CLEANUP, gen_cleanup),
+    DISPATCH_RSAKM_ELEM(LOAD, load),
+    DISPATCH_RSAKM_ELEM(FREE, free),
+    DISPATCH_RSAKM_ELEM(HAS, has),
+    DISPATCH_RSAKM_ELEM(IMPORT, import),
+    DISPATCH_RSAKM_ELEM(IMPORT_TYPES, import_types),
+    DISPATCH_RSAKM_ELEM(EXPORT, export),
+    DISPATCH_RSAKM_ELEM(EXPORT_TYPES, export_types),
+    DISPATCH_RSAKM_ELEM(QUERY_OPERATION_NAME, query_operation_name),
+    DISPATCH_RSAKM_ELEM(GET_PARAMS, get_params),
+    DISPATCH_RSAKM_ELEM(GETTABLE_PARAMS, gettable_params),
     { 0, NULL }
 };

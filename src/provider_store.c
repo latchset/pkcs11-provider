@@ -329,14 +329,14 @@ done:
     return ret;
 }
 
-static OSSL_FUNC_store_open_fn p11prov_object_open;
-static OSSL_FUNC_store_attach_fn p11prov_object_attach;
-static OSSL_FUNC_store_load_fn p11prov_object_load;
-static OSSL_FUNC_store_eof_fn p11prov_object_eof;
-static OSSL_FUNC_store_close_fn p11prov_object_close;
-static OSSL_FUNC_store_export_object_fn p11prov_object_export;
+DISPATCH_STORE_FN(open);
+DISPATCH_STORE_FN(attach);
+DISPATCH_STORE_FN(load);
+DISPATCH_STORE_FN(eof);
+DISPATCH_STORE_FN(close);
+DISPATCH_STORE_FN(export_object);
 
-static void *p11prov_object_open(void *provctx, const char *uri)
+static void *p11prov_store_open(void *provctx, const char *uri)
 {
     PROVIDER_CTX *ctx = (PROVIDER_CTX *)provctx;
     P11PROV_OBJECT *obj;
@@ -365,7 +365,7 @@ static void *p11prov_object_open(void *provctx, const char *uri)
     return obj;
 }
 
-static void *p11prov_object_attach(void *provctx, OSSL_CORE_BIO *in)
+static void *p11prov_store_attach(void *provctx, OSSL_CORE_BIO *in)
 {
     PROVIDER_CTX *ctx = (PROVIDER_CTX *)provctx;
 
@@ -374,9 +374,9 @@ static void *p11prov_object_attach(void *provctx, OSSL_CORE_BIO *in)
     return NULL;
 }
 
-static int p11prov_object_load(void *ctx,
-                               OSSL_CALLBACK *object_cb, void *object_cbarg,
-                               OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
+static int p11prov_store_load(void *ctx,
+                              OSSL_CALLBACK *object_cb, void *object_cbarg,
+                              OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
 {
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)ctx;
     struct p11prov_slot *slots = NULL;
@@ -477,7 +477,7 @@ static int p11prov_object_load(void *ctx,
     return RET_OSSL_ERR;
 }
 
-static int p11prov_object_eof(void *ctx)
+static int p11prov_store_eof(void *ctx)
 {
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)ctx;
 
@@ -486,7 +486,7 @@ static int p11prov_object_eof(void *ctx)
     return obj->loaded?1:0;
 }
 
-static int p11prov_object_close(void *ctx)
+static int p11prov_store_close(void *ctx)
 {
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)ctx;
 
@@ -498,16 +498,19 @@ static int p11prov_object_close(void *ctx)
     return 1;
 }
 
-static int p11prov_set_ctx_params(void *loaderctx, const OSSL_PARAM params[])
+static int p11prov_store_set_ctx_params(void *loaderctx,
+                                        const OSSL_PARAM params[])
 {
     p11prov_debug("set ctx params (%p, %p)\n", loaderctx, params);
 
     return 1;
 }
 
-static int p11prov_object_export(void *loaderctx, const void *reference,
-                                 size_t reference_sz, OSSL_CALLBACK *cb_fn,
-                                 void *cb_arg)
+static int p11prov_store_export_object(void *loaderctx,
+                                       const void *reference,
+                                       size_t reference_sz,
+                                       OSSL_CALLBACK *cb_fn,
+                                       void *cb_arg)
 {
     P11PROV_OBJECT *obj = NULL;
 
@@ -523,15 +526,14 @@ static int p11prov_object_export(void *loaderctx, const void *reference,
     return p11prov_object_export_public_rsa_key(obj, cb_fn, cb_arg);
 }
 
-
-const OSSL_DISPATCH p11prov_object_store_functions[] = {
-    { OSSL_FUNC_STORE_OPEN, (void(*)(void))p11prov_object_open },
-    { OSSL_FUNC_STORE_ATTACH, (void(*)(void))p11prov_object_attach },
-    { OSSL_FUNC_STORE_LOAD, (void(*)(void))p11prov_object_load },
-    { OSSL_FUNC_STORE_EOF, (void(*)(void))p11prov_object_eof },
-    { OSSL_FUNC_STORE_CLOSE, (void(*)(void))p11prov_object_close },
-    { OSSL_FUNC_STORE_SET_CTX_PARAMS, (void(*)(void))p11prov_set_ctx_params },
-    { OSSL_FUNC_STORE_EXPORT_OBJECT, (void(*)(void))p11prov_object_export },
+const OSSL_DISPATCH p11prov_store_functions[] = {
+    DISPATCH_STORE_ELEM(OPEN, open),
+    DISPATCH_STORE_ELEM(ATTACH, attach),
+    DISPATCH_STORE_ELEM(LOAD, load),
+    DISPATCH_STORE_ELEM(EOF, eof),
+    DISPATCH_STORE_ELEM(CLOSE, close),
+    DISPATCH_STORE_ELEM(SET_CTX_PARAMS, set_ctx_params),
+    DISPATCH_STORE_ELEM(EXPORT_OBJECT, export_object),
     { 0, NULL }
 };
 

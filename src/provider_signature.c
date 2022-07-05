@@ -4,18 +4,18 @@
 #include <string.h>
 #include "openssl/rsa.h"
 
-static OSSL_FUNC_signature_newctx_fn p11prov_sig_newctx;
-static OSSL_FUNC_signature_freectx_fn p11prov_sig_freectx;
-static OSSL_FUNC_signature_sign_init_fn p11prov_sig_sign_init;
-static OSSL_FUNC_signature_sign_fn p11prov_sig_sign;
-static OSSL_FUNC_signature_verify_init_fn p11prov_sig_verify_init;
-static OSSL_FUNC_signature_verify_fn p11prov_sig_verify;
-static OSSL_FUNC_signature_get_ctx_params_fn p11prov_sig_get_ctx_params;
-static OSSL_FUNC_signature_set_ctx_params_fn p11prov_sig_set_ctx_params;
-static OSSL_FUNC_signature_gettable_ctx_params_fn p11prov_sig_gettable_ctx_params;
-static OSSL_FUNC_signature_settable_ctx_params_fn p11prov_sig_settable_ctx_params;
+DISPATCH_RSASIG_FN(newctx);
+DISPATCH_RSASIG_FN(freectx);
+DISPATCH_RSASIG_FN(sign_init);
+DISPATCH_RSASIG_FN(sign);
+DISPATCH_RSASIG_FN(verify_init);
+DISPATCH_RSASIG_FN(verify);
+DISPATCH_RSASIG_FN(get_ctx_params);
+DISPATCH_RSASIG_FN(set_ctx_params);
+DISPATCH_RSASIG_FN(gettable_ctx_params);
+DISPATCH_RSASIG_FN(settable_ctx_params);
 
-struct p11prov_sig_ctx {
+struct p11prov_rsasig_ctx {
     PROVIDER_CTX *provctx;
     char *properties;
 
@@ -27,12 +27,12 @@ struct p11prov_sig_ctx {
     CK_MECHANISM_TYPE mechtype;
 };
 
-static void *p11prov_sig_newctx(void *provctx, const char *properties)
+static void *p11prov_rsasig_newctx(void *provctx, const char *properties)
 {
     PROVIDER_CTX *ctx = (PROVIDER_CTX *)provctx;
-    struct p11prov_sig_ctx *sigctx;
+    struct p11prov_rsasig_ctx *sigctx;
 
-    sigctx = OPENSSL_zalloc(sizeof(struct p11prov_sig_ctx));
+    sigctx = OPENSSL_zalloc(sizeof(struct p11prov_rsasig_ctx));
     if (sigctx == NULL) return NULL;
 
     sigctx->provctx = ctx;
@@ -48,9 +48,9 @@ static void *p11prov_sig_newctx(void *provctx, const char *properties)
     return sigctx;
 }
 
-static void p11prov_sig_freectx(void *ctx)
+static void p11prov_rsasig_freectx(void *ctx)
 {
-    struct p11prov_sig_ctx *sigctx = (struct p11prov_sig_ctx *)ctx;
+    struct p11prov_rsasig_ctx *sigctx = (struct p11prov_rsasig_ctx *)ctx;
 
     p11prov_key_free(sigctx->priv_key);
     p11prov_key_free(sigctx->pub_key);
@@ -59,10 +59,10 @@ static void p11prov_sig_freectx(void *ctx)
     OPENSSL_free(sigctx);
 }
 
-static int p11prov_sig_sign_init(void *ctx, void *provkey,
-                                 const OSSL_PARAM params[])
+static int p11prov_rsasig_sign_init(void *ctx, void *provkey,
+                                    const OSSL_PARAM params[])
 {
-    struct p11prov_sig_ctx *sigctx = (struct p11prov_sig_ctx *)ctx;
+    struct p11prov_rsasig_ctx *sigctx = (struct p11prov_rsasig_ctx *)ctx;
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)provkey;
 
     p11prov_debug("sign init (ctx=%p, key=%p, params=%p)\n",
@@ -75,14 +75,14 @@ static int p11prov_sig_sign_init(void *ctx, void *provkey,
     /* PKCS1.5 is the defautl */
     sigctx->mechtype = CKM_RSA_PKCS;
 
-    return p11prov_sig_set_ctx_params(ctx, params);
+    return p11prov_rsasig_set_ctx_params(ctx, params);
 }
 
-static int p11prov_sig_sign(void *ctx, unsigned char *sig,
-                            size_t *siglen, size_t sigsize,
-                            const unsigned char *tbs, size_t tbslen)
+static int p11prov_rsasig_sign(void *ctx, unsigned char *sig,
+                               size_t *siglen, size_t sigsize,
+                               const unsigned char *tbs, size_t tbslen)
 {
-    struct p11prov_sig_ctx *sigctx = (struct p11prov_sig_ctx *)ctx;
+    struct p11prov_rsasig_ctx *sigctx = (struct p11prov_rsasig_ctx *)ctx;
     CK_FUNCTION_LIST *f;
     CK_MECHANISM mechanism;
     CK_SESSION_HANDLE session;
@@ -160,10 +160,10 @@ endsess:
     return result;
 }
 
-static int p11prov_sig_verify_init(void *ctx, void *provkey,
-                                   const OSSL_PARAM params[])
+static int p11prov_rsasig_verify_init(void *ctx, void *provkey,
+                                      const OSSL_PARAM params[])
 {
-    struct p11prov_sig_ctx *sigctx = (struct p11prov_sig_ctx *)ctx;
+    struct p11prov_rsasig_ctx *sigctx = (struct p11prov_rsasig_ctx *)ctx;
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)provkey;
 
     p11prov_debug("verify init (ctx=%p, key=%p, params=%p)\n",
@@ -175,14 +175,14 @@ static int p11prov_sig_verify_init(void *ctx, void *provkey,
     /* PKCS1.5 is the defautl */
     sigctx->mechtype = CKM_RSA_PKCS;
 
-    return p11prov_sig_set_ctx_params(ctx, params);
+    return p11prov_rsasig_set_ctx_params(ctx, params);
 }
 
-static int p11prov_sig_verify(void *ctx, const unsigned char *sig,
-                              size_t siglen, const unsigned char *tbs,
-                              size_t tbslen)
+static int p11prov_rsasig_verify(void *ctx, const unsigned char *sig,
+                                 size_t siglen, const unsigned char *tbs,
+                                 size_t tbslen)
 {
-    struct p11prov_sig_ctx *sigctx = (struct p11prov_sig_ctx *)ctx;
+    struct p11prov_rsasig_ctx *sigctx = (struct p11prov_rsasig_ctx *)ctx;
     CK_FUNCTION_LIST *f;
     CK_MECHANISM mechanism;
     CK_SESSION_HANDLE session;
@@ -251,9 +251,9 @@ static struct {
     { CK_UNAVAILABLE_INFORMATION, 0, NULL }
 };
 
-static int p11prov_sig_get_ctx_params(void *ctx, OSSL_PARAM *params)
+static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
 {
-    struct p11prov_sig_ctx *sigctx = (struct p11prov_sig_ctx *)ctx;
+    struct p11prov_rsasig_ctx *sigctx = (struct p11prov_rsasig_ctx *)ctx;
     OSSL_PARAM *p;
     int ret;
 
@@ -290,9 +290,9 @@ static int p11prov_sig_get_ctx_params(void *ctx, OSSL_PARAM *params)
     return RET_OSSL_OK;
 }
 
-static int p11prov_sig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
+static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 {
-    struct p11prov_sig_ctx *sigctx = (struct p11prov_sig_ctx *)ctx;
+    struct p11prov_rsasig_ctx *sigctx = (struct p11prov_rsasig_ctx *)ctx;
     const OSSL_PARAM *p;
     int ret;
 
@@ -359,7 +359,8 @@ static int p11prov_sig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     return RET_OSSL_OK;
 }
 
-static const OSSL_PARAM *p11prov_sig_gettable_ctx_params(void *ctx, void *prov)
+static const OSSL_PARAM *p11prov_rsasig_gettable_ctx_params(void *ctx,
+                                                            void *prov)
 {
     static const OSSL_PARAM params[] = {
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_PAD_MODE, NULL, 0),
@@ -369,7 +370,8 @@ static const OSSL_PARAM *p11prov_sig_gettable_ctx_params(void *ctx, void *prov)
     return params;
 }
 
-static const OSSL_PARAM *p11prov_sig_settable_ctx_params(void *ctx, void *prov)
+static const OSSL_PARAM *p11prov_rsasig_settable_ctx_params(void *ctx,
+                                                            void *prov)
 {
     static const OSSL_PARAM params[] = {
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_PAD_MODE, NULL, 0),
@@ -380,29 +382,17 @@ static const OSSL_PARAM *p11prov_sig_settable_ctx_params(void *ctx, void *prov)
     return params;
 }
 
-
-
 const OSSL_DISPATCH p11prov_rsa_signature_functions[] = {
-    { OSSL_FUNC_SIGNATURE_NEWCTX,
-        (void (*)(void))p11prov_sig_newctx },
-    { OSSL_FUNC_SIGNATURE_FREECTX,
-        (void (*)(void))p11prov_sig_freectx },
-    { OSSL_FUNC_SIGNATURE_SIGN_INIT,
-        (void (*)(void))p11prov_sig_sign_init },
-    { OSSL_FUNC_SIGNATURE_SIGN,
-        (void (*)(void))p11prov_sig_sign },
-    { OSSL_FUNC_SIGNATURE_VERIFY_INIT,
-        (void (*)(void))p11prov_sig_verify_init },
-    { OSSL_FUNC_SIGNATURE_VERIFY,
-        (void (*)(void))p11prov_sig_verify },
-    { OSSL_FUNC_SIGNATURE_GET_CTX_PARAMS,
-        (void (*)(void))p11prov_sig_get_ctx_params },
-    { OSSL_FUNC_SIGNATURE_GETTABLE_CTX_PARAMS,
-        (void (*)(void))p11prov_sig_gettable_ctx_params },
-    { OSSL_FUNC_SIGNATURE_SET_CTX_PARAMS,
-        (void (*)(void))p11prov_sig_set_ctx_params },
-    { OSSL_FUNC_SIGNATURE_SETTABLE_CTX_PARAMS,
-        (void (*)(void))p11prov_sig_settable_ctx_params },
+    DISPATCH_RSASIG_ELEM(NEWCTX, newctx),
+    DISPATCH_RSASIG_ELEM(FREECTX, freectx),
+    DISPATCH_RSASIG_ELEM(SIGN_INIT, sign_init),
+    DISPATCH_RSASIG_ELEM(SIGN, sign),
+    DISPATCH_RSASIG_ELEM(VERIFY_INIT, verify_init),
+    DISPATCH_RSASIG_ELEM(VERIFY, verify),
+    DISPATCH_RSASIG_ELEM(GET_CTX_PARAMS, get_ctx_params),
+    DISPATCH_RSASIG_ELEM(GETTABLE_CTX_PARAMS, gettable_ctx_params),
+    DISPATCH_RSASIG_ELEM(SET_CTX_PARAMS, set_ctx_params),
+    DISPATCH_RSASIG_ELEM(SETTABLE_CTX_PARAMS, settable_ctx_params),
     { 0, NULL }
 };
 
