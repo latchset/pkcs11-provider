@@ -23,6 +23,8 @@ struct p11prov_object {
     struct p11prov_key *priv_key;
     struct p11prov_key *pub_key;
 
+    CK_SESSION_HANDLE login_session;
+
     int refcnt;
 };
 
@@ -60,6 +62,13 @@ void p11prov_object_free(P11PROV_OBJECT *obj)
     if (__atomic_sub_fetch(&obj->refcnt, 1, __ATOMIC_ACQ_REL) != 0) {
         p11prov_debug("object free: reference held\n");
         return;
+    }
+
+    if (obj->login_session != CK_INVALID_HANDLE) {
+        CK_FUNCTION_LIST_PTR f = provider_ctx_fns(obj->provctx);
+        if (f) {
+            (void)f->C_CloseSession(obj->login_session);
+        }
     }
 
     p11prov_uri_free(obj->parsed_uri);
@@ -410,8 +419,32 @@ static int p11prov_store_load(void *ctx,
             strncmp(obj->parsed_uri->serial, token.serialNumber, 16) != 0)
             continue;
 
-        /* FIXME: handle login required */
-        if (token.flags & CKF_LOGIN_REQUIRED) continue;
+        if (token.flags & CKF_LOGIN_REQUIRED) {
+            CK_FUNCTION_LIST *f = provider_ctx_fns(obj->provctx);
+            CK_UTF8CHAR_PTR pin = obj->parsed_uri->pin;
+            CK_ULONG pinlen = 0;
+            int ret;
+
+            if (f == NULL) return RET_OSSL_ERR;
+            if (pin) pinlen = strlen(pin);
+
+            if (obj->login_session == CK_INVALID_HANDLE) {
+                ret = f->C_OpenSession(slots[i].id, CKF_SERIAL_SESSION, NULL,
+                                       NULL, &obj->login_session);
+                if (ret != CKR_OK) {
+                    p11prov_debug("OpenSession failed %d\n", ret);
+                    /* TODO: Err message */
+                    continue;
+                }
+            }
+
+            /* Supports only USER login sessions for now */
+            ret = f->C_Login(obj->login_session, CKU_USER, pin, pinlen);
+            if (ret && ret != CKR_USER_ALREADY_LOGGED_IN) {
+                p11prov_debug("C_Login failed (%d)\n", ret);
+                continue;
+            }
+        }
 
         /* match class */
         if (obj->parsed_uri->class == CKO_CERTIFICATE) {
