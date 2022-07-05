@@ -91,7 +91,7 @@ CK_SLOT_ID p11prov_key_slotid(P11PROV_KEY *key)
 CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key)
 {
     if (key) return key->handle;
-    return CK_UNAVAILABLE_INFORMATION;
+    return CK_INVALID_HANDLE;
 }
 
 struct fetch_attrs {
