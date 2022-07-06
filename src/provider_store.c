@@ -1,6 +1,7 @@
 /* Copyright (c) 2022 Simo Sorce <simo@redhat.com> - see COPYING */
 
 #include "provider.h"
+#include <endian.h>
 #include <string.h>
 
 struct p11prov_uri {
@@ -94,6 +95,37 @@ P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJECT *obj, bool priv)
     return p11prov_key_ref(obj->pub_key);
 }
 
+/* Tokens return data in bigendian order, while openssl
+ * wants it in host order, so we may need to fix the
+ * endianess of the buffer.
+ * Src and Dest, can be the same area, but not partially
+ * overlapping memory areas */
+static void endianfix(unsigned char *src, unsigned char *dest, size_t len)
+{
+    int s = 0;
+    int e = len - 1;
+    unsigned char sb;
+    unsigned char eb;
+
+    while (e >= s) {
+        sb = src[s];
+        eb = src[e];
+        dest[s] = eb;
+        dest[e] = sb;
+        s++;
+        e--;
+    }
+}
+
+#if BYTE_ORDER == LITTLE_ENDIAN
+#define WITH_FIXED_BUFFER(src, ptr) \
+    unsigned char fixn[src->ulValueLen]; \
+    endianfix(src->pValue, fixn, src->ulValueLen); \
+    ptr = fixn;
+#else
+#define WITH_FIXED_BUFFER(src, ptr) \
+    ptr = src->pValue;
+#endif
 int p11prov_object_export_public_rsa_key(P11PROV_OBJECT *obj,
                                          OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
@@ -106,15 +138,21 @@ int p11prov_object_export_public_rsa_key(P11PROV_OBJECT *obj,
 
     n = p11prov_key_attr(obj->pub_key, CKA_MODULUS);
     if (n == NULL) return RET_OSSL_ERR;
-    params[0] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N,
-                                        n->pValue,
-                                        n->ulValueLen);
+    else {
+        unsigned char *val;
+        WITH_FIXED_BUFFER(n, val);
+        params[0] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N,
+                                            val, n->ulValueLen);
+    }
 
     e = p11prov_key_attr(obj->pub_key, CKA_PUBLIC_EXPONENT);
     if (e == NULL) return RET_OSSL_ERR;
-    params[1] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_E,
-                                        e->pValue,
-                                        e->ulValueLen);
+    else {
+        unsigned char *val;
+        WITH_FIXED_BUFFER(e, val);
+        params[1] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_E,
+                                            val, e->ulValueLen);
+    }
 
     params[2] = OSSL_PARAM_construct_end();
 
