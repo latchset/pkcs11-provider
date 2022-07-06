@@ -56,11 +56,18 @@ for (( i=0; i<${#KEYID}; i+=2 )); do
     line=`echo "${KEYID:$i:2}"`
     URIKEYID="$URIKEYID%$line"
 done
-echo "KEY ID: ${KEYID} URI ID: ${URIKEYID}"
 
 PUBURI="pkcs11:type=public;id=${URIKEYID};pin-value=${PINVALUE}"
+PRIURI="pkcs11:type=private;id=${URIKEYID};pin-value=${PINVALUE}"
+echo "PKCS11 URI: ${PUBURI}"
 
 echo "Export Public key to a file"
 openssl pkey -in $PUBURI -pubin -pubout -out ${TSTCRT}.pub
+
+echo "Sign and Verify with provided Hash"
+openssl dgst -sha256 -binary ${SEEDFILE} > ${TMPDIR}/sha256.bin
+openssl pkeyutl -sign -in ${TMPDIR}/sha256.bin -out ${TMPDIR}/sha256-sig.bin -inkey "${PRIURI}"
+openssl pkeyutl -verify -in ${TMPDIR}/sha256.bin -sigfile ${TMPDIR}/sha256-sig.bin -inkey "${PRIURI}"
+openssl pkeyutl -verify -in ${TMPDIR}/sha256.bin -sigfile ${TMPDIR}/sha256-sig.bin -pubin -inkey "${PUBURI}"
 
 exit 0

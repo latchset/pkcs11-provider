@@ -119,9 +119,9 @@ static void endianfix(unsigned char *src, unsigned char *dest, size_t len)
 
 #if BYTE_ORDER == LITTLE_ENDIAN
 #define WITH_FIXED_BUFFER(src, ptr) \
-    unsigned char fixn[src->ulValueLen]; \
-    endianfix(src->pValue, fixn, src->ulValueLen); \
-    ptr = fixn;
+    unsigned char fix_##src[src->ulValueLen]; \
+    endianfix(src->pValue, fix_##src, src->ulValueLen); \
+    ptr = fix_##src;
 #else
 #define WITH_FIXED_BUFFER(src, ptr) \
     ptr = src->pValue;
@@ -131,6 +131,7 @@ int p11prov_object_export_public_rsa_key(P11PROV_OBJECT *obj,
 {
     OSSL_PARAM params[3];
     CK_ATTRIBUTE *n, *e;
+    unsigned char *val;
     int pidx = 0;
     int ret = 0;
 
@@ -138,21 +139,17 @@ int p11prov_object_export_public_rsa_key(P11PROV_OBJECT *obj,
 
     n = p11prov_key_attr(obj->pub_key, CKA_MODULUS);
     if (n == NULL) return RET_OSSL_ERR;
-    else {
-        unsigned char *val;
-        WITH_FIXED_BUFFER(n, val);
-        params[0] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N,
-                                            val, n->ulValueLen);
-    }
+
+    WITH_FIXED_BUFFER(n, val);
+    params[0] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N,
+                                        val, n->ulValueLen);
 
     e = p11prov_key_attr(obj->pub_key, CKA_PUBLIC_EXPONENT);
     if (e == NULL) return RET_OSSL_ERR;
-    else {
-        unsigned char *val;
-        WITH_FIXED_BUFFER(e, val);
-        params[1] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_E,
-                                            val, e->ulValueLen);
-    }
+
+    WITH_FIXED_BUFFER(e, val);
+    params[1] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_E,
+                                        val, e->ulValueLen);
 
     params[2] = OSSL_PARAM_construct_end();
 
