@@ -1,6 +1,7 @@
 /* Copyright (c) 2022 Simo Sorce <simo@redhat.com> - see COPYING */
 
 #include "provider.h"
+#include <openssl/store.h>
 #include <endian.h>
 #include <string.h>
 
@@ -19,6 +20,9 @@ struct p11prov_uri {
 struct p11prov_object {
     PROVIDER_CTX *provctx;
     struct p11prov_uri *parsed_uri;
+    char *set_properties;
+    char *set_input_type;
+    int expected_type;
     int loaded;
 
     struct p11prov_key *priv_key;
@@ -379,6 +383,8 @@ DISPATCH_STORE_FN(load);
 DISPATCH_STORE_FN(eof);
 DISPATCH_STORE_FN(close);
 DISPATCH_STORE_FN(export_object);
+DISPATCH_STORE_FN(set_ctx_params);
+DISPATCH_STORE_FN(settable_ctx_params);
 
 static void *p11prov_store_open(void *provctx, const char *uri)
 {
@@ -424,6 +430,8 @@ static int p11prov_store_load(void *ctx,
 {
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)ctx;
     struct p11prov_slot *slots = NULL;
+    /* 0 is CKO_DATA ibut we do not use it */
+    CK_OBJECT_CLASS class = 0;
     int nslots = 0;
 
     p11prov_debug("object load (%p)\n", obj);
@@ -482,16 +490,37 @@ static int p11prov_store_load(void *ctx,
         }
 
         /* match class */
-        if (obj->parsed_uri->class == CKO_CERTIFICATE) {
+        switch (obj->parsed_uri->class) {
+        case CKO_CERTIFICATE:
             /* not yet */
-            continue;
-        } else if (obj->parsed_uri->class == CKO_PUBLIC_KEY ||
-                   obj->parsed_uri->class == CKO_PRIVATE_KEY) {
+            break;
+        case CKO_PUBLIC_KEY:
+            class = CKO_PUBLIC_KEY;
+            break;
+        case CKO_PRIVATE_KEY:
+            class = CKO_PRIVATE_KEY;
+            break;
+        default:
+            /* nothing matches, see what openssl expects */
+            switch (obj->expected_type) {
+            case OSSL_STORE_INFO_PUBKEY:
+                class = CKO_PUBLIC_KEY;
+            case OSSL_STORE_INFO_PKEY:
+                class = CKO_PRIVATE_KEY;
+            case OSSL_STORE_INFO_CERT:
+                /* not yet */
+            case OSSL_STORE_INFO_CRL:
+                /* not yet */
+            default:
+                break;
+            }
+        }
+        if (class == CKO_PUBLIC_KEY || class == CKO_PRIVATE_KEY) {
              int ret = find_keys(obj->provctx,
                                  &obj->priv_key,
                                  &obj->pub_key,
                                  slots[i].id,
-                                 obj->parsed_uri->class,
+                                 class,
                                  obj->parsed_uri->id,
                                  obj->parsed_uri->id_len,
                                  obj->parsed_uri->object);
@@ -524,8 +553,18 @@ static int p11prov_store_load(void *ctx,
             /* we have to handle private keys as our own type,
              * while we can let openssl import public keys and
              * deal with them in the default provider */
-            if (obj->priv_key) data_type = P11PROV_NAMES_RSA;
-            else data_type = "RSA";
+            switch (obj->expected_type) {
+            case OSSL_STORE_INFO_PKEY:
+                data_type = P11PROV_NAMES_RSA;
+                break;
+            case OSSL_STORE_INFO_PUBKEY:
+                data_type = "RSA";
+                break;
+            default:
+                if (obj->priv_key) data_type = P11PROV_NAMES_RSA;
+                else data_type = "RSA";
+                break;
+            }
             break;
         default:
             return RET_OSSL_ERR;
@@ -566,14 +605,6 @@ static int p11prov_store_close(void *ctx)
     return 1;
 }
 
-static int p11prov_store_set_ctx_params(void *loaderctx,
-                                        const OSSL_PARAM params[])
-{
-    p11prov_debug("set ctx params (%p, %p)\n", loaderctx, params);
-
-    return 1;
-}
-
 static int p11prov_store_export_object(void *loaderctx,
                                        const void *reference,
                                        size_t reference_sz,
@@ -594,6 +625,53 @@ static int p11prov_store_export_object(void *loaderctx,
     return p11prov_object_export_public_rsa_key(obj, cb_fn, cb_arg);
 }
 
+static const OSSL_PARAM *p11prov_store_settable_ctx_params(void *provctx)
+{
+    static const OSSL_PARAM known_settable_ctx_params[] = {
+        OSSL_PARAM_utf8_string(OSSL_STORE_PARAM_PROPERTIES, NULL, 0),
+        OSSL_PARAM_int(OSSL_STORE_PARAM_EXPECT, NULL),
+        /* not yet: SUBJECT is a DER object that needs parsing
+        OSSL_PARAM_octet_string(OSSL_STORE_PARAM_SUBJECT, NULL, 0),
+         */
+        OSSL_PARAM_utf8_string(OSSL_STORE_PARAM_INPUT_TYPE, NULL, 0),
+        OSSL_PARAM_END
+    };
+    return known_settable_ctx_params;
+}
+
+static int p11prov_store_set_ctx_params(void *ctx, const OSSL_PARAM params[])
+{
+    P11PROV_OBJECT *obj = (P11PROV_OBJECT *)ctx;
+    const OSSL_PARAM *p;
+    int ret;
+
+    p11prov_debug("set ctx params (%p, %p)\n", ctx, params);
+
+    if (params == NULL) return RET_OSSL_OK;
+
+    p = OSSL_PARAM_locate_const(params, OSSL_STORE_PARAM_PROPERTIES);
+    if (p) {
+        OPENSSL_free(obj->set_properties);
+        obj->set_properties = NULL;
+        ret = OSSL_PARAM_get_utf8_string(p, &obj->set_properties, 0);
+        if (ret != RET_OSSL_OK) return ret;
+    }
+    p = OSSL_PARAM_locate_const(params, OSSL_STORE_PARAM_INPUT_TYPE);
+    if (p) {
+        OPENSSL_free(obj->set_input_type);
+        obj->set_input_type = NULL;
+        ret = OSSL_PARAM_get_utf8_string(p, &obj->set_input_type, 0);
+        if (ret != RET_OSSL_OK) return ret;
+    }
+    p = OSSL_PARAM_locate_const(params, OSSL_STORE_PARAM_EXPECT);
+    if (p) {
+        ret = OSSL_PARAM_get_int(p, &obj->expected_type);
+        if (ret != RET_OSSL_OK) return ret;
+    }
+
+    return RET_OSSL_OK;
+}
+
 const OSSL_DISPATCH p11prov_store_functions[] = {
     DISPATCH_STORE_ELEM(OPEN, open),
     DISPATCH_STORE_ELEM(ATTACH, attach),
@@ -601,6 +679,7 @@ const OSSL_DISPATCH p11prov_store_functions[] = {
     DISPATCH_STORE_ELEM(EOF, eof),
     DISPATCH_STORE_ELEM(CLOSE, close),
     DISPATCH_STORE_ELEM(SET_CTX_PARAMS, set_ctx_params),
+    DISPATCH_STORE_ELEM(SETTABLE_CTX_PARAMS, settable_ctx_params),
     DISPATCH_STORE_ELEM(EXPORT_OBJECT, export_object),
     { 0, NULL }
 };
