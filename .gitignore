@@ -25,3 +25,8 @@ src/.libs/
 src/*.la
 src/*.lo
 src/*.o
+*~
+src/*~
+test-driver
+tests/tokens
+tests/tmp

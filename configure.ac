@@ -21,6 +21,16 @@ PKG_CHECK_MODULES(
 )
 AC_SUBST([SHARED_EXT], $(eval echo "${shrext_cmds}"))
 
+PKG_CHECK_EXISTS(
+        [nss-softokn],
+        ,
+        [AC_MSG_WARN([nss-softokn is required to run tests])]
+)
+PKG_CHECK_VAR([SOFTOKENDIR], [nss-softokn], [libdir])
+AS_IF([test "x$SOFTOKENDIR" = "x"], [
+  AC_MSG_WARN([Unable to identify softoken plugin path.])
+])
+
 # Checks for header files.
 AC_CHECK_HEADERS([string.h dlfcn.h])
 
@@ -35,5 +45,6 @@ AC_CHECK_FUNCS([strpbrk])
 AC_CONFIG_FILES([
 	Makefile
 	src/Makefile
+	tests/Makefile
 ])
 AC_OUTPUT

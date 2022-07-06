@@ -14,7 +14,7 @@ void p11prov_debug(const char *fmt, ...)
         if (env) {
             debug_lazy_init = 1;
             if (strncmp(env, "file:", 5) == 0) {
-                stddebug = fopen(&env[5], "w");
+                stddebug = fopen(&env[5], "a");
                 if (stddebug == NULL) debug_lazy_init = -1;
             } else {
                 stddebug = stderr;
