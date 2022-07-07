@@ -341,6 +341,17 @@ static int p11prov_rsasig_sign(void *ctx, unsigned char *sig,
     ret = p11prov_rsasig_set_mechanism(sigctx, false, &mechanism);
     if (ret != CKR_OK) return RET_OSSL_ERR;
 
+    if (mechanism.mechanism == CKM_RSA_X_509) {
+        /* some tokens allow raw signatures on any data size.
+         * Enforce data size is the same as modulus as that is
+         * what OpenSSL expects and does internally in rsa_sign
+         * when there is no padding. */
+        if (tbslen < sigsize) {
+            ERR_raise(ERR_LIB_RSA, RSA_R_DATA_TOO_SMALL_FOR_KEY_SIZE);
+            return RET_OSSL_ERR;
+        }
+    }
+
     ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
     if (ret != CKR_OK) {
         p11prov_debug("OpenSession failed %d\n", ret);

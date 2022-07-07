@@ -62,15 +62,32 @@ PUBURI="pkcs11:type=public;id=${URIKEYID};pin-value=${PINVALUE}"
 PRIURI="pkcs11:type=private;id=${URIKEYID};pin-value=${PINVALUE}"
 echo "PKCS11 URI: ${BASEURI}"
 
-echo "Export Public key to a file"
+echo "## Export Public key to a file"
 openssl pkey -in $BASEURI -pubin -pubout -out ${TSTCRT}.pub
 openssl pkey -in $PUBURI -pubin -pubout -out ${TSTCRT}.pub
 openssl pkey -in $PRIURI -pubin -pubout -out ${TSTCRT}.pub
 
-echo "Sign and Verify with provided Hash"
+echo "## Raw Sign check error"
+dd if=/dev/urandom of=${TMPDIR}/64Brandom.bin bs=64 count=1
+FAIL=0
+openssl pkeyutl -sign -pkeyopt pad-mode:none -in ${TMPDIR}/64Brandom.bin -out ${TMPDIR}/raw-sig.bin -inkey "${BASEURI}" || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Raw signature should not allow data != modulus size"
+    exit 1
+fi
+# unfortunately pkeyutl simply does not make it possible to sign anything
+# that is bigger than a hash, which means we'd need a very small RSA key
+# to really check a raw signature through pkeyutl
+
+echo "## Sign and Verify with provided Hash"
 openssl dgst -sha256 -binary ${SEEDFILE} > ${TMPDIR}/sha256.bin
 openssl pkeyutl -sign -in ${TMPDIR}/sha256.bin -out ${TMPDIR}/sha256-sig.bin -inkey "${BASEURI}"
 openssl pkeyutl -verify -in ${TMPDIR}/sha256.bin -sigfile ${TMPDIR}/sha256-sig.bin -inkey "${PRIURI}"
 openssl pkeyutl -verify -in ${TMPDIR}/sha256.bin -sigfile ${TMPDIR}/sha256-sig.bin -pubin -inkey "${PUBURI}"
+
+echo "## DigestSign and DigestVerify"
+dd if=/dev/urandom of=${TMPDIR}/64krandom.bin bs=2048 count=32
+openssl pkeyutl -sign -in ${TMPDIR}/64krandom.bin -rawin -digest sha256 -out ${TMPDIR}/sha256-dgstsig.bin -inkey "${BASEURI}"
+openssl pkeyutl -verify -in ${TMPDIR}/64krandom.bin -rawin -digest sha256 -sigfile ${TMPDIR}/sha256-dgstsig.bin -pubin -inkey "${PUBURI}"
 
 exit 0
