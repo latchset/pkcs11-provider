@@ -191,6 +191,68 @@ static const OSSL_DISPATCH p11prov_dispatch_table[] = {
     { 0, NULL }
 };
 
+static int refresh_slot_profiles(PROVIDER_CTX *ctx, struct p11prov_slot *slot)
+{
+    CK_SESSION_HANDLE session;
+    CK_BBOOL token = CK_TRUE;
+    CK_OBJECT_CLASS class = CKO_PROFILE;
+
+    CK_ATTRIBUTE template[2] = {
+        { CKA_TOKEN, &token, sizeof(token) },
+        { CKA_CLASS, &class, sizeof(class) },
+    };
+    CK_OBJECT_HANDLE object[5];
+    CK_ULONG objcount;
+    int index = 0;
+    int ret;
+
+    ret = ctx->fns->C_OpenSession(slot->id, CKF_SERIAL_SESSION, NULL, NULL,
+                                  &session);
+    if (ret != CKR_OK) {
+        p11prov_debug("OpenSession failed %d\n", ret);
+        return ret;
+    }
+
+    ret = ctx->fns->C_FindObjectsInit(session, template, 2);
+    if (ret != CKR_OK) {
+        p11prov_debug("C_FindObjectsInit failed %d\n", ret);
+        (void)ctx->fns->C_CloseSession(session);
+        return ret;
+    }
+
+    /* at most 5 objects as there are 5 profiles for now */
+    ret = ctx->fns->C_FindObjects(session, object, 5, &objcount);
+    if (ret != CKR_OK) {
+        p11prov_debug("C_FindObjects failed %d\n", ret);
+        goto done;
+    }
+
+    if (objcount == 0) {
+        p11prov_debug("No profiles for slot %lu\n", slot->id);
+        goto done;
+    }
+
+    for (int i = 0; i < objcount; i++) {
+        CK_ULONG value = CK_UNAVAILABLE_INFORMATION;
+        CK_ATTRIBUTE profileid = { CKA_PROFILE_ID, &value, sizeof(value) };
+
+        ret = ctx->fns->C_GetAttributeValue(session, object[i],
+                                            &profileid, 1);
+        if (ret != CKR_OK || value == CK_UNAVAILABLE_INFORMATION) {
+            p11prov_debug("C_GetAttributeValue failed %d\n", ret);
+            continue;
+        }
+
+        slot->profiles[index] = value;
+        index++;
+    }
+
+done:
+    (void)ctx->fns->C_FindObjectsFinal(session);
+    (void)ctx->fns->C_CloseSession(session);
+    return ret;
+}
+
 static int refresh_slots(PROVIDER_CTX *ctx)
 {
     CK_ULONG nslots;
@@ -238,15 +300,15 @@ static int refresh_slots(PROVIDER_CTX *ctx)
         ret = ctx->fns->C_GetSlotInfo(slotid[i], &slots[i].slot);
         if (ret == CKR_OK && slots[i].slot.flags & CKF_TOKEN_PRESENT) {
             ret = ctx->fns->C_GetTokenInfo(slotid[i], &slots[i].token);
-            if (ret == CKR_OK) {
-                p11prov_debug_token_info(slots[i].token);
-            }
         }
         if (ret) {
             OPENSSL_free(slotid);
             OPENSSL_free(slots);
             goto done;
         }
+        (void)refresh_slot_profiles(ctx, &slots[i]);
+
+        p11prov_debug_slot(&slots[i]);
     }
 
     OPENSSL_free(slotid);

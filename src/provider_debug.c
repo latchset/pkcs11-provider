@@ -105,7 +105,7 @@ void p11prov_debug_token_info(CK_TOKEN_INFO info)
                   "  Private Memory  Total: %6lu  Free: %6lu\n"
                   "  Hardware Version: %d.%d\n"
                   "  Firmware Version: %d.%d\n"
-                  "  UTC Time: [%16s]\n",
+                  "  UTC Time: [%.16s]\n",
                   info.ulMaxSessionCount, info.ulSessionCount,
                   info.ulMaxRwSessionCount, info.ulRwSessionCount,
                   info.ulMinPinLen, info.ulMaxPinLen,
@@ -118,6 +118,51 @@ void p11prov_debug_token_info(CK_TOKEN_INFO info)
                   info.firmwareVersion.major,
                   info.firmwareVersion.minor,
                   info.utcTime);
+}
+
+extern struct ckmap slot_flags[];
+extern struct ckmap profile_ids[];
+
+void p11prov_debug_slot(struct p11prov_slot *slot)
+{
+    p11prov_debug("Slot Info:\n"
+                  "  ID: %lu\n"
+                  "  Description:      [%.64s]\n"
+                  "  Manufacturer ID:  [%.32s]\n"
+                  "  Flags (%#08lx):\n",
+                  slot->id, slot->slot.slotDescription,
+                  slot->slot.manufacturerID, slot->slot.flags);
+    for (int i; slot_flags[i].name != NULL; i++) {
+        if (slot->slot.flags & slot_flags[i].value) {
+            p11prov_debug("    %-25s (%#08lx)\n",
+                          slot_flags[i].name,
+                          slot_flags[i].value);
+        }
+    }
+    p11prov_debug("  Hardware Version: %d.%d\n"
+                  "  Firmware Version: %d.%d\n",
+                  slot->slot.hardwareVersion.major,
+                  slot->slot.hardwareVersion.minor,
+                  slot->slot.firmwareVersion.major,
+                  slot->slot.firmwareVersion.minor);
+    if (slot->slot.flags & CKF_TOKEN_PRESENT) {
+        p11prov_debug_token_info(slot->token);
+    }
+    if (slot->profiles[0] != CKP_INVALID_ID) {
+        p11prov_debug("  Available profiles:\n");
+        for (int c = 0; c < 5; c++) {
+            CK_ULONG profile = slot->profiles[c];
+            for (int i; profile_ids[i].name != NULL; i++) {
+                if (profile == slot_flags[i].value) {
+                    p11prov_debug("    %-35s (%#08lx)\n",
+                                  profile_ids[i].name,
+                                  profile_ids[i].value);
+                }
+            }
+        }
+    } else {
+        p11prov_debug("  No profiles specified\n");
+    }
 }
 
 #define MECH_ENTRY(_m) { _m, #_m }
@@ -601,5 +646,22 @@ struct ckmap token_flags[] = {
     MECH_ENTRY(CKF_SO_PIN_LOCKED),
     MECH_ENTRY(CKF_SO_PIN_TO_BE_CHANGED),
     MECH_ENTRY(CKF_ERROR_STATE),
+    {0, NULL}
+};
+
+struct ckmap slot_flags[] = {
+    MECH_ENTRY(CKF_TOKEN_PRESENT),
+    MECH_ENTRY(CKF_REMOVABLE_DEVICE),
+    MECH_ENTRY(CKF_HW_SLOT),
+    {0, NULL}
+};
+
+struct ckmap profile_ids[] = {
+    MECH_ENTRY(CKP_INVALID_ID),
+    MECH_ENTRY(CKP_BASELINE_PROVIDER),
+    MECH_ENTRY(CKP_EXTENDED_PROVIDER),
+    MECH_ENTRY(CKP_AUTHENTICATION_TOKEN),
+    MECH_ENTRY(CKP_PUBLIC_CERTIFICATES_TOKEN),
+    MECH_ENTRY(CKP_VENDOR_DEFINED),
     {0, NULL}
 };

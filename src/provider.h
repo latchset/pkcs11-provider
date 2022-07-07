@@ -36,6 +36,8 @@ struct p11prov_slot {
     CK_SLOT_ID id;
     CK_SLOT_INFO slot;
     CK_TOKEN_INFO token;
+
+    CK_ULONG profiles[5];
 };
 
 CK_FUNCTION_LIST *provider_ctx_fns(PROVIDER_CTX *ctx);
@@ -47,6 +49,7 @@ void p11prov_debug(const char *fmt, ...);
 void p11prov_debug_mechanism(PROVIDER_CTX *ctx, CK_SLOT_ID slotid,
                              CK_MECHANISM_TYPE type);
 void p11prov_debug_token_info(CK_TOKEN_INFO info);
+void p11prov_debug_slot(struct p11prov_slot *slot);
 
 /* Keys */
 typedef struct p11prov_key P11PROV_KEY;
