@@ -46,6 +46,7 @@ void provider_ctx_unlock_slots(PROVIDER_CTX *ctx, struct p11prov_slot **slots);
 void p11prov_debug(const char *fmt, ...);
 void p11prov_debug_mechanism(PROVIDER_CTX *ctx, CK_SLOT_ID slotid,
                              CK_MECHANISM_TYPE type);
+void p11prov_debug_token_info(CK_TOKEN_INFO info);
 
 /* Keys */
 typedef struct p11prov_key P11PROV_KEY;

@@ -238,6 +238,9 @@ static int refresh_slots(PROVIDER_CTX *ctx)
         ret = ctx->fns->C_GetSlotInfo(slotid[i], &slots[i].slot);
         if (ret == CKR_OK && slots[i].slot.flags & CKF_TOKEN_PRESENT) {
             ret = ctx->fns->C_GetTokenInfo(slotid[i], &slots[i].token);
+            if (ret == CKR_OK) {
+                p11prov_debug_token_info(slots[i].token);
+            }
         }
         if (ret) {
             OPENSSL_free(slotid);

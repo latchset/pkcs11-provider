@@ -62,20 +62,62 @@ void p11prov_debug_mechanism(PROVIDER_CTX *ctx, CK_SLOT_ID slotid,
         p11prov_debug("C_GetMechanismInfo for %s(%lu) failed %d\n",
                       mechname, type, ret);
     } else {
-        p11prov_debug("C_GetMechanismInfo for %s(%lu):\n"
+        p11prov_debug("Mechanism Info:\n"
+                      "  name: %s (%lu):\n"
                       "  min key length: %lu\n"
                       "  max key length: %lu\n"
-                      "  flags(%08lx):\n",
+                      "  flags (%#08lx):\n",
                       mechname, type,
                       info.ulMinKeySize, info.ulMaxKeySize, info.flags);
         for (int i; mechanism_flags[i].name != NULL; i++) {
             if (info.flags & mechanism_flags[i].value) {
-                p11prov_debug("    %s (%08lx)\n",
+                p11prov_debug("    %-25s (%#08lx)\n",
                               mechanism_flags[i].name,
                               mechanism_flags[i].value);
             }
         }
     }
+}
+
+extern struct ckmap token_flags[];
+
+void p11prov_debug_token_info(CK_TOKEN_INFO info)
+{
+    p11prov_debug("Token Info:\n"
+                  "  Label:            [%.32s]\n"
+                  "  Manufacturer ID:  [%.32s]\n"
+                  "  Model:            [%.16s]\n"
+                  "  Serial Number:    [%.16s]\n"
+                  "  Flags (%#08lx):\n",
+                  info.label, info.manufacturerID, info.model,
+                  info.serialNumber, info.flags);
+    for (int i; token_flags[i].name != NULL; i++) {
+        if (info.flags & token_flags[i].value) {
+            p11prov_debug("    %-35s (%#08lx)\n",
+                          token_flags[i].name,
+                          token_flags[i].value);
+        }
+    }
+    p11prov_debug("  Session Count      Max: %3lu  Current: %3lu\n"
+                  "  R/W Session Count  Max: %3lu  Current: %3lu\n"
+                  "  Pin Len Range: %lu-%lu\n"
+                  "  Public  Memory  Total: %6lu  Free: %6lu\n"
+                  "  Private Memory  Total: %6lu  Free: %6lu\n"
+                  "  Hardware Version: %d.%d\n"
+                  "  Firmware Version: %d.%d\n"
+                  "  UTC Time: [%16s]\n",
+                  info.ulMaxSessionCount, info.ulSessionCount,
+                  info.ulMaxRwSessionCount, info.ulRwSessionCount,
+                  info.ulMinPinLen, info.ulMaxPinLen,
+                  info.ulTotalPublicMemory,
+                  info.ulFreePublicMemory,
+                  info.ulTotalPrivateMemory,
+                  info.ulFreePrivateMemory,
+                  info.hardwareVersion.major,
+                  info.hardwareVersion.minor,
+                  info.firmwareVersion.major,
+                  info.firmwareVersion.minor,
+                  info.utcTime);
 }
 
 #define MECH_ENTRY(_m) { _m, #_m }
@@ -536,5 +578,28 @@ struct ckmap mechanism_flags[] = {
     MECH_ENTRY(CKF_EC_UNCOMPRESS),
     MECH_ENTRY(CKF_EC_COMPRESS),
     MECH_ENTRY(CKF_EC_CURVENAME),
+    {0, NULL}
+};
+
+struct ckmap token_flags[] = {
+    MECH_ENTRY(CKF_RNG),
+    MECH_ENTRY(CKF_WRITE_PROTECTED),
+    MECH_ENTRY(CKF_LOGIN_REQUIRED),
+    MECH_ENTRY(CKF_USER_PIN_INITIALIZED),
+    MECH_ENTRY(CKF_RESTORE_KEY_NOT_NEEDED),
+    MECH_ENTRY(CKF_CLOCK_ON_TOKEN),
+    MECH_ENTRY(CKF_PROTECTED_AUTHENTICATION_PATH),
+    MECH_ENTRY(CKF_DUAL_CRYPTO_OPERATIONS),
+    MECH_ENTRY(CKF_TOKEN_INITIALIZED),
+    MECH_ENTRY(CKF_SECONDARY_AUTHENTICATION),
+    MECH_ENTRY(CKF_USER_PIN_COUNT_LOW),
+    MECH_ENTRY(CKF_USER_PIN_FINAL_TRY),
+    MECH_ENTRY(CKF_USER_PIN_LOCKED),
+    MECH_ENTRY(CKF_USER_PIN_TO_BE_CHANGED),
+    MECH_ENTRY(CKF_SO_PIN_COUNT_LOW),
+    MECH_ENTRY(CKF_SO_PIN_FINAL_TRY),
+    MECH_ENTRY(CKF_SO_PIN_LOCKED),
+    MECH_ENTRY(CKF_SO_PIN_TO_BE_CHANGED),
+    MECH_ENTRY(CKF_ERROR_STATE),
     {0, NULL}
 };
