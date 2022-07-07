@@ -94,6 +94,16 @@ CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key)
     return CK_INVALID_HANDLE;
 }
 
+CK_ULONG p11prov_key_modulus(P11PROV_KEY *key)
+{
+    CK_ATTRIBUTE *modulus;
+
+    modulus = p11prov_key_attr(key, CKA_MODULUS);
+    if (modulus == NULL) return CK_UNAVAILABLE_INFORMATION;
+
+    return modulus->ulValueLen;
+}
+
 struct fetch_attrs {
     CK_ATTRIBUTE_TYPE type;
     unsigned char **value;

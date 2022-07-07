@@ -60,6 +60,7 @@ CK_ATTRIBUTE *p11prov_key_attr(P11PROV_KEY *key, CK_ATTRIBUTE_TYPE type);
 CK_KEY_TYPE p11prov_key_type(P11PROV_KEY *key);
 CK_SLOT_ID p11prov_key_slotid(P11PROV_KEY *key);
 CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key);
+CK_ULONG p11prov_key_modulus(P11PROV_KEY *key);
 
 int find_keys(PROVIDER_CTX *provctx,
               P11PROV_KEY **priv, P11PROV_KEY **pub,
@@ -98,5 +99,11 @@ extern const OSSL_DISPATCH p11prov_store_functions[];
 #define DISPATCH_RSASIG_ELEM(NAME, name) \
     { OSSL_FUNC_SIGNATURE_##NAME, (void(*)(void))p11prov_rsasig_##name }
 extern const OSSL_DISPATCH p11prov_rsa_signature_functions[];
+
+#define DISPATCH_RSAENC_FN(name) \
+    DECL_DISPATCH_FUNC(asym_cipher, p11prov_rsaenc, name)
+#define DISPATCH_RSAENC_ELEM(NAME, name) \
+    { OSSL_FUNC_ASYM_CIPHER_##NAME, (void(*)(void))p11prov_rsaenc_##name }
+extern const OSSL_DISPATCH p11prov_rsa_asym_cipher_functions[];
 
 #endif /* _PROVIDER_H */

@@ -173,7 +173,7 @@ static void p11prov_rsasig_freectx(void *ctx)
 }
 
 /* only the ones we can support */
-struct {
+static struct {
     const char *name;
     CK_MECHANISM_TYPE digest;
     CK_MECHANISM_TYPE pkcs_mech;
@@ -250,13 +250,6 @@ static int p11prov_rsasig_set_mechanism(void *ctx, bool digest_sign,
         break;
     case CKM_RSA_X_509:
         break;
-    case CKM_RSA_X9_31:
-        if (sigctx->digest == CKM_SHA_1) {
-            mechanism->mechanism = CKM_SHA1_RSA_X9_31;
-            result = CKR_OK;
-            goto done;
-        }
-        break;
     case CKM_RSA_PKCS_PSS:
         for (int i = 0; digest_map[i].name != NULL; i++) {
             if (sigctx->digest == digest_map[i].digest) {
@@ -282,16 +275,12 @@ done:
 static int p11prov_rsasig_get_siglen(void *ctx, size_t *siglen)
 {
     struct p11prov_rsasig_ctx *sigctx = (struct p11prov_rsasig_ctx *)ctx;
-    CK_ATTRIBUTE *modulus;
-
-    modulus = p11prov_key_attr(sigctx->pub_key, CKA_MODULUS);
-    if (modulus == NULL) {
-        /* try again with private key just in case */
-        modulus = p11prov_key_attr(sigctx->priv_key, CKA_MODULUS);
+    CK_ULONG size = p11prov_key_modulus(sigctx->pub_key);
+    if (size == CK_UNAVAILABLE_INFORMATION) {
+        size = p11prov_key_modulus(sigctx->priv_key);
     }
-    if (modulus == NULL) return RET_OSSL_ERR;
-
-    *siglen = modulus->ulValueLen;
+    if (size == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
+    *siglen = size;
     return RET_OSSL_OK;
 }
 
@@ -713,7 +702,6 @@ static struct {
 } padding_map[] = {
     { CKM_RSA_X_509, RSA_NO_PADDING, OSSL_PKEY_RSA_PAD_MODE_NONE },
     { CKM_RSA_PKCS, RSA_PKCS1_PADDING, OSSL_PKEY_RSA_PAD_MODE_PKCSV15 },
-    { CKM_RSA_PKCS_OAEP, RSA_PKCS1_OAEP_PADDING, OSSL_PKEY_RSA_PAD_MODE_OAEP },
     { CKM_RSA_X9_31, RSA_X931_PADDING, OSSL_PKEY_RSA_PAD_MODE_X931 },
     { CKM_RSA_PKCS_PSS, RSA_PKCS1_PSS_PADDING, OSSL_PKEY_RSA_PAD_MODE_PSS },
     { CK_UNAVAILABLE_INFORMATION, 0, NULL }

@@ -152,6 +152,12 @@ static const OSSL_ALGORITHM p11prov_signature[] = {
     { NULL, NULL, NULL, NULL }
 };
 
+static const OSSL_ALGORITHM p11prov_asym_cipher[] = {
+    { P11PROV_NAMES_RSA, P11PROV_DEFAULT_PROPERTIES,
+      p11prov_rsa_asym_cipher_functions, P11PROV_DESCS_RSA, },
+    { NULL, NULL, NULL, NULL }
+};
+
 static const OSSL_ALGORITHM *p11prov_query_operation(void *provctx,
                                                      int operation_id,
                                                      int *no_cache)
@@ -164,6 +170,8 @@ static const OSSL_ALGORITHM *p11prov_query_operation(void *provctx,
         return p11prov_store;
     case OSSL_OP_SIGNATURE:
         return p11prov_signature;
+    case OSSL_OP_ASYM_CIPHER:
+        return p11prov_asym_cipher;
     }
     return NULL;
 }

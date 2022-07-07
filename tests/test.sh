@@ -90,4 +90,16 @@ dd if=/dev/urandom of=${TMPDIR}/64krandom.bin bs=2048 count=32
 openssl pkeyutl -sign -in ${TMPDIR}/64krandom.bin -rawin -digest sha256 -out ${TMPDIR}/sha256-dgstsig.bin -inkey "${BASEURI}"
 openssl pkeyutl -verify -in ${TMPDIR}/64krandom.bin -rawin -digest sha256 -sigfile ${TMPDIR}/sha256-dgstsig.bin -pubin -inkey "${PUBURI}"
 
+echo "## Encrypt and decrypt"
+echo "Super Secret" > ${TMPDIR}/secret.txt
+# Let openssl encrypt by importing the public key
+openssl pkeyutl -encrypt -in ${TMPDIR}/secret.txt -inkey "${BASEURI}" -out ${TMPDIR}/secret.txt.enc -pkeyopt pad-mode:oaep -pkeyopt digest:sha256 -pkeyopt mgf1-digest:sha256 -pubin
+openssl pkeyutl -decrypt -out ${TMPDIR}/secret.txt.dec -inkey "${PRIURI}" -in ${TMPDIR}/secret.txt.enc -pkeyopt pad-mode:oaep -pkeyopt digest:sha256 -pkeyopt mgf1-digest:sha256
+diff ${TMPDIR}/secret.txt ${TMPDIR}/secret.txt.dec
+
+# Now again all in the token
+openssl pkeyutl -encrypt -in ${TMPDIR}/secret.txt -inkey "${PRIURI}" -out ${TMPDIR}/secret.txt.enc2
+openssl pkeyutl -decrypt -out ${TMPDIR}/secret.txt.dec2 -inkey "${PRIURI}" -in ${TMPDIR}/secret.txt.enc2
+diff ${TMPDIR}/secret.txt ${TMPDIR}/secret.txt.dec2
+
 exit 0

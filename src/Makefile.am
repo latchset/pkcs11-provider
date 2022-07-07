@@ -10,7 +10,8 @@ pkcs11prov_la_SOURCES = \
 	provider_keys.c \
 	provider_store.c \
 	provider_keymgmt.c \
-	provider_signature.c
+	provider_signature.c \
+	provider_asym_cipher.c
 
 pkcs11prov_la_CFLAGS = $(AM_CFLAGS) $(OPENSSL_CFLAGS)
 pkcs11prov_la_LIBADD = $(OPENSSL_LIBS)

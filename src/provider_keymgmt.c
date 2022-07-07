@@ -130,6 +130,7 @@ static const char *p11prov_rsakm_query_operation_name(int operation_id)
 {
     switch (operation_id) {
     case OSSL_OP_SIGNATURE:
+    case OSSL_OP_ASYM_CIPHER:
         return P11PROV_NAMES_RSA;
     default:
         return "RSA";
