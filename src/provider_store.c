@@ -505,8 +505,10 @@ static int p11prov_store_load(void *ctx,
             switch (obj->expected_type) {
             case OSSL_STORE_INFO_PUBKEY:
                 class = CKO_PUBLIC_KEY;
+                break;
             case OSSL_STORE_INFO_PKEY:
                 class = CKO_PRIVATE_KEY;
+                break;
             case OSSL_STORE_INFO_CERT:
                 /* not yet */
             case OSSL_STORE_INFO_CRL:
