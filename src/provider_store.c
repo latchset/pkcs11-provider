@@ -544,7 +544,6 @@ static int p11prov_store_load(void *ctx,
         params[0] = OSSL_PARAM_construct_int(
                         OSSL_OBJECT_PARAM_TYPE, &object_type);
 
-        /* we only support RSA so far */
         if (obj->pub_key) {
             type = p11prov_key_type(obj->pub_key);
         } else {
@@ -552,7 +551,8 @@ static int p11prov_store_load(void *ctx,
         }
         switch (type) {
         case CKK_RSA:
-            /* we have to handle private keys as our own type,
+            /* REMOVE once we have decoders.
+             *  we have to handle private keys as our own type,
              * while we can let openssl import public keys and
              * deal with them in the default provider */
             switch (obj->expected_type) {
@@ -567,6 +567,9 @@ static int p11prov_store_load(void *ctx,
                 else data_type = "RSA";
                 break;
             }
+            break;
+        case CKK_EC:
+            data_type = P11PROV_NAMES_ECDSA;
             break;
         default:
             return RET_OSSL_ERR;
@@ -618,13 +621,19 @@ static int p11prov_store_export_object(void *loaderctx,
     p11prov_debug("object export %p, %ld\n", reference, reference_sz);
 
     if (!reference || reference_sz != sizeof(obj))
-        return 0;
+        return RET_OSSL_ERR;
 
     /* the contents of the reference is the address to our object */
     obj = (P11PROV_OBJECT *)reference;
 
     /* we can only export public bits, so that's all we do */
-    return p11prov_object_export_public_rsa_key(obj, cb_fn, cb_arg);
+    switch (p11prov_key_type(obj->pub_key)) {
+    case CKK_RSA:
+        return p11prov_object_export_public_rsa_key(obj, cb_fn, cb_arg);
+    case CKK_EC:
+    default:
+        return RET_OSSL_ERR;
+    }
 }
 
 static const OSSL_PARAM *p11prov_store_settable_ctx_params(void *provctx)

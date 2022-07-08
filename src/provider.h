@@ -28,6 +28,8 @@
 #define P11PROV_DEFAULT_PROPERTIES "provider=pkcs11"
 #define P11PROV_NAMES_RSA "PKCS11-RSA"
 #define P11PROV_DESCS_RSA "PKCS11 RSA Implementation"
+#define P11PROV_NAMES_ECDSA "PKCS11-ECDSA"
+#define P11PROV_DESCS_ECDSA "PKCS11 ECDSA Implementation"
 #define P11PROV_DESCS_URI "PKCS11 URI Store"
 
 typedef struct st_provider_ctx PROVIDER_CTX;
@@ -60,7 +62,7 @@ CK_ATTRIBUTE *p11prov_key_attr(P11PROV_KEY *key, CK_ATTRIBUTE_TYPE type);
 CK_KEY_TYPE p11prov_key_type(P11PROV_KEY *key);
 CK_SLOT_ID p11prov_key_slotid(P11PROV_KEY *key);
 CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key);
-CK_ULONG p11prov_key_modulus(P11PROV_KEY *key);
+CK_ULONG p11prov_key_sig_size(P11PROV_KEY *key);
 
 int find_keys(PROVIDER_CTX *provctx,
               P11PROV_KEY **priv, P11PROV_KEY **pub,
@@ -82,11 +84,19 @@ P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJECT *obj, bool priv);
 #define DECL_DISPATCH_FUNC(type, prefix, name) \
     static OSSL_FUNC_##type##_##name##_fn prefix##_##name
 
+/* rsa keymgmt */
 #define DISPATCH_RSAKM_FN(name) \
     DECL_DISPATCH_FUNC(keymgmt, p11prov_rsakm, name)
 #define DISPATCH_RSAKM_ELEM(NAME, name) \
     { OSSL_FUNC_KEYMGMT_##NAME, (void(*)(void))p11prov_rsakm_##name }
 extern const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[];
+
+/* ecdsa keymgmt */
+#define DISPATCH_ECKM_FN(name) \
+    DECL_DISPATCH_FUNC(keymgmt, p11prov_eckm, name)
+#define DISPATCH_ECKM_ELEM(NAME, name) \
+    { OSSL_FUNC_KEYMGMT_##NAME, (void(*)(void))p11prov_eckm_##name }
+extern const OSSL_DISPATCH p11prov_ecdsa_keymgmt_functions[];
 
 #define DISPATCH_STORE_FN(name) \
     DECL_DISPATCH_FUNC(store, p11prov_store, name)
@@ -104,6 +114,11 @@ extern const OSSL_DISPATCH p11prov_store_functions[];
 #define DISPATCH_RSASIG_FN(name) \
     DECL_DISPATCH_FUNC(signature, p11prov_rsasig, name)
 extern const OSSL_DISPATCH p11prov_rsa_signature_functions[];
+
+/* ecdsa sig functions */
+#define DISPATCH_ECDSA_FN(name) \
+    DECL_DISPATCH_FUNC(signature, p11prov_ecdsa, name)
+extern const OSSL_DISPATCH p11prov_ecdsa_signature_functions[];
 
 /* rsa encrypt/decrypt */
 #define DISPATCH_RSAENC_FN(name) \

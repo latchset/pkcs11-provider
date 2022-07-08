@@ -12,6 +12,7 @@ PINFILE="${TOKDIR}/pinfile.txt"
 
 TMPDIR="tmp"
 TSTCRT="${TMPDIR}/testcert.crt"
+ECCRT="${TMPDIR}/eccert.crt"
 SEEDFILE="${TMPDIR}/noisefile.bin"
 
 title()
@@ -75,16 +76,11 @@ y
 n
 CERTSCRIPT
 
+    # RSA
     title LINE  "Creating Certificate request for 'My Test Cert'"
     certutil -R -s "CN=My Test Cert, O=PKCS11 Provider" -o ${TSTCRT}.req -d ${TOKDIR} -f ${PINFILE} -z ${SEEDFILE} >/dev/null 2>&1
     certutil -C -m 2 -i ${TSTCRT}.req -o ${TSTCRT} -c selfCA -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
     certutil -A -n testCert -i ${TSTCRT} -t "u,u,u" -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
-
-    title PARA "Show contents of softoken"
-    echo " ----------------------------------------------------------------------------------------------------"
-    certutil -L -d ${TOKDIR}
-    certutil -K -d ${TOKDIR} -f ${PINFILE}
-    echo " ----------------------------------------------------------------------------------------------------"
 
     KEYID=`certutil -K -d ${TOKDIR} -f ${PINFILE} |grep 'testCert'| cut -b 15-54`
     URIKEYID=""
@@ -96,28 +92,61 @@ CERTSCRIPT
     BASEURI="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
     PUBURI="pkcs11:type=public;id=${URIKEYID};pin-value=${PINVALUE}"
     PRIURI="pkcs11:type=private;id=${URIKEYID};pin-value=${PINVALUE}"
-    title LINE "PKCS11 URI"
+
+    title LINE "RSA PKCS11 URIS"
     echo "${BASEURI}"
+    echo "${PUBURI}"
+    echo "${PRIURI}"
     echo ""
 
+    # ECC
+    title LINE  "Creating Certificate request for 'My EC Cert'"
+    certutil -R -s "CN=My EC Cert, O=PKCS11 Provider" -k ec -q nistp256 -o ${ECCRT}.req -d ${TOKDIR} -f ${PINFILE} -z ${SEEDFILE} >/dev/null 2>&1
+    certutil -C -m 3 -i ${ECCRT}.req -o ${ECCRT} -c selfCA -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
+    certutil -A -n ecCert -i ${ECCRT} -t "u,u,u" -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
+
+    KEYID=`certutil -K -d ${TOKDIR} -f ${PINFILE} |grep 'ecCert'| cut -b 15-54`
+    URIKEYID=""
+    for (( i=0; i<${#KEYID}; i+=2 )); do
+        line=`echo "${KEYID:$i:2}"`
+        URIKEYID="$URIKEYID%$line"
+    done
+
+    ECBASEURI="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+    ECPUBURI="pkcs11:type=public;id=${URIKEYID};pin-value=${PINVALUE}"
+    ECPRIURI="pkcs11:type=private;id=${URIKEYID};pin-value=${PINVALUE}"
+
+    title LINE "EC PKCS11 URIS"
+    echo "${ECBASEURI}"
+    echo "${ECPUBURI}"
+    echo "${ECPRIURI}"
+    echo ""
+
+    title PARA "Show contents of softoken"
+    echo " ----------------------------------------------------------------------------------------------------"
+    certutil -L -d ${TOKDIR}
+    certutil -K -d ${TOKDIR} -f ${PINFILE}
+    echo " ----------------------------------------------------------------------------------------------------"
+
     title LINE "Export variables to ${TMPDIR}/debugvars for easy debugging"
+    BASEDIR=$(pwd)
     cat > ${TMPDIR}/debugvars <<DBGSCRIPT
 # debug vars, just 'source ${TMPDIR}/debugvars'
-TMPDIR=$(dirname "$0")
-BASEDIR=$(dirname "$TMPDIR")
-
 export TOKDIR="${BASEDIR}/${TOKDIR}"
-export TMPDIR=${TMPDIR}
+export TMPDIR="${BASEDIR}/${TMPDIR}"
 export OPENSSL_CONF="${BASEDIR}/openssl.cnf"
 
-export PINVALUE=${PINVALUE}
+export PINVALUE="${PINVALUE}"
 export PINFILE="${BASEDIR}/${PINFILE}"
 export TSTCRT="${BASEDIR}/${TSTCRT}"
 export SEEDFILE="${BASEDIR}/${SEEDFILE}"
 
-export BASEURI=${BASEURI}
-export PUBURI=${PUBURI}
-export PRIURI=${PRIURI}
+export BASEURI="${BASEURI}"
+export PUBURI="${PUBURI}"
+export PRIURI="${PRIURI}"
+export ECBASEURI="${ECBASEURI}"
+export ECPUBURI="${ECPUBURI}"
+export ECPRIURI="${ECPRIURI}"
 DBGSCRIPT
 
     title ENDSECTION
@@ -125,7 +154,7 @@ DBGSCRIPT
 
 ossl()
 {
-    echo "$*"
+    echo openssl $*
 
     eval openssl $1
 }
@@ -138,6 +167,9 @@ title PARA "Export Public key to a file"
 ossl 'pkey -in $BASEURI -pubin -pubout -out ${TSTCRT}.pub'
 ossl 'pkey -in $PUBURI -pubin -pubout -out ${TSTCRT}.pub'
 ossl 'pkey -in $PRIURI -pubin -pubout -out ${TSTCRT}.pub'
+
+title PARA "Export EC Public key to a file"
+#ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${ECCRT}.pub'
 
 title PARA "Raw Sign check error"
 dd if=/dev/urandom of=${TMPDIR}/64Brandom.bin bs=64 count=1 >/dev/null 2>&1
@@ -155,7 +187,7 @@ fi
 # that is bigger than a hash, which means we'd need a very small RSA key
 # to really check a raw signature through pkeyutl
 
-title PARA "Sign and Verify with provided Hash"
+title PARA "Sign and Verify with provided Hash and RSA"
 ossl 'dgst -sha256 -binary -out ${TMPDIR}/sha256.bin ${SEEDFILE}'
 ossl '
 pkeyutl -sign -inkey "${BASEURI}"
@@ -172,8 +204,20 @@ pkeyutl -verify -inkey "${PUBURI}"
                 -in ${TMPDIR}/sha256.bin
                 -sigfile ${TMPDIR}/sha256-sig.bin'
 
-title PARA "DigestSign and DigestVerify"
+title PARA "Sign and Verify with provided Hash and EC"
+ossl '
+pkeyutl -sign -inkey "${ECBASEURI}"
+              -in ${TMPDIR}/sha256.bin
+              -out ${TMPDIR}/sha256-ecsig.bin'
+
+ossl '
+pkeyutl -verify -inkey "${ECBASEURI}"
+                -in ${TMPDIR}/sha256.bin
+                -sigfile ${TMPDIR}/sha256-ecsig.bin'
+
+
 dd if=/dev/urandom of=${TMPDIR}/64krandom.bin bs=2048 count=32 >/dev/null 2>&1
+title PARA "DigestSign and DigestVerify with RSA"
 ossl '
 pkeyutl -sign -inkey "${BASEURI}"
               -digest sha256
@@ -194,7 +238,7 @@ pkeyutl -verify -inkey "${PUBURI}"
                 -rawin
                 -sigfile ${TMPDIR}/sha256-dgstsig.bin'
 
-title PARA "PSS DigestSign and DigestVerify"
+title PARA "DigestSign and DigestVerify with RSA PSS"
 ossl '
 pkeyutl -sign -inkey "${BASEURI}"
               -digest sha256
@@ -226,7 +270,21 @@ pkeyutl -verify -inkey "${PUBURI}"
                 -rawin
                 -sigfile ${TMPDIR}/sha256-dgstsig.bin'
 
-title PARA "Encrypt and decrypt"
+title PARA "DigestSign and DigestVerify with ECC"
+ossl '
+pkeyutl -sign -inkey "${ECBASEURI}"
+              -digest sha256
+              -in ${TMPDIR}/64krandom.bin
+              -rawin
+              -out ${TMPDIR}/sha256-ecdgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${ECBASEURI}"
+                -digest sha256
+                -in ${TMPDIR}/64krandom.bin
+                -rawin
+                -sigfile ${TMPDIR}/sha256-ecdgstsig.bin'
+
+title PARA "Encrypt and decrypt with RSA OAEP"
 echo "Super Secret" > ${TMPDIR}/secret.txt
 # Let openssl encrypt by importing the public key
 ossl '

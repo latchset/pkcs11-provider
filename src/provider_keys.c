@@ -2,6 +2,7 @@
 
 #include "provider.h"
 #include <string.h>
+#include <openssl/ec.h>
 
 struct p11prov_key {
     CK_SLOT_ID slotid;
@@ -13,6 +14,8 @@ struct p11prov_key {
     unsigned long id_len;
     char *label;
     CK_BBOOL always_auth;
+
+    CK_ULONG max_size;
 
     CK_ATTRIBUTE *attrs;
     unsigned long numattrs;
@@ -94,14 +97,10 @@ CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key)
     return CK_INVALID_HANDLE;
 }
 
-CK_ULONG p11prov_key_modulus(P11PROV_KEY *key)
+CK_ULONG p11prov_key_sig_size(P11PROV_KEY *key)
 {
-    CK_ATTRIBUTE *modulus;
-
-    modulus = p11prov_key_attr(key, CKA_MODULUS);
-    if (modulus == NULL) return CK_UNAVAILABLE_INFORMATION;
-
-    return modulus->ulValueLen;
+    if (key == NULL) return CK_UNAVAILABLE_INFORMATION;
+    return key->max_size;
 }
 
 struct fetch_attrs {
@@ -212,6 +211,8 @@ static int object_fetch_attributes(CK_FUNCTION_LIST *f,
                 }
                 if (attrs[i].required) return ret;
             }
+            p11prov_debug("Attribute| type:%lu value:%p, len:%lu\n",
+                          attrs[i].type, *attrs[i].value, *attrs[i].value_len);
         }
         ret = CKR_OK;
     }
@@ -231,7 +232,6 @@ static int fetch_rsa_key(CK_FUNCTION_LIST *f,
 
     switch (class) {
     case CKO_PRIVATE_KEY:
-        /* TODO: */
         /* fallthrough */
     case CKO_PUBLIC_KEY:
         FA_ASSIGN_ALL(attrs[0], CKA_MODULUS, &n, &n_len, true, true);
@@ -249,6 +249,7 @@ static int fetch_rsa_key(CK_FUNCTION_LIST *f,
             return ret;
         }
 
+        key->max_size = n_len;
         key->attrs = OPENSSL_zalloc(2 * sizeof(CK_ATTRIBUTE));
         CKATTR_ASSIGN_ALL(key->attrs[0], CKA_MODULUS, n, n_len);
         CKATTR_ASSIGN_ALL(key->attrs[1], CKA_PUBLIC_EXPONENT, e, e_len);
@@ -256,6 +257,66 @@ static int fetch_rsa_key(CK_FUNCTION_LIST *f,
         return CKR_OK;
     }
     return CKR_ARGUMENTS_BAD;
+}
+
+static int fetch_ec_public_key(CK_FUNCTION_LIST *f,
+                               CK_SESSION_HANDLE session,
+                               CK_OBJECT_HANDLE object,
+                               P11PROV_KEY *key)
+{
+    struct fetch_attrs attrs[2];
+    unsigned long params_len = 0, point_len = 0;
+    CK_BYTE *params = NULL, *point = NULL;
+    size_t n_bytes;
+    int ret;
+
+    FA_ASSIGN_ALL(attrs[0], CKA_EC_PARAMS,
+                  &params, &params_len, true, true);
+    FA_ASSIGN_ALL(attrs[1], CKA_EC_POINT,
+                  &point, &point_len, true, true);
+    ret = object_fetch_attributes(f, session, object, attrs, 2);
+    if (ret != CKR_OK) {
+        /* free any allocated memory */
+        OPENSSL_free(params);
+        OPENSSL_free(point);
+        return ret;
+    }
+
+    /* decode CKA_EC_PARAMS and store some extra attrs for
+     * convenience */
+    if (params != NULL) {
+        const unsigned char *der = params;
+        EC_GROUP *group = NULL;
+        const BIGNUM *bn;
+
+        (void)d2i_ECPKParameters(&group, &der, params_len);
+        if (group == NULL) {
+            /* free any allocated memory */
+            OPENSSL_free(params);
+            OPENSSL_free(point);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        bn = EC_GROUP_get0_order(group);
+        if (bn == NULL) {
+            /* free any allocated memory */
+            EC_GROUP_free(group);
+            OPENSSL_free(params);
+            OPENSSL_free(point);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        n_bytes = BN_num_bytes(bn);
+
+        EC_GROUP_free(group);
+    }
+
+    key->max_size = 2 * n_bytes;
+    key->attrs = OPENSSL_zalloc(2 * sizeof(CK_ATTRIBUTE));
+    CKATTR_ASSIGN_ALL(key->attrs[0], CKA_EC_PARAMS, params, params_len);
+    CKATTR_ASSIGN_ALL(key->attrs[1], CKA_EC_POINT, point, point_len);
+    key->numattrs = 2;
+    return CKR_OK;
 }
 
 /* TODO: may want to have a hashmap with cached keys */
@@ -266,32 +327,27 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f,
                                          CK_OBJECT_HANDLE object)
 {
     P11PROV_KEY *key;
+    unsigned long *key_type;
     unsigned long key_type_len = sizeof(CKA_KEY_TYPE);
     unsigned long label_len;
-    struct fetch_attrs attrs[4];
-    unsigned long attrnums = 3;
+    struct fetch_attrs attrs[3];
     unsigned long aa_len = 0;
     int ret;
 
     key = p11prov_key_new();
     if (key == NULL) return NULL;
 
+    key_type = &key->type;
     FA_ASSIGN_ALL(attrs[0], CKA_KEY_TYPE,
-                  &key->type, &key_type_len, false, true);
+                  &key_type, &key_type_len, false, true);
     FA_ASSIGN_ALL(attrs[1], CKA_ID,
                   &key->id, &key->id_len, true, false);
     FA_ASSIGN_ALL(attrs[2], CKA_LABEL,
                   &key->label, &label_len, true, false);
-    if (class == CKO_PRIVATE_KEY) {
-        aa_len = sizeof(CK_BBOOL);
-        FA_ASSIGN_ALL(attrs[3], CKA_ALWAYS_AUTHENTICATE,
-                      &key->always_auth, &aa_len, false, false);
-        attrnums = 4;
-    }
     /* TODO: fetch also other attributes as specified in
      * Spev v3 - 4.9 Private key objects  ?? */
 
-    ret = object_fetch_attributes(f, session, object, attrs, attrnums);
+    ret = object_fetch_attributes(f, session, object, attrs, 3);
     if (ret != CKR_OK) {
         p11prov_debug("Failed to query object attributes (%d)\n", ret);
         p11prov_key_free(key);
@@ -302,15 +358,20 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f,
     key->handle = object;
     key->class = class;
 
-    if (class == CKO_PRIVATE_KEY) {
-        if (aa_len == 0) {
-            p11prov_debug("Missing CKA_ALWAYS_AUTHENTICATE attribute\n");
-        }
-    }
-
     switch (key->type) {
     case CKK_RSA:
         ret = fetch_rsa_key(f, class, session, object, key);
+        if (ret != CKR_OK) {
+            p11prov_key_free(key);
+            return NULL;
+        }
+        break;
+    case CKK_EC:
+        if (class == CKO_PRIVATE_KEY) {
+            /* no params to fetch */
+            break;
+        }
+        ret = fetch_ec_public_key(f, session, object, key);
         if (ret != CKR_OK) {
             p11prov_key_free(key);
             return NULL;
@@ -370,7 +431,7 @@ again:
             CK_OBJECT_HANDLE object;
             /* TODO: pull multiple objects at once to reduce roundtrips */
             ret = f->C_FindObjects(session, &object, 1, &objcount);
-            if (ret != CKR_OK) break;
+            if (ret != CKR_OK || objcount == 0) break;
 
             key = object_handle_to_key(f, slotid, class, session, object);
 

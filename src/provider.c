@@ -137,6 +137,8 @@ static int p11prov_get_params(void *provctx, OSSL_PARAM params[])
 static const OSSL_ALGORITHM p11prov_keymgmt[] = {
     { P11PROV_NAMES_RSA, P11PROV_DEFAULT_PROPERTIES,
       p11prov_rsa_keymgmt_functions, P11PROV_DESCS_RSA, },
+    { P11PROV_NAMES_ECDSA, P11PROV_DEFAULT_PROPERTIES,
+      p11prov_ecdsa_keymgmt_functions, P11PROV_DESCS_ECDSA, },
     { NULL, NULL, NULL, NULL }
 };
 
@@ -149,6 +151,8 @@ static const OSSL_ALGORITHM p11prov_store[] = {
 static const OSSL_ALGORITHM p11prov_signature[] = {
     { P11PROV_NAMES_RSA, P11PROV_DEFAULT_PROPERTIES,
       p11prov_rsa_signature_functions, P11PROV_DESCS_RSA, },
+    { P11PROV_NAMES_ECDSA, P11PROV_DEFAULT_PROPERTIES,
+      p11prov_ecdsa_signature_functions, P11PROV_DESCS_ECDSA, },
     { NULL, NULL, NULL, NULL }
 };
 

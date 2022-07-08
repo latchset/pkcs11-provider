@@ -135,7 +135,7 @@ static int p11prov_rsaenc_encrypt(void *ctx,
     p11prov_debug("encrypt (ctx=%p)\n", ctx);
 
     if (out == NULL) {
-        CK_ULONG size = p11prov_key_modulus(encctx->key);
+        CK_ULONG size = p11prov_key_sig_size(encctx->key);
         if (size == CK_UNAVAILABLE_INFORMATION) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_KEY);
             return RET_OSSL_ERR;
@@ -222,7 +222,7 @@ static int p11prov_rsaenc_decrypt(void *ctx,
     p11prov_debug("decrypt (ctx=%p)\n", ctx);
 
     if (out == NULL) {
-        CK_ULONG size = p11prov_key_modulus(encctx->key);
+        CK_ULONG size = p11prov_key_sig_size(encctx->key);
         if (size == CK_UNAVAILABLE_INFORMATION) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_KEY);
             return RET_OSSL_ERR;
