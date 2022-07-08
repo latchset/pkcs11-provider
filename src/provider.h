@@ -94,12 +94,18 @@ extern const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[];
     { OSSL_FUNC_STORE_##NAME, (void(*)(void))p11prov_store_##name }
 extern const OSSL_DISPATCH p11prov_store_functions[];
 
+/* common sig functions */
+#define DISPATCH_SIG_FN(name) \
+    DECL_DISPATCH_FUNC(signature, p11prov_sig, name)
+#define DISPATCH_SIG_ELEM(prefix, NAME, name) \
+    { OSSL_FUNC_SIGNATURE_##NAME, (void(*)(void))p11prov_##prefix##_##name }
+
+/* rsa sig functions */
 #define DISPATCH_RSASIG_FN(name) \
     DECL_DISPATCH_FUNC(signature, p11prov_rsasig, name)
-#define DISPATCH_RSASIG_ELEM(NAME, name) \
-    { OSSL_FUNC_SIGNATURE_##NAME, (void(*)(void))p11prov_rsasig_##name }
 extern const OSSL_DISPATCH p11prov_rsa_signature_functions[];
 
+/* rsa encrypt/decrypt */
 #define DISPATCH_RSAENC_FN(name) \
     DECL_DISPATCH_FUNC(asym_cipher, p11prov_rsaenc, name)
 #define DISPATCH_RSAENC_ELEM(NAME, name) \
