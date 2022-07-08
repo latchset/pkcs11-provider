@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash -ex
 
 if ! command -v certutil &> /dev/null
 then
@@ -89,6 +89,10 @@ echo "## DigestSign and DigestVerify"
 dd if=/dev/urandom of=${TMPDIR}/64krandom.bin bs=2048 count=32
 openssl pkeyutl -sign -in ${TMPDIR}/64krandom.bin -rawin -digest sha256 -out ${TMPDIR}/sha256-dgstsig.bin -inkey "${BASEURI}"
 openssl pkeyutl -verify -in ${TMPDIR}/64krandom.bin -rawin -digest sha256 -sigfile ${TMPDIR}/sha256-dgstsig.bin -pubin -inkey "${PUBURI}"
+
+echo "## PSS DigestSign and DigestVerify"
+openssl pkeyutl -sign -in ${TMPDIR}/64krandom.bin -rawin -digest sha256 -pkeyopt pad-mode:pss -pkeyopt mgf1-digest:sha256 -pkeyopt saltlen:digest -out ${TMPDIR}/sha256-dgstsig.bin -inkey "${BASEURI}"
+openssl pkeyutl -verify -in ${TMPDIR}/64krandom.bin -rawin -digest sha256 -pkeyopt pad-mode:pss -pkeyopt mgf1-digest:sha256 -pkeyopt saltlen:digest -sigfile ${TMPDIR}/sha256-dgstsig.bin -pubin -inkey "${PUBURI}"
 
 echo "## Encrypt and decrypt"
 echo "Super Secret" > ${TMPDIR}/secret.txt
