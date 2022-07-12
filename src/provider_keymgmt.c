@@ -380,6 +380,8 @@ static const char *p11prov_eckm_query_operation_name(int operation_id)
     switch (operation_id) {
     case OSSL_OP_SIGNATURE:
         return P11PROV_NAMES_ECDSA;
+    case OSSL_OP_KEYEXCH:
+        return P11PROV_NAMES_ECDH;
     default:
         return "ECDSA";
     }
@@ -401,7 +403,7 @@ static int p11prov_eckm_get_params(void *keydata, OSSL_PARAM params[])
     CK_ATTRIBUTE *modulus;
     P11PROV_KEY *key;
     OSSL_PARAM *p;
-    CK_ULONG max_size;
+    CK_ULONG group_size;
     int ret;
 
     p11prov_debug("ec get params %p\n", keydata);
@@ -414,26 +416,26 @@ static int p11prov_eckm_get_params(void *keydata, OSSL_PARAM params[])
         goto done;
     }
 
-    max_size = p11prov_key_sig_size(key);
-    if (max_size == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
+    group_size = p11prov_key_size(key);
+    if (group_size == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
 
     p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_BITS);
     if (p) {
         /* TODO: may want to try to get CKA_MODULUS_BITS,
          * and fallback only if unavailable */
-        ret = OSSL_PARAM_set_int(p, max_size / 2 * 8);
+        ret = OSSL_PARAM_set_int(p, group_size * 8);
         if (ret != RET_OSSL_OK) goto done;
     }
     p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_SECURITY_BITS);
     if (p) {
         /* TODO: as above, plus use log() for intermediate values */
-        int secbits = p11prov_eckm_secbits(max_size / 2 * 8);
+        int secbits = p11prov_eckm_secbits(group_size * 8);
         ret = OSSL_PARAM_set_int(p, secbits);
         if (ret != RET_OSSL_OK) goto done;
     }
     p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_MAX_SIZE);
     if (p) {
-        ret = OSSL_PARAM_set_int(p, max_size);
+        ret = OSSL_PARAM_set_int(p, group_size * 2);
         if (ret != RET_OSSL_OK) goto done;
     }
 

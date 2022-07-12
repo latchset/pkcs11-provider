@@ -30,6 +30,8 @@
 #define P11PROV_DESCS_RSA "PKCS11 RSA Implementation"
 #define P11PROV_NAMES_ECDSA "PKCS11-ECDSA"
 #define P11PROV_DESCS_ECDSA "PKCS11 ECDSA Implementation"
+#define P11PROV_NAMES_ECDH "PKCS11-ECDH"
+#define P11PROV_DESCS_ECDH "PKCS11 ECDH Implementation"
 #define P11PROV_DESCS_URI "PKCS11 URI Store"
 
 typedef struct st_provider_ctx PROVIDER_CTX;
@@ -62,7 +64,7 @@ CK_ATTRIBUTE *p11prov_key_attr(P11PROV_KEY *key, CK_ATTRIBUTE_TYPE type);
 CK_KEY_TYPE p11prov_key_type(P11PROV_KEY *key);
 CK_SLOT_ID p11prov_key_slotid(P11PROV_KEY *key);
 CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key);
-CK_ULONG p11prov_key_sig_size(P11PROV_KEY *key);
+CK_ULONG p11prov_key_size(P11PROV_KEY *key);
 
 int find_keys(PROVIDER_CTX *provctx,
               P11PROV_KEY **priv, P11PROV_KEY **pub,
@@ -126,5 +128,52 @@ extern const OSSL_DISPATCH p11prov_ecdsa_signature_functions[];
 #define DISPATCH_RSAENC_ELEM(NAME, name) \
     { OSSL_FUNC_ASYM_CIPHER_##NAME, (void(*)(void))p11prov_rsaenc_##name }
 extern const OSSL_DISPATCH p11prov_rsa_asym_cipher_functions[];
+
+/* ecdh derivation */
+#define DISPATCH_ECDH_FN(name) \
+    DECL_DISPATCH_FUNC(keyexch, p11prov_ecdh, name)
+#define DISPATCH_ECDH_ELEM(prefix, NAME, name) \
+    { OSSL_FUNC_KEYEXCH_##NAME, (void(*)(void))p11prov_##prefix##_##name }
+extern const OSSL_DISPATCH p11prov_ecdh_exchange_functions[];
+
+
+/* Utilities to fetch objects from tokens */
+
+struct fetch_attrs {
+    CK_ATTRIBUTE_TYPE type;
+    unsigned char **value;
+    unsigned long *value_len;
+    bool allocate;
+    bool required;
+};
+#define FA_ASSIGN_ALL(x, _a, _b, _c, _d, _e) \
+    do { \
+        x.type = _a; \
+        x.value = (unsigned char **)_b; \
+        x.value_len = _c; \
+        x.allocate = _d; \
+        x.required = _e; \
+    } while(0)
+
+#define FA_RETURN_VAL(x, _a, _b) \
+    do { \
+        *x.value = _a; \
+        *x.value_len = _b; \
+    } while(0)
+
+#define FA_RETURN_LEN(x, _a) *x.value_len = _a
+
+#define CKATTR_ASSIGN_ALL(x, _a, _b, _c) \
+    do { \
+        x.type = _a; \
+        x.pValue = (void *)_b; \
+        x.ulValueLen = _c; \
+    } while(0)
+
+int p11prov_fetch_attributes(CK_FUNCTION_LIST *f,
+                             CK_SESSION_HANDLE session,
+                             CK_OBJECT_HANDLE object,
+                             struct fetch_attrs *attrs,
+                             unsigned long attrnums);
 
 #endif /* _PROVIDER_H */

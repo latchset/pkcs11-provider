@@ -15,7 +15,7 @@ struct p11prov_key {
     char *label;
     CK_BBOOL always_auth;
 
-    CK_ULONG max_size;
+    CK_ULONG key_size;
 
     CK_ATTRIBUTE *attrs;
     unsigned long numattrs;
@@ -97,126 +97,10 @@ CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key)
     return CK_INVALID_HANDLE;
 }
 
-CK_ULONG p11prov_key_sig_size(P11PROV_KEY *key)
+CK_ULONG p11prov_key_size(P11PROV_KEY *key)
 {
     if (key == NULL) return CK_UNAVAILABLE_INFORMATION;
-    return key->max_size;
-}
-
-struct fetch_attrs {
-    CK_ATTRIBUTE_TYPE type;
-    unsigned char **value;
-    unsigned long *value_len;
-    bool allocate;
-    bool required;
-};
-#define FA_ASSIGN_ALL(x, _a, _b, _c, _d, _e) \
-    do { \
-        x.type = _a; \
-        x.value = (unsigned char **)_b; \
-        x.value_len = _c; \
-        x.allocate = _d; \
-        x.required = _e; \
-    } while(0)
-
-#define FA_RETURN_VAL(x, _a, _b) \
-    do { \
-        *x.value = _a; \
-        *x.value_len = _b; \
-    } while(0)
-
-#define FA_RETURN_LEN(x, _a) *x.value_len = _a
-
-#define CKATTR_ASSIGN_ALL(x, _a, _b, _c) \
-    do { \
-        x.type = _a; \
-        x.pValue = (void *)_b; \
-        x.ulValueLen = _c; \
-    } while(0)
-
-static int object_fetch_attributes(CK_FUNCTION_LIST *f,
-                                   CK_SESSION_HANDLE session,
-                                   CK_OBJECT_HANDLE object,
-                                   struct fetch_attrs *attrs,
-                                   unsigned long attrnums)
-{
-    CK_ATTRIBUTE q[attrnums];
-    CK_ATTRIBUTE r[attrnums];
-    int ret;
-
-    for (int i = 0; i < attrnums; i++) {
-        if (attrs[i].allocate) {
-            CKATTR_ASSIGN_ALL(q[i], attrs[i].type, NULL, 0);
-        } else {
-            CKATTR_ASSIGN_ALL(q[i], attrs[i].type,
-                              *attrs[i].value,
-                              *attrs[i].value_len);
-        }
-    }
-
-    /* try one shot, then fallback to individual calls if that fails */
-    ret = f->C_GetAttributeValue(session, object, q, attrnums);
-    if (ret == CKR_OK) {
-        unsigned long retrnums = 0;
-        for (int i = 0; i < attrnums; i++) {
-            if (q[i].ulValueLen == CK_UNAVAILABLE_INFORMATION) {
-                if (attrs[i].required) {
-                    return -ENOENT;
-                }
-                FA_RETURN_LEN(attrs[i], 0);
-                continue;
-            }
-            if (attrs[i].allocate) {
-                /* allways allocate and zero one more, so that
-                 * zero terminated strings work automatically */
-                char *a = OPENSSL_zalloc(q[i].ulValueLen + 1);
-                if (a == NULL) return -ENOMEM;
-                FA_RETURN_VAL(attrs[i], a, q[i].ulValueLen);
-
-                CKATTR_ASSIGN_ALL(r[retrnums], attrs[i].type,
-                                  *attrs[i].value,
-                                  *attrs[i].value_len);
-                retrnums++;
-            } else {
-                FA_RETURN_LEN(attrs[i], q[i].ulValueLen);
-            }
-        }
-        if (retrnums > 0) {
-            ret = f->C_GetAttributeValue(session, object, r, retrnums);
-        }
-    } else if (ret == CKR_ATTRIBUTE_SENSITIVE ||
-               ret == CKR_ATTRIBUTE_TYPE_INVALID) {
-        p11prov_debug("Quering attributes one by one\n");
-        /* go one by one as this PKCS11 does not have some attributes
-         * and does not handle it gracefully */
-        for (int i = 0; i < attrnums; i++) {
-            if (attrs[i].allocate) {
-                CKATTR_ASSIGN_ALL(q[0], attrs[i].type, NULL, 0);
-                ret = f->C_GetAttributeValue(session, object, q, 1);
-                if (ret != CKR_OK) {
-                    if (attrs[i].required) return ret;
-                } else {
-                    char *a = OPENSSL_zalloc(q[0].ulValueLen + 1);
-                    if (a == NULL) return -ENOMEM;
-                    FA_RETURN_VAL(attrs[i], a, q[0].ulValueLen);
-                }
-            }
-            CKATTR_ASSIGN_ALL(r[0], attrs[i].type,
-                              *attrs[i].value,
-                              *attrs[i].value_len);
-            ret = f->C_GetAttributeValue(session, object, r, 1);
-            if (ret != CKR_OK) {
-                if (r[i].ulValueLen == CK_UNAVAILABLE_INFORMATION) {
-                    FA_RETURN_LEN(attrs[i], 0);
-                }
-                if (attrs[i].required) return ret;
-            }
-            p11prov_debug("Attribute| type:%lu value:%p, len:%lu\n",
-                          attrs[i].type, *attrs[i].value, *attrs[i].value_len);
-        }
-        ret = CKR_OK;
-    }
-    return ret;
+    return key->key_size;
 }
 
 static int fetch_rsa_key(CK_FUNCTION_LIST *f,
@@ -236,7 +120,7 @@ static int fetch_rsa_key(CK_FUNCTION_LIST *f,
     case CKO_PUBLIC_KEY:
         FA_ASSIGN_ALL(attrs[0], CKA_MODULUS, &n, &n_len, true, true);
         FA_ASSIGN_ALL(attrs[1], CKA_PUBLIC_EXPONENT, &e, &e_len, true, true);
-        ret = object_fetch_attributes(f, session, object, attrs, 2);
+        ret = p11prov_fetch_attributes(f, session, object, attrs, 2);
         if (ret != CKR_OK) {
             /* free any allocated memory */
             OPENSSL_free(n);
@@ -249,7 +133,7 @@ static int fetch_rsa_key(CK_FUNCTION_LIST *f,
             return ret;
         }
 
-        key->max_size = n_len;
+        key->key_size = n_len;
         key->attrs = OPENSSL_zalloc(2 * sizeof(CK_ATTRIBUTE));
         CKATTR_ASSIGN_ALL(key->attrs[0], CKA_MODULUS, n, n_len);
         CKATTR_ASSIGN_ALL(key->attrs[1], CKA_PUBLIC_EXPONENT, e, e_len);
@@ -274,7 +158,7 @@ static int fetch_ec_public_key(CK_FUNCTION_LIST *f,
                   &params, &params_len, true, true);
     FA_ASSIGN_ALL(attrs[1], CKA_EC_POINT,
                   &point, &point_len, true, true);
-    ret = object_fetch_attributes(f, session, object, attrs, 2);
+    ret = p11prov_fetch_attributes(f, session, object, attrs, 2);
     if (ret != CKR_OK) {
         /* free any allocated memory */
         OPENSSL_free(params);
@@ -311,7 +195,7 @@ static int fetch_ec_public_key(CK_FUNCTION_LIST *f,
         EC_GROUP_free(group);
     }
 
-    key->max_size = 2 * n_bytes;
+    key->key_size = n_bytes;
     key->attrs = OPENSSL_zalloc(2 * sizeof(CK_ATTRIBUTE));
     CKATTR_ASSIGN_ALL(key->attrs[0], CKA_EC_PARAMS, params, params_len);
     CKATTR_ASSIGN_ALL(key->attrs[1], CKA_EC_POINT, point, point_len);
@@ -347,7 +231,7 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f,
     /* TODO: fetch also other attributes as specified in
      * Spev v3 - 4.9 Private key objects  ?? */
 
-    ret = object_fetch_attributes(f, session, object, attrs, 3);
+    ret = p11prov_fetch_attributes(f, session, object, attrs, 3);
     if (ret != CKR_OK) {
         p11prov_debug("Failed to query object attributes (%d)\n", ret);
         p11prov_key_free(key);
@@ -400,6 +284,7 @@ int find_keys(PROVIDER_CTX *provctx,
     };
     CK_ULONG tsize = 1;
     CK_ULONG objcount;
+    P11PROV_KEY *privkey = NULL;
     P11PROV_KEY *key = NULL;
     int result = CKR_GENERAL_ERROR;
     int ret;
@@ -439,12 +324,18 @@ again:
             if (key) {
                 result = CKR_OK;
                 if (class == CKO_PRIVATE_KEY) {
-                    *priv = key;
+                    *priv = privkey = key;
                     (void)f->C_FindObjectsFinal(session);
                     class = CKO_PUBLIC_KEY;
                     goto again;
                 }
                 if (key) {
+                    /* it is not always possible to pull all (or any)
+                     * attributes from private keys, so fixup key_size
+                     * based on the public key if it is missing. */
+                    if (privkey && privkey->key_size == 0) {
+                        privkey->key_size = key->key_size;
+                    }
                     *pub = key;
                 }
                 break;

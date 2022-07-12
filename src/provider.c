@@ -162,6 +162,12 @@ static const OSSL_ALGORITHM p11prov_asym_cipher[] = {
     { NULL, NULL, NULL, NULL }
 };
 
+static const OSSL_ALGORITHM p11prov_exchange[] = {
+    { P11PROV_NAMES_ECDH, P11PROV_DEFAULT_PROPERTIES,
+      p11prov_ecdh_exchange_functions, P11PROV_DESCS_ECDH, },
+    { NULL, NULL, NULL, NULL }
+};
+
 static const OSSL_ALGORITHM *p11prov_query_operation(void *provctx,
                                                      int operation_id,
                                                      int *no_cache)
@@ -176,6 +182,8 @@ static const OSSL_ALGORITHM *p11prov_query_operation(void *provctx,
         return p11prov_signature;
     case OSSL_OP_ASYM_CIPHER:
         return p11prov_asym_cipher;
+    case OSSL_OP_KEYEXCH:
+        return p11prov_exchange;
     }
     return NULL;
 }

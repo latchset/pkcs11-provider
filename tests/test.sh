@@ -13,7 +13,9 @@ PINFILE="${TOKDIR}/pinfile.txt"
 TMPDIR="tmp"
 TSTCRT="${TMPDIR}/testcert.crt"
 ECCRT="${TMPDIR}/eccert.crt"
+ECPEERCRT="${TMPDIR}/ecpeercert.crt"
 SEEDFILE="${TMPDIR}/noisefile.bin"
+SERIAL=0
 
 title()
 {
@@ -67,8 +69,9 @@ setup()
     certutil -N -d ${TOKDIR} -f ${PINFILE}
 
     title LINE "Creating new Self Sign CA"
+    let "SERIAL+=1"
     certutil -S -s "CN=Issuer" -n selfCA -x -t "C,C,C" \
-        -m 1 -1 -2 -5 --keyUsage certSigning,crlSigning \
+        -m ${SERIAL} -1 -2 -5 --keyUsage certSigning,crlSigning \
         --nsCertType sslCA,smimeCA,objectSigningCA \
         -f ${PINFILE} -d ${TOKDIR} -z ${SEEDFILE} >/dev/null 2>&1 <<CERTSCRIPT
 y
@@ -78,9 +81,13 @@ CERTSCRIPT
 
     # RSA
     title LINE  "Creating Certificate request for 'My Test Cert'"
-    certutil -R -s "CN=My Test Cert, O=PKCS11 Provider" -o ${TSTCRT}.req -d ${TOKDIR} -f ${PINFILE} -z ${SEEDFILE} >/dev/null 2>&1
-    certutil -C -m 2 -i ${TSTCRT}.req -o ${TSTCRT} -c selfCA -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
-    certutil -A -n testCert -i ${TSTCRT} -t "u,u,u" -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
+    certutil -R -s "CN=My Test Cert, O=PKCS11 Provider" -o ${TSTCRT}.req \
+                -d ${TOKDIR} -f ${PINFILE} -z ${SEEDFILE} >/dev/null 2>&1
+    let "SERIAL+=1"
+    certutil -C -m ${SERIAL} -i ${TSTCRT}.req -o ${TSTCRT} -c selfCA \
+                -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
+    certutil -A -n testCert -i ${TSTCRT} -t "u,u,u" -d ${TOKDIR} \
+                -f ${PINFILE} >/dev/null 2>&1
 
     KEYID=`certutil -K -d ${TOKDIR} -f ${PINFILE} |grep 'testCert'| cut -b 15-54`
     URIKEYID=""
@@ -101,9 +108,13 @@ CERTSCRIPT
 
     # ECC
     title LINE  "Creating Certificate request for 'My EC Cert'"
-    certutil -R -s "CN=My EC Cert, O=PKCS11 Provider" -k ec -q nistp256 -o ${ECCRT}.req -d ${TOKDIR} -f ${PINFILE} -z ${SEEDFILE} >/dev/null 2>&1
-    certutil -C -m 3 -i ${ECCRT}.req -o ${ECCRT} -c selfCA -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
-    certutil -A -n ecCert -i ${ECCRT} -t "u,u,u" -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
+    certutil -R -s "CN=My EC Cert, O=PKCS11 Provider" -k ec -q nistp256 \
+                -o ${ECCRT}.req -d ${TOKDIR} -f ${PINFILE} -z ${SEEDFILE} >/dev/null 2>&1
+    let "SERIAL+=1"
+    certutil -C -m ${SERIAL} -i ${ECCRT}.req -o ${ECCRT} -c selfCA \
+                -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
+    certutil -A -n ecCert -i ${ECCRT} -t "u,u,u" \
+                -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
 
     KEYID=`certutil -K -d ${TOKDIR} -f ${PINFILE} |grep 'ecCert'| cut -b 15-54`
     URIKEYID=""
@@ -116,10 +127,34 @@ CERTSCRIPT
     ECPUBURI="pkcs11:type=public;id=${URIKEYID};pin-value=${PINVALUE}"
     ECPRIURI="pkcs11:type=private;id=${URIKEYID};pin-value=${PINVALUE}"
 
+    title LINE  "Creating Certificate request for 'My Peer EC Cert'"
+    certutil -R -s "CN=My Peer EC Cert, O=PKCS11 Provider" \
+                -k ec -q nistp256 -o ${ECPEERCRT}.req \
+                -d ${TOKDIR} -f ${PINFILE} -z ${SEEDFILE} >/dev/null 2>&1
+    let "SERIAL+=1"
+    certutil -C -m ${SERIAL} -i ${ECPEERCRT}.req -o ${ECPEERCRT} \
+                -c selfCA -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
+    certutil -A -n ecPeerCert -i ${ECPEERCRT} -t "u,u,u" \
+                -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
+
+    KEYID=`certutil -K -d ${TOKDIR} -f ${PINFILE} |grep 'ecPeerCert'| cut -b 15-54`
+    URIKEYID=""
+    for (( i=0; i<${#KEYID}; i+=2 )); do
+        line=`echo "${KEYID:$i:2}"`
+        URIKEYID="$URIKEYID%$line"
+    done
+
+    ECPEERBASEURI="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+    ECPEERPUBURI="pkcs11:type=public;id=${URIKEYID};pin-value=${PINVALUE}"
+    ECPEERPRIURI="pkcs11:type=private;id=${URIKEYID};pin-value=${PINVALUE}"
+
     title LINE "EC PKCS11 URIS"
     echo "${ECBASEURI}"
     echo "${ECPUBURI}"
     echo "${ECPRIURI}"
+    echo "${ECPEERBASEURI}"
+    echo "${ECPEERPUBURI}"
+    echo "${ECPEERPRIURI}"
     echo ""
 
     title PARA "Show contents of softoken"
@@ -314,5 +349,11 @@ pkeyutl -decrypt -inkey "${PRIURI}"
                  -in ${TMPDIR}/secret.txt.enc2
                  -out ${TMPDIR}/secret.txt.dec2'
 diff ${TMPDIR}/secret.txt ${TMPDIR}/secret.txt.dec2
+
+title PARA "ECDH Exchange"
+ossl '
+pkeyutl -derive -inkey ${ECBASEURI}
+                -peerkey ${ECPEERPUBURI}
+                -out ${TMPDIR}/secret.ecdh.bin'
 
 exit 0

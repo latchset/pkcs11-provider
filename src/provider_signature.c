@@ -308,9 +308,22 @@ static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
 static int p11prov_sig_get_sig_size(void *ctx, size_t *siglen)
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
-    CK_ULONG size = p11prov_key_sig_size(ANYKEY(sigctx));
+    CK_KEY_TYPE type = p11prov_key_type(ANYKEY(sigctx));
+    CK_ULONG size = p11prov_key_size(ANYKEY(sigctx));
+
+    if (type == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
     if (size == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
-    *siglen = size;
+
+    switch (type) {
+    case CKK_RSA:
+        *siglen = size;
+        break;
+    case CKK_EC:
+        *siglen = size * 2;
+        break;
+    default:
+        return RET_OSSL_ERR;
+    }
     return RET_OSSL_OK;
 }
 
