@@ -2,6 +2,7 @@
 
 #include "provider.h"
 #include <string.h>
+#include <openssl/kdf.h>
 
 struct p11prov_exch_ctx {
     PROVIDER_CTX *provctx;
@@ -14,6 +15,8 @@ struct p11prov_exch_ctx {
 
     CK_ECDH1_DERIVE_PARAMS ecdh_params;
     CK_ULONG kdf_outlen;
+
+    void *kdfctx;
 };
 typedef struct p11prov_exch_ctx P11PROV_EXCH_CTX;
 
@@ -279,13 +282,16 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     ret = f->C_DeriveKey(session, &mechanism, handle, key_template, 5,
                          &secret_handle);
     if (ret == CKR_OK) {
+        unsigned long secret_len;
+        p11prov_debug("ECDH derived hey handle: %lu\n", secret_handle);
         struct fetch_attrs attrs[1] = {
-            { CKA_VALUE, &secret, psecretlen, false, true },
+            { CKA_VALUE, &secret, &secret_len, false, true },
         };
         ret = p11prov_fetch_attributes(f, session, secret_handle, attrs, 1);
         if (ret != CKR_OK) {
             p11prov_debug("ecdh failed to retrieve secret %d\n", ret);
         }
+        *psecretlen = secret_len;
     } else {
         p11prov_debug("ecdh C_DeriveKey failed %d\n", ret);
     }
@@ -475,5 +481,133 @@ const OSSL_DISPATCH p11prov_ecdh_exchange_functions[] = {
     DISPATCH_ECDH_ELEM(ecdh, SETTABLE_CTX_PARAMS, settable_ctx_params),
     DISPATCH_ECDH_ELEM(ecdh, GET_CTX_PARAMS, get_ctx_params),
     DISPATCH_ECDH_ELEM(ecdh, GETTABLE_CTX_PARAMS, gettable_ctx_params),
+    { 0, NULL }
+};
+
+/* unclear why OpenSSL makes KDFs go through a middle "exchange" layer
+ * when there is a direct KDF facility. I can only assume this is
+ * because for some reason they want the command line -derive comamnd
+ * to be able to handle both key exchanges like ECDH and symmetric key
+ * derivation done by KDFs via the -kdf <type> selector */
+DISPATCH_EXCHHKDF_FN(newctx);
+DISPATCH_EXCHHKDF_FN(freectx);
+DISPATCH_EXCHHKDF_FN(init);
+DISPATCH_EXCHHKDF_FN(derive);
+DISPATCH_EXCHHKDF_FN(set_ctx_params);
+DISPATCH_EXCHHKDF_FN(settable_ctx_params);
+
+static void *p11prov_exch_hkdf_newctx(void *provctx)
+{
+    PROVIDER_CTX *ctx = (PROVIDER_CTX *)provctx;
+    P11PROV_EXCH_CTX *hkdfctx;
+    EVP_KDF *kdf = NULL;
+
+    p11prov_debug("hkdf exchange newctx\n");
+
+    hkdfctx = OPENSSL_zalloc(sizeof(P11PROV_EXCH_CTX));
+    if (hkdfctx == NULL) return NULL;
+
+    hkdfctx->provctx = ctx;
+
+    /* mark with mechanism type */
+    hkdfctx->mechtype = CKM_HKDF_DERIVE;
+
+    kdf = EVP_KDF_fetch(NULL, "HKDF", P11PROV_DEFAULT_PROPERTIES);
+    if (kdf == NULL) {
+        OPENSSL_free(hkdfctx);
+        return NULL;
+    }
+    hkdfctx->kdfctx = EVP_KDF_CTX_new(kdf);
+    EVP_KDF_free(kdf);
+
+    if (hkdfctx->kdfctx == NULL) {
+        OPENSSL_free(hkdfctx);
+        return NULL;
+    }
+
+    return hkdfctx;
+}
+
+static void p11prov_exch_hkdf_freectx(void *ctx)
+{
+    P11PROV_EXCH_CTX *hkdfctx = (P11PROV_EXCH_CTX *)ctx;
+
+    p11prov_debug("hkdf exchange freectx\n");
+
+    if (hkdfctx == NULL) return;
+
+    EVP_KDF_CTX_free(hkdfctx->kdfctx);
+    p11prov_key_free(hkdfctx->key);
+    OPENSSL_clear_free(hkdfctx, sizeof(P11PROV_EXCH_CTX));
+}
+
+static int p11prov_exch_hkdf_init(void *ctx, void *provobj,
+                                  const OSSL_PARAM params[])
+{
+    P11PROV_EXCH_CTX *hkdfctx = (P11PROV_EXCH_CTX *)ctx;
+    P11PROV_OBJECT *obj = (P11PROV_OBJECT *)provobj;
+
+    p11prov_debug("hkdf exchange init (ctx:%p obj:%p params:%p)\n",
+                  ctx, obj, params);
+
+    if (ctx == NULL || provobj == NULL) return RET_OSSL_ERR;
+
+    if (provobj != &p11prov_hkdfkm_static_ctx) {
+        p11prov_key_free(hkdfctx->key);
+        hkdfctx->key = p11prov_object_get_key(obj, true);
+        if (hkdfctx->key == NULL) return RET_OSSL_ERR;
+    }
+
+    return p11prov_exch_hkdf_set_ctx_params(ctx, params);
+}
+
+static int p11prov_exch_hkdf_derive(void *ctx, unsigned char *secret,
+                                    size_t *secretlen, size_t outlen)
+{
+    P11PROV_EXCH_CTX *hkdfctx = (P11PROV_EXCH_CTX *)ctx;
+
+    p11prov_debug("hkdf exchange derive (ctx:%p)\n", ctx);
+
+    if (secret == NULL) {
+        *secretlen = EVP_KDF_CTX_get_kdf_size(hkdfctx->kdfctx);
+        return 1;
+    }
+
+    return EVP_KDF_derive(hkdfctx->kdfctx, secret, outlen, NULL);
+}
+
+static int p11prov_exch_hkdf_set_ctx_params(void *ctx,
+                                            const OSSL_PARAM params[])
+{
+    P11PROV_EXCH_CTX *hkdfctx = (P11PROV_EXCH_CTX *)ctx;
+
+    p11prov_debug("hkdf exchange set ctx params (ctx:%p, params:%p)\n",
+                  ctx, params);
+
+    return EVP_KDF_CTX_set_params(hkdfctx->kdfctx, params);
+}
+
+static const OSSL_PARAM *p11prov_exch_hkdf_settable_ctx_params(void *ctx,
+                                                               void *provctx)
+{
+    const OSSL_PARAM *params;
+    EVP_KDF *kdf;
+
+    kdf = EVP_KDF_fetch(NULL, "HKDF", P11PROV_DEFAULT_PROPERTIES);
+    if (kdf == NULL) return NULL;
+
+    params = EVP_KDF_settable_ctx_params(kdf);
+    EVP_KDF_free(kdf);
+
+    return params;
+}
+
+const OSSL_DISPATCH p11prov_hkdf_exchange_functions[] = {
+    DISPATCH_EXCHHKDF_ELEM(exch_hkdf, NEWCTX, newctx),
+    DISPATCH_EXCHHKDF_ELEM(exch_hkdf, FREECTX, freectx),
+    DISPATCH_EXCHHKDF_ELEM(exch_hkdf, INIT, init),
+    DISPATCH_EXCHHKDF_ELEM(exch_hkdf, DERIVE, derive),
+    DISPATCH_EXCHHKDF_ELEM(exch_hkdf, SET_CTX_PARAMS, set_ctx_params),
+    DISPATCH_EXCHHKDF_ELEM(exch_hkdf, SETTABLE_CTX_PARAMS, settable_ctx_params),
     { 0, NULL }
 };

@@ -46,6 +46,12 @@ void provider_ctx_unlock_slots(PROVIDER_CTX *ctx, struct p11prov_slot **slots)
     pthread_mutex_unlock(&ctx->lock);
 }
 
+OSSL_LIB_CTX *provider_ctx_get_libctx(PROVIDER_CTX *ctx)
+{
+    if (!ctx->initialized) return NULL;
+    return ctx->libctx;
+}
+
 CK_FUNCTION_LIST *provider_ctx_fns(PROVIDER_CTX *ctx)
 {
     if (!ctx->initialized) return NULL;
@@ -139,6 +145,10 @@ static const OSSL_ALGORITHM p11prov_keymgmt[] = {
       p11prov_rsa_keymgmt_functions, P11PROV_DESCS_RSA, },
     { P11PROV_NAMES_ECDSA, P11PROV_DEFAULT_PROPERTIES,
       p11prov_ecdsa_keymgmt_functions, P11PROV_DESCS_ECDSA, },
+    { P11PROV_NAMES_HKDF, P11PROV_DEFAULT_PROPERTIES,
+      p11prov_hkdf_keymgmt_functions, P11PROV_DESCS_HKDF, },
+    { "HKDF", P11PROV_DEFAULT_PROPERTIES,
+      p11prov_hkdf_keymgmt_functions, P11PROV_DESCS_HKDF, },
     { NULL, NULL, NULL, NULL }
 };
 
@@ -165,6 +175,16 @@ static const OSSL_ALGORITHM p11prov_asym_cipher[] = {
 static const OSSL_ALGORITHM p11prov_exchange[] = {
     { P11PROV_NAMES_ECDH, P11PROV_DEFAULT_PROPERTIES,
       p11prov_ecdh_exchange_functions, P11PROV_DESCS_ECDH, },
+    { P11PROV_NAMES_HKDF, P11PROV_DEFAULT_PROPERTIES,
+      p11prov_hkdf_exchange_functions, P11PROV_DESCS_HKDF, },
+    { NULL, NULL, NULL, NULL }
+};
+
+static const OSSL_ALGORITHM p11prov_kdf[] = {
+    { P11PROV_NAMES_HKDF, P11PROV_DEFAULT_PROPERTIES,
+      p11prov_hkdf_kdf_functions, P11PROV_DESCS_HKDF, },
+    { "HKDF", P11PROV_DEFAULT_PROPERTIES,
+      p11prov_hkdf_kdf_functions, P11PROV_DESCS_HKDF, },
     { NULL, NULL, NULL, NULL }
 };
 
@@ -184,6 +204,8 @@ static const OSSL_ALGORITHM *p11prov_query_operation(void *provctx,
         return p11prov_asym_cipher;
     case OSSL_OP_KEYEXCH:
         return p11prov_exchange;
+    case OSSL_OP_KDF:
+        return p11prov_kdf;
     }
     return NULL;
 }

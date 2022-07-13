@@ -10,6 +10,7 @@ pkcs11prov_la_SOURCES = \
 	provider_util.c \
 	provider_keys.c \
 	provider_store.c \
+	provider_kdf.c \
 	provider_keymgmt.c \
 	provider_exchange.c \
 	provider_signature.c \

@@ -356,4 +356,49 @@ pkeyutl -derive -inkey ${ECBASEURI}
                 -peerkey ${ECPEERPUBURI}
                 -out ${TMPDIR}/secret.ecdh.bin'
 
+title PARA "HKDF Derivation"
+HKDF_HEX_SECRET=ffeeddccbbaa
+HKDF_HEX_SALT=ffeeddccbbaa
+HKDF_HEX_INFO=ffeeddccbbaa
+ossl '
+pkeyutl -derive -kdf HKDF -kdflen 48
+                -pkeyopt md:SHA256
+                -pkeyopt mode:EXTRACT_AND_EXPAND
+                -pkeyopt hexkey:${HKDF_HEX_SECRET}
+                -pkeyopt hexsalt:${HKDF_HEX_SALT}
+                -pkeyopt hexinfo:${HKDF_HEX_INFO}
+                -out ${TMPDIR}/hkdf1-out-pkcs11.bin
+                -propquery provider=pkcs11'
+ossl '
+pkeyutl -derive -kdf HKDF -kdflen 48
+                -pkeyopt md:SHA256
+                -pkeyopt mode:EXTRACT_AND_EXPAND
+                -pkeyopt hexkey:${HKDF_HEX_SECRET}
+                -pkeyopt hexsalt:${HKDF_HEX_SALT}
+                -pkeyopt hexinfo:${HKDF_HEX_INFO}
+                -out ${TMPDIR}/hkdf1-out.bin'
+diff ${TMPDIR}/hkdf1-out-pkcs11.bin ${TMPDIR}/hkdf1-out.bin
+
+HKDF_HEX_SECRET=6dc3bcf529a350e0423befb3deef8aef78d912c4f1dc3e6e52bf61f681e40904
+HKDF_SALT="I'm a Salt!"
+HKDF_INFO="And I'm an Info?"
+ossl '
+pkeyutl -derive -kdf HKDF -kdflen 48
+                -pkeyopt md:SHA256
+                -pkeyopt mode:EXTRACT_AND_EXPAND
+                -pkeyopt hexkey:${HKDF_HEX_SECRET}
+                -pkeyopt salt:"${HKDF_SALT}"
+                -pkeyopt info:"${HKDF_INFO}"
+                -out ${TMPDIR}/hkdf2-out-pkcs11.bin
+                -propquery provider=pkcs11'
+ossl '
+pkeyutl -derive -kdf HKDF -kdflen 48
+                -pkeyopt md:SHA256
+                -pkeyopt mode:EXTRACT_AND_EXPAND
+                -pkeyopt hexkey:${HKDF_HEX_SECRET}
+                -pkeyopt salt:"${HKDF_SALT}"
+                -pkeyopt info:"${HKDF_INFO}"
+                -out ${TMPDIR}/hkdf2-out.bin'
+diff ${TMPDIR}/hkdf2-out-pkcs11.bin ${TMPDIR}/hkdf2-out.bin
+
 exit 0

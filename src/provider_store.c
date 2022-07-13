@@ -351,6 +351,8 @@ static int parse_uri(struct p11prov_uri *u, const char *uri)
                 u->class = CKO_PUBLIC_KEY;
             } else if (len == 7 && strncmp(p, "private", 7) == 0) {
                 u->class = CKO_PRIVATE_KEY;
+            } else if (len == 7 && strncmp(p, "secret", 7) == 0) {
+                u->class = CKO_SECRET_KEY;
             } else {
                 p11prov_debug("Unknown object type\n");
                 ret = EINVAL;

@@ -358,3 +358,79 @@ again:
 
     return result;
 }
+
+P11PROV_KEY *p11prov_create_secret_key(PROVIDER_CTX *provctx,
+                                       CK_SESSION_HANDLE session,
+                                       bool session_key,
+                                       unsigned char *secret,
+                                       size_t secretlen)
+{
+    CK_FUNCTION_LIST *f;
+    CK_SESSION_INFO session_info;
+    CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
+    CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
+    CK_BBOOL val_true = CK_TRUE;
+    CK_BBOOL val_token = session_key?CK_FALSE:CK_TRUE;
+    CK_ATTRIBUTE key_template[5] = {
+        { CKA_CLASS, &key_class, sizeof(key_class) },
+        { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
+        { CKA_TOKEN, &val_token, sizeof(val_token) },
+        { CKA_DERIVE, &val_true, sizeof(val_true) },
+        { CKA_VALUE, (void *)secret, secretlen },
+    };
+    CK_OBJECT_HANDLE key_handle;
+    P11PROV_KEY *key;
+    struct fetch_attrs attrs[2];
+    unsigned long label_len;
+    CK_RV ret;
+
+    p11prov_debug("keys: create secret key (session:%lu secret:%p[%zu])\n",
+                  session, secret, secretlen);
+
+    f = provider_ctx_fns(provctx);
+    if (f == NULL) return NULL;
+
+    ret = f->C_GetSessionInfo(session, &session_info);
+    if (ret != CKR_OK) {
+        p11prov_debug("GetSessionInfo failed %d\n", ret);
+        /* TODO: Err message */
+        return NULL;
+    }
+    if ((session_info.flags & CKF_RW_SESSION == 0) &&
+        val_token == CK_TRUE) {
+        p11prov_debug("Invalid read only session for token key request\n");
+        return NULL;
+    }
+
+    ret = f->C_CreateObject(session, key_template, 5, &key_handle);
+    if (ret != CKR_OK) {
+        p11prov_debug("CreateObject failed %d\n", ret);
+        return NULL;
+    }
+
+    key = p11prov_key_new();
+    if (key == NULL) return NULL;
+
+    key->type = key_type;
+    key->slotid = session_info.slotID;
+    key->handle = key_handle;
+    key->class = key_class;
+    key->key_size = secretlen;
+    key->numattrs = 0;
+
+    FA_ASSIGN_ALL(attrs[0], CKA_ID,
+                  &key->id, &key->id_len, true, false);
+    FA_ASSIGN_ALL(attrs[1], CKA_LABEL,
+                  &key->label, &label_len, true, false);
+    ret = p11prov_fetch_attributes(f, session, key_handle, attrs, 2);
+    if (ret != CKR_OK) {
+        p11prov_debug("Failed to query object attributes (%d)\n", ret);
+    }
+
+done:
+    if (ret != CKR_OK) {
+        p11prov_key_free(key);
+        key = NULL;
+    }
+    return key;
+}

@@ -32,6 +32,8 @@
 #define P11PROV_DESCS_ECDSA "PKCS11 ECDSA Implementation"
 #define P11PROV_NAMES_ECDH "PKCS11-ECDH"
 #define P11PROV_DESCS_ECDH "PKCS11 ECDH Implementation"
+#define P11PROV_NAMES_HKDF "PKCS11-HKDF"
+#define P11PROV_DESCS_HKDF "PKCS11 HKDF Implementation"
 #define P11PROV_DESCS_URI "PKCS11 URI Store"
 
 typedef struct st_provider_ctx PROVIDER_CTX;
@@ -44,6 +46,7 @@ struct p11prov_slot {
     CK_ULONG profiles[5];
 };
 
+OSSL_LIB_CTX *provider_ctx_get_libctx(PROVIDER_CTX *ctx);
 CK_FUNCTION_LIST *provider_ctx_fns(PROVIDER_CTX *ctx);
 int provider_ctx_lock_slots(PROVIDER_CTX *ctx, struct p11prov_slot **slots);
 void provider_ctx_unlock_slots(PROVIDER_CTX *ctx, struct p11prov_slot **slots);
@@ -71,6 +74,11 @@ int find_keys(PROVIDER_CTX *provctx,
               CK_SLOT_ID slotid, CK_OBJECT_CLASS class,
               const unsigned char *id, size_t id_len,
               const char *label);
+P11PROV_KEY *p11prov_create_secret_key(PROVIDER_CTX *provctx,
+                                       CK_SESSION_HANDLE session,
+                                       bool session_key,
+                                       unsigned char *secret,
+                                       size_t secretlen);
 
 /* Object Store */
 typedef struct p11prov_object P11PROV_OBJECT;
@@ -99,6 +107,13 @@ extern const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[];
 #define DISPATCH_ECKM_ELEM(NAME, name) \
     { OSSL_FUNC_KEYMGMT_##NAME, (void(*)(void))p11prov_eckm_##name }
 extern const OSSL_DISPATCH p11prov_ecdsa_keymgmt_functions[];
+
+/* hkdf keymgmt */
+#define DISPATCH_HKDFKM_FN(name) \
+    DECL_DISPATCH_FUNC(keymgmt, p11prov_hkdfkm, name)
+#define DISPATCH_HKDFKM_ELEM(NAME, name) \
+    { OSSL_FUNC_KEYMGMT_##NAME, (void(*)(void))p11prov_hkdfkm_##name }
+extern const OSSL_DISPATCH p11prov_hkdf_keymgmt_functions[];
 
 #define DISPATCH_STORE_FN(name) \
     DECL_DISPATCH_FUNC(store, p11prov_store, name)
@@ -135,6 +150,19 @@ extern const OSSL_DISPATCH p11prov_rsa_asym_cipher_functions[];
 #define DISPATCH_ECDH_ELEM(prefix, NAME, name) \
     { OSSL_FUNC_KEYEXCH_##NAME, (void(*)(void))p11prov_##prefix##_##name }
 extern const OSSL_DISPATCH p11prov_ecdh_exchange_functions[];
+
+/* HKDF exchange and kdf fns */
+#define DISPATCH_EXCHHKDF_FN(name) \
+    DECL_DISPATCH_FUNC(keyexch, p11prov_exch_hkdf, name)
+#define DISPATCH_EXCHHKDF_ELEM(prefix, NAME, name) \
+    { OSSL_FUNC_KEYEXCH_##NAME, (void(*)(void))p11prov_##prefix##_##name }
+extern const OSSL_DISPATCH p11prov_hkdf_exchange_functions[];
+#define DISPATCH_HKDF_FN(name) \
+    DECL_DISPATCH_FUNC(kdf, p11prov_hkdf, name)
+#define DISPATCH_HKDF_ELEM(prefix, NAME, name) \
+    { OSSL_FUNC_KDF_##NAME, (void(*)(void))p11prov_##prefix##_##name }
+extern const void *p11prov_hkdfkm_static_ctx;
+extern const OSSL_DISPATCH p11prov_hkdf_kdf_functions[];
 
 
 /* Utilities to fetch objects from tokens */
@@ -176,4 +204,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f,
                              struct fetch_attrs *attrs,
                              unsigned long attrnums);
 
+CK_SESSION_HANDLE p11prov_get_session(PROVIDER_CTX *provctx,
+                                      CK_SLOT_ID slotid);
+void p11prov_put_session(PROVIDER_CTX *provctx, CK_SESSION_HANDLE session);
 #endif /* _PROVIDER_H */

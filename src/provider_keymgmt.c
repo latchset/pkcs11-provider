@@ -494,3 +494,57 @@ const OSSL_DISPATCH p11prov_ecdsa_keymgmt_functions[] = {
     DISPATCH_ECKM_ELEM(GETTABLE_PARAMS, gettable_params),
     { 0, NULL }
 };
+
+DISPATCH_HKDFKM_FN(new);
+DISPATCH_HKDFKM_FN(free);
+DISPATCH_HKDFKM_FN(query_operation_name);
+DISPATCH_HKDFKM_FN(has);
+
+const void *p11prov_hkdfkm_static_ctx = NULL;
+
+static void *p11prov_hkdfkm_new(void *provctx)
+{
+    p11prov_debug("hkdf keymgmt new\n");
+    return (void *)&p11prov_hkdfkm_static_ctx;
+}
+
+static void p11prov_hkdfkm_free(void *kdfdata)
+{
+    p11prov_debug("hkdf keymgmt free %p\n", kdfdata);
+
+    if (kdfdata != &p11prov_hkdfkm_static_ctx) {
+        p11prov_debug("Invalid HKDF Keymgmt context: %p != %p\n",
+                      kdfdata, &p11prov_hkdfkm_static_ctx);
+    }
+}
+
+static const char *p11prov_hkdfkm_query_operation_name(int operation_id)
+{
+    p11prov_debug("hkdf keymgmt query op name %d\n", operation_id);
+
+    switch (operation_id) {
+    case OSSL_OP_KEYEXCH:
+        return P11PROV_NAMES_HKDF;
+    default:
+        return "HKDF";
+    }
+}
+
+static int p11prov_hkdfkm_has(const void *kdfdata, int selection)
+{
+    p11prov_debug("hkdf keymgmt has\n");
+    if (kdfdata != &p11prov_hkdfkm_static_ctx) {
+        p11prov_debug("Invalid HKDF Keymgmt context: %p != %p\n",
+                      kdfdata, &p11prov_hkdfkm_static_ctx);
+        return RET_OSSL_ERR;
+    }
+    return RET_OSSL_OK;
+}
+
+const OSSL_DISPATCH p11prov_hkdf_keymgmt_functions[] = {
+    DISPATCH_HKDFKM_ELEM(NEW, new),
+    DISPATCH_HKDFKM_ELEM(FREE, free),
+    DISPATCH_HKDFKM_ELEM(QUERY_OPERATION_NAME, query_operation_name),
+    DISPATCH_HKDFKM_ELEM(HAS, has),
+    { 0, NULL }
+};
