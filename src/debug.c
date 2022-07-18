@@ -38,7 +38,7 @@ struct ckmap {
 extern struct ckmap mechanism_names[];
 extern struct ckmap mechanism_flags[];
 
-void p11prov_debug_mechanism(PROVIDER_CTX *ctx, CK_SLOT_ID slotid,
+void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                              CK_MECHANISM_TYPE type)
 {
     CK_MECHANISM_INFO info = { 0 };
@@ -48,7 +48,7 @@ void p11prov_debug_mechanism(PROVIDER_CTX *ctx, CK_SLOT_ID slotid,
 
     if (debug_lazy_init < 0) return;
 
-    f = provider_ctx_fns(ctx);
+    f = p11prov_ctx_fns(ctx);
     if (f == NULL) return;
 
     for (int i = 0; mechanism_names[i].name != NULL; i++) {

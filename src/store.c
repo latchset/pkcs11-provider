@@ -18,7 +18,7 @@ struct p11prov_uri {
 };
 
 struct p11prov_object {
-    PROVIDER_CTX *provctx;
+    P11PROV_CTX *provctx;
     struct p11prov_uri *parsed_uri;
     char *set_properties;
     char *set_input_type;
@@ -70,7 +70,7 @@ void p11prov_object_free(P11PROV_OBJECT *obj)
     }
 
     if (obj->login_session != CK_INVALID_HANDLE) {
-        CK_FUNCTION_LIST_PTR f = provider_ctx_fns(obj->provctx);
+        CK_FUNCTION_LIST_PTR f = p11prov_ctx_fns(obj->provctx);
         if (f) {
             (void)f->C_CloseSession(obj->login_session);
         }
@@ -390,7 +390,7 @@ DISPATCH_STORE_FN(settable_ctx_params);
 
 static void *p11prov_store_open(void *provctx, const char *uri)
 {
-    PROVIDER_CTX *ctx = (PROVIDER_CTX *)provctx;
+    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
     P11PROV_OBJECT *obj;
     int ret;
 
@@ -419,7 +419,7 @@ static void *p11prov_store_open(void *provctx, const char *uri)
 
 static void *p11prov_store_attach(void *provctx, OSSL_CORE_BIO *in)
 {
-    PROVIDER_CTX *ctx = (PROVIDER_CTX *)provctx;
+    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
 
     p11prov_debug("object attach (%p, %p)\n", ctx, in);
 
@@ -438,7 +438,7 @@ static int p11prov_store_load(void *ctx,
 
     p11prov_debug("object load (%p)\n", obj);
 
-    nslots = provider_ctx_lock_slots(obj->provctx, &slots);
+    nslots = p11prov_ctx_lock_slots(obj->provctx, &slots);
 
     for (int i = 0; i < nslots; i++) {
 	CK_TOKEN_INFO token;
@@ -465,7 +465,7 @@ static int p11prov_store_load(void *ctx,
             continue;
 
         if (token.flags & CKF_LOGIN_REQUIRED) {
-            CK_FUNCTION_LIST *f = provider_ctx_fns(obj->provctx);
+            CK_FUNCTION_LIST *f = p11prov_ctx_fns(obj->provctx);
             CK_UTF8CHAR_PTR pin = obj->parsed_uri->pin;
             CK_ULONG pinlen = 0;
             int ret;
@@ -533,7 +533,7 @@ static int p11prov_store_load(void *ctx,
         }
     }
 
-    provider_ctx_unlock_slots(obj->provctx, &slots);
+    p11prov_ctx_unlock_slots(obj->provctx, &slots);
 
     obj->loaded = 1;
 

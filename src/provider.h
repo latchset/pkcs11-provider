@@ -36,7 +36,7 @@
 #define P11PROV_DESCS_HKDF "PKCS11 HKDF Implementation"
 #define P11PROV_DESCS_URI "PKCS11 URI Store"
 
-typedef struct st_provider_ctx PROVIDER_CTX;
+typedef struct p11prov_ctx P11PROV_CTX;
 
 struct p11prov_slot {
     CK_SLOT_ID id;
@@ -46,14 +46,14 @@ struct p11prov_slot {
     CK_ULONG profiles[5];
 };
 
-OSSL_LIB_CTX *provider_ctx_get_libctx(PROVIDER_CTX *ctx);
-CK_FUNCTION_LIST *provider_ctx_fns(PROVIDER_CTX *ctx);
-int provider_ctx_lock_slots(PROVIDER_CTX *ctx, struct p11prov_slot **slots);
-void provider_ctx_unlock_slots(PROVIDER_CTX *ctx, struct p11prov_slot **slots);
+OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx);
+CK_FUNCTION_LIST *p11prov_ctx_fns(P11PROV_CTX *ctx);
+int p11prov_ctx_lock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
+void p11prov_ctx_unlock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
 
 /* Debugging */
 void p11prov_debug(const char *fmt, ...);
-void p11prov_debug_mechanism(PROVIDER_CTX *ctx, CK_SLOT_ID slotid,
+void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                              CK_MECHANISM_TYPE type);
 void p11prov_debug_token_info(CK_TOKEN_INFO info);
 void p11prov_debug_slot(struct p11prov_slot *slot);
@@ -69,12 +69,12 @@ CK_SLOT_ID p11prov_key_slotid(P11PROV_KEY *key);
 CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key);
 CK_ULONG p11prov_key_size(P11PROV_KEY *key);
 
-int find_keys(PROVIDER_CTX *provctx,
+int find_keys(P11PROV_CTX *provctx,
               P11PROV_KEY **priv, P11PROV_KEY **pub,
               CK_SLOT_ID slotid, CK_OBJECT_CLASS class,
               const unsigned char *id, size_t id_len,
               const char *label);
-P11PROV_KEY *p11prov_create_secret_key(PROVIDER_CTX *provctx,
+P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        CK_SESSION_HANDLE session,
                                        bool session_key,
                                        unsigned char *secret,
@@ -204,7 +204,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f,
                              struct fetch_attrs *attrs,
                              unsigned long attrnums);
 
-CK_SESSION_HANDLE p11prov_get_session(PROVIDER_CTX *provctx,
+CK_SESSION_HANDLE p11prov_get_session(P11PROV_CTX *provctx,
                                       CK_SLOT_ID slotid);
-void p11prov_put_session(PROVIDER_CTX *provctx, CK_SESSION_HANDLE session);
+void p11prov_put_session(P11PROV_CTX *provctx, CK_SESSION_HANDLE session);
 #endif /* _PROVIDER_H */

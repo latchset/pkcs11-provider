@@ -5,7 +5,7 @@
 #include <openssl/kdf.h>
 
 struct p11prov_kdf_ctx {
-    PROVIDER_CTX *provctx;
+    P11PROV_CTX *provctx;
 
     P11PROV_KEY *key;
 
@@ -75,7 +75,7 @@ DISPATCH_HKDF_FN(gettable_ctx_params);
 
 static void *p11prov_hkdf_newctx(void *provctx)
 {
-    PROVIDER_CTX *ctx = (PROVIDER_CTX *)provctx;
+    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
     P11PROV_KDF_CTX *hkdfctx;
 
     p11prov_debug("hkdf newctx\n");
@@ -174,7 +174,7 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
         hkdfctx->params.ulSaltType = CKF_HKDF_SALT_NULL;
     }
 
-    f = provider_ctx_fns(hkdfctx->provctx);
+    f = p11prov_ctx_fns(hkdfctx->provctx);
     if (f == NULL) {
         /* TODO: ERR_raise(ERR_LIB_PROV, ?? ); */
         return RET_OSSL_ERR;

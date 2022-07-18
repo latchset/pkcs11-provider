@@ -87,7 +87,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f,
     return ret;
 }
 
-CK_SESSION_HANDLE p11prov_get_session(PROVIDER_CTX *provctx,
+CK_SESSION_HANDLE p11prov_get_session(P11PROV_CTX *provctx,
                                       CK_SLOT_ID slotid)
 {
     CK_SESSION_HANDLE session = CK_INVALID_HANDLE;
@@ -98,7 +98,7 @@ CK_SESSION_HANDLE p11prov_get_session(PROVIDER_CTX *provctx,
         struct p11prov_slot *slots = NULL;
         int nslots = 0;
 
-        nslots = provider_ctx_lock_slots(provctx, &slots);
+        nslots = p11prov_ctx_lock_slots(provctx, &slots);
 
         for (int i = 0; i < nslots; i++) {
             /* ignore slots that are not initialized */
@@ -108,12 +108,12 @@ CK_SESSION_HANDLE p11prov_get_session(PROVIDER_CTX *provctx,
             slotid = slots[i].id;
         }
 
-        provider_ctx_unlock_slots(provctx, &slots);
+        p11prov_ctx_unlock_slots(provctx, &slots);
     }
 
     if (slotid == CK_UNAVAILABLE_INFORMATION) goto done;
 
-    f = provider_ctx_fns(provctx);
+    f = p11prov_ctx_fns(provctx);
     if (f == NULL) {
         /* TODO: Return uninitialized error ?
          * ERR_raise(ERR_LIB_PROV??, ??); */
@@ -131,12 +131,12 @@ done:
     return session;
 }
 
-void p11prov_put_session(PROVIDER_CTX *provctx, CK_SESSION_HANDLE session)
+void p11prov_put_session(P11PROV_CTX *provctx, CK_SESSION_HANDLE session)
 {
     CK_FUNCTION_LIST *f;
     CK_RV ret;
 
-    f = provider_ctx_fns(provctx);
+    f = p11prov_ctx_fns(provctx);
     if (f == NULL) {
         /* TODO: Return uninitialized error ?
          * ERR_raise(ERR_LIB_PROV??, ??); */

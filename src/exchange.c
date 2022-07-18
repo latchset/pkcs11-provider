@@ -5,7 +5,7 @@
 #include <openssl/kdf.h>
 
 struct p11prov_exch_ctx {
-    PROVIDER_CTX *provctx;
+    P11PROV_CTX *provctx;
 
     P11PROV_KEY *key;
     P11PROV_KEY *peer_key;
@@ -93,7 +93,7 @@ DISPATCH_ECDH_FN(gettable_ctx_params);
 
 static void *p11prov_ecdh_newctx(void *provctx)
 {
-    PROVIDER_CTX *ctx = (PROVIDER_CTX *)provctx;
+    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
     P11PROV_EXCH_CTX *ecdhctx;
 
     ecdhctx = OPENSSL_zalloc(sizeof(P11PROV_EXCH_CTX));
@@ -270,7 +270,7 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
         return RET_OSSL_ERR;
     }
 
-    f = provider_ctx_fns(ecdhctx->provctx);
+    f = p11prov_ctx_fns(ecdhctx->provctx);
     if (f == NULL) return CKR_GENERAL_ERROR;
 
     ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
@@ -498,7 +498,7 @@ DISPATCH_EXCHHKDF_FN(settable_ctx_params);
 
 static void *p11prov_exch_hkdf_newctx(void *provctx)
 {
-    PROVIDER_CTX *ctx = (PROVIDER_CTX *)provctx;
+    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
     P11PROV_EXCH_CTX *hkdfctx;
     EVP_KDF *kdf = NULL;
 

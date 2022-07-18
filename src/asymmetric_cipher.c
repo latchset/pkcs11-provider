@@ -17,7 +17,7 @@ DISPATCH_RSAENC_FN(gettable_ctx_params);
 DISPATCH_RSAENC_FN(settable_ctx_params);
 
 struct p11prov_rsaenc_ctx {
-    PROVIDER_CTX *provctx;
+    P11PROV_CTX *provctx;
 
     P11PROV_KEY *key;
 
@@ -27,7 +27,7 @@ struct p11prov_rsaenc_ctx {
 
 static void *p11prov_rsaenc_newctx(void *provctx)
 {
-    PROVIDER_CTX *ctx = (PROVIDER_CTX *)provctx;
+    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
     struct p11prov_rsaenc_ctx *encctx;
 
     encctx = OPENSSL_zalloc(sizeof(struct p11prov_rsaenc_ctx));
@@ -144,7 +144,7 @@ static int p11prov_rsaenc_encrypt(void *ctx,
         return RET_OSSL_OK;
     }
 
-    f = provider_ctx_fns(encctx->provctx);
+    f = p11prov_ctx_fns(encctx->provctx);
     if (f == NULL) return RET_OSSL_ERR;
     slotid = p11prov_key_slotid(encctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
@@ -231,7 +231,7 @@ static int p11prov_rsaenc_decrypt(void *ctx,
         return RET_OSSL_OK;
     }
 
-    f = provider_ctx_fns(encctx->provctx);
+    f = p11prov_ctx_fns(encctx->provctx);
     if (f == NULL) return RET_OSSL_ERR;
     slotid = p11prov_key_slotid(encctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;

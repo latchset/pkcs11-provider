@@ -6,7 +6,7 @@
 #include "openssl/sha.h"
 
 struct p11prov_sig_ctx {
-    PROVIDER_CTX *provctx;
+    P11PROV_CTX *provctx;
     char *properties;
 
     P11PROV_KEY *priv_key;
@@ -25,7 +25,7 @@ typedef struct p11prov_sig_ctx P11PROV_SIG_CTX;
 DISPATCH_SIG_FN(freectx);
 DISPATCH_SIG_FN(dupctx);
 
-static P11PROV_SIG_CTX *p11prov_sig_newctx(PROVIDER_CTX *ctx,
+static P11PROV_SIG_CTX *p11prov_sig_newctx(P11PROV_CTX *ctx,
                                            CK_MECHANISM_TYPE type,
                                            const char *properties)
 {
@@ -63,7 +63,7 @@ static void *p11prov_sig_dupctx(void *ctx)
 
     if (sigctx == NULL) return NULL;
 
-    f = provider_ctx_fns(sigctx->provctx);
+    f = p11prov_ctx_fns(sigctx->provctx);
     if (f == NULL) return NULL;
 
     newctx = p11prov_sig_newctx(sigctx->provctx, sigctx->mechtype,
@@ -149,7 +149,7 @@ static void p11prov_sig_freectx(void *ctx)
     if (sigctx == NULL) return;
 
     if (sigctx->session != CK_INVALID_HANDLE) {
-        CK_FUNCTION_LIST *f = provider_ctx_fns(sigctx->provctx);
+        CK_FUNCTION_LIST *f = p11prov_ctx_fns(sigctx->provctx);
         if (f) f->C_CloseSession(sigctx->session);
     }
 
@@ -382,7 +382,7 @@ static int p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx,
     P11PROV_KEY *key;
     int ret;
 
-    f = provider_ctx_fns(sigctx->provctx);
+    f = p11prov_ctx_fns(sigctx->provctx);
     if (f == NULL) return CKR_GENERAL_ERROR;
 
     switch (sigctx->operation) {
@@ -465,7 +465,7 @@ static int p11prov_sig_operate(P11PROV_SIG_CTX *sigctx,
     ret = p11prov_sig_operate_init(sigctx, false, &session);
     if (ret != CKR_OK) return RET_OSSL_ERR;
 
-    f = provider_ctx_fns(sigctx->provctx);
+    f = p11prov_ctx_fns(sigctx->provctx);
     if (f == NULL) return RET_OSSL_ERR;
 
     if (sigctx->operation == CKF_SIGN) {
@@ -497,7 +497,7 @@ static int p11prov_sig_digest_update(P11PROV_SIG_CTX *sigctx,
     CK_FUNCTION_LIST *f;
     int ret;
 
-    f = provider_ctx_fns(sigctx->provctx);
+    f = p11prov_ctx_fns(sigctx->provctx);
     if (f == NULL) return RET_OSSL_ERR;
 
     if (sigctx->session == CK_INVALID_HANDLE) {
@@ -536,7 +536,7 @@ static int p11prov_sig_digest_final(P11PROV_SIG_CTX *sigctx,
         return p11prov_sig_get_sig_size(sigctx, siglen);
     }
 
-    f = provider_ctx_fns(sigctx->provctx);
+    f = p11prov_ctx_fns(sigctx->provctx);
     if (f == NULL) return RET_OSSL_ERR;
 
     if (sigctx->operation == CKF_SIGN) {
@@ -575,7 +575,7 @@ DISPATCH_RSASIG_FN(settable_ctx_params);
 
 static void *p11prov_rsasig_newctx(void *provctx, const char *properties)
 {
-    PROVIDER_CTX *ctx = (PROVIDER_CTX *)provctx;
+    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
     P11PROV_SIG_CTX *sigctx;
 
     /* PKCS1.5 is the default, PSS set via padding params */
@@ -974,7 +974,7 @@ DISPATCH_ECDSA_FN(settable_ctx_params);
 
 static void *p11prov_ecdsa_newctx(void *provctx, const char *properties)
 {
-    PROVIDER_CTX *ctx = (PROVIDER_CTX *)provctx;
+    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
     P11PROV_SIG_CTX *sigctx;
 
     sigctx = p11prov_sig_newctx(ctx, CKM_ECDSA, properties);

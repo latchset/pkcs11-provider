@@ -3,7 +3,7 @@
 #include "provider.h"
 #include <dlfcn.h>
 
-struct st_provider_ctx {
+struct p11prov_ctx {
 
     bool initialized;
     pthread_mutex_t lock;
@@ -27,7 +27,7 @@ struct st_provider_ctx {
     struct p11prov_slot *slots;
 };
 
-int provider_ctx_lock_slots(PROVIDER_CTX *ctx, struct p11prov_slot **slots)
+int p11prov_ctx_lock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
 {
     if (!ctx->initialized) return RET_OSSL_ERR;
 
@@ -37,7 +37,7 @@ int provider_ctx_lock_slots(PROVIDER_CTX *ctx, struct p11prov_slot **slots)
     return ctx->nslots;
 }
 
-void provider_ctx_unlock_slots(PROVIDER_CTX *ctx, struct p11prov_slot **slots)
+void p11prov_ctx_unlock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
 {
     if (!ctx->initialized) return;
 
@@ -46,19 +46,19 @@ void provider_ctx_unlock_slots(PROVIDER_CTX *ctx, struct p11prov_slot **slots)
     pthread_mutex_unlock(&ctx->lock);
 }
 
-OSSL_LIB_CTX *provider_ctx_get_libctx(PROVIDER_CTX *ctx)
+OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx)
 {
     if (!ctx->initialized) return NULL;
     return ctx->libctx;
 }
 
-CK_FUNCTION_LIST *provider_ctx_fns(PROVIDER_CTX *ctx)
+CK_FUNCTION_LIST *p11prov_ctx_fns(P11PROV_CTX *ctx)
 {
     if (!ctx->initialized) return NULL;
     return ctx->fns;
 }
 
-static void provider_ctx_free(PROVIDER_CTX *ctx)
+static void p11prov_ctx_free(P11PROV_CTX *ctx)
 {
     if (ctx->initialized) {
         pthread_mutex_lock(&ctx->lock);
@@ -82,14 +82,14 @@ static void provider_ctx_free(PROVIDER_CTX *ctx)
         pthread_mutex_unlock(&ctx->lock);
     }
     pthread_mutex_destroy(&ctx->lock);
-    OPENSSL_clear_free(ctx, sizeof(PROVIDER_CTX));
+    OPENSSL_clear_free(ctx, sizeof(P11PROV_CTX));
 }
 
 static OSSL_FUNC_core_get_params_fn *c_get_params = NULL;
 
 static void p11prov_teardown(void *ctx)
 {
-    provider_ctx_free((PROVIDER_CTX *)ctx);
+    p11prov_ctx_free((P11PROV_CTX *)ctx);
 }
 
 /* Parameters we provide to the core */
@@ -233,7 +233,7 @@ static const OSSL_DISPATCH p11prov_dispatch_table[] = {
     { 0, NULL }
 };
 
-static int refresh_slot_profiles(PROVIDER_CTX *ctx, struct p11prov_slot *slot)
+static int refresh_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
 {
     CK_SESSION_HANDLE session;
     CK_BBOOL token = CK_TRUE;
@@ -295,7 +295,7 @@ done:
     return ret;
 }
 
-static int refresh_slots(PROVIDER_CTX *ctx)
+static int refresh_slots(P11PROV_CTX *ctx)
 {
     CK_ULONG nslots;
     CK_SLOT_ID *slotid;
@@ -366,7 +366,7 @@ done:
     return ret;
 }
 
-static int p11prov_module_init(PROVIDER_CTX *ctx)
+static int p11prov_module_init(P11PROV_CTX *ctx)
 {
     CK_RV (*c_get_function_list)(CK_FUNCTION_LIST_PTR_PTR);
     CK_C_INITIALIZE_ARGS args = {
@@ -437,7 +437,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle,
 {
     const OSSL_DISPATCH *iter_in;
     OSSL_PARAM core_params[3] = { 0 };
-    PROVIDER_CTX *ctx;
+    P11PROV_CTX *ctx;
     int ret;
 
     *provctx = NULL;
@@ -452,7 +452,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle,
         }
     }
 
-    ctx = OPENSSL_zalloc(sizeof(PROVIDER_CTX));
+    ctx = OPENSSL_zalloc(sizeof(P11PROV_CTX));
     if (ctx == NULL) {
         return RET_OSSL_ERR;
     }
@@ -477,14 +477,14 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle,
     ret = c_get_params(handle, core_params);
     if (ret != RET_OSSL_OK) {
         ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_GET_PARAMETER);
-        provider_ctx_free(ctx);
+        p11prov_ctx_free(ctx);
         return ret;
     }
 
     ret = p11prov_module_init(ctx);
     if (ret != CKR_OK) {
         ERR_raise(ERR_LIB_PROV, PROV_R_IN_ERROR_STATE);
-        provider_ctx_free(ctx);
+        p11prov_ctx_free(ctx);
         return RET_OSSL_ERR;
     }
 

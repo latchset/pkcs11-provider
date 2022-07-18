@@ -271,13 +271,13 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f,
     return key;
 }
 
-int find_keys(PROVIDER_CTX *provctx,
+int find_keys(P11PROV_CTX *provctx,
               P11PROV_KEY **priv, P11PROV_KEY **pub,
               CK_SLOT_ID slotid, CK_OBJECT_CLASS class,
               const unsigned char *id, size_t id_len,
               const char *label)
 {
-    CK_FUNCTION_LIST *f = provider_ctx_fns(provctx);
+    CK_FUNCTION_LIST *f = p11prov_ctx_fns(provctx);
     CK_SESSION_HANDLE session;
     CK_ATTRIBUTE template[3] = {
         { CKA_CLASS, &class, sizeof(class) },
@@ -359,7 +359,7 @@ again:
     return result;
 }
 
-P11PROV_KEY *p11prov_create_secret_key(PROVIDER_CTX *provctx,
+P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        CK_SESSION_HANDLE session,
                                        bool session_key,
                                        unsigned char *secret,
@@ -387,7 +387,7 @@ P11PROV_KEY *p11prov_create_secret_key(PROVIDER_CTX *provctx,
     p11prov_debug("keys: create secret key (session:%lu secret:%p[%zu])\n",
                   session, secret, secretlen);
 
-    f = provider_ctx_fns(provctx);
+    f = p11prov_ctx_fns(provctx);
     if (f == NULL) return NULL;
 
     ret = f->C_GetSessionInfo(session, &session_info);
