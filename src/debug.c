@@ -69,7 +69,7 @@ void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                       "  flags (%#08lx):\n",
                       mechname, type,
                       info.ulMinKeySize, info.ulMaxKeySize, info.flags);
-        for (int i; mechanism_flags[i].name != NULL; i++) {
+        for (int i = 0; mechanism_flags[i].name != NULL; i++) {
             if (info.flags & mechanism_flags[i].value) {
                 p11prov_debug("    %-25s (%#08lx)\n",
                               mechanism_flags[i].name,
@@ -91,7 +91,7 @@ void p11prov_debug_token_info(CK_TOKEN_INFO info)
                   "  Flags (%#08lx):\n",
                   info.label, info.manufacturerID, info.model,
                   info.serialNumber, info.flags);
-    for (int i; token_flags[i].name != NULL; i++) {
+    for (int i = 0; token_flags[i].name != NULL; i++) {
         if (info.flags & token_flags[i].value) {
             p11prov_debug("    %-35s (%#08lx)\n",
                           token_flags[i].name,
@@ -132,7 +132,7 @@ void p11prov_debug_slot(struct p11prov_slot *slot)
                   "  Flags (%#08lx):\n",
                   slot->id, slot->slot.slotDescription,
                   slot->slot.manufacturerID, slot->slot.flags);
-    for (int i; slot_flags[i].name != NULL; i++) {
+    for (int i = 0; slot_flags[i].name != NULL; i++) {
         if (slot->slot.flags & slot_flags[i].value) {
             p11prov_debug("    %-25s (%#08lx)\n",
                           slot_flags[i].name,
@@ -152,7 +152,7 @@ void p11prov_debug_slot(struct p11prov_slot *slot)
         p11prov_debug("  Available profiles:\n");
         for (int c = 0; c < 5; c++) {
             CK_ULONG profile = slot->profiles[c];
-            for (int i; profile_ids[i].name != NULL; i++) {
+            for (int i = 0; profile_ids[i].name != NULL; i++) {
                 if (profile == slot_flags[i].value) {
                     p11prov_debug("    %-35s (%#08lx)\n",
                                   profile_ids[i].name,
