@@ -20,7 +20,7 @@ activate = 1
 activate = 1
 
 [pkcs11_sect]
-module = @libtoollibs@/pkcs11prov.so
+module = @libtoollibs@/pkcs11_provider.so
 pkcs11-module-path = @softokenpath@
 pkcs11-module-init-args = configDir=@testsdir@/tokens
 activate = 1

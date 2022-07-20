@@ -21,12 +21,17 @@ PKG_CHECK_MODULES(
 )
 AC_SUBST([SHARED_EXT], $(eval echo "${shrext_cmds}"))
 
+# Try nss-softoken first as used on Fedora,
+# fallback to "nss" as used on Debian
 PKG_CHECK_EXISTS(
         [nss-softokn],
-        ,
-        [AC_MSG_WARN([nss-softokn is required to run tests])]
+        [PKG_CHECK_VAR([SOFTOKENDIR], [nss-softokn], [libdir])],
+        [PKG_CHECK_EXISTS(
+                [nss],
+                [PKG_CHECK_VAR([SOFTOKENDIR], [nss], [libdir], [AC_SUBST([SOFTOKEN_SUBDIR], "nss/")])]
+        )]
 )
-PKG_CHECK_VAR([SOFTOKENDIR], [nss-softokn], [libdir])
+
 AS_IF([test "x$SOFTOKENDIR" = "x"], [
   AC_MSG_WARN([Unable to identify softoken plugin path.])
 ])

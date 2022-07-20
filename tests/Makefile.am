@@ -1,7 +1,7 @@
 EXTRA_DIST = openssl.cnf.in
 noinst_DATA = openssl.cnf
 
-softokenpath=@SOFTOKENDIR@/libsoftokn3.so
+softokenpath=@SOFTOKENDIR@/@SOFTOKEN_SUBDIR@libsoftokn3.so
 libtoollibs=@abs_top_builddir@/src/.libs
 testsdir=@abs_top_builddir@/tests
 
