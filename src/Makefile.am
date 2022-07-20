@@ -5,7 +5,7 @@ lib_LTLIBRARIES = pkcs11_provider.la
 SHARED_EXT=@SHARED_EXT@
 
 pkcs11_provider_la_SOURCES = \
-	asymmetric_cipher.c
+	asymmetric_cipher.c \
 	debug.c \
 	exchange.c \
 	kdf.c \
