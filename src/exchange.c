@@ -219,6 +219,7 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     CK_OBJECT_HANDLE handle;
     CK_OBJECT_HANDLE secret_handle;
     CK_SLOT_ID slotid;
+    int result = RET_OSSL_ERR;
     int ret;
 
     if (ecdhctx->key == NULL || ecdhctx->peer_key == NULL) {
@@ -262,11 +263,15 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
 
     handle = p11prov_key_handle(ecdhctx->key);
     if (handle == CK_INVALID_HANDLE) {
+        P11PROV_raise(ecdhctx->provctx, CKR_KEY_HANDLE_INVALID,
+                      "Provided key has invalid handle");
         return RET_OSSL_ERR;
     }
 
     slotid = p11prov_key_slotid(ecdhctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
+        P11PROV_raise(ecdhctx->provctx, CKR_SLOT_ID_INVALID,
+                      "Provided key has invalid slot");
         return RET_OSSL_ERR;
     }
 
@@ -275,7 +280,8 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
 
     ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
     if (ret != CKR_OK) {
-        p11prov_debug("OpenSession failed %d\n", ret);
+        P11PROV_raise(ecdhctx->provctx, ret,
+                      "Failed to open session on slot %lu", slotid);
         return ret;
     }
 
@@ -292,12 +298,20 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
             p11prov_debug("ecdh failed to retrieve secret %d\n", ret);
         }
         *psecretlen = secret_len;
+        result = RET_OSSL_OK;
     } else {
-        p11prov_debug("ecdh C_DeriveKey failed %d\n", ret);
+        P11PROV_raise(ecdhctx->provctx, ret,
+                      "Error returned by C_DeriveKey");
+        result = RET_OSSL_ERR;
     }
 
-    (void)f->C_CloseSession(session);
-    return (ret == CKR_OK)?RET_OSSL_OK:RET_OSSL_ERR;
+    ret = f->C_CloseSession(session);
+    if (ret != CKR_OK) {
+        P11PROV_raise(ecdhctx->provctx, ret,
+                      "Failed to close session %lu", session);
+    }
+
+    return result;
 }
 
 static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])

@@ -276,6 +276,13 @@ static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
         { CKR_ARGUMENTS_BAD,
             "Invalid or improper arguments were provided to the "
             "invoked function" },
+        { CKR_ATTRIBUTE_READ_ONLY,
+            "Attempted to set or modify an attribute that is Read "
+            "Only for applications" },
+        { CKR_ATTRIBUTE_TYPE_INVALID,
+            "Invalid attribute type specified in a template" },
+        { CKR_ATTRIBUTE_VALUE_INVALID,
+            "Invalid value specified for attribute in a template" },
         { CKR_DATA_INVALID,
             "The plaintext input data to a cryptographic "
             "operation is invalid" },
@@ -323,17 +330,28 @@ static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
             "A read-only session already exists" },
         { CKR_SESSION_READ_WRITE_SO_EXISTS,
             "A read/write SO session already exists" },
+        { CKR_TEMPLATE_INCOMPLETE,
+            "The template to create an object is incomplete" },
+        { CKR_TEMPLATE_INCONSISTENT,
+            "The template to create an object has conflicting attributes" },
         { CKR_TOKEN_NOT_PRESENT,
             "The token was not present in its slot when the "
             "function was invoked" },
         { CKR_TOKEN_NOT_RECOGNIZED,
             "The token in the slot is not recognized" },
         { CKR_TOKEN_WRITE_PROTECTED,
+            "Action denied because the token is write-protected" },
+        { CKR_TOKEN_WRITE_PROTECTED,
             "Can't perform action because the token is write-protected" },
         { CKR_USER_NOT_LOGGED_IN,
             "The desired action cannot be performed because an "
             "appropriate user is not logged in" },
         { CKR_OPERATION_CANCEL_FAILED, "The operation cannot be cancelled" },
+        { CKR_DOMAIN_PARAMS_INVALID,
+            "Invalid or unsupported domain parameters were "
+            "supplied to the function" },
+        { CKR_CURVE_NOT_SUPPORTED,
+            "The specified curve is not supported by this token" },
         { CKR_BUFFER_TOO_SMALL,
             "The output of the function is too large to fit in "
             "the supplied buffer" },
