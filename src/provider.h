@@ -51,6 +51,20 @@ CK_FUNCTION_LIST *p11prov_ctx_fns(P11PROV_CTX *ctx);
 int p11prov_ctx_lock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
 void p11prov_ctx_unlock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
 
+/* Errors */
+void p11prov_raise(P11PROV_CTX *ctx,
+                   const char *file, int line, const char *func,
+                   int errnum, const char *fmt, ...);
+
+#define P11PROV_raise(ctx, errnum, ...) \
+do { \
+    p11prov_raise((ctx), OPENSSL_FILE, OPENSSL_LINE, OPENSSL_FUNC, \
+                  (errnum), __VA_ARGS__); \
+    if (errnum) \
+        p11prov_debug("Error: %lu", (unsigned long)(errnum)); \
+    p11prov_debug(__VA_ARGS__); \
+} while(0)
+
 /* Debugging */
 void p11prov_debug(const char *fmt, ...);
 void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
