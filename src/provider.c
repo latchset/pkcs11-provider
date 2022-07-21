@@ -318,7 +318,9 @@ static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
         { CKR_OPERATION_NOT_INITIALIZED,
             "There is no active operation of appropriate type "
             "in the specified session" },
+        { CKR_PIN_INCORRECT, "The specified PIN is incorrect" },
         { CKR_PIN_EXPIRED, "The specified PIN has expired" },
+        { CKR_PIN_LOCKED, "The specified PIN is locked, and cannot be used" },
         { CKR_SESSION_CLOSED, "Session is already closed" },
         { CKR_SESSION_COUNT, "Too many sessions open" },
         { CKR_SESSION_HANDLE_INVALID, "Invalid Session Handle" },
@@ -346,6 +348,12 @@ static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
         { CKR_USER_NOT_LOGGED_IN,
             "The desired action cannot be performed because an "
             "appropriate user is not logged in" },
+        { CKR_USER_PIN_NOT_INITIALIZED, "The user PIN is not initialized" },
+        { CKR_USER_TYPE_INVALID, "An invalid user type was specified" },
+        { CKR_USER_ANOTHER_ALREADY_LOGGED_IN,
+            "Another user is already logged in" },
+        { CKR_USER_TOO_MANY_TYPES,
+            "Attempted to log in more users than the token can support" },
         { CKR_OPERATION_CANCEL_FAILED, "The operation cannot be cancelled" },
         { CKR_DOMAIN_PARAMS_INVALID,
             "Invalid or unsupported domain parameters were "
