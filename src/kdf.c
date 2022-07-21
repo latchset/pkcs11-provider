@@ -165,7 +165,8 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
 
     pkey_handle = p11prov_key_handle(hkdfctx->key);
     if (pkey_handle == CK_INVALID_HANDLE) {
-        ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_KEY);
+        P11PROV_raise(hkdfctx->provctx, CKR_KEY_HANDLE_INVALID,
+                      "Provided key has invalid handle");
         return RET_OSSL_ERR;
     }
 
@@ -175,10 +176,7 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
     }
 
     f = p11prov_ctx_fns(hkdfctx->provctx);
-    if (f == NULL) {
-        /* TODO: ERR_raise(ERR_LIB_PROV, ?? ); */
-        return RET_OSSL_ERR;
-    }
+    if (f == NULL) return RET_OSSL_ERR;
 
     ret = f->C_DeriveKey(hkdfctx->session, &mechanism, pkey_handle,
                          key_template, 5, &dkey_handle);
@@ -194,7 +192,8 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
             p11prov_debug("hkdf failed to retrieve secret %d\n", ret);
         }
     } else {
-        p11prov_debug("hkdf C_DeriveKey failed %d\n", ret);
+        P11PROV_raise(hkdfctx->provctx, ret,
+                      "Error returned by C_DeriveKey");
         return RET_OSSL_ERR;
     }
 
