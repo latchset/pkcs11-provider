@@ -289,12 +289,14 @@ int find_keys(P11PROV_CTX *provctx,
     int result = CKR_GENERAL_ERROR;
     int ret;
 
+    p11prov_debug("Find keys\n");
+
     if (f == NULL) return result;
 
     ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
     if (ret != CKR_OK) {
-        p11prov_debug("OpenSession failed %d\n", ret);
-        /* TODO: Err message */
+        P11PROV_raise(provctx, ret,
+                      "Failed to open session on slot %lu", slotid);
         return ret;
     }
 
@@ -325,7 +327,11 @@ again:
                 result = CKR_OK;
                 if (class == CKO_PRIVATE_KEY) {
                     *priv = privkey = key;
-                    (void)f->C_FindObjectsFinal(session);
+                    ret = f->C_FindObjectsFinal(session);
+                    if (ret != CKR_OK) {
+                        P11PROV_raise(provctx, ret,
+                                      "Failed to terminate object search");
+                    }
                     class = CKO_PUBLIC_KEY;
                     goto again;
                 }
@@ -343,17 +349,20 @@ again:
 
         } while (objcount > 0);
 
-        (void)f->C_FindObjectsFinal(session);
-    }
-
-    if (ret != CKR_OK) {
-        /* TODO: Err message */
-        p11prov_debug("Failed to search keys\n");
+        ret = f->C_FindObjectsFinal(session);
+        if (ret != CKR_OK) {
+            P11PROV_raise(provctx, ret,
+                          "Failed to terminate object search");
+        }
+    } else {
+        P11PROV_raise(provctx, ret,
+                      "Error returned by C_FindObjectsInit");
     }
 
     ret = f->C_CloseSession(session);
     if (ret != CKR_OK) {
-        p11prov_debug("Failed to close session\n");
+        P11PROV_raise(provctx, ret,
+                      "Failed to close session %lu", session);
     }
 
     return result;
@@ -392,8 +401,8 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
 
     ret = f->C_GetSessionInfo(session, &session_info);
     if (ret != CKR_OK) {
-        p11prov_debug("GetSessionInfo failed %d\n", ret);
-        /* TODO: Err message */
+        P11PROV_raise(provctx, ret,
+                      "Error returned by C_GetSessionInfo");
         return NULL;
     }
     if ((session_info.flags & CKF_RW_SESSION == 0) &&
@@ -404,7 +413,8 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
 
     ret = f->C_CreateObject(session, key_template, 5, &key_handle);
     if (ret != CKR_OK) {
-        p11prov_debug("CreateObject failed %d\n", ret);
+        P11PROV_raise(provctx, ret,
+                      "Error returned by C_CreateObject while creating key");
         return NULL;
     }
 
