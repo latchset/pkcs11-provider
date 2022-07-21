@@ -114,17 +114,12 @@ CK_SESSION_HANDLE p11prov_get_session(P11PROV_CTX *provctx,
     if (slotid == CK_UNAVAILABLE_INFORMATION) goto done;
 
     f = p11prov_ctx_fns(provctx);
-    if (f == NULL) {
-        /* TODO: Return uninitialized error ?
-         * ERR_raise(ERR_LIB_PROV??, ??); */
-        goto done;
-    }
+    if (f == NULL) goto done;
 
     ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
     if (ret != CKR_OK) {
-        p11prov_debug("OpenSession failed %d\n", ret);
-        /* TODO: Err message
-         * ERR_raise(ERR_LIB_PROV??, ??); */
+        P11PROV_raise(provctx, ret,
+                      "Failed to open session on slot %lu", slotid);
     }
 
 done:
@@ -137,16 +132,11 @@ void p11prov_put_session(P11PROV_CTX *provctx, CK_SESSION_HANDLE session)
     CK_RV ret;
 
     f = p11prov_ctx_fns(provctx);
-    if (f == NULL) {
-        /* TODO: Return uninitialized error ?
-         * ERR_raise(ERR_LIB_PROV??, ??); */
-        return;
-    }
+    if (f == NULL) return;
 
     ret = f->C_CloseSession(session);
     if (ret != CKR_OK) {
-        p11prov_debug("CloseSession failed %d\n", ret);
-        /* TODO: Err message
-         * ERR_raise(ERR_LIB_PROV??, ??); */
+        P11PROV_raise(provctx, ret,
+                      "Failed to close session %lu", session);
     }
 }

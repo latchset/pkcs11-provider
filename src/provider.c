@@ -54,7 +54,11 @@ OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx)
 
 CK_FUNCTION_LIST *p11prov_ctx_fns(P11PROV_CTX *ctx)
 {
-    if (!ctx->initialized) return NULL;
+    if (!ctx->initialized) {
+        P11PROV_raise(ctx, CKR_GENERAL_ERROR,
+                      "Failed to fetch PKCS#11 Function List");
+        return NULL;
+    }
     return ctx->fns;
 }
 
@@ -85,11 +89,54 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
     OPENSSL_clear_free(ctx, sizeof(P11PROV_CTX));
 }
 
-static OSSL_FUNC_core_get_params_fn *c_get_params = NULL;
-
 static void p11prov_teardown(void *ctx)
 {
     p11prov_ctx_free((P11PROV_CTX *)ctx);
+}
+
+static OSSL_FUNC_core_get_params_fn *core_get_params = NULL;
+static OSSL_FUNC_core_new_error_fn *core_new_error = NULL;
+static OSSL_FUNC_core_set_error_debug_fn *core_set_error_debug = NULL;
+static OSSL_FUNC_core_vset_error_fn *core_vset_error = NULL;
+
+void p11prov_get_core_dispatch_funcs(const OSSL_DISPATCH *in)
+{
+    const OSSL_DISPATCH *iter_in;
+
+    for (iter_in = in; iter_in->function_id != 0; iter_in++) {
+        switch (iter_in->function_id) {
+        case OSSL_FUNC_CORE_GET_PARAMS:
+            core_get_params = OSSL_FUNC_core_get_params(iter_in);
+            break;
+        case OSSL_FUNC_CORE_NEW_ERROR:
+            core_new_error = OSSL_FUNC_core_new_error(iter_in);
+            break;
+        case OSSL_FUNC_CORE_SET_ERROR_DEBUG:
+            core_set_error_debug = OSSL_FUNC_core_set_error_debug(iter_in);
+            break;
+        case OSSL_FUNC_CORE_VSET_ERROR:
+            core_vset_error = OSSL_FUNC_core_vset_error(iter_in);
+            break;
+        default:
+            /* Just ignore anything we don't understand */
+            continue;
+        }
+    }
+}
+
+void p11prov_raise(P11PROV_CTX *ctx,
+                   const char *file, int line, const char *func,
+                   int errnum, const char *fmt, ...)
+{
+    va_list args;
+
+    if (!core_new_error || !core_vset_error) return;
+
+    va_start(args, fmt);
+    core_new_error(ctx->handle);
+    core_set_error_debug(ctx->handle, file, line, func);
+    core_vset_error(ctx->handle, errnum, fmt, args);
+    va_end(args);
 }
 
 /* Parameters we provide to the core */
@@ -218,6 +265,51 @@ static int p11prov_get_capabilities(void *provctx, const char *capability,
     return RET_OSSL_ERR;
 }
 
+static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
+{
+    static const OSSL_ITEM reason_strings[] = {
+        { CKR_HOST_MEMORY, "Host out of memory error" },
+        { CKR_SLOT_ID_INVALID, "The specified slot ID is not valid" },
+        { CKR_GENERAL_ERROR, "General Error" },
+        { CKR_FUNCTION_FAILED,
+            "The requested function could not be performed" },
+        { CKR_ARGUMENTS_BAD,
+            "Invalid or improper arguments were provided to the "
+            "invoked function" },
+        { CKR_DEVICE_ERROR,
+            "Some problem has occurred with the token and/or slot" },
+        { CKR_DEVICE_MEMORY,
+            "The token does not have sufficient memory to perform "
+            "the requested function" },
+        { CKR_DEVICE_REMOVED,
+            "The token was removed from its slot during the "
+            "execution of the function" },
+        { CKR_SESSION_CLOSED, "Session is already closed" },
+        { CKR_SESSION_COUNT, "Too many sessions open" },
+        { CKR_SESSION_HANDLE_INVALID, "Invalid Session Handle" },
+        { CKR_SESSION_PARALLEL_NOT_SUPPORTED,
+            "Parallel sessions not supported" },
+        { CKR_SESSION_READ_ONLY, "Session is Read Only" },
+        { CKR_SESSION_EXISTS, "Session already exists" },
+        { CKR_SESSION_READ_ONLY_EXISTS,
+            "A read-only session already exists" },
+        { CKR_SESSION_READ_WRITE_SO_EXISTS,
+            "A read/write SO session already exists" },
+        { CKR_TOKEN_NOT_PRESENT,
+            "The token was not present in its slot when the "
+            "function was invoked" },
+        { CKR_TOKEN_NOT_RECOGNIZED,
+            "The token in the slot is not recognized" },
+        { CKR_TOKEN_WRITE_PROTECTED,
+            "Can't perform action because the token is write-protected" },
+        { CKR_CRYPTOKI_NOT_INITIALIZED,
+            "PKCS11 Module has not been intialized yet" },
+        { 0, NULL }
+    };
+
+    return reason_strings;
+}
+
 /* Functions we provide to the core */
 static const OSSL_DISPATCH p11prov_dispatch_table[] = {
     { OSSL_FUNC_PROVIDER_TEARDOWN,
@@ -230,6 +322,8 @@ static const OSSL_DISPATCH p11prov_dispatch_table[] = {
       (void (*)(void))p11prov_query_operation },
     { OSSL_FUNC_PROVIDER_GET_CAPABILITIES,
       (void (*)(void))p11prov_get_capabilities },
+    { OSSL_FUNC_PROVIDER_GET_REASON_STRINGS,
+      (void (*)(void))p11prov_get_reason_strings },
     { 0, NULL }
 };
 
@@ -435,22 +529,13 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle,
                        const OSSL_DISPATCH **out,
                        void **provctx)
 {
-    const OSSL_DISPATCH *iter_in;
     OSSL_PARAM core_params[3] = { 0 };
     P11PROV_CTX *ctx;
     int ret;
 
     *provctx = NULL;
 
-    for (iter_in = in; iter_in->function_id != 0; iter_in++) {
-        switch (iter_in->function_id) {
-        case OSSL_FUNC_CORE_GET_PARAMS:
-            c_get_params = OSSL_FUNC_core_get_params(iter_in);
-        default:
-            /* Just ignore anything we don't understand */
-            break;
-        }
-    }
+    p11prov_get_core_dispatch_funcs(in);
 
     ctx = OPENSSL_zalloc(sizeof(P11PROV_CTX));
     if (ctx == NULL) {
@@ -474,7 +559,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle,
                         (char **)&ctx->init_args,
                         sizeof(ctx->init_args));
     core_params[2] = OSSL_PARAM_construct_end();
-    ret = c_get_params(handle, core_params);
+    ret = core_get_params(handle, core_params);
     if (ret != RET_OSSL_OK) {
         ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_GET_PARAMETER);
         p11prov_ctx_free(ctx);
