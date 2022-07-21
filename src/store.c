@@ -477,8 +477,9 @@ static int p11prov_store_load(void *ctx,
                 ret = f->C_OpenSession(slots[i].id, CKF_SERIAL_SESSION, NULL,
                                        NULL, &obj->login_session);
                 if (ret != CKR_OK) {
-                    p11prov_debug("OpenSession failed %d\n", ret);
-                    /* TODO: Err message */
+                    P11PROV_raise(obj->provctx, ret,
+                                  "Failed to open session on slot %lu",
+                                  slots[i].id);
                     continue;
                 }
             }
@@ -486,7 +487,8 @@ static int p11prov_store_load(void *ctx,
             /* Supports only USER login sessions for now */
             ret = f->C_Login(obj->login_session, CKU_USER, pin, pinlen);
             if (ret && ret != CKR_USER_ALREADY_LOGGED_IN) {
-                p11prov_debug("C_Login failed (%d)\n", ret);
+                P11PROV_raise(obj->provctx, ret,
+                              "Error returned by C_Login");
                 continue;
             }
         }
