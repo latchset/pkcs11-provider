@@ -276,6 +276,12 @@ static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
         { CKR_ARGUMENTS_BAD,
             "Invalid or improper arguments were provided to the "
             "invoked function" },
+        { CKR_DATA_INVALID,
+            "The plaintext input data to a cryptographic "
+            "operation is invalid" },
+        { CKR_DATA_LEN_RANGE,
+            "The size of plaintext input data to a cryptographic "
+            "operation is invalid (Out of range)" },
         { CKR_DEVICE_ERROR,
             "Some problem has occurred with the token and/or slot" },
         { CKR_DEVICE_MEMORY,
@@ -284,6 +290,28 @@ static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
         { CKR_DEVICE_REMOVED,
             "The token was removed from its slot during the "
             "execution of the function" },
+        { CKR_FUNCTION_CANCELED,
+            "The function was canceled in mid-execution" },
+        { CKR_KEY_HANDLE_INVALID, "The specified key handle is not valid" },
+        { CKR_KEY_SIZE_RANGE,
+            "Unable to handle the specified key size (Out of range)" },
+        { CKR_KEY_TYPE_INCONSISTENT,
+            "The specified key is not the correct type of key to "
+            "use with the specified mechanism" },
+        { CKR_KEY_FUNCTION_NOT_PERMITTED,
+            "The key attributes do not allow this operation to be executed" },
+        { CKR_MECHANISM_INVALID,
+            "An invalid mechanism was specified to the "
+            "cryptographic operation" },
+        { CKR_MECHANISM_PARAM_INVALID,
+            "Invalid mechanism parameters were supplied" },
+        { CKR_OPERATION_ACTIVE,
+            "There is already an active operation that prevents "
+            "executing the requested function" },
+        { CKR_OPERATION_NOT_INITIALIZED,
+            "There is no active operation of appropriate type "
+            "in the specified session" },
+        { CKR_PIN_EXPIRED, "The specified PIN has expired" },
         { CKR_SESSION_CLOSED, "Session is already closed" },
         { CKR_SESSION_COUNT, "Too many sessions open" },
         { CKR_SESSION_HANDLE_INVALID, "Invalid Session Handle" },
@@ -302,6 +330,13 @@ static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
             "The token in the slot is not recognized" },
         { CKR_TOKEN_WRITE_PROTECTED,
             "Can't perform action because the token is write-protected" },
+        { CKR_USER_NOT_LOGGED_IN,
+            "The desired action cannot be performed because an "
+            "appropriate user is not logged in" },
+        { CKR_OPERATION_CANCEL_FAILED, "The operation cannot be cancelled" },
+        { CKR_BUFFER_TOO_SMALL,
+            "The output of the function is too large to fit in "
+            "the supplied buffer" },
         { CKR_CRYPTOKI_NOT_INITIALIZED,
             "PKCS11 Module has not been intialized yet" },
         { 0, NULL }
