@@ -355,6 +355,11 @@ static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
         { CKR_BUFFER_TOO_SMALL,
             "The output of the function is too large to fit in "
             "the supplied buffer" },
+        { CKR_SAVED_STATE_INVALID,
+            "The supplied saved cryptographic operations state is invalid" },
+        { CKR_STATE_UNSAVEABLE,
+            "The cryptographic operations state of the specified "
+            "session cannot be saved" },
         { CKR_CRYPTOKI_NOT_INITIALIZED,
             "PKCS11 Module has not been intialized yet" },
         { 0, NULL }

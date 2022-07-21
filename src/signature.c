@@ -107,7 +107,8 @@ static void *p11prov_sig_dupctx(void *ctx)
 
         ret = f->C_GetOperationState(newctx->session, NULL_PTR, &state_len);
         if (ret != CKR_OK) {
-            p11prov_debug("C_GetOperationState failed %d\n", ret);
+            P11PROV_raise(sigctx->provctx, ret,
+                          "Error returned by C_GetOperationState");
             goto done;
         }
         state = OPENSSL_malloc(state_len);
@@ -117,21 +118,28 @@ static void *p11prov_sig_dupctx(void *ctx)
 
         ret = f->C_GetOperationState(newctx->session, state, &state_len);
         if (ret != CKR_OK) {
-            p11prov_debug("C_GetOperationState failed %d\n", ret);
+            P11PROV_raise(sigctx->provctx, ret,
+                          "Error returned by C_GetOperationState");
             goto done;
         }
 
         ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL,
                                &sigctx->session);
         if (ret != CKR_OK) {
-            p11prov_debug("OpenSession failed %d\n", ret);
+        P11PROV_raise(sigctx->provctx, ret,
+                      "Failed to open session on slot %lu", slotid);
             goto done;
         }
         ret = f->C_SetOperationState(sigctx->session, state, state_len,
                                      CK_INVALID_HANDLE, handle);
         if (ret != CKR_OK) {
-            p11prov_debug("C_GetOperationState failed %d\n", ret);
-            (void)f->C_CloseSession(sigctx->session);
+            P11PROV_raise(sigctx->provctx, ret,
+                          "Error returned by C_SetOperationState");
+            ret = f->C_CloseSession(sigctx->session);
+            if (ret != CKR_OK) {
+                P11PROV_raise(sigctx->provctx, ret,
+                              "Failed to close session %lu", sigctx->session);
+            }
             sigctx->session = CK_INVALID_HANDLE;
         }
     }
@@ -398,10 +406,14 @@ static int p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx,
 
     handle = p11prov_key_handle(key);
     if (handle == CK_INVALID_HANDLE) {
+        P11PROV_raise(sigctx->provctx, CKR_KEY_HANDLE_INVALID,
+                      "Provided key has invalid handle");
         return CKR_KEY_HANDLE_INVALID;
     }
     slotid = p11prov_key_slotid(key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
+        P11PROV_raise(sigctx->provctx, CKR_SLOT_ID_INVALID,
+                      "Provided key has invalid slot");
         return CKR_SLOT_ID_INVALID;
     }
 
@@ -410,24 +422,37 @@ static int p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx,
 
     ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
     if (ret != CKR_OK) {
-        p11prov_debug("OpenSession failed %d\n", ret);
+        P11PROV_raise(sigctx->provctx, ret,
+                      "Failed to open session on slot %lu", slotid);
         return ret;
     }
 
     if (sigctx->operation == CKF_SIGN) {
         ret = f->C_SignInit(session, &mechanism, handle);
+        if (ret != CKR_OK) {
+            P11PROV_raise(sigctx->provctx, ret,
+                          "Error returned by C_SignInit");
+        }
     } else {
         ret = f->C_VerifyInit(session, &mechanism, handle);
+        if (ret != CKR_OK) {
+            P11PROV_raise(sigctx->provctx, ret,
+                          "Error returned by C_VerifyInit");
+        }
     }
     if (ret != CKR_OK) {
+        int result = ret;
         if (ret == CKR_MECHANISM_INVALID ||
             ret == CKR_MECHANISM_PARAM_INVALID) {
             ERR_raise(ERR_LIB_PROV,
                       PROV_R_ILLEGAL_OR_UNSUPPORTED_PADDING_MODE);
         }
-        p11prov_debug("Init operation failed %d\n", ret);
-        (void)f->C_CloseSession(session);
-        return ret;
+        ret = f->C_CloseSession(session);
+        if (ret != CKR_OK) {
+            P11PROV_raise(sigctx->provctx, ret,
+                          "Failed to close session %lu", session);
+        }
+        return result;
     }
 
     *_session = session;
@@ -470,11 +495,18 @@ static int p11prov_sig_operate(P11PROV_SIG_CTX *sigctx,
 
     if (sigctx->operation == CKF_SIGN) {
         ret = f->C_Sign(session, tbs, tbslen, sig, &sig_size);
+        if (ret != CKR_OK) {
+            P11PROV_raise(sigctx->provctx, ret,
+                          "Error returned by C_Sign");
+        }
     } else {
         ret = f->C_Verify(session, tbs, tbslen, sig, sigsize);
+        if (ret != CKR_OK) {
+            P11PROV_raise(sigctx->provctx, ret,
+                          "Error returned by C_Verify");
+        }
     }
     if (ret != CKR_OK) {
-        p11prov_debug("Operation failed %d\n", ret);
         goto endsess;
     }
 
@@ -484,7 +516,8 @@ static int p11prov_sig_operate(P11PROV_SIG_CTX *sigctx,
 endsess:
     ret = f->C_CloseSession(session);
     if (ret != CKR_OK) {
-        p11prov_debug("Failed to close session (%d)\n", ret);
+        P11PROV_raise(sigctx->provctx, ret,
+                      "Failed to close session %lu", session);
     }
 
     return result;
@@ -508,12 +541,23 @@ static int p11prov_sig_digest_update(P11PROV_SIG_CTX *sigctx,
     /* we have an initialized session */
     if (sigctx->operation == CKF_SIGN) {
         ret = f->C_SignUpdate(sigctx->session, data, datalen);
+        if (ret != CKR_OK) {
+            P11PROV_raise(sigctx->provctx, ret,
+                          "Error returned by C_SignUpdate");
+        }
     } else {
         ret = f->C_VerifyUpdate(sigctx->session, data, datalen);
+        if (ret != CKR_OK) {
+            P11PROV_raise(sigctx->provctx, ret,
+                          "Error returned by C_VerifyUpdate");
+        }
     }
     if (ret != CKR_OK) {
-        p11prov_debug("Digest Update failed %d\n", ret);
-        (void)f->C_CloseSession(sigctx->session);
+        ret = f->C_CloseSession(sigctx->session);
+        if (ret != CKR_OK) {
+            P11PROV_raise(sigctx->provctx, ret,
+                          "Failed to close session %lu", sigctx->session);
+        }
         sigctx->session = CK_INVALID_HANDLE;
         return RET_OSSL_ERR;
     }
@@ -527,6 +571,7 @@ static int p11prov_sig_digest_final(P11PROV_SIG_CTX *sigctx,
 {
     CK_ULONG sig_size = sigsize;
     CK_FUNCTION_LIST *f;
+    int result = RET_OSSL_ERR;
     int ret;
 
     if (sigctx->session == CK_INVALID_HANDLE) return RET_OSSL_ERR;
@@ -541,20 +586,31 @@ static int p11prov_sig_digest_final(P11PROV_SIG_CTX *sigctx,
 
     if (sigctx->operation == CKF_SIGN) {
         ret = f->C_SignFinal(sigctx->session, sig, &sig_size);
+        if (ret != CKR_OK) {
+            P11PROV_raise(sigctx->provctx, ret,
+                          "Error returned by C_SignFinal");
+        }
     } else {
         ret = f->C_VerifyFinal(sigctx->session, sig, sigsize);
+        if (ret != CKR_OK) {
+            P11PROV_raise(sigctx->provctx, ret,
+                          "Error returned by C_VerifyFinal");
+        }
     }
 
-    (void)f->C_CloseSession(sigctx->session);
+    if (ret == CKR_OK) {
+        if (siglen) *siglen = sig_size;
+        result = RET_OSSL_OK;
+    }
+
+    ret = f->C_CloseSession(sigctx->session);
+    if (ret != CKR_OK) {
+        P11PROV_raise(sigctx->provctx, ret,
+                      "Failed to close session %lu", sigctx->session);
+    }
     sigctx->session = CK_INVALID_HANDLE;
 
-    if (ret != CKR_OK) {
-        p11prov_debug("Final failed %d\n", ret);
-        return RET_OSSL_ERR;
-    }
-
-    if (siglen) *siglen = sig_size;
-    return RET_OSSL_OK;
+    return result;
 }
 
 DISPATCH_RSASIG_FN(newctx);
