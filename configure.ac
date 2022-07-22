@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.71])
-AC_INIT([pkcs11prov], [0.1], [simo@redhat.com])
+AC_INIT([pkcs11-provider], [0.1], [simo@redhat.com])
 AC_CONFIG_SRCDIR([src/provider.c])
 AC_CONFIG_HEADERS([src/config.h])
 AM_INIT_AUTOMAKE([foreign dist-xz -Wall -Werror])
