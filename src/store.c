@@ -444,8 +444,8 @@ static int p11prov_store_load(void *ctx,
 	CK_TOKEN_INFO token;
 
         /* ignore slots that are not initialized */
-        if (slots[i].slot.flags & CKF_TOKEN_PRESENT == 0) continue;
-        if (slots[i].token.flags & CKF_TOKEN_INITIALIZED == 0) continue;
+        if ((slots[i].slot.flags & CKF_TOKEN_PRESENT) == 0) continue;
+        if ((slots[i].token.flags & CKF_TOKEN_INITIALIZED) == 0) continue;
 
         token = slots[i].token;
 
@@ -698,4 +698,3 @@ const OSSL_DISPATCH p11prov_store_functions[] = {
     DISPATCH_STORE_ELEM(EXPORT_OBJECT, export_object),
     { 0, NULL }
 };
-
