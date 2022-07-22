@@ -1,0 +1,32 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: PKCS#11 Provider
+Upstream-Contact: Simo Sorce <simo@redhat.com>
+Source: https://github.com/latchset/pkcs11-provider/
+
+#
+# Build system, data files from tests, and misc cruft
+#
+Files: **/Makefile.am
+       .github/workflows/*.yml
+       .gitignore
+       Makefile.am
+       README.md
+       configure.ac
+       configure.ac
+       src/Makefile.am
+       src/provider.exports
+       tests/Makefile.am
+       tests/README
+       tests/openssl.cnf.in
+Copyright: (C) 2022 Simo Sorce <simo@redhat.com>
+License: Apache-2.0
+
+#
+# OASIS Open PKCS#11 headers
+#
+
+Files: src/oasis/pkcs11.h
+       src/oasis/pkcs11f.h
+       src/oasis/pkcs11t.h
+Copyright: (c) OASIS Open 2016-2019. All Rights Reserved.
+License: LicenseRef-OASIS-IPR
