@@ -9,7 +9,7 @@ AC_PREREQ([2.71])
 AC_INIT([pkcs11prov], [0.1], [simo@redhat.com])
 AC_CONFIG_SRCDIR([src/provider.c])
 AC_CONFIG_HEADERS([src/config.h])
-AM_INIT_AUTOMAKE([foreign])
+AM_INIT_AUTOMAKE([foreign dist-xz])
 
 # Checks for programs.
 AC_PROG_CC
