@@ -1,11 +1,15 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
+# Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 AC_PREREQ([2.71])
 AC_INIT([pkcs11prov], [0.1], [simo@redhat.com])
 AC_CONFIG_SRCDIR([src/provider.c])
 AC_CONFIG_HEADERS([src/config.h])
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE([foreign])
 
 # Checks for programs.
 AC_PROG_CC

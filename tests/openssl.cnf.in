@@ -1,6 +1,10 @@
+# Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 HOME = .
 
- # Use this in order to automatically load providers.
+# Use this in order to automatically load providers.
 openssl_conf = openssl_init
 
 config_diagnostics = 1

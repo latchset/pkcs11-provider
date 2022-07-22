@@ -1,8 +1,11 @@
-/* Copyright (c) OASIS Open 2016, 2019. All Rights Reserved./
- * /Distributed under the terms of the OASIS IPR Policy,
+/* Copyright (c) OASIS Open 2016, 2019. All Rights Reserved.
+ *
+ * SPDX-License-Identifier: LicenseRef-OASIS-IPR
+ *
+ * Distributed under the terms of the OASIS IPR Policy,
  * [http://www.oasis-open.org/policies-guidelines/ipr], AS-IS, WITHOUT ANY
- * IMPLIED OR EXPRESS WARRANTY; there is no warranty of MERCHANTABILITY, FITNESS FOR A
- * PARTICULAR PURPOSE or NONINFRINGEMENT of the rights of others.
+ * IMPLIED OR EXPRESS WARRANTY; there is no warranty of MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE or NONINFRINGEMENT of the rights of others.
  */
 
 /* Latest version of the specification:
