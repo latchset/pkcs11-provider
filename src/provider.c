@@ -548,7 +548,11 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
 
     dlerror();
     ctx->dlhandle = dlopen(ctx->module,
-                           RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
+                           RTLD_NOW | RTLD_LOCAL
+#if defined(RTLD_DEEPBIND)
+			   | RTLD_DEEPBIND
+#endif /* defined(RTLD_DEEPBIND) */
+	    );
     if (ctx->dlhandle == NULL) {
         char *err = dlerror();
         p11prov_debug("dlopen() failed: %s\n", err);

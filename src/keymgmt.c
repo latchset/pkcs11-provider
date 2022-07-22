@@ -170,7 +170,7 @@ static int p11prov_rsakm_secbits(int bits)
     if (bits > 4096) return 152;
     if (bits > 3072) return 128;
     if (bits > 2048) return 112;
-    if (bits < 2048) return 0;
+    if (bits <= 2048) return 0;
 }
 
 static int p11prov_rsakm_get_params(void *keydata, OSSL_PARAM params[])

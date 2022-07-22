@@ -409,7 +409,7 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
                       "Error returned by C_GetSessionInfo");
         return NULL;
     }
-    if ((session_info.flags & CKF_RW_SESSION == 0) &&
+    if (((session_info.flags & CKF_RW_SESSION) == 0) &&
         val_token == CK_TRUE) {
         p11prov_debug("Invalid read only session for token key request\n");
         return NULL;

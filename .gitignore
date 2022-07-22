@@ -38,5 +38,6 @@ src/*.o
 *~
 src/*~
 test-driver
+tests/openssl.cnf
 tests/tokens
 tests/tmp
