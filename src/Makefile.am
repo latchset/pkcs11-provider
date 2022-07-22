@@ -21,6 +21,7 @@ pkcs11_provider_la_SOURCES = \
 	signature.c \
 	store.c \
 	util.c \
+	provider.exports \
 	$(NULL)
 
 pkcs11_provider_la_CFLAGS = $(AM_CFLAGS) $(OPENSSL_CFLAGS)
