@@ -526,6 +526,10 @@ done:
     return ret;
 }
 
+#if !defined(RTLD_DEEPBIND)
+#define RTLD_DEEPBIND 0
+#endif
+
 static int p11prov_module_init(P11PROV_CTX *ctx)
 {
     CK_RV (*c_get_function_list)(CK_FUNCTION_LIST_PTR_PTR);
