@@ -451,27 +451,30 @@ static int p11prov_store_load(void *ctx,
 
         /* skip slots that do not match */
         if (obj->parsed_uri->model &&
-            strncmp(obj->parsed_uri->model, token.model, 16) != 0)
+            strncmp(obj->parsed_uri->model,
+                    (const char *)token.model, 16) != 0)
             continue;
         if (obj->parsed_uri->manufacturer &&
             strncmp(obj->parsed_uri->manufacturer,
-                    token.manufacturerID, 32) != 0)
+                    (const char *)token.manufacturerID, 32) != 0)
             continue;
         if (obj->parsed_uri->token &&
-            strncmp(obj->parsed_uri->token, token.label, 32) != 0)
+            strncmp(obj->parsed_uri->token,
+                    (const char *)token.label, 32) != 0)
             continue;
         if (obj->parsed_uri->serial &&
-            strncmp(obj->parsed_uri->serial, token.serialNumber, 16) != 0)
+            strncmp(obj->parsed_uri->serial,
+                    (const char *)token.serialNumber, 16) != 0)
             continue;
 
         if (token.flags & CKF_LOGIN_REQUIRED) {
             CK_FUNCTION_LIST *f = p11prov_ctx_fns(obj->provctx);
-            CK_UTF8CHAR_PTR pin = obj->parsed_uri->pin;
+            CK_UTF8CHAR_PTR pin = (CK_UTF8CHAR_PTR)obj->parsed_uri->pin;
             CK_ULONG pinlen = 0;
             int ret;
 
             if (f == NULL) return RET_OSSL_ERR;
-            if (pin) pinlen = strlen(pin);
+            if (pin) pinlen = strlen((const char *)pin);
 
             if (obj->login_session == CK_INVALID_HANDLE) {
                 ret = f->C_OpenSession(slots[i].id, CKF_SERIAL_SESSION, NULL,
