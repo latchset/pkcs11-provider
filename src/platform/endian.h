@@ -1,4 +1,5 @@
-/* Copyright (C) Internet Systems Consortium, Inc. ("ISC") - see COPYING */
+/* Copyright (C) Internet Systems Consortium, Inc. ("ISC")
+   SPDX-License-Identifier: Apache-2.0 */
 
 #ifndef _P11PROV_ENDIAN_H
 #define _P11PROV_ENDIAN_H

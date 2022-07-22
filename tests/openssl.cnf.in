@@ -1,6 +1,6 @@
 HOME = .
 
- # Use this in order to automatically load providers.
+# Use this in order to automatically load providers.
 openssl_conf = openssl_init
 
 config_diagnostics = 1

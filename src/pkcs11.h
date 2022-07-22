@@ -1,4 +1,5 @@
-/* Copyright (c) 2022 Simo Sorce <simo@redhat.com> - see COPYING */
+/* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+   SPDX-License-Identifier: Apache-2.0 */
 
 #ifndef _P11PROV_PKCS11_H_
 #define _P11PROV_PKCS11_H_
