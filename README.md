@@ -1,3 +1,9 @@
+<!---
+Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 [![Build](https://github.com/latchset/pkcs11-provider/actions/workflows/build.yml/badge.svg)](https://github.com/latchset/pkcs11-provider/actions/workflows/build.yml)
 
 This is an Openssl 3.x provider to access Hardware or Software Tokens

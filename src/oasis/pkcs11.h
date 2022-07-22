@@ -1,4 +1,7 @@
 /* Copyright (c) OASIS Open 2016-2019. All Rights Reserved.
+ *
+ * SPDX-License-Identifier: LicenseRef-OASIS-IPR
+ *
  * Distributed under the terms of the OASIS IPR Policy,
  * [http://www.oasis-open.org/policies-guidelines/ipr], AS-IS, WITHOUT ANY
  * IMPLIED OR EXPRESS WARRANTY; there is no warranty of MERCHANTABILITY, FITNESS FOR A
@@ -65,7 +68,7 @@ extern "C" {
  *   CK_VOID_PTR pReserved
  * );
  *
- * If you're using Windows to declare a function in a Win32 cryptoki .dll, 
+ * If you're using Windows to declare a function in a Win32 cryptoki .dll,
  * it might be defined by:
  *
  * #define CK_DECLARE_FUNCTION(returnType, name) \
@@ -240,4 +243,3 @@ struct CK_FUNCTION_LIST {
 #endif
 
 #endif /* _PKCS11_H_ */
-

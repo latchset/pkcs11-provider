@@ -1,4 +1,8 @@
-/* Copyright (c) 2022 Simo Sorce <simo@redhat.com> - see COPYING */
+/*
+ * Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #include "provider.h"
 #include <openssl/store.h>
@@ -698,4 +702,3 @@ const OSSL_DISPATCH p11prov_store_functions[] = {
     DISPATCH_STORE_ELEM(EXPORT_OBJECT, export_object),
     { 0, NULL }
 };
-

@@ -1,10 +1,13 @@
-/* Copyright (c) OASIS Open 2016, 2019. All Rights Reserved./
- * /Distributed under the terms of the OASIS IPR Policy,
+/* Copyright (c) OASIS Open 2016, 2019. All Rights Reserved.
+ *
+ * SPDX-License-Identifier: LicenseRef-OASIS-IPR
+ *
+ * Distributed under the terms of the OASIS IPR Policy,
  * [http://www.oasis-open.org/policies-guidelines/ipr], AS-IS, WITHOUT ANY
- * IMPLIED OR EXPRESS WARRANTY; there is no warranty of MERCHANTABILITY, FITNESS FOR A
- * PARTICULAR PURPOSE or NONINFRINGEMENT of the rights of others.
+ * IMPLIED OR EXPRESS WARRANTY; there is no warranty of MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE or NONINFRINGEMENT of the rights of others.
  */
-        
+
 /* Latest version of the specification:
  * http://docs.oasis-open.org/pkcs11/pkcs11-base/v2.40/pkcs11-base-v2.40.html
  */
@@ -317,7 +320,7 @@ typedef CK_ULONG          CK_OBJECT_CLASS;
 #define CKO_DOMAIN_PARAMETERS 0x00000006UL
 #define CKO_MECHANISM         0x00000007UL
 #define CKO_OTP_KEY           0x00000008UL
-#define CKO_PROFILE           0x00000009UL 
+#define CKO_PROFILE           0x00000009UL
 
 #define CKO_VENDOR_DEFINED    0x80000000UL
 
@@ -2261,7 +2264,7 @@ typedef CK_PRF_DATA_PARAM CK_PTR CK_PRF_DATA_PARAM_PTR;
 
 
 typedef struct CK_SP800_108_COUNTER_FORMAT
-{ 
+{
    CK_BBOOL           bLittleEndian;
    CK_ULONG		ulWidthInBits;
 } CK_SP800_108_COUNTER_FORMAT;
@@ -2273,7 +2276,7 @@ typedef CK_ULONG CK_SP800_108_DKM_LENGTH_METHOD;
 #define CK_SP800_108_DKM_LENGTH_SUM_OF_SEGMENTS 0x00000002UL
 
 typedef struct CK_SP800_108_DKM_LENGTH_FORMAT
-{ 
+{
    CK_SP800_108_DKM_LENGTH_METHOD  dkmLengthMethod;
    CK_BBOOL                        bLittleEndian;
    CK_ULONG		             ulWidthInBits;
@@ -2441,4 +2444,3 @@ typedef CK_HKDF_PARAMS CK_PTR CK_HKDF_PARAMS_PTR;
 #define CKF_HKDF_SALT_KEY    0x00000004UL
 
 #endif /* _PKCS11T_H_ */
-

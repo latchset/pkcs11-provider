@@ -1,3 +1,7 @@
+## Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+##
+## SPDX-License-Identifier: CC0-1.0
+
 EXTRA_DIST = openssl.cnf.in
 noinst_DATA = openssl.cnf
 
