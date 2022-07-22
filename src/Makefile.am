@@ -15,6 +15,7 @@ pkcs11_provider_la_SOURCES = \
 	oasis/pkcs11f.h \
 	oasis/pkcs11t.h \
 	pkcs11.h \
+	platform/endian.h \
 	provider.h \
 	provider.c \
 	signature.c \

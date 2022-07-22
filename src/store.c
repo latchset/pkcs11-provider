@@ -2,7 +2,7 @@
 
 #include "provider.h"
 #include <openssl/store.h>
-#include <endian.h>
+#include "platform/endian.h"
 #include <string.h>
 
 struct p11prov_uri {
