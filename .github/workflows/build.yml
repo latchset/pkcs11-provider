@@ -35,3 +35,5 @@ jobs:
           tests/tmp/p11prov-debug.log
           tests/tmp/debugvars
           config.log
+    - name: Distrbution Check
+      run: make distcheck
