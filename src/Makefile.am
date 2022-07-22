@@ -11,6 +11,11 @@ pkcs11_provider_la_SOURCES = \
 	kdf.c \
 	keymgmt.c \
 	keys.c \
+	oasis/pkcs11.h \
+	oasis/pkcs11f.h \
+	oasis/pkcs11t.h \
+	pkcs11.h \
+	provider.h \
 	provider.c \
 	signature.c \
 	store.c \
