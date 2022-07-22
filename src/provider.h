@@ -21,7 +21,13 @@
 #include <openssl/proverr.h>
 #include <openssl/core_names.h>
 
-#define UNUSED  __attribute__((unused))
+#if __GNUC__ >= 4
+  #define PUBLIC __attribute__ ((__visibility__("default")))
+#else
+  #define PUBLIC
+#endif
+
+#define UNUSED  __attribute__((__unused__))
 #define RET_OSSL_OK 1
 #define RET_OSSL_ERR 0
 #define RET_OSSL_BAD -1

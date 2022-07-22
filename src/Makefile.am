@@ -20,11 +20,10 @@ pkcs11_provider_la_SOURCES = \
 	util.c \
 	$(NULL)
 
-pkcs11_provider_la_CFLAGS = $(AM_CFLAGS) $(OPENSSL_CFLAGS)
+pkcs11_provider_la_CFLAGS = $(AM_CFLAGS) $(OPENSSL_CFLAGS) -fvisibility=hidden
 pkcs11_provider_la_LIBADD = $(OPENSSL_LIBS)
 
 pkcs11_provider_la_LDFLAGS = \
 	$(AM_LDFLAGS) -module \
 	-shared -shrext $(SHARED_EXT) \
-	-avoid-version \
-	-export-symbols "$(srcdir)/provider.exports"
+	-avoid-version
