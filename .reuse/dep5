@@ -18,6 +18,7 @@ Files: **/Makefile.am
        tests/Makefile.am
        tests/README
        tests/openssl.cnf.in
+       .clang-format
 Copyright: (C) 2022 Simo Sorce <simo@redhat.com>
 License: Apache-2.0
 
