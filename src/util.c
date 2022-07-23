@@ -3,10 +3,8 @@
 
 #include "provider.h"
 
-int p11prov_fetch_attributes(CK_FUNCTION_LIST *f,
-                             CK_SESSION_HANDLE session,
-                             CK_OBJECT_HANDLE object,
-                             struct fetch_attrs *attrs,
+int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
+                             CK_OBJECT_HANDLE object, struct fetch_attrs *attrs,
                              unsigned long attrnums)
 {
     CK_ATTRIBUTE q[attrnums];
@@ -17,8 +15,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f,
         if (attrs[i].allocate) {
             CKATTR_ASSIGN_ALL(q[i], attrs[i].type, NULL, 0);
         } else {
-            CKATTR_ASSIGN_ALL(q[i], attrs[i].type,
-                              *attrs[i].value,
+            CKATTR_ASSIGN_ALL(q[i], attrs[i].type, *attrs[i].value,
                               *attrs[i].value_len);
         }
     }
@@ -42,8 +39,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f,
                 if (a == NULL) return -ENOMEM;
                 FA_RETURN_VAL(attrs[i], a, q[i].ulValueLen);
 
-                CKATTR_ASSIGN_ALL(r[retrnums], attrs[i].type,
-                                  *attrs[i].value,
+                CKATTR_ASSIGN_ALL(r[retrnums], attrs[i].type, *attrs[i].value,
                                   *attrs[i].value_len);
                 retrnums++;
             } else {
@@ -53,8 +49,8 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f,
         if (retrnums > 0) {
             ret = f->C_GetAttributeValue(session, object, r, retrnums);
         }
-    } else if (ret == CKR_ATTRIBUTE_SENSITIVE ||
-               ret == CKR_ATTRIBUTE_TYPE_INVALID) {
+    } else if (ret == CKR_ATTRIBUTE_SENSITIVE
+               || ret == CKR_ATTRIBUTE_TYPE_INVALID) {
         p11prov_debug("Quering attributes one by one\n");
         /* go one by one as this PKCS11 does not have some attributes
          * and does not handle it gracefully */
@@ -70,8 +66,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f,
                     FA_RETURN_VAL(attrs[i], a, q[0].ulValueLen);
                 }
             }
-            CKATTR_ASSIGN_ALL(r[0], attrs[i].type,
-                              *attrs[i].value,
+            CKATTR_ASSIGN_ALL(r[0], attrs[i].type, *attrs[i].value,
                               *attrs[i].value_len);
             ret = f->C_GetAttributeValue(session, object, r, 1);
             if (ret != CKR_OK) {
@@ -88,8 +83,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f,
     return ret;
 }
 
-CK_SESSION_HANDLE p11prov_get_session(P11PROV_CTX *provctx,
-                                      CK_SLOT_ID slotid)
+CK_SESSION_HANDLE p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID slotid)
 {
     CK_SESSION_HANDLE session = CK_INVALID_HANDLE;
     CK_FUNCTION_LIST *f;
@@ -119,8 +113,8 @@ CK_SESSION_HANDLE p11prov_get_session(P11PROV_CTX *provctx,
 
     ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
     if (ret != CKR_OK) {
-        P11PROV_raise(provctx, ret,
-                      "Failed to open session on slot %lu", slotid);
+        P11PROV_raise(provctx, ret, "Failed to open session on slot %lu",
+                      slotid);
     }
 
 done:
@@ -137,7 +131,6 @@ void p11prov_put_session(P11PROV_CTX *provctx, CK_SESSION_HANDLE session)
 
     ret = f->C_CloseSession(session);
     if (ret != CKR_OK) {
-        P11PROV_raise(provctx, ret,
-                      "Failed to close session %lu", session);
+        P11PROV_raise(provctx, ret, "Failed to close session %lu", session);
     }
 }
