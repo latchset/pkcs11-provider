@@ -311,7 +311,7 @@ static struct {
     { CKM_RSA_PKCS, RSA_PKCS1_PADDING, OSSL_PKEY_RSA_PAD_MODE_PKCSV15 },
     { CKM_RSA_PKCS_OAEP, RSA_PKCS1_OAEP_PADDING, OSSL_PKEY_RSA_PAD_MODE_OAEP },
     { CKM_RSA_X9_31, RSA_X931_PADDING, OSSL_PKEY_RSA_PAD_MODE_X931 },
-    { CK_UNAVAILABLE_INFORMATION, 0, NULL }
+    { CK_UNAVAILABLE_INFORMATION, 0, NULL },
 };
 
 /* only the ones we can support */
@@ -329,7 +329,7 @@ static struct {
     { "SHA256", CKM_SHA256, CKG_MGF1_SHA256 },
     { "SHA224", CKM_SHA224, CKG_MGF1_SHA224 },
     { "SHA1", CKM_SHA_1, CKG_MGF1_SHA1 },
-    { NULL, 0, 0 }
+    { NULL, 0, 0 },
 };
 
 static const char *p11prov_rsaenc_digest_name(CK_MECHANISM_TYPE digest)
@@ -531,11 +531,11 @@ static const OSSL_PARAM *p11prov_rsaenc_gettable_ctx_params(void *ctx,
         OSSL_PARAM_utf8_string(OSSL_ASYM_CIPHER_PARAM_OAEP_DIGEST, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_ASYM_CIPHER_PARAM_MGF1_DIGEST, NULL, 0),
         OSSL_PARAM_octet_string(OSSL_ASYM_CIPHER_PARAM_OAEP_LABEL, NULL, 0),
-/*
+        /*
         OSSL_PARAM_uint(OSSL_ASYM_CIPHER_PARAM_TLS_CLIENT_VERSION, NULL),
         OSSL_PARAM_uint(OSSL_ASYM_CIPHER_PARAM_TLS_NEGOTIATED_VERSION, NULL),
-*/
-        OSSL_PARAM_END
+        */
+        OSSL_PARAM_END,
     };
     return params;
 }
@@ -549,11 +549,11 @@ static const OSSL_PARAM *p11prov_rsaenc_settable_ctx_params(void *ctx,
         OSSL_PARAM_utf8_string(OSSL_ASYM_CIPHER_PARAM_MGF1_DIGEST, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_ASYM_CIPHER_PARAM_MGF1_DIGEST_PROPS, NULL, 0),
         OSSL_PARAM_octet_string(OSSL_ASYM_CIPHER_PARAM_OAEP_LABEL, NULL, 0),
-/*
+        /*
         OSSL_PARAM_uint(OSSL_ASYM_CIPHER_PARAM_TLS_CLIENT_VERSION, NULL),
         OSSL_PARAM_uint(OSSL_ASYM_CIPHER_PARAM_TLS_NEGOTIATED_VERSION, NULL),
-*/
-        OSSL_PARAM_END
+        */
+        OSSL_PARAM_END,
     };
     return params;
 }

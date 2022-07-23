@@ -41,7 +41,7 @@ static struct {
     DM_ELEM_SHA(384),
     DM_ELEM_SHA(224),
     { "SHA1", CKM_SHA_1, 20 },
-    { NULL, 0, 0 }
+    { NULL, 0, 0 },
 };
 
 static CK_MECHANISM_TYPE p11prov_hkdf_map_digest(const char *digest)
@@ -139,7 +139,7 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
         {CKA_KEY_TYPE, &key_type, sizeof(key_type)},
         {CKA_SENSITIVE, &val_false, sizeof(val_false)},
         {CKA_EXTRACTABLE, &val_true, sizeof(val_true)},
-        {CKA_VALUE_LEN, &key_size, sizeof(key_size)}
+        {CKA_VALUE_LEN, &key_size, sizeof(key_size)},
     };
     CK_FUNCTION_LIST *f;
     CK_MECHANISM mechanism;
@@ -338,7 +338,7 @@ static const OSSL_PARAM *p11prov_hkdf_settable_ctx_params(void *ctx,
         OSSL_PARAM_octet_string(OSSL_KDF_PARAM_KEY, NULL, 0),
         OSSL_PARAM_octet_string(OSSL_KDF_PARAM_SALT, NULL, 0),
         OSSL_PARAM_octet_string(OSSL_KDF_PARAM_INFO, NULL, 0),
-        OSSL_PARAM_END
+        OSSL_PARAM_END,
     };
     return params;
 }
@@ -378,7 +378,7 @@ static const OSSL_PARAM *p11prov_hkdf_gettable_ctx_params(void *ctx,
 {
     static const OSSL_PARAM params[] = {
         OSSL_PARAM_size_t(OSSL_KDF_PARAM_SIZE, NULL),
-        OSSL_PARAM_END
+        OSSL_PARAM_END,
     };
     return params;
 }
@@ -392,5 +392,5 @@ const OSSL_DISPATCH p11prov_hkdf_kdf_functions[] = {
     DISPATCH_HKDF_ELEM(hkdf, SETTABLE_CTX_PARAMS, settable_ctx_params),
     DISPATCH_HKDF_ELEM(hkdf, GET_CTX_PARAMS, get_ctx_params),
     DISPATCH_HKDF_ELEM(hkdf, GETTABLE_CTX_PARAMS, gettable_ctx_params),
-    { 0, NULL }
+    { 0, NULL },
 };
