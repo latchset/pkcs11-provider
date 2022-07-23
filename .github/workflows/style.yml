@@ -1,0 +1,30 @@
+name: Build
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    name: Check Style
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      name: Checkout Repository
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-format
+    - name: Setup
+      if: ${{ github.event.pull_request.base.sha }}
+      run: |
+        git fetch origin main ${{ github.event.pull_request.base.sha }}
+    - name: Generate Makefile
+      run: |
+        autoreconf -fiv
+        ./configure
+    - name: Check the Style
+      run: make check-style
+    - name: Show Style diff in case of failure
+      if: failure()
+      run: make check-style-show
