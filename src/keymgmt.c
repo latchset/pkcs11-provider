@@ -108,7 +108,7 @@ static int p11prov_rsakm_export(void *keydata, int selection,
 static const OSSL_PARAM p11prov_rsakm_key_types[] = {
     OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_N, NULL, 0),
     OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_E, NULL, 0),
-    OSSL_PARAM_END
+    OSSL_PARAM_END,
 };
 
 static const OSSL_PARAM *p11prov_rsakm_import_types(int selection)
@@ -228,7 +228,7 @@ static const OSSL_PARAM *p11prov_rsakm_gettable_params(void *provctx)
         /* OSSL_PKEY_PARAM_DEFAULT_DIGEST,
          * OSSL_PKEY_PARAM_RSA_N,
          * OSSL_PKEY_PARAM_RSA_E, */
-        OSSL_PARAM_END
+        OSSL_PARAM_END,
     };
     return params;
 }
@@ -249,7 +249,7 @@ const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[] = {
     DISPATCH_RSAKM_ELEM(QUERY_OPERATION_NAME, query_operation_name),
     DISPATCH_RSAKM_ELEM(GET_PARAMS, get_params),
     DISPATCH_RSAKM_ELEM(GETTABLE_PARAMS, gettable_params),
-    { 0, NULL }
+    { 0, NULL },
 };
 
 DISPATCH_ECKM_FN(new);
@@ -357,7 +357,7 @@ static const OSSL_PARAM p11prov_eckm_key_types[] = {
     OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_N, NULL, 0),
     OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_E, NULL, 0),
  */
-    OSSL_PARAM_END
+    OSSL_PARAM_END,
 };
 
 static const OSSL_PARAM *p11prov_eckm_import_types(int selection)
@@ -473,7 +473,7 @@ static const OSSL_PARAM *p11prov_eckm_gettable_params(void *provctx)
          * OSSL_PKEY_PARAM_EC_PUB_X
          * OSSL_PKEY_PARAM_EC_PUB_Y
          */
-        OSSL_PARAM_END
+        OSSL_PARAM_END,
     };
     return params;
 }
@@ -493,7 +493,7 @@ const OSSL_DISPATCH p11prov_ecdsa_keymgmt_functions[] = {
     DISPATCH_ECKM_ELEM(QUERY_OPERATION_NAME, query_operation_name),
     DISPATCH_ECKM_ELEM(GET_PARAMS, get_params),
     DISPATCH_ECKM_ELEM(GETTABLE_PARAMS, gettable_params),
-    { 0, NULL }
+    { 0, NULL },
 };
 
 DISPATCH_HKDFKM_FN(new);
@@ -547,5 +547,5 @@ const OSSL_DISPATCH p11prov_hkdf_keymgmt_functions[] = {
     DISPATCH_HKDFKM_ELEM(FREE, free),
     DISPATCH_HKDFKM_ELEM(QUERY_OPERATION_NAME, query_operation_name),
     DISPATCH_HKDFKM_ELEM(HAS, has),
-    { 0, NULL }
+    { 0, NULL },
 };

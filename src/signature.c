@@ -205,7 +205,7 @@ static struct {
     { "SHA1", CKM_SHA_1, CKM_SHA1_RSA_PKCS,
        CKM_SHA1_RSA_PKCS_PSS, CKM_ECDSA_SHA1,
        CKG_MGF1_SHA1, 20 },
-    { NULL, 0, 0, 0, 0, 0, 0 }
+    { NULL, 0, 0, 0, 0, 0, 0 },
 };
 
 static const char *p11prov_sig_digest_name(CK_MECHANISM_TYPE digest)
@@ -795,7 +795,7 @@ static struct {
     { CKM_RSA_PKCS, RSA_PKCS1_PADDING, OSSL_PKEY_RSA_PAD_MODE_PKCSV15 },
     { CKM_RSA_X9_31, RSA_X931_PADDING, OSSL_PKEY_RSA_PAD_MODE_X931 },
     { CKM_RSA_PKCS_PSS, RSA_PKCS1_PSS_PADDING, OSSL_PKEY_RSA_PAD_MODE_PSS },
-    { CK_UNAVAILABLE_INFORMATION, 0, NULL }
+    { CK_UNAVAILABLE_INFORMATION, 0, NULL },
 };
 
 static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
@@ -973,7 +973,7 @@ static const OSSL_PARAM *p11prov_rsasig_gettable_ctx_params(void *ctx,
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_DIGEST, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_MGF1_DIGEST, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_PSS_SALTLEN, NULL, 0),
-        OSSL_PARAM_END
+        OSSL_PARAM_END,
     };
     return params;
 }
@@ -987,7 +987,7 @@ static const OSSL_PARAM *p11prov_rsasig_settable_ctx_params(void *ctx,
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_DIGEST, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_MGF1_DIGEST, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_PSS_SALTLEN, NULL, 0),
-        OSSL_PARAM_END
+        OSSL_PARAM_END,
     };
     return params;
 }
@@ -1010,7 +1010,7 @@ const OSSL_DISPATCH p11prov_rsa_signature_functions[] = {
     DISPATCH_SIG_ELEM(rsasig, GETTABLE_CTX_PARAMS, gettable_ctx_params),
     DISPATCH_SIG_ELEM(rsasig, SET_CTX_PARAMS, set_ctx_params),
     DISPATCH_SIG_ELEM(rsasig, SETTABLE_CTX_PARAMS, settable_ctx_params),
-    { 0, NULL }
+    { 0, NULL },
 };
 
 DISPATCH_ECDSA_FN(newctx);
@@ -1239,7 +1239,7 @@ static const OSSL_PARAM *p11prov_ecdsa_gettable_ctx_params(void *ctx,
         OSSL_PARAM_octet_string(OSSL_SIGNATURE_PARAM_ALGORITHM_ID, NULL, 0),
          */
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_DIGEST, NULL, 0),
-        OSSL_PARAM_END
+        OSSL_PARAM_END,
     };
     return params;
 }
@@ -1249,7 +1249,7 @@ static const OSSL_PARAM *p11prov_ecdsa_settable_ctx_params(void *ctx,
 {
     static const OSSL_PARAM params[] = {
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_DIGEST, NULL, 0),
-        OSSL_PARAM_END
+        OSSL_PARAM_END,
     };
     return params;
 }
@@ -1273,5 +1273,5 @@ const OSSL_DISPATCH p11prov_ecdsa_signature_functions[] = {
     DISPATCH_SIG_ELEM(ecdsa, GETTABLE_CTX_PARAMS, gettable_ctx_params),
     DISPATCH_SIG_ELEM(ecdsa, SET_CTX_PARAMS, set_ctx_params),
     DISPATCH_SIG_ELEM(ecdsa, SETTABLE_CTX_PARAMS, settable_ctx_params),
-    { 0, NULL }
+    { 0, NULL },
 };

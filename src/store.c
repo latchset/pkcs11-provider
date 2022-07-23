@@ -653,7 +653,7 @@ static const OSSL_PARAM *p11prov_store_settable_ctx_params(void *provctx)
         OSSL_PARAM_octet_string(OSSL_STORE_PARAM_SUBJECT, NULL, 0),
          */
         OSSL_PARAM_utf8_string(OSSL_STORE_PARAM_INPUT_TYPE, NULL, 0),
-        OSSL_PARAM_END
+        OSSL_PARAM_END,
     };
     return known_settable_ctx_params;
 }
@@ -700,5 +700,5 @@ const OSSL_DISPATCH p11prov_store_functions[] = {
     DISPATCH_STORE_ELEM(SET_CTX_PARAMS, set_ctx_params),
     DISPATCH_STORE_ELEM(SETTABLE_CTX_PARAMS, settable_ctx_params),
     DISPATCH_STORE_ELEM(EXPORT_OBJECT, export_object),
-    { 0, NULL }
+    { 0, NULL },
 };

@@ -60,20 +60,19 @@ void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
 
     ret = f->C_GetMechanismInfo(slotid, type, &info);
     if (ret != CKR_OK) {
-        p11prov_debug("C_GetMechanismInfo for %s(%lu) failed %d\n",
-                      mechname, type, ret);
+        p11prov_debug("C_GetMechanismInfo for %s(%lu) failed %d\n", mechname,
+                      type, ret);
     } else {
-        p11prov_debug("Mechanism Info:\n"
-                      "  name: %s (%lu):\n"
-                      "  min key length: %lu\n"
-                      "  max key length: %lu\n"
-                      "  flags (%#08lx):\n",
-                      mechname, type,
-                      info.ulMinKeySize, info.ulMaxKeySize, info.flags);
+        p11prov_debug(
+            "Mechanism Info:\n"
+            "  name: %s (%lu):\n"
+            "  min key length: %lu\n"
+            "  max key length: %lu\n"
+            "  flags (%#08lx):\n",
+            mechname, type, info.ulMinKeySize, info.ulMaxKeySize, info.flags);
         for (int i = 0; mechanism_flags[i].name != NULL; i++) {
             if (info.flags & mechanism_flags[i].value) {
-                p11prov_debug("    %-25s (%#08lx)\n",
-                              mechanism_flags[i].name,
+                p11prov_debug("    %-25s (%#08lx)\n", mechanism_flags[i].name,
                               mechanism_flags[i].value);
             }
         }
@@ -84,41 +83,36 @@ extern struct ckmap token_flags[];
 
 void p11prov_debug_token_info(CK_TOKEN_INFO info)
 {
-    p11prov_debug("Token Info:\n"
-                  "  Label:            [%.32s]\n"
-                  "  Manufacturer ID:  [%.32s]\n"
-                  "  Model:            [%.16s]\n"
-                  "  Serial Number:    [%.16s]\n"
-                  "  Flags (%#08lx):\n",
-                  info.label, info.manufacturerID, info.model,
-                  info.serialNumber, info.flags);
+    p11prov_debug(
+        "Token Info:\n"
+        "  Label:            [%.32s]\n"
+        "  Manufacturer ID:  [%.32s]\n"
+        "  Model:            [%.16s]\n"
+        "  Serial Number:    [%.16s]\n"
+        "  Flags (%#08lx):\n",
+        info.label, info.manufacturerID, info.model, info.serialNumber,
+        info.flags);
     for (int i = 0; token_flags[i].name != NULL; i++) {
         if (info.flags & token_flags[i].value) {
-            p11prov_debug("    %-35s (%#08lx)\n",
-                          token_flags[i].name,
+            p11prov_debug("    %-35s (%#08lx)\n", token_flags[i].name,
                           token_flags[i].value);
         }
     }
-    p11prov_debug("  Session Count      Max: %3lu  Current: %3lu\n"
-                  "  R/W Session Count  Max: %3lu  Current: %3lu\n"
-                  "  Pin Len Range: %lu-%lu\n"
-                  "  Public  Memory  Total: %6lu  Free: %6lu\n"
-                  "  Private Memory  Total: %6lu  Free: %6lu\n"
-                  "  Hardware Version: %d.%d\n"
-                  "  Firmware Version: %d.%d\n"
-                  "  UTC Time: [%.16s]\n",
-                  info.ulMaxSessionCount, info.ulSessionCount,
-                  info.ulMaxRwSessionCount, info.ulRwSessionCount,
-                  info.ulMinPinLen, info.ulMaxPinLen,
-                  info.ulTotalPublicMemory,
-                  info.ulFreePublicMemory,
-                  info.ulTotalPrivateMemory,
-                  info.ulFreePrivateMemory,
-                  info.hardwareVersion.major,
-                  info.hardwareVersion.minor,
-                  info.firmwareVersion.major,
-                  info.firmwareVersion.minor,
-                  info.utcTime);
+    p11prov_debug(
+        "  Session Count      Max: %3lu  Current: %3lu\n"
+        "  R/W Session Count  Max: %3lu  Current: %3lu\n"
+        "  Pin Len Range: %lu-%lu\n"
+        "  Public  Memory  Total: %6lu  Free: %6lu\n"
+        "  Private Memory  Total: %6lu  Free: %6lu\n"
+        "  Hardware Version: %d.%d\n"
+        "  Firmware Version: %d.%d\n"
+        "  UTC Time: [%.16s]\n",
+        info.ulMaxSessionCount, info.ulSessionCount, info.ulMaxRwSessionCount,
+        info.ulRwSessionCount, info.ulMinPinLen, info.ulMaxPinLen,
+        info.ulTotalPublicMemory, info.ulFreePublicMemory,
+        info.ulTotalPrivateMemory, info.ulFreePrivateMemory,
+        info.hardwareVersion.major, info.hardwareVersion.minor,
+        info.firmwareVersion.major, info.firmwareVersion.minor, info.utcTime);
 }
 
 extern struct ckmap slot_flags[];
@@ -126,26 +120,25 @@ extern struct ckmap profile_ids[];
 
 void p11prov_debug_slot(struct p11prov_slot *slot)
 {
-    p11prov_debug("Slot Info:\n"
-                  "  ID: %lu\n"
-                  "  Description:      [%.64s]\n"
-                  "  Manufacturer ID:  [%.32s]\n"
-                  "  Flags (%#08lx):\n",
-                  slot->id, slot->slot.slotDescription,
-                  slot->slot.manufacturerID, slot->slot.flags);
+    p11prov_debug(
+        "Slot Info:\n"
+        "  ID: %lu\n"
+        "  Description:      [%.64s]\n"
+        "  Manufacturer ID:  [%.32s]\n"
+        "  Flags (%#08lx):\n",
+        slot->id, slot->slot.slotDescription, slot->slot.manufacturerID,
+        slot->slot.flags);
     for (int i = 0; slot_flags[i].name != NULL; i++) {
         if (slot->slot.flags & slot_flags[i].value) {
-            p11prov_debug("    %-25s (%#08lx)\n",
-                          slot_flags[i].name,
+            p11prov_debug("    %-25s (%#08lx)\n", slot_flags[i].name,
                           slot_flags[i].value);
         }
     }
-    p11prov_debug("  Hardware Version: %d.%d\n"
-                  "  Firmware Version: %d.%d\n",
-                  slot->slot.hardwareVersion.major,
-                  slot->slot.hardwareVersion.minor,
-                  slot->slot.firmwareVersion.major,
-                  slot->slot.firmwareVersion.minor);
+    p11prov_debug(
+        "  Hardware Version: %d.%d\n"
+        "  Firmware Version: %d.%d\n",
+        slot->slot.hardwareVersion.major, slot->slot.hardwareVersion.minor,
+        slot->slot.firmwareVersion.major, slot->slot.firmwareVersion.minor);
     if (slot->slot.flags & CKF_TOKEN_PRESENT) {
         p11prov_debug_token_info(slot->token);
     }
@@ -155,8 +148,7 @@ void p11prov_debug_slot(struct p11prov_slot *slot)
             CK_ULONG profile = slot->profiles[c];
             for (int i = 0; profile_ids[i].name != NULL; i++) {
                 if (profile == slot_flags[i].value) {
-                    p11prov_debug("    %-35s (%#08lx)\n",
-                                  profile_ids[i].name,
+                    p11prov_debug("    %-35s (%#08lx)\n", profile_ids[i].name,
                                   profile_ids[i].value);
                 }
             }
@@ -166,7 +158,10 @@ void p11prov_debug_slot(struct p11prov_slot *slot)
     }
 }
 
-#define MECH_ENTRY(_m) { _m, #_m }
+#define MECH_ENTRY(_m) \
+    { \
+        _m, #_m \
+    }
 struct ckmap mechanism_names[] = {
     MECH_ENTRY(CKM_RSA_PKCS_KEY_PAIR_GEN),
     MECH_ENTRY(CKM_RSA_PKCS),
@@ -594,7 +589,7 @@ struct ckmap mechanism_names[] = {
     MECH_ENTRY(CKM_SP800_108_COUNTER_KDF),
     MECH_ENTRY(CKM_SP800_108_FEEDBACK_KDF),
     MECH_ENTRY(CKM_SP800_108_DOUBLE_PIPELINE_KDF),
-    {0, NULL}
+    { 0, NULL },
 };
 
 struct ckmap mechanism_flags[] = {
@@ -624,7 +619,7 @@ struct ckmap mechanism_flags[] = {
     MECH_ENTRY(CKF_EC_UNCOMPRESS),
     MECH_ENTRY(CKF_EC_COMPRESS),
     MECH_ENTRY(CKF_EC_CURVENAME),
-    {0, NULL}
+    { 0, NULL },
 };
 
 struct ckmap token_flags[] = {
@@ -647,14 +642,14 @@ struct ckmap token_flags[] = {
     MECH_ENTRY(CKF_SO_PIN_LOCKED),
     MECH_ENTRY(CKF_SO_PIN_TO_BE_CHANGED),
     MECH_ENTRY(CKF_ERROR_STATE),
-    {0, NULL}
+    { 0, NULL },
 };
 
 struct ckmap slot_flags[] = {
     MECH_ENTRY(CKF_TOKEN_PRESENT),
     MECH_ENTRY(CKF_REMOVABLE_DEVICE),
     MECH_ENTRY(CKF_HW_SLOT),
-    {0, NULL}
+    { 0, NULL },
 };
 
 struct ckmap profile_ids[] = {
@@ -664,5 +659,5 @@ struct ckmap profile_ids[] = {
     MECH_ENTRY(CKP_AUTHENTICATION_TOKEN),
     MECH_ENTRY(CKP_PUBLIC_CERTIFICATES_TOKEN),
     MECH_ENTRY(CKP_VENDOR_DEFINED),
-    {0, NULL}
+    { 0, NULL },
 };

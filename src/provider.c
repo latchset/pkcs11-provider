@@ -146,7 +146,7 @@ static const OSSL_PARAM p11prov_param_types[] = {
     OSSL_PARAM_DEFN(OSSL_PROV_PARAM_VERSION, OSSL_PARAM_UTF8_PTR, NULL, 0),
     OSSL_PARAM_DEFN(OSSL_PROV_PARAM_BUILDINFO, OSSL_PARAM_UTF8_PTR, NULL, 0),
     OSSL_PARAM_DEFN(OSSL_PROV_PARAM_STATUS, OSSL_PARAM_INTEGER, NULL, 0),
-    OSSL_PARAM_END
+    OSSL_PARAM_END,
 };
 
 static const OSSL_PARAM *p11prov_gettable_params(void *provctx)
@@ -197,13 +197,13 @@ static const OSSL_ALGORITHM p11prov_keymgmt[] = {
       p11prov_hkdf_keymgmt_functions, P11PROV_DESCS_HKDF, },
     { "HKDF", P11PROV_DEFAULT_PROPERTIES,
       p11prov_hkdf_keymgmt_functions, P11PROV_DESCS_HKDF, },
-    { NULL, NULL, NULL, NULL }
+    { NULL, NULL, NULL, NULL },
 };
 
 static const OSSL_ALGORITHM p11prov_store[] = {
     { "pkcs11", P11PROV_DEFAULT_PROPERTIES,
       p11prov_store_functions, P11PROV_DESCS_URI, },
-    { NULL, NULL, NULL, NULL }
+    { NULL, NULL, NULL, NULL },
 };
 
 static const OSSL_ALGORITHM p11prov_signature[] = {
@@ -211,13 +211,13 @@ static const OSSL_ALGORITHM p11prov_signature[] = {
       p11prov_rsa_signature_functions, P11PROV_DESCS_RSA, },
     { P11PROV_NAMES_ECDSA, P11PROV_DEFAULT_PROPERTIES,
       p11prov_ecdsa_signature_functions, P11PROV_DESCS_ECDSA, },
-    { NULL, NULL, NULL, NULL }
+    { NULL, NULL, NULL, NULL },
 };
 
 static const OSSL_ALGORITHM p11prov_asym_cipher[] = {
     { P11PROV_NAMES_RSA, P11PROV_DEFAULT_PROPERTIES,
       p11prov_rsa_asym_cipher_functions, P11PROV_DESCS_RSA, },
-    { NULL, NULL, NULL, NULL }
+    { NULL, NULL, NULL, NULL },
 };
 
 static const OSSL_ALGORITHM p11prov_exchange[] = {
@@ -225,7 +225,7 @@ static const OSSL_ALGORITHM p11prov_exchange[] = {
       p11prov_ecdh_exchange_functions, P11PROV_DESCS_ECDH, },
     { P11PROV_NAMES_HKDF, P11PROV_DEFAULT_PROPERTIES,
       p11prov_hkdf_exchange_functions, P11PROV_DESCS_HKDF, },
-    { NULL, NULL, NULL, NULL }
+    { NULL, NULL, NULL, NULL },
 };
 
 static const OSSL_ALGORITHM p11prov_kdf[] = {
@@ -233,7 +233,7 @@ static const OSSL_ALGORITHM p11prov_kdf[] = {
       p11prov_hkdf_kdf_functions, P11PROV_DESCS_HKDF, },
     { "HKDF", P11PROV_DEFAULT_PROPERTIES,
       p11prov_hkdf_kdf_functions, P11PROV_DESCS_HKDF, },
-    { NULL, NULL, NULL, NULL }
+    { NULL, NULL, NULL, NULL },
 };
 
 static const OSSL_ALGORITHM *p11prov_query_operation(void *provctx,
@@ -371,7 +371,7 @@ static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
             "session cannot be saved" },
         { CKR_CRYPTOKI_NOT_INITIALIZED,
             "PKCS11 Module has not been intialized yet" },
-        { 0, NULL }
+        { 0, NULL },
     };
 
     return reason_strings;
@@ -391,7 +391,7 @@ static const OSSL_DISPATCH p11prov_dispatch_table[] = {
       (void (*)(void))p11prov_get_capabilities },
     { OSSL_FUNC_PROVIDER_GET_REASON_STRINGS,
       (void (*)(void))p11prov_get_reason_strings },
-    { 0, NULL }
+    { 0, NULL },
 };
 
 static int refresh_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)

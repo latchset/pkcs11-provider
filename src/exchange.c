@@ -47,7 +47,7 @@ static struct {
     DM_ELEM_SHA(384),
     DM_ELEM_SHA(224),
     { "SHA1", CKM_SHA_1, CKD_SHA1_KDF, 20 },
-    { NULL, 0, 0, 0, }
+    { NULL, 0, 0, 0 },
 };
 
 static CK_ULONG p11prov_ecdh_digest_to_kdf(CK_MECHANISM_TYPE digest)
@@ -212,7 +212,7 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
         {CKA_KEY_TYPE, &key_type, sizeof(key_type)},
         {CKA_SENSITIVE, &val_false, sizeof(val_false)},
         {CKA_EXTRACTABLE, &val_true, sizeof(val_true)},
-        {CKA_VALUE_LEN, &key_size, sizeof(key_size)}
+        {CKA_VALUE_LEN, &key_size, sizeof(key_size)},
     };
     CK_FUNCTION_LIST *f;
     CK_MECHANISM mechanism;
@@ -417,7 +417,7 @@ static const OSSL_PARAM *p11prov_ecdh_settable_ctx_params(void *ctx,
         OSSL_PARAM_utf8_string(OSSL_EXCHANGE_PARAM_KDF_DIGEST, NULL, 0),
         OSSL_PARAM_size_t(OSSL_EXCHANGE_PARAM_KDF_OUTLEN, NULL),
         OSSL_PARAM_octet_string(OSSL_EXCHANGE_PARAM_KDF_UKM, NULL, 0),
-        OSSL_PARAM_END
+        OSSL_PARAM_END,
     };
     return params;
 }
@@ -480,7 +480,7 @@ static const OSSL_PARAM *p11prov_ecdh_gettable_ctx_params(void *ctx,
         OSSL_PARAM_utf8_string(OSSL_EXCHANGE_PARAM_KDF_DIGEST, NULL, 0),
         OSSL_PARAM_size_t(OSSL_EXCHANGE_PARAM_KDF_OUTLEN, NULL),
         OSSL_PARAM_octet_string(OSSL_EXCHANGE_PARAM_KDF_UKM, NULL, 0),
-        OSSL_PARAM_END
+        OSSL_PARAM_END,
     };
     return params;
 }
@@ -496,7 +496,7 @@ const OSSL_DISPATCH p11prov_ecdh_exchange_functions[] = {
     DISPATCH_ECDH_ELEM(ecdh, SETTABLE_CTX_PARAMS, settable_ctx_params),
     DISPATCH_ECDH_ELEM(ecdh, GET_CTX_PARAMS, get_ctx_params),
     DISPATCH_ECDH_ELEM(ecdh, GETTABLE_CTX_PARAMS, gettable_ctx_params),
-    { 0, NULL }
+    { 0, NULL },
 };
 
 /* unclear why OpenSSL makes KDFs go through a middle "exchange" layer
@@ -624,5 +624,5 @@ const OSSL_DISPATCH p11prov_hkdf_exchange_functions[] = {
     DISPATCH_EXCHHKDF_ELEM(exch_hkdf, DERIVE, derive),
     DISPATCH_EXCHHKDF_ELEM(exch_hkdf, SET_CTX_PARAMS, set_ctx_params),
     DISPATCH_EXCHHKDF_ELEM(exch_hkdf, SETTABLE_CTX_PARAMS, settable_ctx_params),
-    { 0, NULL }
+    { 0, NULL },
 };
