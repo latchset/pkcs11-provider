@@ -52,8 +52,7 @@ static void p11prov_uri_free(struct p11prov_uri *parsed_uri)
 
 static P11PROV_OBJECT *p11prov_object_ref(P11PROV_OBJECT *obj)
 {
-    if (obj &&
-        __atomic_fetch_add(&obj->refcnt, 1, __ATOMIC_ACQ_REL) > 0) {
+    if (obj && __atomic_fetch_add(&obj->refcnt, 1, __ATOMIC_ACQ_REL) > 0) {
         return obj;
     }
 
@@ -128,8 +127,7 @@ static void endianfix(unsigned char *src, unsigned char *dest, size_t len)
     endianfix(src->pValue, fix_##src, src->ulValueLen); \
     ptr = fix_##src;
 #else
-#define WITH_FIXED_BUFFER(src, ptr) \
-    ptr = src->pValue;
+#define WITH_FIXED_BUFFER(src, ptr) ptr = src->pValue;
 #endif
 int p11prov_object_export_public_rsa_key(P11PROV_OBJECT *obj,
                                          OSSL_CALLBACK *cb_fn, void *cb_arg)
@@ -146,15 +144,15 @@ int p11prov_object_export_public_rsa_key(P11PROV_OBJECT *obj,
     if (n == NULL) return RET_OSSL_ERR;
 
     WITH_FIXED_BUFFER(n, val);
-    params[0] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N,
-                                        val, n->ulValueLen);
+    params[0] =
+        OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N, val, n->ulValueLen);
 
     e = p11prov_key_attr(obj->pub_key, CKA_PUBLIC_EXPONENT);
     if (e == NULL) return RET_OSSL_ERR;
 
     WITH_FIXED_BUFFER(e, val);
-    params[1] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_E,
-                                        val, e->ulValueLen);
+    params[1] =
+        OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_E, val, e->ulValueLen);
 
     params[2] = OSSL_PARAM_construct_end();
 
@@ -182,8 +180,8 @@ static int hex_to_byte(const char *in, unsigned char *byte)
     return 0;
 }
 
-static int parse_attr(const char *str, size_t len,
-                      unsigned char **output, size_t *outlen)
+static int parse_attr(const char *str, size_t len, unsigned char **output,
+                      size_t *outlen)
 {
     unsigned char *out;
     size_t index = 0;
@@ -231,10 +229,9 @@ done:
 }
 
 #define MAX_PIN_LENGTH 32
-static int get_pin(const char *str, size_t len,
-                   char **output, size_t *outlen)
+static int get_pin(const char *str, size_t len, char **output, size_t *outlen)
 {
-    char pin[MAX_PIN_LENGTH+1];
+    char pin[MAX_PIN_LENGTH + 1];
     char *pinfile;
     char *filename;
     BIO *fp;
@@ -336,8 +333,8 @@ static int parse_uri(struct p11prov_uri *u, const char *uri)
             len -= 11;
             ret = get_pin(p, len, &u->pin, ptrlen);
             if (ret != 0) goto done;
-        } else if (strncmp(p, "type=", 5) == 0 ||
-                   strncmp(p, "object-type=", 12) == 0) {
+        } else if (strncmp(p, "type=", 5) == 0
+                   || strncmp(p, "object-type=", 12) == 0) {
             p += 4;
             if (*p == '=') {
                 p++;
@@ -427,8 +424,8 @@ static void *p11prov_store_attach(void *provctx, OSSL_CORE_BIO *in)
     return NULL;
 }
 
-static int p11prov_store_load(void *ctx,
-                              OSSL_CALLBACK *object_cb, void *object_cbarg,
+static int p11prov_store_load(void *ctx, OSSL_CALLBACK *object_cb,
+                              void *object_cbarg,
                               OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
 {
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)ctx;
@@ -442,7 +439,7 @@ static int p11prov_store_load(void *ctx,
     nslots = p11prov_ctx_lock_slots(obj->provctx, &slots);
 
     for (int i = 0; i < nslots; i++) {
-	CK_TOKEN_INFO token;
+        CK_TOKEN_INFO token;
 
         /* ignore slots that are not initialized */
         if ((slots[i].slot.flags & CKF_TOKEN_PRESENT) == 0) continue;
@@ -451,21 +448,23 @@ static int p11prov_store_load(void *ctx,
         token = slots[i].token;
 
         /* skip slots that do not match */
-        if (obj->parsed_uri->model &&
-            strncmp(obj->parsed_uri->model,
-                    (const char *)token.model, 16) != 0)
+        if (obj->parsed_uri->model
+            && strncmp(obj->parsed_uri->model, (const char *)token.model, 16)
+                   != 0)
             continue;
-        if (obj->parsed_uri->manufacturer &&
-            strncmp(obj->parsed_uri->manufacturer,
-                    (const char *)token.manufacturerID, 32) != 0)
+        if (obj->parsed_uri->manufacturer
+            && strncmp(obj->parsed_uri->manufacturer,
+                       (const char *)token.manufacturerID, 32)
+                   != 0)
             continue;
-        if (obj->parsed_uri->token &&
-            strncmp(obj->parsed_uri->token,
-                    (const char *)token.label, 32) != 0)
+        if (obj->parsed_uri->token
+            && strncmp(obj->parsed_uri->token, (const char *)token.label, 32)
+                   != 0)
             continue;
-        if (obj->parsed_uri->serial &&
-            strncmp(obj->parsed_uri->serial,
-                    (const char *)token.serialNumber, 16) != 0)
+        if (obj->parsed_uri->serial
+            && strncmp(obj->parsed_uri->serial,
+                       (const char *)token.serialNumber, 16)
+                   != 0)
             continue;
 
         if (token.flags & CKF_LOGIN_REQUIRED) {
@@ -491,8 +490,7 @@ static int p11prov_store_load(void *ctx,
             /* Supports only USER login sessions for now */
             ret = f->C_Login(obj->login_session, CKU_USER, pin, pinlen);
             if (ret && ret != CKR_USER_ALREADY_LOGGED_IN) {
-                P11PROV_raise(obj->provctx, ret,
-                              "Error returned by C_Login");
+                P11PROV_raise(obj->provctx, ret, "Error returned by C_Login");
                 continue;
             }
         }
@@ -526,14 +524,10 @@ static int p11prov_store_load(void *ctx,
             }
         }
         if (class == CKO_PUBLIC_KEY || class == CKO_PRIVATE_KEY) {
-             int ret = find_keys(obj->provctx,
-                                 &obj->priv_key,
-                                 &obj->pub_key,
-                                 slots[i].id,
-                                 class,
-                                 obj->parsed_uri->id,
-                                 obj->parsed_uri->id_len,
-                                 obj->parsed_uri->object);
+            int ret =
+                find_keys(obj->provctx, &obj->priv_key, &obj->pub_key,
+                          slots[i].id, class, obj->parsed_uri->id,
+                          obj->parsed_uri->id_len, obj->parsed_uri->object);
             /* for keys return on first match */
             if (ret == CKR_OK) break;
         }
@@ -549,8 +543,8 @@ static int p11prov_store_load(void *ctx,
         CK_KEY_TYPE type;
         char *data_type;
 
-        params[0] = OSSL_PARAM_construct_int(
-                        OSSL_OBJECT_PARAM_TYPE, &object_type);
+        params[0] =
+            OSSL_PARAM_construct_int(OSSL_OBJECT_PARAM_TYPE, &object_type);
 
         if (obj->pub_key) {
             type = p11prov_key_type(obj->pub_key);
@@ -571,8 +565,10 @@ static int p11prov_store_load(void *ctx,
                 data_type = "RSA";
                 break;
             default:
-                if (obj->priv_key) data_type = P11PROV_NAMES_RSA;
-                else data_type = "RSA";
+                if (obj->priv_key)
+                    data_type = P11PROV_NAMES_RSA;
+                else
+                    data_type = "RSA";
                 break;
             }
             break;
@@ -583,12 +579,11 @@ static int p11prov_store_load(void *ctx,
             return RET_OSSL_ERR;
         }
         params[1] = OSSL_PARAM_construct_utf8_string(
-                        OSSL_OBJECT_PARAM_DATA_TYPE, data_type, 0);
+            OSSL_OBJECT_PARAM_DATA_TYPE, data_type, 0);
 
         /* giving away the object by reference */
         params[2] = OSSL_PARAM_construct_octet_string(
-                        OSSL_OBJECT_PARAM_REFERENCE,
-                        p11prov_object_ref(obj), sizeof(obj));
+            OSSL_OBJECT_PARAM_REFERENCE, p11prov_object_ref(obj), sizeof(obj));
         params[3] = OSSL_PARAM_construct_end();
 
         return object_cb(params, object_cbarg);
@@ -603,7 +598,7 @@ static int p11prov_store_eof(void *ctx)
 
     p11prov_debug("object eof (%p)\n", obj);
 
-    return obj->loaded?1:0;
+    return obj->loaded ? 1 : 0;
 }
 
 static int p11prov_store_close(void *ctx)
@@ -618,18 +613,15 @@ static int p11prov_store_close(void *ctx)
     return 1;
 }
 
-static int p11prov_store_export_object(void *loaderctx,
-                                       const void *reference,
+static int p11prov_store_export_object(void *loaderctx, const void *reference,
                                        size_t reference_sz,
-                                       OSSL_CALLBACK *cb_fn,
-                                       void *cb_arg)
+                                       OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
     P11PROV_OBJECT *obj = NULL;
 
     p11prov_debug("object export %p, %ld\n", reference, reference_sz);
 
-    if (!reference || reference_sz != sizeof(obj))
-        return RET_OSSL_ERR;
+    if (!reference || reference_sz != sizeof(obj)) return RET_OSSL_ERR;
 
     /* the contents of the reference is the address to our object */
     obj = (P11PROV_OBJECT *)reference;

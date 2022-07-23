@@ -19,28 +19,23 @@ struct p11prov_kdf_ctx {
 typedef struct p11prov_kdf_ctx P11PROV_KDF_CTX;
 
 #define DM_ELEM_SHA(bits) \
-  { .name = "SHA"#bits, \
-    .digest = CKM_SHA##bits, \
-    .digest_size = bits / 8 }
+    { \
+        .name = "SHA" #bits, .digest = CKM_SHA##bits, .digest_size = bits / 8 \
+    }
 #define DM_ELEM_SHA3(bits) \
-  { .name = "SHA3-"#bits, \
-    .digest = CKM_SHA3_##bits, \
-    .digest_size = bits / 8 }
+    { \
+        .name = "SHA3-" #bits, .digest = CKM_SHA3_##bits, \
+        .digest_size = bits / 8 \
+    }
 /* only the ones we can support */
 static struct {
     const char *name;
     CK_MECHANISM_TYPE digest;
     int digest_size;
 } digest_map[] = {
-    DM_ELEM_SHA3(256),
-    DM_ELEM_SHA3(512),
-    DM_ELEM_SHA3(384),
-    DM_ELEM_SHA3(224),
-    DM_ELEM_SHA(256),
-    DM_ELEM_SHA(512),
-    DM_ELEM_SHA(384),
-    DM_ELEM_SHA(224),
-    { "SHA1", CKM_SHA_1, 20 },
+    DM_ELEM_SHA3(256), DM_ELEM_SHA3(512), DM_ELEM_SHA3(384),
+    DM_ELEM_SHA3(224), DM_ELEM_SHA(256),  DM_ELEM_SHA(512),
+    DM_ELEM_SHA(384),  DM_ELEM_SHA(224),  { "SHA1", CKM_SHA_1, 20 },
     { NULL, 0, 0 },
 };
 
@@ -135,11 +130,11 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
     CK_BBOOL val_false = CK_FALSE;
     CK_ULONG key_size = keylen;
     CK_ATTRIBUTE key_template[5] = {
-        {CKA_CLASS, &key_class, sizeof(key_class)},
-        {CKA_KEY_TYPE, &key_type, sizeof(key_type)},
-        {CKA_SENSITIVE, &val_false, sizeof(val_false)},
-        {CKA_EXTRACTABLE, &val_true, sizeof(val_true)},
-        {CKA_VALUE_LEN, &key_size, sizeof(key_size)},
+        { CKA_CLASS, &key_class, sizeof(key_class) },
+        { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
+        { CKA_SENSITIVE, &val_false, sizeof(val_false) },
+        { CKA_EXTRACTABLE, &val_true, sizeof(val_true) },
+        { CKA_VALUE_LEN, &key_size, sizeof(key_size) },
     };
     CK_FUNCTION_LIST *f;
     CK_MECHANISM mechanism;
@@ -147,8 +142,8 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
     CK_OBJECT_HANDLE dkey_handle;
     int ret = RET_OSSL_ERR;
 
-    p11prov_debug("hkdf derive (ctx:%p, key:%p[%zu], params:%p)\n",
-                  ctx, key, keylen, params);
+    p11prov_debug("hkdf derive (ctx:%p, key:%p[%zu], params:%p)\n", ctx, key,
+                  keylen, params);
 
     if (hkdfctx->key == NULL || key == NULL) {
         ERR_raise(ERR_LIB_PROV, PROV_R_MISSING_KEY);
@@ -187,14 +182,13 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
         struct fetch_attrs attrs[1] = {
             { CKA_VALUE, &key, &dkey_len, false, true },
         };
-        ret = p11prov_fetch_attributes(f, hkdfctx->session, dkey_handle,
-                                       attrs, 1);
+        ret = p11prov_fetch_attributes(f, hkdfctx->session, dkey_handle, attrs,
+                                       1);
         if (ret != CKR_OK) {
             p11prov_debug("hkdf failed to retrieve secret %d\n", ret);
         }
     } else {
-        P11PROV_raise(hkdfctx->provctx, ret,
-                      "Error returned by C_DeriveKey");
+        P11PROV_raise(hkdfctx->provctx, ret, "Error returned by C_DeriveKey");
         return RET_OSSL_ERR;
     }
 
@@ -207,8 +201,7 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     const OSSL_PARAM *p;
     int ret;
 
-    p11prov_debug("hkdf set ctx params (ctx=%p, params=%p)\n",
-                  hkdfctx, params);
+    p11prov_debug("hkdf set ctx params (ctx=%p, params=%p)\n", hkdfctx, params);
 
     if (params == NULL) return RET_OSSL_OK;
 
@@ -283,9 +276,8 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         }
         if (hkdfctx->session == CK_INVALID_HANDLE) return RET_OSSL_ERR;
 
-        hkdfctx->key = p11prov_create_secret_key(hkdfctx->provctx,
-                                                 hkdfctx->session, true,
-                                                 secret, secret_len);
+        hkdfctx->key = p11prov_create_secret_key(
+            hkdfctx->provctx, hkdfctx->session, true, secret, secret_len);
         if (hkdfctx->key == NULL) return RET_OSSL_ERR;
     }
 
@@ -304,8 +296,7 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     }
 
     /* can be multiple paramaters, which wil be all concatenated */
-    for (p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_INFO);
-         p != NULL;
+    for (p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_INFO); p != NULL;
          p = OSSL_PARAM_locate_const(p + 1, OSSL_KDF_PARAM_INFO)) {
         void *ptr;
         size_t len;
@@ -327,8 +318,7 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     return RET_OSSL_OK;
 }
 
-static const OSSL_PARAM *p11prov_hkdf_settable_ctx_params(void *ctx,
-                                                          void *prov)
+static const OSSL_PARAM *p11prov_hkdf_settable_ctx_params(void *ctx, void *prov)
 {
     static const OSSL_PARAM params[] = {
         OSSL_PARAM_utf8_string(OSSL_KDF_PARAM_MODE, NULL, 0),
@@ -349,8 +339,7 @@ static int p11prov_hkdf_get_ctx_params(void *ctx, OSSL_PARAM *params)
     OSSL_PARAM *p;
     int ret;
 
-    p11prov_debug("hkdf get ctx params (ctx=%p, params=%p)\n",
-                  hkdfctx, params);
+    p11prov_debug("hkdf get ctx params (ctx=%p, params=%p)\n", hkdfctx, params);
 
     if (params == NULL) return RET_OSSL_OK;
 
@@ -360,8 +349,8 @@ static int p11prov_hkdf_get_ctx_params(void *ctx, OSSL_PARAM *params)
         if (hkdfctx->params.bExpand != CK_FALSE) {
             ret_size = SIZE_MAX;
         } else {
-            ret_size = p11prov_hkdf_map_digest_size(
-                            hkdfctx->params.prfHashMechanism);
+            ret_size =
+                p11prov_hkdf_map_digest_size(hkdfctx->params.prfHashMechanism);
         }
         if (ret_size != 0) {
             return OSSL_PARAM_set_size_t(p, ret_size);
@@ -373,8 +362,7 @@ static int p11prov_hkdf_get_ctx_params(void *ctx, OSSL_PARAM *params)
     return RET_OSSL_OK;
 }
 
-static const OSSL_PARAM *p11prov_hkdf_gettable_ctx_params(void *ctx,
-                                                          void *prov)
+static const OSSL_PARAM *p11prov_hkdf_gettable_ctx_params(void *ctx, void *prov)
 {
     static const OSSL_PARAM params[] = {
         OSSL_PARAM_size_t(OSSL_KDF_PARAM_SIZE, NULL),

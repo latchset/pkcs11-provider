@@ -38,8 +38,7 @@ static P11PROV_KEY *p11prov_key_new(void)
 
 P11PROV_KEY *p11prov_key_ref(P11PROV_KEY *key)
 {
-    if (key &&
-        __atomic_fetch_add(&key->refcnt, 1, __ATOMIC_ACQ_REL) > 0) {
+    if (key && __atomic_fetch_add(&key->refcnt, 1, __ATOMIC_ACQ_REL) > 0) {
         return key;
     }
 
@@ -104,10 +103,8 @@ CK_ULONG p11prov_key_size(P11PROV_KEY *key)
     return key->key_size;
 }
 
-static int fetch_rsa_key(CK_FUNCTION_LIST *f,
-                         CK_OBJECT_CLASS class,
-                         CK_SESSION_HANDLE session,
-                         CK_OBJECT_HANDLE object,
+static int fetch_rsa_key(CK_FUNCTION_LIST *f, CK_OBJECT_CLASS class,
+                         CK_SESSION_HANDLE session, CK_OBJECT_HANDLE object,
                          P11PROV_KEY *key)
 {
     struct fetch_attrs attrs[2];
@@ -144,10 +141,8 @@ static int fetch_rsa_key(CK_FUNCTION_LIST *f,
     return CKR_ARGUMENTS_BAD;
 }
 
-static int fetch_ec_public_key(CK_FUNCTION_LIST *f,
-                               CK_SESSION_HANDLE session,
-                               CK_OBJECT_HANDLE object,
-                               P11PROV_KEY *key)
+static int fetch_ec_public_key(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
+                               CK_OBJECT_HANDLE object, P11PROV_KEY *key)
 {
     struct fetch_attrs attrs[2];
     unsigned long params_len = 0, point_len = 0;
@@ -155,10 +150,8 @@ static int fetch_ec_public_key(CK_FUNCTION_LIST *f,
     size_t n_bytes;
     int ret;
 
-    FA_ASSIGN_ALL(attrs[0], CKA_EC_PARAMS,
-                  &params, &params_len, true, true);
-    FA_ASSIGN_ALL(attrs[1], CKA_EC_POINT,
-                  &point, &point_len, true, true);
+    FA_ASSIGN_ALL(attrs[0], CKA_EC_PARAMS, &params, &params_len, true, true);
+    FA_ASSIGN_ALL(attrs[1], CKA_EC_POINT, &point, &point_len, true, true);
     ret = p11prov_fetch_attributes(f, session, object, attrs, 2);
     if (ret != CKR_OK) {
         /* free any allocated memory */
@@ -205,8 +198,7 @@ static int fetch_ec_public_key(CK_FUNCTION_LIST *f,
 }
 
 /* TODO: may want to have a hashmap with cached keys */
-static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f,
-                                         CK_SLOT_ID slotid,
+static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f, CK_SLOT_ID slotid,
                                          CK_OBJECT_CLASS class,
                                          CK_SESSION_HANDLE session,
                                          CK_OBJECT_HANDLE object)
@@ -223,12 +215,10 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f,
     if (key == NULL) return NULL;
 
     key_type = &key->type;
-    FA_ASSIGN_ALL(attrs[0], CKA_KEY_TYPE,
-                  &key_type, &key_type_len, false, true);
-    FA_ASSIGN_ALL(attrs[1], CKA_ID,
-                  &key->id, &key->id_len, true, false);
-    FA_ASSIGN_ALL(attrs[2], CKA_LABEL,
-                  &key->label, &label_len, true, false);
+    FA_ASSIGN_ALL(attrs[0], CKA_KEY_TYPE, &key_type, &key_type_len, false,
+                  true);
+    FA_ASSIGN_ALL(attrs[1], CKA_ID, &key->id, &key->id_len, true, false);
+    FA_ASSIGN_ALL(attrs[2], CKA_LABEL, &key->label, &label_len, true, false);
     /* TODO: fetch also other attributes as specified in
      * Spev v3 - 4.9 Private key objects  ?? */
 
@@ -272,11 +262,9 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f,
     return key;
 }
 
-int find_keys(P11PROV_CTX *provctx,
-              P11PROV_KEY **priv, P11PROV_KEY **pub,
-              CK_SLOT_ID slotid, CK_OBJECT_CLASS class,
-              const unsigned char *id, size_t id_len,
-              const char *label)
+int find_keys(P11PROV_CTX *provctx, P11PROV_KEY **priv, P11PROV_KEY **pub,
+              CK_SLOT_ID slotid, CK_OBJECT_CLASS class, const unsigned char *id,
+              size_t id_len, const char *label)
 {
     CK_FUNCTION_LIST *f = p11prov_ctx_fns(provctx);
     CK_SESSION_HANDLE session;
@@ -296,19 +284,17 @@ int find_keys(P11PROV_CTX *provctx,
 
     ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
     if (ret != CKR_OK) {
-        P11PROV_raise(provctx, ret,
-                      "Failed to open session on slot %lu", slotid);
+        P11PROV_raise(provctx, ret, "Failed to open session on slot %lu",
+                      slotid);
         return ret;
     }
 
     if (id_len) {
-        CKATTR_ASSIGN_ALL(template[tsize], CKA_ID,
-                          id, id_len);
+        CKATTR_ASSIGN_ALL(template[tsize], CKA_ID, id, id_len);
         tsize++;
     }
     if (label) {
-        CKATTR_ASSIGN_ALL(template[tsize], CKA_LABEL,
-                          label, strlen(label));
+        CKATTR_ASSIGN_ALL(template[tsize], CKA_LABEL, label, strlen(label));
         tsize++;
     }
 
@@ -352,18 +338,15 @@ again:
 
         ret = f->C_FindObjectsFinal(session);
         if (ret != CKR_OK) {
-            P11PROV_raise(provctx, ret,
-                          "Failed to terminate object search");
+            P11PROV_raise(provctx, ret, "Failed to terminate object search");
         }
     } else {
-        P11PROV_raise(provctx, ret,
-                      "Error returned by C_FindObjectsInit");
+        P11PROV_raise(provctx, ret, "Error returned by C_FindObjectsInit");
     }
 
     ret = f->C_CloseSession(session);
     if (ret != CKR_OK) {
-        P11PROV_raise(provctx, ret,
-                      "Failed to close session %lu", session);
+        P11PROV_raise(provctx, ret, "Failed to close session %lu", session);
     }
 
     return result;
@@ -371,8 +354,7 @@ again:
 
 P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        CK_SESSION_HANDLE session,
-                                       bool session_key,
-                                       unsigned char *secret,
+                                       bool session_key, unsigned char *secret,
                                        size_t secretlen)
 {
     CK_FUNCTION_LIST *f;
@@ -380,7 +362,7 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
     CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
     CK_BBOOL val_true = CK_TRUE;
-    CK_BBOOL val_token = session_key?CK_FALSE:CK_TRUE;
+    CK_BBOOL val_token = session_key ? CK_FALSE : CK_TRUE;
     CK_ATTRIBUTE key_template[5] = {
         { CKA_CLASS, &key_class, sizeof(key_class) },
         { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
@@ -402,12 +384,10 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
 
     ret = f->C_GetSessionInfo(session, &session_info);
     if (ret != CKR_OK) {
-        P11PROV_raise(provctx, ret,
-                      "Error returned by C_GetSessionInfo");
+        P11PROV_raise(provctx, ret, "Error returned by C_GetSessionInfo");
         return NULL;
     }
-    if (((session_info.flags & CKF_RW_SESSION) == 0) &&
-        val_token == CK_TRUE) {
+    if (((session_info.flags & CKF_RW_SESSION) == 0) && val_token == CK_TRUE) {
         p11prov_debug("Invalid read only session for token key request\n");
         return NULL;
     }
@@ -429,10 +409,8 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
     key->key_size = secretlen;
     key->numattrs = 0;
 
-    FA_ASSIGN_ALL(attrs[0], CKA_ID,
-                  &key->id, &key->id_len, true, false);
-    FA_ASSIGN_ALL(attrs[1], CKA_LABEL,
-                  &key->label, &label_len, true, false);
+    FA_ASSIGN_ALL(attrs[0], CKA_ID, &key->id, &key->id_len, true, false);
+    FA_ASSIGN_ALL(attrs[1], CKA_LABEL, &key->label, &label_len, true, false);
     ret = p11prov_fetch_attributes(f, session, key_handle, attrs, 2);
     if (ret != CKR_OK) {
         p11prov_debug("Failed to query object attributes (%d)\n", ret);

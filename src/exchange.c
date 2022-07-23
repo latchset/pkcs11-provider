@@ -22,15 +22,15 @@ struct p11prov_exch_ctx {
 typedef struct p11prov_exch_ctx P11PROV_EXCH_CTX;
 
 #define DM_ELEM_SHA(bits) \
-  { .name = "SHA"#bits, \
-    .digest = CKM_SHA##bits, \
-    .kdf = CKD_SHA##bits##_KDF, \
-    .digest_size = bits / 8 }
+    { \
+        .name = "SHA" #bits, .digest = CKM_SHA##bits, \
+        .kdf = CKD_SHA##bits##_KDF, .digest_size = bits / 8 \
+    }
 #define DM_ELEM_SHA3(bits) \
-  { .name = "SHA3-"#bits, \
-    .digest = CKM_SHA3_##bits, \
-    .kdf = CKD_SHA3_##bits##_KDF, \
-    .digest_size = bits / 8 }
+    { \
+        .name = "SHA3-" #bits, .digest = CKM_SHA3_##bits, \
+        .kdf = CKD_SHA3_##bits##_KDF, .digest_size = bits / 8 \
+    }
 /* only the ones we can support */
 static struct {
     const char *name;
@@ -169,7 +169,7 @@ static void p11prov_ecdh_freectx(void *ctx)
 }
 
 static int p11prov_ecdh_init(void *ctx, void *provkey,
-                            const OSSL_PARAM params[])
+                             const OSSL_PARAM params[])
 {
     P11PROV_EXCH_CTX *ecdhctx = (P11PROV_EXCH_CTX *)ctx;
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)provkey;
@@ -208,11 +208,11 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     CK_BBOOL val_false = CK_FALSE;
     CK_ULONG key_size = 0;
     CK_ATTRIBUTE key_template[5] = {
-        {CKA_CLASS, &key_class, sizeof(key_class)},
-        {CKA_KEY_TYPE, &key_type, sizeof(key_type)},
-        {CKA_SENSITIVE, &val_false, sizeof(val_false)},
-        {CKA_EXTRACTABLE, &val_true, sizeof(val_true)},
-        {CKA_VALUE_LEN, &key_size, sizeof(key_size)},
+        { CKA_CLASS, &key_class, sizeof(key_class) },
+        { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
+        { CKA_SENSITIVE, &val_false, sizeof(val_false) },
+        { CKA_EXTRACTABLE, &val_true, sizeof(val_true) },
+        { CKA_VALUE_LEN, &key_size, sizeof(key_size) },
     };
     CK_FUNCTION_LIST *f;
     CK_MECHANISM mechanism;
@@ -301,15 +301,14 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
         *psecretlen = secret_len;
         result = RET_OSSL_OK;
     } else {
-        P11PROV_raise(ecdhctx->provctx, ret,
-                      "Error returned by C_DeriveKey");
+        P11PROV_raise(ecdhctx->provctx, ret, "Error returned by C_DeriveKey");
         result = RET_OSSL_ERR;
     }
 
     ret = f->C_CloseSession(session);
     if (ret != CKR_OK) {
-        P11PROV_raise(ecdhctx->provctx, ret,
-                      "Failed to close session %lu", session);
+        P11PROV_raise(ecdhctx->provctx, ret, "Failed to close session %lu",
+                      session);
     }
 
     return result;
@@ -321,8 +320,7 @@ static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     const OSSL_PARAM *p;
     int ret;
 
-    p11prov_debug("ecdh set ctx params (ctx=%p, params=%p)\n",
-                  ecdhctx, params);
+    p11prov_debug("ecdh set ctx params (ctx=%p, params=%p)\n", ecdhctx, params);
 
     if (params == NULL) return RET_OSSL_OK;
 
@@ -336,8 +334,10 @@ static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
         if (mode < -1 || mode > 1) return RET_OSSL_ERR;
 
-        if (mode == 0) ecdhctx->mechtype = CKM_ECDH1_DERIVE;
-        else ecdhctx->mechtype = CKM_ECDH1_COFACTOR_DERIVE;
+        if (mode == 0)
+            ecdhctx->mechtype = CKM_ECDH1_DERIVE;
+        else
+            ecdhctx->mechtype = CKM_ECDH1_COFACTOR_DERIVE;
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_EXCHANGE_PARAM_KDF_TYPE);
@@ -408,8 +408,7 @@ static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     return RET_OSSL_OK;
 }
 
-static const OSSL_PARAM *p11prov_ecdh_settable_ctx_params(void *ctx,
-                                                          void *prov)
+static const OSSL_PARAM *p11prov_ecdh_settable_ctx_params(void *ctx, void *prov)
 {
     static const OSSL_PARAM params[] = {
         OSSL_PARAM_int(OSSL_EXCHANGE_PARAM_EC_ECDH_COFACTOR_MODE, NULL),
@@ -428,12 +427,11 @@ static int p11prov_ecdh_get_ctx_params(void *ctx, OSSL_PARAM *params)
     OSSL_PARAM *p;
     int ret;
 
-    p11prov_debug("ecdh get ctx params (ctx=%p, params=%p)\n",
-                  ctx, params);
+    p11prov_debug("ecdh get ctx params (ctx=%p, params=%p)\n", ctx, params);
 
     p = OSSL_PARAM_locate(params, OSSL_EXCHANGE_PARAM_EC_ECDH_COFACTOR_MODE);
     if (p) {
-        int mode = (ecdhctx->mechtype == CKM_ECDH1_DERIVE)?0:1;
+        int mode = (ecdhctx->mechtype == CKM_ECDH1_DERIVE) ? 0 : 1;
         ret = OSSL_PARAM_set_int(p, mode);
         if (ret != RET_OSSL_OK) return ret;
     }
@@ -471,8 +469,7 @@ static int p11prov_ecdh_get_ctx_params(void *ctx, OSSL_PARAM *params)
     return RET_OSSL_OK;
 }
 
-static const OSSL_PARAM *p11prov_ecdh_gettable_ctx_params(void *ctx,
-                                                          void *prov)
+static const OSSL_PARAM *p11prov_ecdh_gettable_ctx_params(void *ctx, void *prov)
 {
     static const OSSL_PARAM params[] = {
         OSSL_PARAM_int(OSSL_EXCHANGE_PARAM_EC_ECDH_COFACTOR_MODE, NULL),
@@ -562,8 +559,8 @@ static int p11prov_exch_hkdf_init(void *ctx, void *provobj,
     P11PROV_EXCH_CTX *hkdfctx = (P11PROV_EXCH_CTX *)ctx;
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)provobj;
 
-    p11prov_debug("hkdf exchange init (ctx:%p obj:%p params:%p)\n",
-                  ctx, obj, params);
+    p11prov_debug("hkdf exchange init (ctx:%p obj:%p params:%p)\n", ctx, obj,
+                  params);
 
     if (ctx == NULL || provobj == NULL) return RET_OSSL_ERR;
 
@@ -596,8 +593,8 @@ static int p11prov_exch_hkdf_set_ctx_params(void *ctx,
 {
     P11PROV_EXCH_CTX *hkdfctx = (P11PROV_EXCH_CTX *)ctx;
 
-    p11prov_debug("hkdf exchange set ctx params (ctx:%p, params:%p)\n",
-                  ctx, params);
+    p11prov_debug("hkdf exchange set ctx params (ctx:%p, params:%p)\n", ctx,
+                  params);
 
     return EVP_KDF_CTX_set_params(hkdfctx->kdfctx, params);
 }
