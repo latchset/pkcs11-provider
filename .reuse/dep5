@@ -11,6 +11,7 @@ Files: **/Makefile.am
        .gitignore
        Makefile.am
        README.md
+       BUILD.md
        configure.ac
        configure.ac
        src/Makefile.am

@@ -14,6 +14,11 @@ AM_PROG_AR
 LT_INIT
 PKG_PROG_PKG_CONFIG
 
+AX_CHECK_COMPILE_FLAG([-std=c11],
+                      [CFLAGS="$CFLAGS -std=c11"],
+                      AC_MSG_ERROR([C compiler must support at least C11 standard])
+)
+
 # Checks for libraries.
 PKG_CHECK_MODULES(
 	[OPENSSL],
