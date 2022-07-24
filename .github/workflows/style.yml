@@ -14,7 +14,7 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y clang-format
+        sudo apt-get install -y autoconf-archive clang-format
     - name: Setup
       if: ${{ github.event.pull_request.base.sha }}
       run: |
