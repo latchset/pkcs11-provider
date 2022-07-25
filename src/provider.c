@@ -14,9 +14,9 @@ struct p11prov_ctx {
     OSSL_LIB_CTX *libctx;
 
     /* Configuration */
-    /* TODO: pin */
     const char *module;
     const char *init_args;
+    const char *pin;
     /* TODO: ui_method */
     /* TODO: fork id */
 
@@ -67,6 +67,14 @@ CK_FUNCTION_LIST *p11prov_ctx_fns(P11PROV_CTX *ctx)
         return NULL;
     }
     return ctx->fns;
+}
+
+CK_UTF8CHAR_PTR p11prov_ctx_pin(P11PROV_CTX *ctx)
+{
+    if (!ctx->initialized) {
+        return NULL;
+    }
+    return (CK_UTF8CHAR_PTR)ctx->pin;
 }
 
 static void p11prov_ctx_free(P11PROV_CTX *ctx)
@@ -659,7 +667,8 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
 int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
                        const OSSL_DISPATCH **out, void **provctx)
 {
-    OSSL_PARAM core_params[3] = { 0 };
+    OSSL_PARAM core_params[4] = { 0 };
+    char *pin = NULL;
     P11PROV_CTX *ctx;
     int ret;
 
@@ -685,7 +694,9 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
     core_params[1] = OSSL_PARAM_construct_utf8_ptr(
         P11PROV_PKCS11_MODULE_INIT_ARGS, (char **)&ctx->init_args,
         sizeof(ctx->init_args));
-    core_params[2] = OSSL_PARAM_construct_end();
+    core_params[2] = OSSL_PARAM_construct_utf8_ptr(
+        P11PROV_PKCS11_MODULE_TOKEN_PIN, &pin, sizeof(pin));
+    core_params[3] = OSSL_PARAM_construct_end();
     ret = core_get_params(handle, core_params);
     if (ret != RET_OSSL_OK) {
         ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_GET_PARAMETER);
@@ -698,6 +709,15 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         ERR_raise(ERR_LIB_PROV, PROV_R_IN_ERROR_STATE);
         p11prov_ctx_free(ctx);
         return RET_OSSL_ERR;
+    }
+
+    if (pin != NULL) {
+        ret = p11prov_get_pin(pin, (char **)&ctx->pin);
+        if (ret != 0) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_IN_ERROR_STATE);
+            p11prov_ctx_free(ctx);
+            return RET_OSSL_ERR;
+        }
     }
 
     *out = p11prov_dispatch_table;

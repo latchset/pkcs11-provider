@@ -25,6 +25,7 @@
 
 #define P11PROV_PKCS11_MODULE_PATH "pkcs11-module-path"
 #define P11PROV_PKCS11_MODULE_INIT_ARGS "pkcs11-module-init-args"
+#define P11PROV_PKCS11_MODULE_TOKEN_PIN "pkcs11-module-token-pin"
 
 #define P11PROV_DEFAULT_PROPERTIES "provider=pkcs11"
 #define P11PROV_NAMES_RSA "PKCS11-RSA"
@@ -47,6 +48,8 @@ struct p11prov_slot {
     CK_ULONG profiles[5];
 };
 
+/* Provider ctx */
+CK_UTF8CHAR_PTR p11prov_ctx_pin(P11PROV_CTX *ctx);
 OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx);
 CK_FUNCTION_LIST *p11prov_ctx_fns(P11PROV_CTX *ctx);
 int p11prov_ctx_lock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
@@ -98,6 +101,8 @@ bool p11prov_object_check_key(P11PROV_OBJECT *obj, bool priv);
 int p11prov_object_export_public_rsa_key(P11PROV_OBJECT *obj,
                                          OSSL_CALLBACK *cb_fn, void *cb_arg);
 P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJECT *obj, bool priv);
+
+int p11prov_get_pin(const char *in, char **out);
 
 /* dispatching */
 #define DECL_DISPATCH_FUNC(type, prefix, name) \
