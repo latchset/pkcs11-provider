@@ -98,7 +98,9 @@ static void *p11prov_ecdh_newctx(void *provctx)
     P11PROV_EXCH_CTX *ecdhctx;
 
     ecdhctx = OPENSSL_zalloc(sizeof(P11PROV_EXCH_CTX));
-    if (ecdhctx == NULL) return NULL;
+    if (ecdhctx == NULL) {
+        return NULL;
+    }
 
     ecdhctx->provctx = ctx;
 
@@ -117,10 +119,14 @@ static void *p11prov_ecdh_dupctx(void *ctx)
     P11PROV_EXCH_CTX *newctx;
     int ret;
 
-    if (ecdhctx == NULL) return NULL;
+    if (ecdhctx == NULL) {
+        return NULL;
+    }
 
     newctx = p11prov_ecdh_newctx(ecdhctx->provctx);
-    if (newctx == NULL) return NULL;
+    if (newctx == NULL) {
+        return NULL;
+    }
 
     newctx->key = p11prov_key_ref(ecdhctx->key);
     newctx->peer_key = p11prov_key_ref(ecdhctx->peer_key);
@@ -159,7 +165,9 @@ static void p11prov_ecdh_freectx(void *ctx)
 {
     P11PROV_EXCH_CTX *ecdhctx = (P11PROV_EXCH_CTX *)ctx;
 
-    if (ecdhctx == NULL) return;
+    if (ecdhctx == NULL) {
+        return;
+    }
 
     p11prov_key_free(ecdhctx->key);
     p11prov_key_free(ecdhctx->peer_key);
@@ -174,11 +182,15 @@ static int p11prov_ecdh_init(void *ctx, void *provkey,
     P11PROV_EXCH_CTX *ecdhctx = (P11PROV_EXCH_CTX *)ctx;
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)provkey;
 
-    if (ctx == NULL || provkey == NULL) return RET_OSSL_ERR;
+    if (ctx == NULL || provkey == NULL) {
+        return RET_OSSL_ERR;
+    }
 
     p11prov_key_free(ecdhctx->key);
     ecdhctx->key = p11prov_object_get_key(obj, true);
-    if (ecdhctx->key == NULL) return RET_OSSL_ERR;
+    if (ecdhctx->key == NULL) {
+        return RET_OSSL_ERR;
+    }
 
     return p11prov_ecdh_set_ctx_params(ctx, params);
 }
@@ -188,11 +200,15 @@ static int p11prov_ecdh_set_peer(void *ctx, void *provkey)
     P11PROV_EXCH_CTX *ecdhctx = (P11PROV_EXCH_CTX *)ctx;
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)provkey;
 
-    if (ctx == NULL || provkey == NULL) return RET_OSSL_ERR;
+    if (ctx == NULL || provkey == NULL) {
+        return RET_OSSL_ERR;
+    }
 
     p11prov_key_free(ecdhctx->peer_key);
     ecdhctx->peer_key = p11prov_object_get_key(obj, false);
-    if (ecdhctx->peer_key == NULL) return RET_OSSL_ERR;
+    if (ecdhctx->peer_key == NULL) {
+        return RET_OSSL_ERR;
+    }
 
     return RET_OSSL_OK;
 }
@@ -247,7 +263,9 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     }
 
     ec_point = p11prov_key_attr(ecdhctx->peer_key, CKA_EC_POINT);
-    if (ec_point == NULL) return RET_OSSL_ERR;
+    if (ec_point == NULL) {
+        return RET_OSSL_ERR;
+    }
     ecdhctx->ecdh_params.pPublicData = ec_point->pValue;
     ecdhctx->ecdh_params.ulPublicDataLen = ec_point->ulValueLen;
 
@@ -277,7 +295,9 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     }
 
     f = p11prov_ctx_fns(ecdhctx->provctx);
-    if (f == NULL) return CKR_GENERAL_ERROR;
+    if (f == NULL) {
+        return CKR_GENERAL_ERROR;
+    }
 
     ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
     if (ret != CKR_OK) {
@@ -322,7 +342,9 @@ static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     p11prov_debug("ecdh set ctx params (ctx=%p, params=%p)\n", ecdhctx, params);
 
-    if (params == NULL) return RET_OSSL_OK;
+    if (params == NULL) {
+        return RET_OSSL_OK;
+    }
 
     p = OSSL_PARAM_locate_const(params,
                                 OSSL_EXCHANGE_PARAM_EC_ECDH_COFACTOR_MODE);
@@ -330,14 +352,19 @@ static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         int mode;
 
         ret = OSSL_PARAM_get_int(p, &mode);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
 
-        if (mode < -1 || mode > 1) return RET_OSSL_ERR;
+        if (mode < -1 || mode > 1) {
+            return RET_OSSL_ERR;
+        }
 
-        if (mode == 0)
+        if (mode == 0) {
             ecdhctx->mechtype = CKM_ECDH1_DERIVE;
-        else
+        } else {
             ecdhctx->mechtype = CKM_ECDH1_COFACTOR_DERIVE;
+        }
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_EXCHANGE_PARAM_KDF_TYPE);
@@ -346,7 +373,9 @@ static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         char *str = name;
 
         ret = OSSL_PARAM_get_utf8_string(p, &str, sizeof(name));
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
 
         if (name[0] == '\0') {
             ecdhctx->ecdh_params.kdf = CKD_NULL;
@@ -373,7 +402,9 @@ static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         char digest[256];
         char *ptr = digest;
         ret = OSSL_PARAM_get_utf8_string(p, &ptr, 256);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
 
         ecdhctx->digest = p11prov_ecdh_map_digest(digest);
         if (ecdhctx->digest == CK_UNAVAILABLE_INFORMATION) {
@@ -387,7 +418,9 @@ static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         size_t outlen;
 
         ret = OSSL_PARAM_get_size_t(p, &outlen);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
 
         ecdhctx->kdf_outlen = outlen;
     }
@@ -398,7 +431,9 @@ static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         size_t ukm_len;
 
         ret = OSSL_PARAM_get_octet_string(p, &ukm, 0, &ukm_len);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
 
         OPENSSL_free(ecdhctx->ecdh_params.pSharedData);
         ecdhctx->ecdh_params.pSharedData = ukm;
@@ -433,7 +468,9 @@ static int p11prov_ecdh_get_ctx_params(void *ctx, OSSL_PARAM *params)
     if (p) {
         int mode = (ecdhctx->mechtype == CKM_ECDH1_DERIVE) ? 0 : 1;
         ret = OSSL_PARAM_set_int(p, mode);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
     }
 
     p = OSSL_PARAM_locate(params, OSSL_EXCHANGE_PARAM_KDF_TYPE);
@@ -443,27 +480,35 @@ static int p11prov_ecdh_get_ctx_params(void *ctx, OSSL_PARAM *params)
         } else {
             ret = OSSL_PARAM_set_utf8_string(p, OSSL_KDF_NAME_X963KDF);
         }
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
     }
 
     p = OSSL_PARAM_locate(params, OSSL_EXCHANGE_PARAM_KDF_DIGEST);
     if (p) {
         const char *digest = p11prov_ecdh_digest_name(ecdhctx->digest);
         ret = OSSL_PARAM_set_utf8_string(p, digest);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
     }
 
     p = OSSL_PARAM_locate(params, OSSL_EXCHANGE_PARAM_KDF_OUTLEN);
     if (p) {
         ret = OSSL_PARAM_set_size_t(p, ecdhctx->kdf_outlen);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
     }
 
     p = OSSL_PARAM_locate(params, OSSL_EXCHANGE_PARAM_KDF_UKM);
     if (p) {
         ret = OSSL_PARAM_set_octet_ptr(p, ecdhctx->ecdh_params.pSharedData,
                                        ecdhctx->ecdh_params.ulSharedDataLen);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
     }
 
     return RET_OSSL_OK;
@@ -517,7 +562,9 @@ static void *p11prov_exch_hkdf_newctx(void *provctx)
     p11prov_debug("hkdf exchange newctx\n");
 
     hkdfctx = OPENSSL_zalloc(sizeof(P11PROV_EXCH_CTX));
-    if (hkdfctx == NULL) return NULL;
+    if (hkdfctx == NULL) {
+        return NULL;
+    }
 
     hkdfctx->provctx = ctx;
 
@@ -546,7 +593,9 @@ static void p11prov_exch_hkdf_freectx(void *ctx)
 
     p11prov_debug("hkdf exchange freectx\n");
 
-    if (hkdfctx == NULL) return;
+    if (hkdfctx == NULL) {
+        return;
+    }
 
     EVP_KDF_CTX_free(hkdfctx->kdfctx);
     p11prov_key_free(hkdfctx->key);
@@ -562,12 +611,16 @@ static int p11prov_exch_hkdf_init(void *ctx, void *provobj,
     p11prov_debug("hkdf exchange init (ctx:%p obj:%p params:%p)\n", ctx, obj,
                   params);
 
-    if (ctx == NULL || provobj == NULL) return RET_OSSL_ERR;
+    if (ctx == NULL || provobj == NULL) {
+        return RET_OSSL_ERR;
+    }
 
     if (provobj != &p11prov_hkdfkm_static_ctx) {
         p11prov_key_free(hkdfctx->key);
         hkdfctx->key = p11prov_object_get_key(obj, true);
-        if (hkdfctx->key == NULL) return RET_OSSL_ERR;
+        if (hkdfctx->key == NULL) {
+            return RET_OSSL_ERR;
+        }
     }
 
     return p11prov_exch_hkdf_set_ctx_params(ctx, params);
@@ -606,7 +659,9 @@ static const OSSL_PARAM *p11prov_exch_hkdf_settable_ctx_params(void *ctx,
     EVP_KDF *kdf;
 
     kdf = EVP_KDF_fetch(NULL, "HKDF", P11PROV_DEFAULT_PROPERTIES);
-    if (kdf == NULL) return NULL;
+    if (kdf == NULL) {
+        return NULL;
+    }
 
     params = EVP_KDF_settable_ctx_params(kdf);
     EVP_KDF_free(kdf);

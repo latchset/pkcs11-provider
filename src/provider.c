@@ -30,7 +30,9 @@ struct p11prov_ctx {
 
 int p11prov_ctx_lock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
 {
-    if (!ctx->initialized) return RET_OSSL_ERR;
+    if (!ctx->initialized) {
+        return RET_OSSL_ERR;
+    }
 
     pthread_mutex_lock(&ctx->lock);
 
@@ -40,7 +42,9 @@ int p11prov_ctx_lock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
 
 void p11prov_ctx_unlock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
 {
-    if (!ctx->initialized) return;
+    if (!ctx->initialized) {
+        return;
+    }
 
     *slots = NULL;
 
@@ -49,7 +53,9 @@ void p11prov_ctx_unlock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
 
 OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx)
 {
-    if (!ctx->initialized) return NULL;
+    if (!ctx->initialized) {
+        return NULL;
+    }
     return ctx->libctx;
 }
 
@@ -130,7 +136,9 @@ void p11prov_raise(P11PROV_CTX *ctx, const char *file, int line,
 {
     va_list args;
 
-    if (!core_new_error || !core_vset_error) return;
+    if (!core_new_error || !core_vset_error) {
+        return;
+    }
 
     va_start(args, fmt);
     core_new_error(ctx->handle);
@@ -161,26 +169,34 @@ static int p11prov_get_params(void *provctx, OSSL_PARAM params[])
     p = OSSL_PARAM_locate(params, OSSL_PROV_PARAM_NAME);
     if (p != NULL) {
         ret = OSSL_PARAM_set_utf8_ptr(p, "PKCS#11 Provider");
-        if (ret == 0) return RET_OSSL_ERR;
+        if (ret == 0) {
+            return RET_OSSL_ERR;
+        }
     }
     p = OSSL_PARAM_locate(params, OSSL_PROV_PARAM_VERSION);
     if (p != NULL) {
         /* temporarily return the OpenSSL build version */
         ret = OSSL_PARAM_set_utf8_ptr(p, OPENSSL_VERSION_STR);
-        if (ret == 0) return RET_OSSL_ERR;
+        if (ret == 0) {
+            return RET_OSSL_ERR;
+        }
     }
     p = OSSL_PARAM_locate(params, OSSL_PROV_PARAM_BUILDINFO);
     if (p != NULL) {
         /* temporarily return the OpenSSL build version */
         ret = OSSL_PARAM_set_utf8_ptr(p, OPENSSL_FULL_VERSION_STR);
-        if (ret == 0) return RET_OSSL_ERR;
+        if (ret == 0) {
+            return RET_OSSL_ERR;
+        }
     }
     p = OSSL_PARAM_locate(params, OSSL_PROV_PARAM_STATUS);
     if (p != NULL) {
         /* return 1 for now,
          * return 0 in future if there are module issues? */
         ret = OSSL_PARAM_set_int(p, 1);
-        if (ret == 0) return RET_OSSL_ERR;
+        if (ret == 0) {
+            return RET_OSSL_ERR;
+        }
     }
     return RET_OSSL_OK;
 }
@@ -580,7 +596,9 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
     CK_INFO ck_info = { 0 };
     int ret;
 
-    if (ctx->initialized) return 0;
+    if (ctx->initialized) {
+        return 0;
+    }
 
     pthread_mutex_init(&ctx->lock, 0);
 
@@ -597,8 +615,9 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
     c_get_function_list = dlsym(ctx->dlhandle, "C_GetFunctionList");
     if (c_get_function_list) {
         ret = c_get_function_list(&ctx->fns);
-    } else
+    } else {
         ret = CKR_GENERAL_ERROR;
+    }
     if (ret != CKR_OK) {
         char *err = dlerror();
         p11prov_debug("dlsym() failed: %s\n", err);

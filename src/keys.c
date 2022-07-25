@@ -29,7 +29,9 @@ static P11PROV_KEY *p11prov_key_new(void)
     P11PROV_KEY *key;
 
     key = OPENSSL_zalloc(sizeof(P11PROV_KEY));
-    if (!key) return NULL;
+    if (!key) {
+        return NULL;
+    }
 
     key->refcnt = 1;
 
@@ -49,7 +51,9 @@ void p11prov_key_free(P11PROV_KEY *key)
 {
     p11prov_debug("key free (%p)\n", key);
 
-    if (key == NULL) return;
+    if (key == NULL) {
+        return;
+    }
     if (__atomic_sub_fetch(&key->refcnt, 1, __ATOMIC_ACQ_REL) != 0) {
         p11prov_debug("key free: reference held\n");
         return;
@@ -68,7 +72,9 @@ void p11prov_key_free(P11PROV_KEY *key)
 
 CK_ATTRIBUTE *p11prov_key_attr(P11PROV_KEY *key, CK_ATTRIBUTE_TYPE type)
 {
-    if (!key) return NULL;
+    if (!key) {
+        return NULL;
+    }
 
     for (int i = 0; i < key->numattrs; i++) {
         if (key->attrs[i].type == type) {
@@ -81,25 +87,33 @@ CK_ATTRIBUTE *p11prov_key_attr(P11PROV_KEY *key, CK_ATTRIBUTE_TYPE type)
 
 CK_KEY_TYPE p11prov_key_type(P11PROV_KEY *key)
 {
-    if (key) return key->type;
+    if (key) {
+        return key->type;
+    }
     return CK_UNAVAILABLE_INFORMATION;
 }
 
 CK_SLOT_ID p11prov_key_slotid(P11PROV_KEY *key)
 {
-    if (key) return key->slotid;
+    if (key) {
+        return key->slotid;
+    }
     return CK_UNAVAILABLE_INFORMATION;
 }
 
 CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key)
 {
-    if (key) return key->handle;
+    if (key) {
+        return key->handle;
+    }
     return CK_INVALID_HANDLE;
 }
 
 CK_ULONG p11prov_key_size(P11PROV_KEY *key)
 {
-    if (key == NULL) return CK_UNAVAILABLE_INFORMATION;
+    if (key == NULL) {
+        return CK_UNAVAILABLE_INFORMATION;
+    }
     return key->key_size;
 }
 
@@ -212,7 +226,9 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f, CK_SLOT_ID slotid,
     int ret;
 
     key = p11prov_key_new();
-    if (key == NULL) return NULL;
+    if (key == NULL) {
+        return NULL;
+    }
 
     key_type = &key->type;
     FA_ASSIGN_ALL(attrs[0], CKA_KEY_TYPE, &key_type, &key_type_len, false,
@@ -280,7 +296,9 @@ int find_keys(P11PROV_CTX *provctx, P11PROV_KEY **priv, P11PROV_KEY **pub,
 
     p11prov_debug("Find keys\n");
 
-    if (f == NULL) return result;
+    if (f == NULL) {
+        return result;
+    }
 
     ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
     if (ret != CKR_OK) {
@@ -305,7 +323,9 @@ again:
             CK_OBJECT_HANDLE object;
             /* TODO: pull multiple objects at once to reduce roundtrips */
             ret = f->C_FindObjects(session, &object, 1, &objcount);
-            if (ret != CKR_OK || objcount == 0) break;
+            if (ret != CKR_OK || objcount == 0) {
+                break;
+            }
 
             key = object_handle_to_key(f, slotid, class, session, object);
 
@@ -380,7 +400,9 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
                   session, secret, secretlen);
 
     f = p11prov_ctx_fns(provctx);
-    if (f == NULL) return NULL;
+    if (f == NULL) {
+        return NULL;
+    }
 
     ret = f->C_GetSessionInfo(session, &session_info);
     if (ret != CKR_OK) {
@@ -400,7 +422,9 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
     }
 
     key = p11prov_key_new();
-    if (key == NULL) return NULL;
+    if (key == NULL) {
+        return NULL;
+    }
 
     key->type = key_type;
     key->slotid = session_info.slotID;

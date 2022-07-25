@@ -16,7 +16,9 @@ void p11prov_debug(const char *fmt, ...)
             debug_lazy_init = 1;
             if (strncmp(env, "file:", 5) == 0) {
                 stddebug = fopen(&env[5], "a");
-                if (stddebug == NULL) debug_lazy_init = -1;
+                if (stddebug == NULL) {
+                    debug_lazy_init = -1;
+                }
             } else {
                 stddebug = stderr;
             }
@@ -47,10 +49,14 @@ void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
     const char *mechname = "UNKNOWN";
     int ret;
 
-    if (debug_lazy_init < 0) return;
+    if (debug_lazy_init < 0) {
+        return;
+    }
 
     f = p11prov_ctx_fns(ctx);
-    if (f == NULL) return;
+    if (f == NULL) {
+        return;
+    }
 
     for (int i = 0; mechanism_names[i].name != NULL; i++) {
         if (type == mechanism_names[i].value) {

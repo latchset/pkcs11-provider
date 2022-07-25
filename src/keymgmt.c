@@ -53,7 +53,9 @@ static void *p11prov_rsakm_load(const void *reference, size_t reference_sz)
 
     p11prov_debug("rsa load %p, %ld\n", reference, reference_sz);
 
-    if (!reference || reference_sz != sizeof(obj)) return NULL;
+    if (!reference || reference_sz != sizeof(obj)) {
+        return NULL;
+    }
 
     /* the contents of the reference is the address to our object */
     obj = (P11PROV_OBJECT *)reference;
@@ -67,14 +69,20 @@ static int p11prov_rsakm_has(const void *keydata, int selection)
 
     p11prov_debug("rsa has %p %d\n", obj, selection);
 
-    if (obj == NULL) return 0;
+    if (obj == NULL) {
+        return 0;
+    }
 
     if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        if (!p11prov_object_check_key(obj, true)) return 0;
+        if (!p11prov_object_check_key(obj, true)) {
+            return 0;
+        }
     }
 
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        if (!p11prov_object_check_key(obj, false)) return 0;
+        if (!p11prov_object_check_key(obj, false)) {
+            return 0;
+        }
     }
 
     return 1;
@@ -94,7 +102,9 @@ static int p11prov_rsakm_export(void *keydata, int selection,
 
     p11prov_debug("rsa export %p\n", keydata);
 
-    if (obj == NULL) return 0;
+    if (obj == NULL) {
+        return 0;
+    }
 
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return p11prov_object_export_public_rsa_key(obj, cb_fn, cb_arg);
@@ -112,16 +122,18 @@ static const OSSL_PARAM p11prov_rsakm_key_types[] = {
 static const OSSL_PARAM *p11prov_rsakm_import_types(int selection)
 {
     p11prov_debug("rsa import types\n");
-    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY)
+    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return p11prov_rsakm_key_types;
+    }
     return NULL;
 }
 
 static const OSSL_PARAM *p11prov_rsakm_export_types(int selection)
 {
     p11prov_debug("rsa export types\n");
-    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY)
+    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return p11prov_rsakm_key_types;
+    }
     return NULL;
 }
 
@@ -158,6 +170,8 @@ static int p11prov_rsakm_secbits(int bits)
 
     /* TODO: do better calculations,
      * see ossl_ifc_ffc_compute_security_bits() */
+
+    /* NOLINTBEGIN(readability-braces-around-statements) */
     if (bits > 15360) return 256;
     if (bits > 8192) return 200;
     if (bits > 7680) return 192;
@@ -165,7 +179,9 @@ static int p11prov_rsakm_secbits(int bits)
     if (bits > 4096) return 152;
     if (bits > 3072) return 128;
     if (bits > 2048) return 112;
-    if (bits <= 2048) return 0;
+    /* NOLINTEND(readability-braces-around-statements) */
+
+    return 0;
 }
 
 static int p11prov_rsakm_get_params(void *keydata, OSSL_PARAM params[])
@@ -178,7 +194,9 @@ static int p11prov_rsakm_get_params(void *keydata, OSSL_PARAM params[])
 
     p11prov_debug("rsa get params %p\n", keydata);
 
-    if (obj == NULL) return 0;
+    if (obj == NULL) {
+        return 0;
+    }
 
     key = p11prov_object_get_key(obj, false);
     if (key == NULL) {
@@ -196,19 +214,25 @@ static int p11prov_rsakm_get_params(void *keydata, OSSL_PARAM params[])
         /* TODO: may want to try to get CKA_MODULUS_BITS,
          * and fallback only if unavailable */
         ret = OSSL_PARAM_set_int(p, modulus->ulValueLen * 8);
-        if (ret != RET_OSSL_OK) goto done;
+        if (ret != RET_OSSL_OK) {
+            goto done;
+        }
     }
     p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_SECURITY_BITS);
     if (p) {
         /* TODO: as above, plus use log() for intermediate values */
         int secbits = p11prov_rsakm_secbits(modulus->ulValueLen * 8);
         ret = OSSL_PARAM_set_int(p, secbits);
-        if (ret != RET_OSSL_OK) goto done;
+        if (ret != RET_OSSL_OK) {
+            goto done;
+        }
     }
     p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_MAX_SIZE);
     if (p) {
         ret = OSSL_PARAM_set_int(p, modulus->ulValueLen);
-        if (ret != RET_OSSL_OK) goto done;
+        if (ret != RET_OSSL_OK) {
+            goto done;
+        }
     }
 
     ret = RET_OSSL_OK;
@@ -299,7 +323,9 @@ static void *p11prov_eckm_load(const void *reference, size_t reference_sz)
 
     p11prov_debug("ec load %p, %ld\n", reference, reference_sz);
 
-    if (!reference || reference_sz != sizeof(obj)) return NULL;
+    if (!reference || reference_sz != sizeof(obj)) {
+        return NULL;
+    }
 
     /* the contents of the reference is the address to our object */
     obj = (P11PROV_OBJECT *)reference;
@@ -313,14 +339,20 @@ static int p11prov_eckm_has(const void *keydata, int selection)
 
     p11prov_debug("ec has %p %d\n", obj, selection);
 
-    if (obj == NULL) return 0;
+    if (obj == NULL) {
+        return 0;
+    }
 
     if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        if (!p11prov_object_check_key(obj, true)) return 0;
+        if (!p11prov_object_check_key(obj, true)) {
+            return 0;
+        }
     }
 
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        if (!p11prov_object_check_key(obj, false)) return 0;
+        if (!p11prov_object_check_key(obj, false)) {
+            return 0;
+        }
     }
 
     return 1;
@@ -340,7 +372,9 @@ static int p11prov_eckm_export(void *keydata, int selection,
 
     p11prov_debug("ec export %p\n", keydata);
 
-    if (obj == NULL) return RET_OSSL_ERR;
+    if (obj == NULL) {
+        return RET_OSSL_ERR;
+    }
 
     /* TODO */
 
@@ -358,16 +392,18 @@ static const OSSL_PARAM p11prov_eckm_key_types[] = {
 static const OSSL_PARAM *p11prov_eckm_import_types(int selection)
 {
     p11prov_debug("ec import types\n");
-    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY)
+    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return p11prov_eckm_key_types;
+    }
     return NULL;
 }
 
 static const OSSL_PARAM *p11prov_eckm_export_types(int selection)
 {
     p11prov_debug("ec export types\n");
-    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY)
+    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return p11prov_eckm_key_types;
+    }
     return NULL;
 }
 
@@ -386,10 +422,18 @@ static const char *p11prov_eckm_query_operation_name(int operation_id)
 static int p11prov_eckm_secbits(int bits)
 {
     /* common values from various NIST documents */
-    if (bits < 224) return 0;
-    if (bits < 256) return 112;
-    if (bits < 384) return 128;
-    if (bits < 512) return 192;
+    if (bits < 224) {
+        return 0;
+    }
+    if (bits < 256) {
+        return 112;
+    }
+    if (bits < 384) {
+        return 128;
+    }
+    if (bits < 512) {
+        return 192;
+    }
     return 256;
 }
 
@@ -404,7 +448,9 @@ static int p11prov_eckm_get_params(void *keydata, OSSL_PARAM params[])
 
     p11prov_debug("ec get params %p\n", keydata);
 
-    if (obj == NULL) return 0;
+    if (obj == NULL) {
+        return 0;
+    }
 
     key = p11prov_object_get_key(obj, false);
     if (key == NULL) {
@@ -413,26 +459,34 @@ static int p11prov_eckm_get_params(void *keydata, OSSL_PARAM params[])
     }
 
     group_size = p11prov_key_size(key);
-    if (group_size == CK_UNAVAILABLE_INFORMATION) return RET_OSSL_ERR;
+    if (group_size == CK_UNAVAILABLE_INFORMATION) {
+        return RET_OSSL_ERR;
+    }
 
     p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_BITS);
     if (p) {
         /* TODO: may want to try to get CKA_MODULUS_BITS,
          * and fallback only if unavailable */
         ret = OSSL_PARAM_set_int(p, group_size * 8);
-        if (ret != RET_OSSL_OK) goto done;
+        if (ret != RET_OSSL_OK) {
+            goto done;
+        }
     }
     p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_SECURITY_BITS);
     if (p) {
         /* TODO: as above, plus use log() for intermediate values */
         int secbits = p11prov_eckm_secbits(group_size * 8);
         ret = OSSL_PARAM_set_int(p, secbits);
-        if (ret != RET_OSSL_OK) goto done;
+        if (ret != RET_OSSL_OK) {
+            goto done;
+        }
     }
     p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_MAX_SIZE);
     if (p) {
         ret = OSSL_PARAM_set_int(p, group_size * 2);
-        if (ret != RET_OSSL_OK) goto done;
+        if (ret != RET_OSSL_OK) {
+            goto done;
+        }
     }
 
     ret = RET_OSSL_OK;

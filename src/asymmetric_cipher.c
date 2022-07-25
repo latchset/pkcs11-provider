@@ -32,7 +32,9 @@ static void *p11prov_rsaenc_newctx(void *provctx)
     struct p11prov_rsaenc_ctx *encctx;
 
     encctx = OPENSSL_zalloc(sizeof(struct p11prov_rsaenc_ctx));
-    if (encctx == NULL) return NULL;
+    if (encctx == NULL) {
+        return NULL;
+    }
 
     encctx->provctx = ctx;
 
@@ -46,7 +48,9 @@ static void p11prov_rsaenc_freectx(void *ctx)
 {
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
 
-    if (encctx == NULL) return;
+    if (encctx == NULL) {
+        return;
+    }
 
     p11prov_key_free(encctx->key);
     OPENSSL_free(encctx->oaep_params.pSourceData);
@@ -59,10 +63,14 @@ static void *p11prov_rsaenc_dupctx(void *ctx)
     struct p11prov_rsaenc_ctx *newctx;
     int ret;
 
-    if (encctx == NULL) return NULL;
+    if (encctx == NULL) {
+        return NULL;
+    }
 
     newctx = p11prov_rsaenc_newctx(encctx->provctx);
-    if (newctx == NULL) return NULL;
+    if (newctx == NULL) {
+        return NULL;
+    }
 
     newctx->key = p11prov_key_ref(encctx->key);
     newctx->mechtype = encctx->mechtype;
@@ -113,7 +121,9 @@ static int p11prov_rsaenc_encrypt_init(void *ctx, void *provkey,
     if (encctx->key == NULL) {
         encctx->key = p11prov_object_get_key(obj, true);
     }
-    if (encctx->key == NULL) return RET_OSSL_ERR;
+    if (encctx->key == NULL) {
+        return RET_OSSL_ERR;
+    }
 
     return p11prov_rsaenc_set_ctx_params(ctx, params);
 }
@@ -145,7 +155,9 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
     }
 
     f = p11prov_ctx_fns(encctx->provctx);
-    if (f == NULL) return RET_OSSL_ERR;
+    if (f == NULL) {
+        return RET_OSSL_ERR;
+    }
     slotid = p11prov_key_slotid(encctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
         P11PROV_raise(encctx->provctx, CKR_SLOT_ID_INVALID,
@@ -160,7 +172,9 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
     }
 
     ret = p11prov_rsaenc_set_mechanism(encctx, &mechanism);
-    if (ret != CKR_OK) return RET_OSSL_ERR;
+    if (ret != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
 
     ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
     if (ret != CKR_OK) {
@@ -208,7 +222,9 @@ static int p11prov_rsaenc_decrypt_init(void *ctx, void *provkey,
                   params);
 
     encctx->key = p11prov_object_get_key(obj, true);
-    if (encctx->key == NULL) return RET_OSSL_ERR;
+    if (encctx->key == NULL) {
+        return RET_OSSL_ERR;
+    }
 
     return p11prov_rsaenc_set_ctx_params(ctx, params);
 }
@@ -240,7 +256,9 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     }
 
     f = p11prov_ctx_fns(encctx->provctx);
-    if (f == NULL) return RET_OSSL_ERR;
+    if (f == NULL) {
+        return RET_OSSL_ERR;
+    }
     slotid = p11prov_key_slotid(encctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
         P11PROV_raise(encctx->provctx, CKR_SLOT_ID_INVALID,
@@ -255,7 +273,9 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     }
 
     ret = p11prov_rsaenc_set_mechanism(encctx, &mechanism);
-    if (ret != CKR_OK) return RET_OSSL_ERR;
+    if (ret != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
 
     ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
     if (ret != CKR_OK) {
@@ -373,7 +393,9 @@ static int p11prov_rsaenc_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p11prov_debug("rsaenc get ctx params (ctx=%p, params=%p)\n", ctx, params);
 
-    if (params == NULL) return RET_OSSL_OK;
+    if (params == NULL) {
+        return RET_OSSL_OK;
+    }
 
     p = OSSL_PARAM_locate(params, OSSL_ASYM_CIPHER_PARAM_PAD_MODE);
     if (p) {
@@ -391,28 +413,36 @@ static int p11prov_rsaenc_get_ctx_params(void *ctx, OSSL_PARAM *params)
                 break;
             }
         }
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
     }
 
     p = OSSL_PARAM_locate(params, OSSL_ASYM_CIPHER_PARAM_OAEP_DIGEST);
     if (p) {
         ret = OSSL_PARAM_set_utf8_string(
             p, p11prov_rsaenc_digest_name(encctx->oaep_params.hashAlg));
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
     }
 
     p = OSSL_PARAM_locate(params, OSSL_ASYM_CIPHER_PARAM_MGF1_DIGEST);
     if (p) {
         ret = OSSL_PARAM_set_utf8_string(
             p, p11prov_rsaenc_mgf_name(encctx->oaep_params.mgf));
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
     }
 
     p = OSSL_PARAM_locate(params, OSSL_ASYM_CIPHER_PARAM_OAEP_LABEL);
     if (p) {
         ret = OSSL_PARAM_set_octet_ptr(p, encctx->oaep_params.pSourceData,
                                        encctx->oaep_params.ulSourceDataLen);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
     }
 
     return RET_OSSL_OK;
@@ -426,7 +456,9 @@ static int p11prov_rsaenc_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     p11prov_debug("rsaenc set ctx params (ctx=%p, params=%p)\n", ctx, params);
 
-    if (params == NULL) return RET_OSSL_OK;
+    if (params == NULL) {
+        return RET_OSSL_OK;
+    }
 
     p = OSSL_PARAM_locate_const(params, OSSL_ASYM_CIPHER_PARAM_PAD_MODE);
     if (p) {
@@ -435,7 +467,9 @@ static int p11prov_rsaenc_set_ctx_params(void *ctx, const OSSL_PARAM params[])
             int pad_mode;
             /* legacy pad mode number */
             ret = OSSL_PARAM_get_int(p, &pad_mode);
-            if (ret != RET_OSSL_OK) return ret;
+            if (ret != RET_OSSL_OK) {
+                return ret;
+            }
             for (int i = 0; padding_map[i].string != NULL; i++) {
                 if (padding_map[i].ossl_id == pad_mode) {
                     mechtype = padding_map[i].type;
@@ -469,7 +503,9 @@ static int p11prov_rsaenc_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         char digest[256];
         char *ptr = digest;
         ret = OSSL_PARAM_get_utf8_string(p, &ptr, 256);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
 
         encctx->oaep_params.hashAlg = p11prov_rsaenc_map_digest(digest);
         if (encctx->oaep_params.hashAlg == CK_UNAVAILABLE_INFORMATION) {
@@ -483,7 +519,9 @@ static int p11prov_rsaenc_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         char digest[256];
         char *ptr = digest;
         ret = OSSL_PARAM_get_utf8_string(p, &ptr, 256);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
 
         encctx->oaep_params.mgf = p11prov_rsaenc_map_mgf(digest);
         if (encctx->oaep_params.mgf == CK_UNAVAILABLE_INFORMATION) {
@@ -498,7 +536,9 @@ static int p11prov_rsaenc_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         size_t len;
 
         ret = OSSL_PARAM_get_octet_string(p, &label, 0, &len);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
 
         /* just in case it was previously set */
         OPENSSL_free(encctx->oaep_params.pSourceData);

@@ -36,7 +36,9 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
                 /* always allocate and zero one more, so that
                  * zero terminated strings work automatically */
                 char *a = OPENSSL_zalloc(q[i].ulValueLen + 1);
-                if (a == NULL) return -ENOMEM;
+                if (a == NULL) {
+                    return -ENOMEM;
+                }
                 FA_RETURN_VAL(attrs[i], a, q[i].ulValueLen);
 
                 CKATTR_ASSIGN_ALL(r[retrnums], attrs[i].type, *attrs[i].value,
@@ -59,10 +61,14 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
                 CKATTR_ASSIGN_ALL(q[0], attrs[i].type, NULL, 0);
                 ret = f->C_GetAttributeValue(session, object, q, 1);
                 if (ret != CKR_OK) {
-                    if (attrs[i].required) return ret;
+                    if (attrs[i].required) {
+                        return ret;
+                    }
                 } else {
                     char *a = OPENSSL_zalloc(q[0].ulValueLen + 1);
-                    if (a == NULL) return -ENOMEM;
+                    if (a == NULL) {
+                        return -ENOMEM;
+                    }
                     FA_RETURN_VAL(attrs[i], a, q[0].ulValueLen);
                 }
             }
@@ -73,7 +79,9 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
                 if (r[i].ulValueLen == CK_UNAVAILABLE_INFORMATION) {
                     FA_RETURN_LEN(attrs[i], 0);
                 }
-                if (attrs[i].required) return ret;
+                if (attrs[i].required) {
+                    return ret;
+                }
             }
             p11prov_debug("Attribute| type:%lu value:%p, len:%lu\n",
                           attrs[i].type, *attrs[i].value, *attrs[i].value_len);
@@ -97,8 +105,12 @@ CK_SESSION_HANDLE p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID slotid)
 
         for (int i = 0; i < nslots; i++) {
             /* ignore slots that are not initialized */
-            if (slots[i].slot.flags & CKF_TOKEN_PRESENT == 0) continue;
-            if (slots[i].token.flags & CKF_TOKEN_INITIALIZED == 0) continue;
+            if (slots[i].slot.flags & CKF_TOKEN_PRESENT == 0) {
+                continue;
+            }
+            if (slots[i].token.flags & CKF_TOKEN_INITIALIZED == 0) {
+                continue;
+            }
 
             slotid = slots[i].id;
         }
@@ -106,10 +118,14 @@ CK_SESSION_HANDLE p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID slotid)
         p11prov_ctx_unlock_slots(provctx, &slots);
     }
 
-    if (slotid == CK_UNAVAILABLE_INFORMATION) goto done;
+    if (slotid == CK_UNAVAILABLE_INFORMATION) {
+        goto done;
+    }
 
     f = p11prov_ctx_fns(provctx);
-    if (f == NULL) goto done;
+    if (f == NULL) {
+        goto done;
+    }
 
     ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
     if (ret != CKR_OK) {
@@ -127,7 +143,9 @@ void p11prov_put_session(P11PROV_CTX *provctx, CK_SESSION_HANDLE session)
     CK_RV ret;
 
     f = p11prov_ctx_fns(provctx);
-    if (f == NULL) return;
+    if (f == NULL) {
+        return;
+    }
 
     ret = f->C_CloseSession(session);
     if (ret != CKR_OK) {
