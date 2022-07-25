@@ -14,7 +14,11 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y autoconf-archive clang-format
+        sudo apt-get install -y autoconf-archive clang-format clang-tidy
+    - name: Install compiledb
+      run: |
+        sudo apt install python3-pip
+        pip install compiledb
     - name: Setup
       if: ${{ github.event.pull_request.base.sha }}
       run: |
@@ -23,6 +27,14 @@ jobs:
       run: |
         autoreconf -fiv
         ./configure
+        compiledb make
+    - name: Run Clang Tidy
+      run: |
+        /usr/bin/run-clang-tidy-14 \
+         -checks=-*,readability-braces-around-statements \
+         -config "{WarningsAsErrors: '*'}" \
+         -header-filter "src/oasis" \
+         -quiet
     - name: Check the Style
       run: make check-style
     - name: Show Style diff in case of failure
