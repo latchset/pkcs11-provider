@@ -10,17 +10,20 @@ jobs:
   build:
     name: CI with softoken
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
     steps:
     - uses: actions/checkout@v3
       name: Checkout Repository
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y autoconf-archive libnss3 libnss3-tools libnss3-dev
+        sudo apt-get install -y autoconf-archive libnss3 libnss3-tools libnss3-dev clang
     - name: Setup
       run: |
         autoreconf -fiv
-        ./configure
+        CC=${{ matrix.compiler }} ./configure
     - name: Build and Test
       run: |
         make
