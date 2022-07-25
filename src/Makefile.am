@@ -1,4 +1,6 @@
 
+AM_CFLAGS = $(STD_CFLAGS)
+
 noinst_HEADERS = pkcs11.h provider.h
 lib_LTLIBRARIES = pkcs11_provider.la
 
@@ -24,7 +26,7 @@ pkcs11_provider_la_SOURCES = \
 	provider.exports \
 	$(NULL)
 
-pkcs11_provider_la_CFLAGS = $(AM_CFLAGS) $(OPENSSL_CFLAGS)
+pkcs11_provider_la_CFLAGS = $(AM_CFLAGS) $(OPENSSL_CFLAGS) -Wall -Werror
 pkcs11_provider_la_LIBADD = $(OPENSSL_LIBS)
 
 pkcs11_provider_la_LDFLAGS = \

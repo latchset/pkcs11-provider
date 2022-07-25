@@ -19,6 +19,26 @@ AX_CHECK_COMPILE_FLAG([-std=c11],
                       AC_MSG_ERROR([C compiler must support at least C11 standard])
 )
 
+STD_CFLAGS="-Wall -Wextra -Wwrite-strings -Wpointer-arith -Wno-missing-field-initializers -Wformat -Wshadow"
+
+# Temporarily disable unused parameter until the implementation is complete
+STD_CFLAGS="$STD_CFLAGS -Wno-unused-parameter"
+
+# These should be always errors
+STD_CFLAGS="$STD_CFLAGS -Werror=implicit-function-declaration -Werror=missing-prototypes -Werror=format-security -Werror=parentheses -Werror=implicit -Werror=strict-prototypes"
+
+# Don't enable warnings on VLA yet, but I would avoid using VLAs
+# STD_CFLAGS"$STD_CFLAGS -Werror=vla"
+
+AX_CHECK_COMPILE_FLAG([-fno-strict-aliasing],
+		      [STD_CFLAGS="$STD_CFLAGS -fno-strict-aliasing"])
+AX_CHECK_COMPILE_FLAG([-Werror -fno-delete-null-pointer-checks],
+		      [STD_CFLAGS="$STD_CFLAGS -fno-delete-null-pointer-checks"])
+AX_CHECK_COMPILE_FLAG([-fdiagnostics-show-option],
+		      [STD_CFLAGS="$STD_CFLAGS -fdiagnostics-show-option"])
+
+AC_SUBST([STD_CFLAGS])
+
 # Checks for libraries.
 PKG_CHECK_MODULES(
 	[OPENSSL],
