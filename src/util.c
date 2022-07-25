@@ -11,7 +11,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
     CK_ATTRIBUTE r[attrnums];
     int ret;
 
-    for (int i = 0; i < attrnums; i++) {
+    for (size_t i = 0; i < attrnums; i++) {
         if (attrs[i].allocate) {
             CKATTR_ASSIGN_ALL(q[i], attrs[i].type, NULL, 0);
         } else {
@@ -24,7 +24,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
     ret = f->C_GetAttributeValue(session, object, q, attrnums);
     if (ret == CKR_OK) {
         unsigned long retrnums = 0;
-        for (int i = 0; i < attrnums; i++) {
+        for (size_t i = 0; i < attrnums; i++) {
             if (q[i].ulValueLen == CK_UNAVAILABLE_INFORMATION) {
                 if (attrs[i].required) {
                     return -ENOENT;
@@ -35,7 +35,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
             if (attrs[i].allocate) {
                 /* always allocate and zero one more, so that
                  * zero terminated strings work automatically */
-                char *a = OPENSSL_zalloc(q[i].ulValueLen + 1);
+                uint8_t *a = OPENSSL_zalloc(q[i].ulValueLen + 1);
                 if (a == NULL) {
                     return -ENOMEM;
                 }
@@ -56,7 +56,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
         p11prov_debug("Quering attributes one by one\n");
         /* go one by one as this PKCS11 does not have some attributes
          * and does not handle it gracefully */
-        for (int i = 0; i < attrnums; i++) {
+        for (size_t i = 0; i < attrnums; i++) {
             if (attrs[i].allocate) {
                 CKATTR_ASSIGN_ALL(q[0], attrs[i].type, NULL, 0);
                 ret = f->C_GetAttributeValue(session, object, q, 1);
@@ -65,7 +65,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
                         return ret;
                     }
                 } else {
-                    char *a = OPENSSL_zalloc(q[0].ulValueLen + 1);
+                    uint8_t *a = OPENSSL_zalloc(q[0].ulValueLen + 1);
                     if (a == NULL) {
                         return -ENOMEM;
                     }
@@ -105,10 +105,10 @@ CK_SESSION_HANDLE p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID slotid)
 
         for (int i = 0; i < nslots; i++) {
             /* ignore slots that are not initialized */
-            if (slots[i].slot.flags & CKF_TOKEN_PRESENT == 0) {
+            if ((slots[i].slot.flags & CKF_TOKEN_PRESENT) == 0) {
                 continue;
             }
-            if (slots[i].token.flags & CKF_TOKEN_INITIALIZED == 0) {
+            if ((slots[i].token.flags & CKF_TOKEN_INITIALIZED) == 0) {
                 continue;
             }
 

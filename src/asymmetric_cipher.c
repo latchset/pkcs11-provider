@@ -61,7 +61,6 @@ static void *p11prov_rsaenc_dupctx(void *ctx)
 {
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
     struct p11prov_rsaenc_ctx *newctx;
-    int ret;
 
     if (encctx == NULL) {
         return NULL;
@@ -93,7 +92,6 @@ static void *p11prov_rsaenc_dupctx(void *ctx)
 static int p11prov_rsaenc_set_mechanism(void *ctx, CK_MECHANISM *mechanism)
 {
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
-    int result;
 
     mechanism->mechanism = encctx->mechtype;
     mechanism->pParameter = NULL;
@@ -315,7 +313,7 @@ endsess:
 
 static struct {
     CK_MECHANISM_TYPE type;
-    unsigned int ossl_id;
+    int ossl_id;
     const char *string;
 } padding_map[] = {
     { CKM_RSA_X_509, RSA_NO_PADDING, OSSL_PKEY_RSA_PAD_MODE_NONE },

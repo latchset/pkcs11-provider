@@ -106,7 +106,7 @@ static OSSL_FUNC_core_new_error_fn *core_new_error = NULL;
 static OSSL_FUNC_core_set_error_debug_fn *core_set_error_debug = NULL;
 static OSSL_FUNC_core_vset_error_fn *core_vset_error = NULL;
 
-void p11prov_get_core_dispatch_funcs(const OSSL_DISPATCH *in)
+static void p11prov_get_core_dispatch_funcs(const OSSL_DISPATCH *in)
 {
     const OSSL_DISPATCH *iter_in;
 
@@ -330,110 +330,115 @@ static int p11prov_get_capabilities(void *provctx, const char *capability,
 
 static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
 {
+#define C(str) (void *)(str)
     static const OSSL_ITEM reason_strings[] = {
-        { CKR_HOST_MEMORY, "Host out of memory error" },
-        { CKR_SLOT_ID_INVALID, "The specified slot ID is not valid" },
-        { CKR_GENERAL_ERROR, "General Error" },
+        { CKR_HOST_MEMORY, C("Host out of memory error") },
+        { CKR_SLOT_ID_INVALID, C("The specified slot ID is not valid") },
+        { CKR_GENERAL_ERROR, C("General Error") },
         { CKR_FUNCTION_FAILED,
-          "The requested function could not be performed" },
+          C("The requested function could not be performed") },
         { CKR_ARGUMENTS_BAD,
-          "Invalid or improper arguments were provided to the "
-          "invoked function" },
+          C("Invalid or improper arguments were provided to the "
+            "invoked function") },
         { CKR_ATTRIBUTE_READ_ONLY,
-          "Attempted to set or modify an attribute that is Read "
-          "Only for applications" },
+          C("Attempted to set or modify an attribute that is Read "
+            "Only for applications") },
         { CKR_ATTRIBUTE_TYPE_INVALID,
-          "Invalid attribute type specified in a template" },
+          C("Invalid attribute type specified in a template") },
         { CKR_ATTRIBUTE_VALUE_INVALID,
-          "Invalid value specified for attribute in a template" },
-        { CKR_DATA_INVALID,
-          "The plaintext input data to a cryptographic "
-          "operation is invalid" },
+          C("Invalid value specified for attribute in a template") },
+        { CKR_DATA_INVALID, C("The plaintext input data to a cryptographic "
+                              "operation is invalid") },
         { CKR_DATA_LEN_RANGE,
-          "The size of plaintext input data to a cryptographic "
-          "operation is invalid (Out of range)" },
+          C("The size of plaintext input data to a cryptographic "
+            "operation is invalid (Out of range)") },
         { CKR_DEVICE_ERROR,
-          "Some problem has occurred with the token and/or slot" },
+          C("Some problem has occurred with the token and/or slot") },
         { CKR_DEVICE_MEMORY,
-          "The token does not have sufficient memory to perform "
-          "the requested function" },
+          C("The token does not have sufficient memory to perform "
+            "the requested function") },
         { CKR_DEVICE_REMOVED,
-          "The token was removed from its slot during the "
-          "execution of the function" },
-        { CKR_FUNCTION_CANCELED, "The function was canceled in mid-execution" },
-        { CKR_KEY_HANDLE_INVALID, "The specified key handle is not valid" },
+          C("The token was removed from its slot during the "
+            "execution of the function") },
+        { CKR_FUNCTION_CANCELED,
+          C("The function was canceled in mid-execution") },
+        { CKR_KEY_HANDLE_INVALID, C("The specified key handle is not valid") },
         { CKR_KEY_SIZE_RANGE,
-          "Unable to handle the specified key size (Out of range)" },
+          C("Unable to handle the specified key size (Out of range)") },
         { CKR_KEY_TYPE_INCONSISTENT,
-          "The specified key is not the correct type of key to "
-          "use with the specified mechanism" },
+          C("The specified key is not the correct type of key to "
+            "use with the specified mechanism") },
         { CKR_KEY_FUNCTION_NOT_PERMITTED,
-          "The key attributes do not allow this operation to be executed" },
-        { CKR_MECHANISM_INVALID,
-          "An invalid mechanism was specified to the "
-          "cryptographic operation" },
+          C("The key attributes do not allow this operation to "
+            "be executed") },
+        { CKR_MECHANISM_INVALID, C("An invalid mechanism was specified to the "
+                                   "cryptographic operation") },
         { CKR_MECHANISM_PARAM_INVALID,
-          "Invalid mechanism parameters were supplied" },
+          C("Invalid mechanism parameters were supplied") },
         { CKR_OPERATION_ACTIVE,
-          "There is already an active operation that prevents "
-          "executing the requested function" },
+          C("There is already an active operation that prevents "
+            "executing the requested function") },
         { CKR_OPERATION_NOT_INITIALIZED,
-          "There is no active operation of appropriate type "
-          "in the specified session" },
-        { CKR_PIN_INCORRECT, "The specified PIN is incorrect" },
-        { CKR_PIN_EXPIRED, "The specified PIN has expired" },
-        { CKR_PIN_LOCKED, "The specified PIN is locked, and cannot be used" },
-        { CKR_SESSION_CLOSED, "Session is already closed" },
-        { CKR_SESSION_COUNT, "Too many sessions open" },
-        { CKR_SESSION_HANDLE_INVALID, "Invalid Session Handle" },
+          C("There is no active operation of appropriate type "
+            "in the specified session") },
+        { CKR_PIN_INCORRECT, C("The specified PIN is incorrect") },
+        { CKR_PIN_EXPIRED, C("The specified PIN has expired") },
+        { CKR_PIN_LOCKED,
+          C("The specified PIN is locked, and cannot be used") },
+        { CKR_SESSION_CLOSED, C("Session is already closed") },
+        { CKR_SESSION_COUNT, C("Too many sessions open") },
+        { CKR_SESSION_HANDLE_INVALID, C("Invalid Session Handle") },
         { CKR_SESSION_PARALLEL_NOT_SUPPORTED,
-          "Parallel sessions not supported" },
-        { CKR_SESSION_READ_ONLY, "Session is Read Only" },
-        { CKR_SESSION_EXISTS, "Session already exists" },
-        { CKR_SESSION_READ_ONLY_EXISTS, "A read-only session already exists" },
+          C("Parallel sessions not supported") },
+        { CKR_SESSION_READ_ONLY, C("Session is Read Only") },
+        { CKR_SESSION_EXISTS, C("Session already exists") },
+        { CKR_SESSION_READ_ONLY_EXISTS,
+          C("A read-only session already exists") },
         { CKR_SESSION_READ_WRITE_SO_EXISTS,
-          "A read/write SO session already exists" },
+          C("A read/write SO session already exists") },
         { CKR_TEMPLATE_INCOMPLETE,
-          "The template to create an object is incomplete" },
+          C("The template to create an object is incomplete") },
         { CKR_TEMPLATE_INCONSISTENT,
-          "The template to create an object has conflicting attributes" },
+          C("The template to create an object has conflicting attributes") },
         { CKR_TOKEN_NOT_PRESENT,
-          "The token was not present in its slot when the "
-          "function was invoked" },
-        { CKR_TOKEN_NOT_RECOGNIZED, "The token in the slot is not recognized" },
+          C("The token was not present in its slot when the "
+            "function was invoked") },
+        { CKR_TOKEN_NOT_RECOGNIZED,
+          C("The token in the slot is not recognized") },
         { CKR_TOKEN_WRITE_PROTECTED,
-          "Action denied because the token is write-protected" },
+          C("Action denied because the token is write-protected") },
         { CKR_TOKEN_WRITE_PROTECTED,
-          "Can't perform action because the token is write-protected" },
+          C("Can't perform action because the token is write-protected") },
         { CKR_USER_NOT_LOGGED_IN,
-          "The desired action cannot be performed because an "
-          "appropriate user is not logged in" },
-        { CKR_USER_PIN_NOT_INITIALIZED, "The user PIN is not initialized" },
-        { CKR_USER_TYPE_INVALID, "An invalid user type was specified" },
+          C("The desired action cannot be performed because an "
+            "appropriate user is not logged in") },
+        { CKR_USER_PIN_NOT_INITIALIZED, C("The user PIN is not initialized") },
+        { CKR_USER_TYPE_INVALID, C("An invalid user type was specified") },
         { CKR_USER_ANOTHER_ALREADY_LOGGED_IN,
-          "Another user is already logged in" },
+          C("Another user is already logged in") },
         { CKR_USER_TOO_MANY_TYPES,
-          "Attempted to log in more users than the token can support" },
-        { CKR_OPERATION_CANCEL_FAILED, "The operation cannot be cancelled" },
+          C("Attempted to log in more users than the token can support") },
+        { CKR_OPERATION_CANCEL_FAILED, C("The operation cannot be cancelled") },
         { CKR_DOMAIN_PARAMS_INVALID,
-          "Invalid or unsupported domain parameters were "
-          "supplied to the function" },
+          C("Invalid or unsupported domain parameters were "
+            "supplied to the function") },
         { CKR_CURVE_NOT_SUPPORTED,
-          "The specified curve is not supported by this token" },
+          C("The specified curve is not supported by this token") },
         { CKR_BUFFER_TOO_SMALL,
-          "The output of the function is too large to fit in "
-          "the supplied buffer" },
+          C("The output of the function is too large to fit in "
+            "the supplied buffer") },
         { CKR_SAVED_STATE_INVALID,
-          "The supplied saved cryptographic operations state is invalid" },
+          C("The supplied saved cryptographic operations state is invalid") },
         { CKR_STATE_UNSAVEABLE,
-          "The cryptographic operations state of the specified "
-          "session cannot be saved" },
+          C("The cryptographic operations state of the specified "
+            "session cannot be saved") },
         { CKR_CRYPTOKI_NOT_INITIALIZED,
-          "PKCS11 Module has not been intialized yet" },
+          C("PKCS11 Module has not been intialized yet") },
         { 0, NULL },
     };
 
     return reason_strings;
+#undef C
 }
 
 /* Functions we provide to the core */
@@ -492,7 +497,7 @@ static int refresh_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
         goto done;
     }
 
-    for (int i = 0; i < objcount; i++) {
+    for (size_t i = 0; i < objcount; i++) {
         CK_ULONG value = CK_UNAVAILABLE_INFORMATION;
         CK_ATTRIBUTE profileid = { CKA_PROFILE_ID, &value, sizeof(value) };
 
@@ -553,7 +558,7 @@ static int refresh_slots(P11PROV_CTX *ctx)
         goto done;
     }
 
-    for (int i = 0; i < nslots; i++) {
+    for (size_t i = 0; i < nslots; i++) {
         slots[i].id = slotid[i];
         ret = ctx->fns->C_GetSlotInfo(slotid[i], &slots[i].slot);
         if (ret == CKR_OK && slots[i].slot.flags & CKF_TOKEN_PRESENT) {

@@ -838,7 +838,7 @@ static int p11prov_rsasig_digest_verify_final(void *ctx,
 
 static struct {
     CK_MECHANISM_TYPE type;
-    unsigned int ossl_id;
+    int ossl_id;
     const char *string;
 } padding_map[] = {
     { CKM_RSA_X_509, RSA_NO_PADDING, OSSL_PKEY_RSA_PAD_MODE_NONE },

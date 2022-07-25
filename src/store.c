@@ -139,8 +139,6 @@ int p11prov_object_export_public_rsa_key(P11PROV_OBJECT *obj,
     OSSL_PARAM params[3];
     CK_ATTRIBUTE *n, *e;
     unsigned char *val;
-    int pidx = 0;
-    int ret = 0;
 
     if (p11prov_key_type(obj->pub_key) != CKK_RSA) {
         return RET_OSSL_ERR;
@@ -593,22 +591,22 @@ static int p11prov_store_load(void *ctx, OSSL_CALLBACK *object_cb,
              * deal with them in the default provider */
             switch (obj->expected_type) {
             case OSSL_STORE_INFO_PKEY:
-                data_type = P11PROV_NAMES_RSA;
+                data_type = (char *)P11PROV_NAMES_RSA;
                 break;
             case OSSL_STORE_INFO_PUBKEY:
-                data_type = "RSA";
+                data_type = (char *)"RSA";
                 break;
             default:
                 if (obj->priv_key) {
-                    data_type = P11PROV_NAMES_RSA;
+                    data_type = (char *)P11PROV_NAMES_RSA;
                 } else {
-                    data_type = "RSA";
+                    data_type = (char *)"RSA";
                 }
                 break;
             }
             break;
         case CKK_EC:
-            data_type = P11PROV_NAMES_ECDSA;
+            data_type = (char *)P11PROV_NAMES_ECDSA;
             break;
         default:
             return RET_OSSL_ERR;
