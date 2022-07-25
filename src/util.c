@@ -33,7 +33,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
                 continue;
             }
             if (attrs[i].allocate) {
-                /* allways allocate and zero one more, so that
+                /* always allocate and zero one more, so that
                  * zero terminated strings work automatically */
                 char *a = OPENSSL_zalloc(q[i].ulValueLen + 1);
                 if (a == NULL) return -ENOMEM;
