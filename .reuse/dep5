@@ -7,7 +7,7 @@ Source: https://github.com/latchset/pkcs11-provider/
 # Build system, data files from tests, and misc cruft
 #
 Files: **/Makefile.am
-       .github/workflows/*.yml
+       .github/*
        .gitignore
        Makefile.am
        *.md
