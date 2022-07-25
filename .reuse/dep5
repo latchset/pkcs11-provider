@@ -13,6 +13,7 @@ Files: **/Makefile.am
        README.md
        BUILD.md
        CODE_OF_CONDUCT.md
+       CONTRIBUTING.md
        configure.ac
        configure.ac
        src/Makefile.am
