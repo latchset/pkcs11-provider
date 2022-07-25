@@ -10,10 +10,7 @@ Files: **/Makefile.am
        .github/workflows/*.yml
        .gitignore
        Makefile.am
-       README.md
-       BUILD.md
-       CODE_OF_CONDUCT.md
-       CONTRIBUTING.md
+       *.md
        configure.ac
        configure.ac
        src/Makefile.am
