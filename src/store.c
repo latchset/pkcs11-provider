@@ -36,7 +36,9 @@ struct p11prov_object {
 
 static void p11prov_uri_free(struct p11prov_uri *parsed_uri)
 {
-    if (parsed_uri == NULL) return;
+    if (parsed_uri == NULL) {
+        return;
+    }
 
     OPENSSL_free(parsed_uri->model);
     OPENSSL_free(parsed_uri->manufacturer);
@@ -63,7 +65,9 @@ void p11prov_object_free(P11PROV_OBJECT *obj)
 {
     p11prov_debug("object free (%p)\n", obj);
 
-    if (obj == NULL) return;
+    if (obj == NULL) {
+        return;
+    }
     if (__atomic_sub_fetch(&obj->refcnt, 1, __ATOMIC_ACQ_REL) != 0) {
         p11prov_debug("object free: reference held\n");
         return;
@@ -138,17 +142,23 @@ int p11prov_object_export_public_rsa_key(P11PROV_OBJECT *obj,
     int pidx = 0;
     int ret = 0;
 
-    if (p11prov_key_type(obj->pub_key) != CKK_RSA) return RET_OSSL_ERR;
+    if (p11prov_key_type(obj->pub_key) != CKK_RSA) {
+        return RET_OSSL_ERR;
+    }
 
     n = p11prov_key_attr(obj->pub_key, CKA_MODULUS);
-    if (n == NULL) return RET_OSSL_ERR;
+    if (n == NULL) {
+        return RET_OSSL_ERR;
+    }
 
     WITH_FIXED_BUFFER(n, val);
     params[0] =
         OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N, val, n->ulValueLen);
 
     e = p11prov_key_attr(obj->pub_key, CKA_PUBLIC_EXPONENT);
-    if (e == NULL) return RET_OSSL_ERR;
+    if (e == NULL) {
+        return RET_OSSL_ERR;
+    }
 
     WITH_FIXED_BUFFER(e, val);
     params[1] =
@@ -202,7 +212,9 @@ static int parse_attr(const char *str, size_t len, unsigned char **output,
             hex[0] = str[1];
             hex[1] = str[2];
             ret = hex_to_byte(hex, &out[index]);
-            if (ret != 0) goto done;
+            if (ret != 0) {
+                goto done;
+            }
 
             index++;
             str += 3;
@@ -238,7 +250,9 @@ static int get_pin(const char *str, size_t len, char **output, size_t *outlen)
     int ret;
 
     ret = parse_attr(str, len, (unsigned char **)&pinfile, outlen);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     if (strncmp((const char *)pinfile, "file:", 5) == 0) {
         filename = pinfile + 5;
@@ -332,7 +346,9 @@ static int parse_uri(struct p11prov_uri *u, const char *uri)
             p += 11;
             len -= 11;
             ret = get_pin(p, len, &u->pin, ptrlen);
-            if (ret != 0) goto done;
+            if (ret != 0) {
+                goto done;
+            }
         } else if (strncmp(p, "type=", 5) == 0
                    || strncmp(p, "object-type=", 12) == 0) {
             p += 4;
@@ -362,7 +378,9 @@ static int parse_uri(struct p11prov_uri *u, const char *uri)
 
         if (ptr) {
             ret = parse_attr(p, len, ptr, ptrlen);
-            if (ret != 0) goto done;
+            if (ret != 0) {
+                goto done;
+            }
         }
 
         if (end) {
@@ -395,7 +413,9 @@ static void *p11prov_store_open(void *provctx, const char *uri)
     p11prov_debug("object open (%p, %s)\n", ctx, uri);
 
     obj = OPENSSL_zalloc(sizeof(P11PROV_OBJECT));
-    if (obj == NULL) return NULL;
+    if (obj == NULL) {
+        return NULL;
+    }
 
     obj->parsed_uri = OPENSSL_zalloc(sizeof(struct p11prov_uri));
     if (obj->parsed_uri == NULL) {
@@ -442,30 +462,38 @@ static int p11prov_store_load(void *ctx, OSSL_CALLBACK *object_cb,
         CK_TOKEN_INFO token;
 
         /* ignore slots that are not initialized */
-        if ((slots[i].slot.flags & CKF_TOKEN_PRESENT) == 0) continue;
-        if ((slots[i].token.flags & CKF_TOKEN_INITIALIZED) == 0) continue;
+        if ((slots[i].slot.flags & CKF_TOKEN_PRESENT) == 0) {
+            continue;
+        }
+        if ((slots[i].token.flags & CKF_TOKEN_INITIALIZED) == 0) {
+            continue;
+        }
 
         token = slots[i].token;
 
         /* skip slots that do not match */
         if (obj->parsed_uri->model
             && strncmp(obj->parsed_uri->model, (const char *)token.model, 16)
-                   != 0)
+                   != 0) {
             continue;
+        }
         if (obj->parsed_uri->manufacturer
             && strncmp(obj->parsed_uri->manufacturer,
                        (const char *)token.manufacturerID, 32)
-                   != 0)
+                   != 0) {
             continue;
+        }
         if (obj->parsed_uri->token
             && strncmp(obj->parsed_uri->token, (const char *)token.label, 32)
-                   != 0)
+                   != 0) {
             continue;
+        }
         if (obj->parsed_uri->serial
             && strncmp(obj->parsed_uri->serial,
                        (const char *)token.serialNumber, 16)
-                   != 0)
+                   != 0) {
             continue;
+        }
 
         if (token.flags & CKF_LOGIN_REQUIRED) {
             CK_FUNCTION_LIST *f = p11prov_ctx_fns(obj->provctx);
@@ -473,8 +501,12 @@ static int p11prov_store_load(void *ctx, OSSL_CALLBACK *object_cb,
             CK_ULONG pinlen = 0;
             int ret;
 
-            if (f == NULL) return RET_OSSL_ERR;
-            if (pin) pinlen = strlen((const char *)pin);
+            if (f == NULL) {
+                return RET_OSSL_ERR;
+            }
+            if (pin) {
+                pinlen = strlen((const char *)pin);
+            }
 
             if (obj->login_session == CK_INVALID_HANDLE) {
                 ret = f->C_OpenSession(slots[i].id, CKF_SERIAL_SESSION, NULL,
@@ -529,7 +561,9 @@ static int p11prov_store_load(void *ctx, OSSL_CALLBACK *object_cb,
                           slots[i].id, class, obj->parsed_uri->id,
                           obj->parsed_uri->id_len, obj->parsed_uri->object);
             /* for keys return on first match */
-            if (ret == CKR_OK) break;
+            if (ret == CKR_OK) {
+                break;
+            }
         }
     }
 
@@ -565,10 +599,11 @@ static int p11prov_store_load(void *ctx, OSSL_CALLBACK *object_cb,
                 data_type = "RSA";
                 break;
             default:
-                if (obj->priv_key)
+                if (obj->priv_key) {
                     data_type = P11PROV_NAMES_RSA;
-                else
+                } else {
                     data_type = "RSA";
+                }
                 break;
             }
             break;
@@ -607,7 +642,9 @@ static int p11prov_store_close(void *ctx)
 
     p11prov_debug("object close (%p)\n", obj);
 
-    if (obj == NULL) return 0;
+    if (obj == NULL) {
+        return 0;
+    }
 
     p11prov_object_free(obj);
     return 1;
@@ -621,7 +658,9 @@ static int p11prov_store_export_object(void *loaderctx, const void *reference,
 
     p11prov_debug("object export %p, %ld\n", reference, reference_sz);
 
-    if (!reference || reference_sz != sizeof(obj)) return RET_OSSL_ERR;
+    if (!reference || reference_sz != sizeof(obj)) {
+        return RET_OSSL_ERR;
+    }
 
     /* the contents of the reference is the address to our object */
     obj = (P11PROV_OBJECT *)reference;
@@ -658,26 +697,34 @@ static int p11prov_store_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     p11prov_debug("set ctx params (%p, %p)\n", ctx, params);
 
-    if (params == NULL) return RET_OSSL_OK;
+    if (params == NULL) {
+        return RET_OSSL_OK;
+    }
 
     p = OSSL_PARAM_locate_const(params, OSSL_STORE_PARAM_PROPERTIES);
     if (p) {
         OPENSSL_free(obj->set_properties);
         obj->set_properties = NULL;
         ret = OSSL_PARAM_get_utf8_string(p, &obj->set_properties, 0);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
     }
     p = OSSL_PARAM_locate_const(params, OSSL_STORE_PARAM_INPUT_TYPE);
     if (p) {
         OPENSSL_free(obj->set_input_type);
         obj->set_input_type = NULL;
         ret = OSSL_PARAM_get_utf8_string(p, &obj->set_input_type, 0);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
     }
     p = OSSL_PARAM_locate_const(params, OSSL_STORE_PARAM_EXPECT);
     if (p) {
         ret = OSSL_PARAM_get_int(p, &obj->expected_type);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
     }
 
     return RET_OSSL_OK;

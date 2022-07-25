@@ -77,7 +77,9 @@ static void *p11prov_hkdf_newctx(void *provctx)
     p11prov_debug("hkdf newctx\n");
 
     hkdfctx = OPENSSL_zalloc(sizeof(P11PROV_KDF_CTX));
-    if (hkdfctx == NULL) return NULL;
+    if (hkdfctx == NULL) {
+        return NULL;
+    }
 
     hkdfctx->provctx = ctx;
 
@@ -172,7 +174,9 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
     }
 
     f = p11prov_ctx_fns(hkdfctx->provctx);
-    if (f == NULL) return RET_OSSL_ERR;
+    if (f == NULL) {
+        return RET_OSSL_ERR;
+    }
 
     ret = f->C_DeriveKey(hkdfctx->session, &mechanism, pkey_handle,
                          key_template, 5, &dkey_handle);
@@ -203,14 +207,18 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     p11prov_debug("hkdf set ctx params (ctx=%p, params=%p)\n", hkdfctx, params);
 
-    if (params == NULL) return RET_OSSL_OK;
+    if (params == NULL) {
+        return RET_OSSL_OK;
+    }
 
     p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_DIGEST);
     if (p) {
         char digest[256];
         char *ptr = digest;
         ret = OSSL_PARAM_get_utf8_string(p, &ptr, 256);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
 
         hkdfctx->params.prfHashMechanism = p11prov_hkdf_map_digest(digest);
         if (hkdfctx->params.prfHashMechanism == CK_UNAVAILABLE_INFORMATION) {
@@ -235,7 +243,9 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
             }
         } else {
             ret = OSSL_PARAM_get_int(p, &mode);
-            if (ret != RET_OSSL_OK) return ret;
+            if (ret != RET_OSSL_OK) {
+                return ret;
+            }
         }
 
         switch (mode) {
@@ -266,7 +276,9 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         size_t secret_len;
         /* TODO: import into a pkcs11 key? */
         ret = OSSL_PARAM_get_octet_string(p, &secret, 0, &secret_len);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
 
         /* Create Session  and key from key material */
 
@@ -274,11 +286,15 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
             hkdfctx->session = p11prov_get_session(hkdfctx->provctx,
                                                    CK_UNAVAILABLE_INFORMATION);
         }
-        if (hkdfctx->session == CK_INVALID_HANDLE) return RET_OSSL_ERR;
+        if (hkdfctx->session == CK_INVALID_HANDLE) {
+            return RET_OSSL_ERR;
+        }
 
         hkdfctx->key = p11prov_create_secret_key(
             hkdfctx->provctx, hkdfctx->session, true, secret, secret_len);
-        if (hkdfctx->key == NULL) return RET_OSSL_ERR;
+        if (hkdfctx->key == NULL) {
+            return RET_OSSL_ERR;
+        }
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_SALT);
@@ -288,7 +304,9 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         OPENSSL_cleanse(hkdfctx->params.pSalt, hkdfctx->params.ulSaltLen);
         hkdfctx->params.pSalt = NULL;
         ret = OSSL_PARAM_get_octet_string(p, &ptr, 0, &len);
-        if (ret != RET_OSSL_OK) return ret;
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
         hkdfctx->params.ulSaltType = CKF_HKDF_SALT_DATA;
         hkdfctx->params.pSalt = ptr;
         hkdfctx->params.ulSaltLen = len;
@@ -301,7 +319,9 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         void *ptr;
         size_t len;
 
-        if (p->data_size == 0 || p->data == NULL) return RET_OSSL_ERR;
+        if (p->data_size == 0 || p->data == NULL) {
+            return RET_OSSL_ERR;
+        }
 
         len = hkdfctx->params.ulInfoLen + p->data_size;
         ptr = OPENSSL_realloc(hkdfctx->params.pInfo, len);
@@ -341,7 +361,9 @@ static int p11prov_hkdf_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p11prov_debug("hkdf get ctx params (ctx=%p, params=%p)\n", hkdfctx, params);
 
-    if (params == NULL) return RET_OSSL_OK;
+    if (params == NULL) {
+        return RET_OSSL_OK;
+    }
 
     p = OSSL_PARAM_locate(params, OSSL_KDF_PARAM_SIZE);
     if (p) {
