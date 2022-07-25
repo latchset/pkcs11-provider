@@ -7,7 +7,7 @@ This package requires the following:
 - a C compiler that supports at least C11 semantics
 
 The usual command to build are:
-- autorecofn -fi (if needed)
+- autoreconf -fi (if needed)
 - ./configure
 - make
 - make check

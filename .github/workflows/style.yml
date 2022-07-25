@@ -1,4 +1,4 @@
-name: Build
+name: Check Style
 
 on:
   pull_request:
