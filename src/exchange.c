@@ -3,6 +3,7 @@
 
 #include "provider.h"
 #include <string.h>
+#include <strings.h>
 #include <openssl/kdf.h>
 
 struct p11prov_exch_ctx {

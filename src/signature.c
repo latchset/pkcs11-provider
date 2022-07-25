@@ -3,6 +3,7 @@
 
 #include "provider.h"
 #include <string.h>
+#include <strings.h>
 #include "openssl/rsa.h"
 #include "openssl/sha.h"
 
