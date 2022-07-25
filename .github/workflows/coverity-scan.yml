@@ -1,0 +1,27 @@
+name: Coverity Scan
+
+on:
+  schedule:
+    - cron:  '41 3 * * 1-5'
+
+jobs:
+  coverity:
+    name: Coverity Scan
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      name: Checkout Repository
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y autoconf-archive libnss3 libnss3-tools libnss3-dev clang
+    - name: Setup
+      run: |
+        autoreconf -fiv
+        ./configure
+    - uses: vapier/coverity-scan-action@v1
+      name: Coverity Scan
+      with:
+        project: "PKCS%2311+Provider"
+        email: ${{ secrets.COVERITY_SCAN_EMAIL }}
+        token: ${{ secrets.COVERITY_SCAN_TOKEN }}
