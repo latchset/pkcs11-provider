@@ -239,7 +239,8 @@ done:
 }
 
 #define MAX_PIN_LENGTH 32
-static int get_pin(const char *str, size_t len, char **output, size_t *outlen)
+static int get_pin_file(const char *str, size_t len, char **output,
+                        size_t *outlen)
 {
     char pin[MAX_PIN_LENGTH + 1];
     char *pinfile;
@@ -276,6 +277,15 @@ static int get_pin(const char *str, size_t len, char **output, size_t *outlen)
         goto done;
     }
     BIO_free(fp);
+
+    /* files may contain newlines, remove any control chracter at the end */
+    for (int i = ret - 1; i >= 0; i--) {
+        if (pin[i] == '\n' || pin[i] == '\r') {
+            pin[i] = '\0';
+        } else {
+            break;
+        }
+    }
 
     *output = OPENSSL_strdup(pin);
     if (*output == NULL) {
@@ -343,7 +353,7 @@ static int parse_uri(struct p11prov_uri *u, const char *uri)
         } else if (strncmp(p, "pin-source=", 11) == 0) {
             p += 11;
             len -= 11;
-            ret = get_pin(p, len, &u->pin, ptrlen);
+            ret = get_pin_file(p, len, &u->pin, ptrlen);
             if (ret != 0) {
                 goto done;
             }
@@ -391,6 +401,22 @@ static int parse_uri(struct p11prov_uri *u, const char *uri)
     ret = 0;
 done:
     return ret;
+}
+
+int p11prov_get_pin(const char *in, char **out)
+{
+    size_t outlen;
+
+    if (strncmp(in, "file:", 5) == 0) {
+        return get_pin_file(in, strlen(in), out, &outlen);
+    }
+
+    *out = OPENSSL_strdup(in);
+    if (!*out) {
+        return ENOMEM;
+    }
+
+    return 0;
 }
 
 DISPATCH_STORE_FN(open);
@@ -495,12 +521,17 @@ static int p11prov_store_load(void *ctx, OSSL_CALLBACK *object_cb,
 
         if (token.flags & CKF_LOGIN_REQUIRED) {
             CK_FUNCTION_LIST *f = p11prov_ctx_fns(obj->provctx);
-            CK_UTF8CHAR_PTR pin = (CK_UTF8CHAR_PTR)obj->parsed_uri->pin;
+            CK_UTF8CHAR_PTR pin = NULL;
             CK_ULONG pinlen = 0;
             int ret;
 
             if (f == NULL) {
                 return RET_OSSL_ERR;
+            }
+            if (obj->parsed_uri->pin) {
+                pin = (CK_UTF8CHAR_PTR)obj->parsed_uri->pin;
+            } else {
+                pin = p11prov_ctx_pin(obj->provctx);
             }
             if (pin) {
                 pinlen = strlen((const char *)pin);

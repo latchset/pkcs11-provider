@@ -98,11 +98,13 @@ CERTSCRIPT
         URIKEYID="$URIKEYID%$line"
     done
 
-    BASEURI="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
-    PUBURI="pkcs11:type=public;id=${URIKEYID};pin-value=${PINVALUE}"
-    PRIURI="pkcs11:type=private;id=${URIKEYID};pin-value=${PINVALUE}"
+    BASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+    BASEURI="pkcs11:id=${URIKEYID}"
+    PUBURI="pkcs11:type=public;id=${URIKEYID}"
+    PRIURI="pkcs11:type=private;id=${URIKEYID}"
 
     title LINE "RSA PKCS11 URIS"
+    echo "${BASEURIWITHPIN}"
     echo "${BASEURI}"
     echo "${PUBURI}"
     echo "${PRIURI}"
@@ -125,9 +127,9 @@ CERTSCRIPT
         URIKEYID="$URIKEYID%$line"
     done
 
-    ECBASEURI="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
-    ECPUBURI="pkcs11:type=public;id=${URIKEYID};pin-value=${PINVALUE}"
-    ECPRIURI="pkcs11:type=private;id=${URIKEYID};pin-value=${PINVALUE}"
+    ECBASEURI="pkcs11:id=${URIKEYID}"
+    ECPUBURI="pkcs11:type=public;id=${URIKEYID}"
+    ECPRIURI="pkcs11:type=private;id=${URIKEYID}"
 
     title LINE  "Creating Certificate request for 'My Peer EC Cert'"
     certutil -R -s "CN=My Peer EC Cert, O=PKCS11 Provider" \
@@ -146,9 +148,9 @@ CERTSCRIPT
         URIKEYID="$URIKEYID%$line"
     done
 
-    ECPEERBASEURI="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
-    ECPEERPUBURI="pkcs11:type=public;id=${URIKEYID};pin-value=${PINVALUE}"
-    ECPEERPRIURI="pkcs11:type=private;id=${URIKEYID};pin-value=${PINVALUE}"
+    ECPEERBASEURI="pkcs11:id=${URIKEYID}"
+    ECPEERPUBURI="pkcs11:type=public;id=${URIKEYID}"
+    ECPEERPRIURI="pkcs11:type=private;id=${URIKEYID}"
 
     title LINE "EC PKCS11 URIS"
     echo "${ECBASEURI}"
@@ -178,6 +180,7 @@ export PINFILE="${BASEDIR}/${PINFILE}"
 export TSTCRT="${BASEDIR}/${TSTCRT}"
 export SEEDFILE="${BASEDIR}/${SEEDFILE}"
 
+export BASEURIWITHPIN="${BASEURIWITHPIN}"
 export BASEURI="${BASEURI}"
 export PUBURI="${PUBURI}"
 export PRIURI="${PRIURI}"
@@ -202,8 +205,12 @@ setup
 
 title PARA "Export Public key to a file"
 ossl 'pkey -in $BASEURI -pubin -pubout -out ${TSTCRT}.pub'
+title LINE "Export Public key to a file (pub-uri)"
 ossl 'pkey -in $PUBURI -pubin -pubout -out ${TSTCRT}.pub'
+title LINE "Export Public key to a file (pri-uri)"
 ossl 'pkey -in $PRIURI -pubin -pubout -out ${TSTCRT}.pub'
+title LINE "Export Public key to a file (with pin)"
+ossl 'pkey -in $BASEURIWITHPIN -pubin -pubout -out ${TSTCRT}.pub'
 
 title PARA "Export EC Public key to a file"
 #ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${ECCRT}.pub'
