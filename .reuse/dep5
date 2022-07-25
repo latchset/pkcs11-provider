@@ -12,6 +12,7 @@ Files: **/Makefile.am
        Makefile.am
        README.md
        BUILD.md
+       CODE_OF_CONDUCT.md
        configure.ac
        configure.ac
        src/Makefile.am
