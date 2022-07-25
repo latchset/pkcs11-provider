@@ -64,7 +64,7 @@ static CK_MECHANISM_TYPE p11prov_ecdh_map_digest(const char *digest)
 {
     for (int i = 0; digest_map[i].name != NULL; i++) {
         /* hate to strcasecmp but openssl forces us to */
-        if (strcasecmp(digest, digest_map[i].name) == 0) {
+        if (OPENSSL_strcasecmp(digest, digest_map[i].name) == 0) {
             return digest_map[i].digest;
         }
     }
