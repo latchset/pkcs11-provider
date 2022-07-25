@@ -172,13 +172,13 @@ static int p11prov_rsakm_secbits(int bits)
      * see ossl_ifc_ffc_compute_security_bits() */
 
     /* NOLINTBEGIN(readability-braces-around-statements) */
-    if (bits > 15360) return 256;
-    if (bits > 8192) return 200;
-    if (bits > 7680) return 192;
-    if (bits > 6144) return 176;
-    if (bits > 4096) return 152;
-    if (bits > 3072) return 128;
-    if (bits > 2048) return 112;
+    if (bits >= 15360) return 256;
+    if (bits >= 8192) return 200;
+    if (bits >= 7680) return 192;
+    if (bits >= 6144) return 176;
+    if (bits >= 4096) return 152;
+    if (bits >= 3072) return 128;
+    if (bits >= 2048) return 112;
     /* NOLINTEND(readability-braces-around-statements) */
 
     return 0;
@@ -440,7 +440,6 @@ static int p11prov_eckm_secbits(int bits)
 static int p11prov_eckm_get_params(void *keydata, OSSL_PARAM params[])
 {
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)keydata;
-    CK_ATTRIBUTE *modulus;
     P11PROV_KEY *key;
     OSSL_PARAM *p;
     CK_ULONG group_size;

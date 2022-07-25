@@ -62,7 +62,7 @@ void p11prov_key_free(P11PROV_KEY *key)
     OPENSSL_free(key->id);
     OPENSSL_free(key->label);
 
-    for (int i = 0; i < key->numattrs; i++) {
+    for (size_t i = 0; i < key->numattrs; i++) {
         OPENSSL_free(key->attrs[i].pValue);
     }
     OPENSSL_free(key->attrs);
@@ -76,7 +76,7 @@ CK_ATTRIBUTE *p11prov_key_attr(P11PROV_KEY *key, CK_ATTRIBUTE_TYPE type)
         return NULL;
     }
 
-    for (int i = 0; i < key->numattrs; i++) {
+    for (size_t i = 0; i < key->numattrs; i++) {
         if (key->attrs[i].type == type) {
             return &key->attrs[i];
         }
@@ -161,7 +161,7 @@ static int fetch_ec_public_key(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
     struct fetch_attrs attrs[2];
     unsigned long params_len = 0, point_len = 0;
     CK_BYTE *params = NULL, *point = NULL;
-    size_t n_bytes;
+    size_t n_bytes = 0;
     int ret;
 
     FA_ASSIGN_ALL(attrs[0], CKA_EC_PARAMS, &params, &params_len, true, true);
@@ -222,7 +222,6 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f, CK_SLOT_ID slotid,
     unsigned long key_type_len = sizeof(CKA_KEY_TYPE);
     unsigned long label_len;
     struct fetch_attrs attrs[3];
-    unsigned long aa_len = 0;
     int ret;
 
     key = p11prov_key_new();
@@ -440,7 +439,6 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
         p11prov_debug("Failed to query object attributes (%d)\n", ret);
     }
 
-done:
     if (ret != CKR_OK) {
         p11prov_key_free(key);
         key = NULL;

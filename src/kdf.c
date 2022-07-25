@@ -316,7 +316,7 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     /* can be multiple paramaters, which wil be all concatenated */
     for (p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_INFO); p != NULL;
          p = OSSL_PARAM_locate_const(p + 1, OSSL_KDF_PARAM_INFO)) {
-        void *ptr;
+        uint8_t *ptr;
         size_t len;
 
         if (p->data_size == 0 || p->data == NULL) {
@@ -357,7 +357,6 @@ static int p11prov_hkdf_get_ctx_params(void *ctx, OSSL_PARAM *params)
 {
     P11PROV_KDF_CTX *hkdfctx = (P11PROV_KDF_CTX *)ctx;
     OSSL_PARAM *p;
-    int ret;
 
     p11prov_debug("hkdf get ctx params (ctx=%p, params=%p)\n", hkdfctx, params);
 

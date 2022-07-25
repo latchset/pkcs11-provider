@@ -117,7 +117,6 @@ static void *p11prov_ecdh_dupctx(void *ctx)
 {
     P11PROV_EXCH_CTX *ecdhctx = (P11PROV_EXCH_CTX *)ctx;
     P11PROV_EXCH_CTX *newctx;
-    int ret;
 
     if (ecdhctx == NULL) {
         return NULL;
