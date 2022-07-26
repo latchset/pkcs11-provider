@@ -269,7 +269,7 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f, CK_SLOT_ID slotid,
         break;
     default:
         /* unknown key type, we can't handle it */
-        p11prov_debug("Unsupported key type (%d)\n", key->type);
+        p11prov_debug("Unsupported key type (%lu)\n", key->type);
         p11prov_key_free(key);
         return NULL;
     }
@@ -436,7 +436,7 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
     FA_ASSIGN_ALL(attrs[1], CKA_LABEL, &key->label, &label_len, true, false);
     ret = p11prov_fetch_attributes(f, session, key_handle, attrs, 2);
     if (ret != CKR_OK) {
-        p11prov_debug("Failed to query object attributes (%d)\n", ret);
+        p11prov_debug("Failed to query object attributes (%lu)\n", ret);
     }
 
     if (ret != CKR_OK) {
