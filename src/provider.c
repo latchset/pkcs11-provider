@@ -641,7 +641,7 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
 
     ret = ctx->fns->C_Initialize(&args);
     if (ret && ret != CKR_CRYPTOKI_ALREADY_INITIALIZED) {
-        p11prov_debug("init failed: %d (%s:%s)\n", ret, __FILE__, __LINE__);
+        p11prov_debug("init failed: %d (%s:%d)\n", ret, __FILE__, __LINE__);
         return -EFAULT;
     }
 
