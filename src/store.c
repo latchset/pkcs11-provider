@@ -526,7 +526,7 @@ static int p11prov_store_load(void *ctx, OSSL_CALLBACK *object_cb,
             int ret;
 
             if (f == NULL) {
-                return RET_OSSL_ERR;
+                break;
             }
             if (obj->parsed_uri->pin) {
                 pin = (CK_UTF8CHAR_PTR)obj->parsed_uri->pin;
