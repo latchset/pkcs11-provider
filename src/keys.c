@@ -288,6 +288,7 @@ int find_keys(P11PROV_CTX *provctx, P11PROV_KEY **priv, P11PROV_KEY **pub,
     };
     CK_ULONG tsize = 1;
     CK_ULONG objcount;
+    P11PROV_KEY *pubkey = NULL;
     P11PROV_KEY *privkey = NULL;
     P11PROV_KEY *key = NULL;
     int result = CKR_GENERAL_ERROR;
@@ -332,7 +333,7 @@ again:
             if (key) {
                 result = CKR_OK;
                 if (class == CKO_PRIVATE_KEY) {
-                    *priv = privkey = key;
+                    privkey = key;
                     ret = f->C_FindObjectsFinal(session);
                     if (ret != CKR_OK) {
                         P11PROV_raise(provctx, ret,
@@ -348,7 +349,7 @@ again:
                     if (privkey && privkey->key_size == 0) {
                         privkey->key_size = key->key_size;
                     }
-                    *pub = key;
+                    pubkey = key;
                 }
                 break;
             }
@@ -366,6 +367,11 @@ again:
     ret = f->C_CloseSession(session);
     if (ret != CKR_OK) {
         P11PROV_raise(provctx, ret, "Failed to close session %lu", session);
+    }
+
+    if (result == CKR_OK) {
+        *pub = pubkey;
+        *priv = privkey;
     }
 
     return result;
