@@ -71,7 +71,7 @@ void p11prov_raise(P11PROV_CTX *ctx, const char *file, int line,
 void p11prov_debug(const char *fmt, ...);
 void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                              CK_MECHANISM_TYPE type);
-void p11prov_debug_token_info(CK_TOKEN_INFO info);
+void p11prov_debug_token_info(CK_TOKEN_INFO *info);
 void p11prov_debug_slot(struct p11prov_slot *slot);
 
 /* Keys */

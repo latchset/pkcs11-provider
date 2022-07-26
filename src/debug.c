@@ -87,7 +87,7 @@ void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
 
 extern struct ckmap token_flags[];
 
-void p11prov_debug_token_info(CK_TOKEN_INFO info)
+void p11prov_debug_token_info(CK_TOKEN_INFO *info)
 {
     p11prov_debug(
         "Token Info:\n"
@@ -96,10 +96,10 @@ void p11prov_debug_token_info(CK_TOKEN_INFO info)
         "  Model:            [%.16s]\n"
         "  Serial Number:    [%.16s]\n"
         "  Flags (%#08lx):\n",
-        info.label, info.manufacturerID, info.model, info.serialNumber,
-        info.flags);
+        info->label, info->manufacturerID, info->model, info->serialNumber,
+        info->flags);
     for (int i = 0; token_flags[i].name != NULL; i++) {
-        if (info.flags & token_flags[i].value) {
+        if (info->flags & token_flags[i].value) {
             p11prov_debug("    %-35s (%#08lx)\n", token_flags[i].name,
                           token_flags[i].value);
         }
@@ -113,12 +113,13 @@ void p11prov_debug_token_info(CK_TOKEN_INFO info)
         "  Hardware Version: %d.%d\n"
         "  Firmware Version: %d.%d\n"
         "  UTC Time: [%.16s]\n",
-        info.ulMaxSessionCount, info.ulSessionCount, info.ulMaxRwSessionCount,
-        info.ulRwSessionCount, info.ulMinPinLen, info.ulMaxPinLen,
-        info.ulTotalPublicMemory, info.ulFreePublicMemory,
-        info.ulTotalPrivateMemory, info.ulFreePrivateMemory,
-        info.hardwareVersion.major, info.hardwareVersion.minor,
-        info.firmwareVersion.major, info.firmwareVersion.minor, info.utcTime);
+        info->ulMaxSessionCount, info->ulSessionCount,
+        info->ulMaxRwSessionCount, info->ulRwSessionCount, info->ulMinPinLen,
+        info->ulMaxPinLen, info->ulTotalPublicMemory, info->ulFreePublicMemory,
+        info->ulTotalPrivateMemory, info->ulFreePrivateMemory,
+        info->hardwareVersion.major, info->hardwareVersion.minor,
+        info->firmwareVersion.major, info->firmwareVersion.minor,
+        info->utcTime);
 }
 
 extern struct ckmap slot_flags[];
@@ -146,7 +147,7 @@ void p11prov_debug_slot(struct p11prov_slot *slot)
         slot->slot.hardwareVersion.major, slot->slot.hardwareVersion.minor,
         slot->slot.firmwareVersion.major, slot->slot.firmwareVersion.minor);
     if (slot->slot.flags & CKF_TOKEN_PRESENT) {
-        p11prov_debug_token_info(slot->token);
+        p11prov_debug_token_info(&slot->token);
     }
     if (slot->profiles[0] != CKP_INVALID_ID) {
         p11prov_debug("  Available profiles:\n");
