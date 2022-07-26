@@ -474,6 +474,7 @@ static int p11prov_store_load(void *ctx, OSSL_CALLBACK *object_cb,
 {
     P11PROV_OBJECT *obj = (P11PROV_OBJECT *)ctx;
     struct p11prov_slot *slots = NULL;
+    char cb_pin[MAX_PIN_LENGTH + 1] = { 0 };
     /* 0 is CKO_DATA ibut we do not use it */
     CK_OBJECT_CLASS class = 0;
     int nslots = 0;
@@ -535,6 +536,23 @@ static int p11prov_store_load(void *ctx, OSSL_CALLBACK *object_cb,
             }
             if (pin) {
                 pinlen = strlen((const char *)pin);
+            } else {
+                const char *info = "PKCS#11 Token";
+                OSSL_PARAM params[2] = {
+                    OSSL_PARAM_DEFN(OSSL_PASSPHRASE_PARAM_INFO,
+                                    OSSL_PARAM_UTF8_STRING, (void *)info,
+                                    sizeof(info)),
+                    OSSL_PARAM_END,
+                };
+                size_t cb_pin_len = 0;
+                ret = pw_cb(cb_pin, sizeof(cb_pin), &cb_pin_len, params,
+                            pw_cbarg);
+                if (ret != RET_OSSL_OK) {
+                    continue;
+                }
+
+                pin = (CK_UTF8CHAR_PTR)cb_pin;
+                pinlen = cb_pin_len;
             }
 
             if (obj->login_session == CK_INVALID_HANDLE) {
