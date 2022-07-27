@@ -375,7 +375,7 @@ static int p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
                                const char *digest, const OSSL_PARAM params[])
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
-    P11PROV_OBJECT *obj = (P11PROV_OBJECT *)provkey;
+    P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
 
     sigctx->priv_key = p11prov_object_get_key(obj, true);
     if (sigctx->priv_key == NULL) {

@@ -179,7 +179,7 @@ static int p11prov_ecdh_init(void *ctx, void *provkey,
                              const OSSL_PARAM params[])
 {
     P11PROV_EXCH_CTX *ecdhctx = (P11PROV_EXCH_CTX *)ctx;
-    P11PROV_OBJECT *obj = (P11PROV_OBJECT *)provkey;
+    P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
 
     if (ctx == NULL || provkey == NULL) {
         return RET_OSSL_ERR;
@@ -197,7 +197,7 @@ static int p11prov_ecdh_init(void *ctx, void *provkey,
 static int p11prov_ecdh_set_peer(void *ctx, void *provkey)
 {
     P11PROV_EXCH_CTX *ecdhctx = (P11PROV_EXCH_CTX *)ctx;
-    P11PROV_OBJECT *obj = (P11PROV_OBJECT *)provkey;
+    P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
 
     if (ctx == NULL || provkey == NULL) {
         return RET_OSSL_ERR;
@@ -605,7 +605,7 @@ static int p11prov_exch_hkdf_init(void *ctx, void *provobj,
                                   const OSSL_PARAM params[])
 {
     P11PROV_EXCH_CTX *hkdfctx = (P11PROV_EXCH_CTX *)ctx;
-    P11PROV_OBJECT *obj = (P11PROV_OBJECT *)provobj;
+    P11PROV_OBJ *obj = (P11PROV_OBJ *)provobj;
 
     p11prov_debug("hkdf exchange init (ctx:%p obj:%p params:%p)\n", ctx, obj,
                   params);
