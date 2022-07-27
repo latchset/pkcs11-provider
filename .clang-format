@@ -46,7 +46,7 @@ AlignArrayOfStructures: None
 AlignTrailingComments: false
 AllowShortFunctionsOnASingleLine: Empty
 AlwaysBreakBeforeMultilineStrings: true
-IndentGotoLabels: false
+IndentGotoLabels: true
 SortIncludes: Never
 SpaceBeforeCpp11BracedList: true
 SpaceBeforeCtorInitializerColon: false

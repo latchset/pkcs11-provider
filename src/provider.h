@@ -39,6 +39,9 @@
 #define P11PROV_DESCS_URI "PKCS11 URI Store"
 
 typedef struct p11prov_ctx P11PROV_CTX;
+typedef struct p11prov_key P11PROV_KEY;
+typedef struct p11prov_uri P11PROV_URI;
+typedef struct p11prov_obj P11PROV_OBJ;
 
 struct p11prov_slot {
     CK_SLOT_ID id;
@@ -54,6 +57,11 @@ OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx);
 CK_FUNCTION_LIST *p11prov_ctx_fns(P11PROV_CTX *ctx);
 int p11prov_ctx_lock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
 void p11prov_ctx_unlock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
+/* the login_session functions must be called under lock */
+CK_RV p11prov_ctx_get_login_session(P11PROV_CTX *ctx,
+                                    CK_SESSION_HANDLE *session);
+CK_RV p11prov_ctx_set_login_session(P11PROV_CTX *ctx,
+                                    CK_SESSION_HANDLE session);
 
 /* Errors */
 void p11prov_raise(P11PROV_CTX *ctx, const char *file, int line,
@@ -75,8 +83,6 @@ void p11prov_debug_token_info(CK_TOKEN_INFO *info);
 void p11prov_debug_slot(struct p11prov_slot *slot);
 
 /* Keys */
-typedef struct p11prov_key P11PROV_KEY;
-
 P11PROV_KEY *p11prov_key_ref(P11PROV_KEY *key);
 void p11prov_key_free(P11PROV_KEY *key);
 CK_ATTRIBUTE *p11prov_key_attr(P11PROV_KEY *key, CK_ATTRIBUTE_TYPE type);
@@ -86,23 +92,20 @@ CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key);
 CK_ULONG p11prov_key_size(P11PROV_KEY *key);
 
 int find_keys(P11PROV_CTX *provctx, P11PROV_KEY **priv, P11PROV_KEY **pub,
-              CK_SLOT_ID slotid, CK_OBJECT_CLASS class, const unsigned char *id,
-              size_t id_len, const char *label);
+              CK_SLOT_ID slotid, CK_OBJECT_CLASS class, P11PROV_URI *uri);
 P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        CK_SESSION_HANDLE session,
                                        bool session_key, unsigned char *secret,
                                        size_t secretlen);
 
 /* Object Store */
-typedef struct p11prov_object P11PROV_OBJECT;
-
-void p11prov_object_free(P11PROV_OBJECT *obj);
-bool p11prov_object_check_key(P11PROV_OBJECT *obj, bool priv);
-int p11prov_object_export_public_rsa_key(P11PROV_OBJECT *obj,
-                                         OSSL_CALLBACK *cb_fn, void *cb_arg);
-P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJECT *obj, bool priv);
-
-int p11prov_get_pin(const char *in, char **out);
+void p11prov_object_free(P11PROV_OBJ *obj);
+bool p11prov_object_check_key(P11PROV_OBJ *obj, bool priv);
+P11PROV_OBJ *p11prov_obj_from_reference(const void *reference,
+                                        size_t reference_sz);
+int p11prov_object_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
+                                         void *cb_arg);
+P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj, bool priv);
 
 /* dispatching */
 #define DECL_DISPATCH_FUNC(type, prefix, name) \
@@ -227,6 +230,16 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
                              CK_OBJECT_HANDLE object, struct fetch_attrs *attrs,
                              unsigned long attrnums);
 
-CK_SESSION_HANDLE p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID slotid);
+#define MAX_PIN_LENGTH 32
+P11PROV_URI *p11prov_parse_uri(const char *uri);
+void p11prov_uri_free(P11PROV_URI *parsed_uri);
+CK_OBJECT_CLASS p11prov_uri_get_class(P11PROV_URI *uri);
+CK_ATTRIBUTE p11prov_uri_get_id(P11PROV_URI *uri);
+char *p11prov_uri_get_object(P11PROV_URI *uri);
+int p11prov_get_pin(const char *in, char **out);
+CK_SESSION_HANDLE p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
+                                      CK_SLOT_ID *next_slotid, P11PROV_URI *uri,
+                                      OSSL_PASSPHRASE_CALLBACK *pw_cb,
+                                      void *pw_cbarg);
 void p11prov_put_session(P11PROV_CTX *provctx, CK_SESSION_HANDLE session);
 #endif /* _PROVIDER_H */

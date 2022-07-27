@@ -44,28 +44,20 @@ static void p11prov_rsakm_gen_cleanup(void *genctx)
 static void p11prov_rsakm_free(void *key)
 {
     p11prov_debug("rsa free %p\n", key);
-    p11prov_object_free((P11PROV_OBJECT *)key);
+    p11prov_object_free((P11PROV_OBJ *)key);
 }
 
 static void *p11prov_rsakm_load(const void *reference, size_t reference_sz)
 {
-    P11PROV_OBJECT *obj = NULL;
-
     p11prov_debug("rsa load %p, %ld\n", reference, reference_sz);
 
-    if (!reference || reference_sz != sizeof(obj)) {
-        return NULL;
-    }
-
     /* the contents of the reference is the address to our object */
-    obj = (P11PROV_OBJECT *)reference;
-
-    return obj;
+    return p11prov_obj_from_reference(reference, reference_sz);
 }
 
 static int p11prov_rsakm_has(const void *keydata, int selection)
 {
-    P11PROV_OBJECT *obj = (P11PROV_OBJECT *)keydata;
+    P11PROV_OBJ *obj = (P11PROV_OBJ *)keydata;
 
     p11prov_debug("rsa has %p %d\n", obj, selection);
 
@@ -98,7 +90,7 @@ static int p11prov_rsakm_import(void *keydata, int selection,
 static int p11prov_rsakm_export(void *keydata, int selection,
                                 OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
-    P11PROV_OBJECT *obj = (P11PROV_OBJECT *)keydata;
+    P11PROV_OBJ *obj = (P11PROV_OBJ *)keydata;
 
     p11prov_debug("rsa export %p\n", keydata);
 
@@ -186,7 +178,7 @@ static int p11prov_rsakm_secbits(int bits)
 
 static int p11prov_rsakm_get_params(void *keydata, OSSL_PARAM params[])
 {
-    P11PROV_OBJECT *obj = (P11PROV_OBJECT *)keydata;
+    P11PROV_OBJ *obj = (P11PROV_OBJ *)keydata;
     CK_ATTRIBUTE *modulus;
     P11PROV_KEY *key;
     OSSL_PARAM *p;
@@ -314,28 +306,20 @@ static void p11prov_eckm_gen_cleanup(void *genctx)
 static void p11prov_eckm_free(void *key)
 {
     p11prov_debug("ec free %p\n", key);
-    p11prov_object_free((P11PROV_OBJECT *)key);
+    p11prov_object_free((P11PROV_OBJ *)key);
 }
 
 static void *p11prov_eckm_load(const void *reference, size_t reference_sz)
 {
-    P11PROV_OBJECT *obj = NULL;
-
     p11prov_debug("ec load %p, %ld\n", reference, reference_sz);
 
-    if (!reference || reference_sz != sizeof(obj)) {
-        return NULL;
-    }
-
     /* the contents of the reference is the address to our object */
-    obj = (P11PROV_OBJECT *)reference;
-
-    return obj;
+    return p11prov_obj_from_reference(reference, reference_sz);
 }
 
 static int p11prov_eckm_has(const void *keydata, int selection)
 {
-    P11PROV_OBJECT *obj = (P11PROV_OBJECT *)keydata;
+    P11PROV_OBJ *obj = (P11PROV_OBJ *)keydata;
 
     p11prov_debug("ec has %p %d\n", obj, selection);
 
@@ -368,7 +352,7 @@ static int p11prov_eckm_import(void *keydata, int selection,
 static int p11prov_eckm_export(void *keydata, int selection,
                                OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
-    P11PROV_OBJECT *obj = (P11PROV_OBJECT *)keydata;
+    P11PROV_OBJ *obj = (P11PROV_OBJ *)keydata;
 
     p11prov_debug("ec export %p\n", keydata);
 
@@ -439,7 +423,7 @@ static int p11prov_eckm_secbits(int bits)
 
 static int p11prov_eckm_get_params(void *keydata, OSSL_PARAM params[])
 {
-    P11PROV_OBJECT *obj = (P11PROV_OBJECT *)keydata;
+    P11PROV_OBJ *obj = (P11PROV_OBJ *)keydata;
     P11PROV_KEY *key;
     OSSL_PARAM *p;
     CK_ULONG group_size;

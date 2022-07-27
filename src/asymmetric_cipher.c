@@ -110,7 +110,7 @@ static int p11prov_rsaenc_encrypt_init(void *ctx, void *provkey,
                                        const OSSL_PARAM params[])
 {
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
-    P11PROV_OBJECT *obj = (P11PROV_OBJECT *)provkey;
+    P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
 
     p11prov_debug("encrypt init (ctx=%p, key=%p, params=%p)\n", ctx, provkey,
                   params);
@@ -214,7 +214,7 @@ static int p11prov_rsaenc_decrypt_init(void *ctx, void *provkey,
                                        const OSSL_PARAM params[])
 {
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
-    P11PROV_OBJECT *obj = (P11PROV_OBJECT *)provkey;
+    P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
 
     p11prov_debug("encrypt init (ctx=%p, key=%p, params=%p)\n", ctx, provkey,
                   params);

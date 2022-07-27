@@ -272,6 +272,7 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_KEY);
     if (p) {
+        CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
         void *secret = NULL;
         size_t secret_len;
         /* TODO: import into a pkcs11 key? */
@@ -283,8 +284,8 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         /* Create Session  and key from key material */
 
         if (hkdfctx->session == CK_INVALID_HANDLE) {
-            hkdfctx->session = p11prov_get_session(hkdfctx->provctx,
-                                                   CK_UNAVAILABLE_INFORMATION);
+            hkdfctx->session = p11prov_get_session(hkdfctx->provctx, &slotid,
+                                                   NULL, NULL, NULL, NULL);
         }
         if (hkdfctx->session == CK_INVALID_HANDLE) {
             return RET_OSSL_ERR;
