@@ -3,6 +3,7 @@
 
 #include "provider.h"
 #include <dlfcn.h>
+#include <string.h>
 
 struct p11prov_ctx {
 
@@ -17,7 +18,7 @@ struct p11prov_ctx {
     /* Configuration */
     const char *module;
     const char *init_args;
-    const char *pin;
+    char *pin;
     /* TODO: ui_method */
     /* TODO: fork id */
 
@@ -137,6 +138,10 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
             ctx->slots = NULL;
             ctx->nslots = 0;
         }
+    }
+
+    if (ctx->pin) {
+        OPENSSL_clear_free(ctx->pin, strlen(ctx->pin));
     }
 
     if (ctx->initialized) {
@@ -756,7 +761,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
     }
 
     if (pin != NULL) {
-        ret = p11prov_get_pin(pin, (char **)&ctx->pin);
+        ret = p11prov_get_pin(pin, &ctx->pin);
         if (ret != 0) {
             ERR_raise(ERR_LIB_PROV, PROV_R_IN_ERROR_STATE);
             p11prov_ctx_free(ctx);
