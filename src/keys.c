@@ -164,6 +164,11 @@ static int fetch_ec_public_key(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
     size_t n_bytes = 0;
     int ret;
 
+    key->attrs = OPENSSL_zalloc(2 * sizeof(CK_ATTRIBUTE));
+    if (key->attrs == NULL) {
+        return CKR_HOST_MEMORY;
+    }
+
     FA_ASSIGN_ALL(attrs[0], CKA_EC_PARAMS, &params, &params_len, true, true);
     FA_ASSIGN_ALL(attrs[1], CKA_EC_POINT, &point, &point_len, true, true);
     ret = p11prov_fetch_attributes(f, session, object, attrs, 2);
@@ -204,7 +209,6 @@ static int fetch_ec_public_key(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
     }
 
     key->key_size = n_bytes;
-    key->attrs = OPENSSL_zalloc(2 * sizeof(CK_ATTRIBUTE));
     CKATTR_ASSIGN_ALL(key->attrs[0], CKA_EC_PARAMS, params, params_len);
     CKATTR_ASSIGN_ALL(key->attrs[1], CKA_EC_POINT, point, point_len);
     key->numattrs = 2;
