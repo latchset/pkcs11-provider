@@ -10,15 +10,19 @@
 #define CK_CALLBACK_FUNCTION(returnType, name) returnType(*name)
 #define NULL_PTR NULL
 
-/*
- * The spec syas we should use packing arounf these files,
- * and suggest a packing of 1 byte. HOwever if the following
- *   #pragma pack(push, 1)
- *   #pragma pack(pop)
- * are used around the oasis header file, all structures are
- * incorrectly aligned and loading a module leads to segfaults
- * as function pointers point to the wrong memory locations
- * within the binary structure rreturned by c_get_function_list
+/* Unfortunately the newer OASIS PKCS#11 specification (v2.40 and later) state
+ * in §2.1 causing confusion (and incompatility if honored on UNIX):
+ *   Cryptoki structures are packed to occupy as little space as is possible.
+ *   Cryptoki structures SHALL be packed with 1-byte alignment.
+ *
+ * The earlier PKCS#11 v2.30 wording is:
+ *   Cryptoki structures are packed to occupy as little space as is possible.
+ *   In particular, on the Windows platforms, Cryptoki structures should be packed
+ *   with 1-byte alignment. In a UNIX environment, it may or may not be necessary
+ *   (or even possible) to alter the byte-alignment of structures.
+ *
+ * Thus, use default alignment for Crypto structures for Linux. This is also
+ * the defacto standard among all other users and implementations of PKCS#11.
  */
 #include "oasis/pkcs11.h"
 
