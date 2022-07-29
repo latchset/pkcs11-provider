@@ -130,6 +130,10 @@ static int fetch_rsa_key(CK_FUNCTION_LIST *f, CK_OBJECT_CLASS class,
     case CKO_PRIVATE_KEY:
         /* fallthrough */
     case CKO_PUBLIC_KEY:
+        key->attrs = OPENSSL_zalloc(2 * sizeof(CK_ATTRIBUTE));
+        if (key->attrs == NULL) {
+            return CKR_HOST_MEMORY;
+        }
         FA_ASSIGN_ALL(attrs[0], CKA_MODULUS, &n, &n_len, true, true);
         FA_ASSIGN_ALL(attrs[1], CKA_PUBLIC_EXPONENT, &e, &e_len, true, true);
         ret = p11prov_fetch_attributes(f, session, object, attrs, 2);
@@ -146,7 +150,6 @@ static int fetch_rsa_key(CK_FUNCTION_LIST *f, CK_OBJECT_CLASS class,
         }
 
         key->key_size = n_len;
-        key->attrs = OPENSSL_zalloc(2 * sizeof(CK_ATTRIBUTE));
         CKATTR_ASSIGN_ALL(key->attrs[0], CKA_MODULUS, n, n_len);
         CKATTR_ASSIGN_ALL(key->attrs[1], CKA_PUBLIC_EXPONENT, e, e_len);
         key->numattrs = 2;
