@@ -434,6 +434,7 @@ static CK_RV token_login(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
     CK_SESSION_HANDLE s;
     CK_FUNCTION_LIST *f;
     char cb_pin[MAX_PIN_LENGTH + 1] = { 0 };
+    size_t cb_pin_len = 0;
     CK_UTF8CHAR_PTR pin = NULL;
     CK_ULONG pinlen = 0;
     CK_RV ret;
@@ -460,7 +461,6 @@ static CK_RV token_login(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
         pinlen = strlen((const char *)pin);
     } else if (pw_cb) {
         const char *info = "PKCS#11 Token";
-        size_t cb_pin_len = 0;
         OSSL_PARAM params[2] = {
             OSSL_PARAM_DEFN(OSSL_PASSPHRASE_PARAM_INFO, OSSL_PARAM_UTF8_STRING,
                             (void *)info, sizeof(info)),
@@ -481,7 +481,7 @@ static CK_RV token_login(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
     if (ret != CKR_OK) {
         P11PROV_raise(provctx, ret, "Failed to open session on slot %lu",
                       slotid);
-        return ret;
+        goto done;
     }
 
     /* Supports only USER login sessions for now */
@@ -493,10 +493,13 @@ static CK_RV token_login(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
         if (retc != CKR_OK) {
             P11PROV_raise(provctx, retc, "Failed to close session %lu", s);
         }
-        return ret;
+        goto done;
     }
 
-    return p11prov_ctx_set_login_session(provctx, s);
+    ret = p11prov_ctx_set_login_session(provctx, s);
+done:
+    OPENSSL_cleanse(cb_pin, cb_pin_len);
+    return ret;
 }
 
 CK_SESSION_HANDLE p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
