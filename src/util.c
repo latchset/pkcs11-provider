@@ -4,10 +4,11 @@
 #include "provider.h"
 #include <string.h>
 
-int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
+int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, P11PROV_SESSION *session,
                              CK_OBJECT_HANDLE object, struct fetch_attrs *attrs,
                              unsigned long attrnums)
 {
+    CK_SESSION_HANDLE sess = p11prov_session_handle(session);
     CK_ATTRIBUTE q[attrnums];
     CK_ATTRIBUTE r[attrnums];
     int ret;
@@ -22,7 +23,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
     }
 
     /* try one shot, then fallback to individual calls if that fails */
-    ret = f->C_GetAttributeValue(session, object, q, attrnums);
+    ret = f->C_GetAttributeValue(sess, object, q, attrnums);
     if (ret == CKR_OK) {
         unsigned long retrnums = 0;
         for (size_t i = 0; i < attrnums; i++) {
@@ -50,7 +51,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
             }
         }
         if (retrnums > 0) {
-            ret = f->C_GetAttributeValue(session, object, r, retrnums);
+            ret = f->C_GetAttributeValue(sess, object, r, retrnums);
         }
     } else if (ret == CKR_ATTRIBUTE_SENSITIVE
                || ret == CKR_ATTRIBUTE_TYPE_INVALID) {
@@ -60,7 +61,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
         for (size_t i = 0; i < attrnums; i++) {
             if (attrs[i].allocate) {
                 CKATTR_ASSIGN_ALL(q[0], attrs[i].type, NULL, 0);
-                ret = f->C_GetAttributeValue(session, object, q, 1);
+                ret = f->C_GetAttributeValue(sess, object, q, 1);
                 if (ret != CKR_OK) {
                     if (attrs[i].required) {
                         return ret;
@@ -75,7 +76,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
             }
             CKATTR_ASSIGN_ALL(r[0], attrs[i].type, *attrs[i].value,
                               *attrs[i].value_len);
-            ret = f->C_GetAttributeValue(session, object, r, 1);
+            ret = f->C_GetAttributeValue(sess, object, r, 1);
             if (ret != CKR_OK) {
                 if (r[0].ulValueLen == CK_UNAVAILABLE_INFORMATION) {
                     FA_RETURN_LEN(attrs[i], 0);
@@ -404,6 +405,115 @@ int p11prov_get_pin(const char *in, char **out)
     return 0;
 }
 
+/* Session stuff */
+struct p11prov_session {
+    P11PROV_CTX *provctx;
+
+    CK_SLOT_ID slotid;
+    CK_SESSION_HANDLE session;
+
+    int refcnt;
+};
+
+P11PROV_SESSION *p11prov_session_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid)
+{
+    P11PROV_SESSION *sess;
+
+    sess = OPENSSL_zalloc(sizeof(P11PROV_SESSION));
+    if (sess == NULL) {
+        P11PROV_raise(ctx, CKR_HOST_MEMORY, "Failed to allocate session");
+        return NULL;
+    }
+
+    sess->provctx = ctx;
+    sess->slotid = slotid;
+    sess->session = CK_INVALID_HANDLE;
+
+    sess->refcnt = 1;
+
+    return sess;
+}
+
+P11PROV_SESSION *p11prov_session_ref(P11PROV_SESSION *session)
+{
+    if (session
+        && __atomic_fetch_add(&session->refcnt, 1, __ATOMIC_ACQ_REL) > 0) {
+        return session;
+    }
+
+    return NULL;
+}
+
+CK_RV p11prov_session_open(P11PROV_SESSION *session, bool login,
+                           CK_UTF8CHAR_PTR pin, CK_ULONG pinlen)
+{
+    CK_FUNCTION_LIST *f;
+    CK_RV ret;
+
+    ret = p11prov_ctx_status(session->provctx, &f);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+    ret = f->C_OpenSession(session->slotid, CKF_SERIAL_SESSION, NULL, NULL,
+                           &session->session);
+    if (ret != CKR_OK) {
+        P11PROV_raise(session->provctx, ret,
+                      "Failed to open session on slot %lu", session->slotid);
+        return CKR_FUNCTION_FAILED;
+    }
+
+    if (!login) {
+        return CKR_OK;
+    }
+
+    /* Supports only USER login sessions for now */
+    ret = f->C_Login(session->session, CKU_USER, pin, pinlen);
+    if (ret != CKR_OK && ret != CKR_USER_ALREADY_LOGGED_IN) {
+        int retc;
+        P11PROV_raise(session->provctx, ret, "Error returned by C_Login");
+        retc = f->C_CloseSession(session->session);
+        if (retc != CKR_OK) {
+            P11PROV_raise(session->provctx, retc, "Failed to close session %lu",
+                          session->session);
+        }
+        return ret;
+    }
+
+    return CKR_OK;
+}
+
+void p11prov_session_free(P11PROV_SESSION *session)
+{
+    if (session == NULL) {
+        return;
+    }
+
+    if (__atomic_sub_fetch(&session->refcnt, 1, __ATOMIC_ACQ_REL) != 0) {
+        return;
+    }
+
+    if (session->session != CK_INVALID_HANDLE) {
+        CK_FUNCTION_LIST *f;
+        CK_RV ret;
+
+        ret = p11prov_ctx_status(session->provctx, &f);
+        if (ret == CKR_OK) {
+            ret = f->C_CloseSession(session->session);
+            if (ret != CKR_OK) {
+                P11PROV_raise(session->provctx, ret,
+                              "Failed to close session %lu", session->session);
+            }
+        }
+    }
+
+    OPENSSL_clear_free(session, sizeof(P11PROV_SESSION));
+}
+
+CK_SESSION_HANDLE p11prov_session_handle(P11PROV_SESSION *session)
+{
+    return session->session;
+}
+
 static CK_RV match_token(CK_TOKEN_INFO *token, P11PROV_URI *uri)
 {
     if (uri->model
@@ -431,27 +541,27 @@ static CK_RV token_login(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
                          P11PROV_URI *uri, OSSL_PASSPHRASE_CALLBACK *pw_cb,
                          void *pw_cbarg)
 {
-    CK_SESSION_HANDLE s;
-    CK_FUNCTION_LIST *f;
+    P11PROV_SESSION *sess;
     char cb_pin[MAX_PIN_LENGTH + 1] = { 0 };
     size_t cb_pin_len = 0;
     CK_UTF8CHAR_PTR pin = NULL;
     CK_ULONG pinlen = 0;
     CK_RV ret;
 
-    ret = p11prov_ctx_get_login_session(provctx, &s);
+    ret = p11prov_ctx_get_login_session(provctx, &sess);
     if (ret != CKR_OK) {
         return ret;
     }
-    if (s != CK_INVALID_HANDLE) {
+    if (sess) {
         /* we already have a login_session */
         return CKR_OK;
     }
 
-    ret = p11prov_ctx_status(provctx, &f);
-    if (ret != CKR_OK) {
-        return ret;
+    sess = p11prov_session_new(provctx, slotid);
+    if (sess == NULL) {
+        return CKR_HOST_MEMORY;
     }
+
     if (uri->pin) {
         pin = (CK_UTF8CHAR_PTR)uri->pin;
     } else {
@@ -468,35 +578,19 @@ static CK_RV token_login(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
         };
         ret = pw_cb(cb_pin, sizeof(cb_pin), &cb_pin_len, params, pw_cbarg);
         if (ret != RET_OSSL_OK) {
-            return CKR_GENERAL_ERROR;
+            ret = CKR_GENERAL_ERROR;
+            goto done;
         }
 
         pin = (CK_UTF8CHAR_PTR)cb_pin;
         pinlen = cb_pin_len;
     } else {
-        return CKR_GENERAL_ERROR;
-    }
-
-    ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &s);
-    if (ret != CKR_OK) {
-        P11PROV_raise(provctx, ret, "Failed to open session on slot %lu",
-                      slotid);
+        ret = CKR_GENERAL_ERROR;
         goto done;
     }
 
-    /* Supports only USER login sessions for now */
-    ret = f->C_Login(s, CKU_USER, pin, pinlen);
-    if (ret != CKR_OK && ret != CKR_USER_ALREADY_LOGGED_IN) {
-        int retc;
-        P11PROV_raise(provctx, ret, "Error returned by C_Login");
-        retc = f->C_CloseSession(s);
-        if (retc != CKR_OK) {
-            P11PROV_raise(provctx, retc, "Failed to close session %lu", s);
-        }
-        goto done;
-    }
+    ret = p11prov_session_open(sess, true, pin, pinlen);
 
-    ret = p11prov_ctx_set_login_session(provctx, s);
 done:
     OPENSSL_cleanse(cb_pin, cb_pin_len);
     return ret;
@@ -505,22 +599,15 @@ done:
 CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                           CK_SLOT_ID *next_slotid, P11PROV_URI *uri,
                           OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg,
-                          CK_SESSION_HANDLE *session)
+                          P11PROV_SESSION **session)
 {
-    CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
+    P11PROV_SESSION *sess;
     CK_SLOT_ID id = *slotid;
-    CK_FUNCTION_LIST *f;
     struct p11prov_slot *slots = NULL;
     int nslots = 0;
     int i;
-    CK_RV ret;
+    CK_RV ret = CKR_CANCEL;
 
-    ret = p11prov_ctx_status(provctx, &f);
-    if (ret != CKR_OK) {
-        return ret;
-    }
-
-    ret = CKR_CANCEL;
     nslots = p11prov_ctx_lock_slots(provctx, &slots);
 
     for (i = 0; i < nslots; i++) {
@@ -576,27 +663,14 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
         return ret;
     }
 
-    ret = f->C_OpenSession(id, CKF_SERIAL_SESSION, NULL, NULL, &sess);
+    sess = p11prov_session_new(provctx, id);
+    if (sess == NULL) {
+        return CKR_HOST_MEMORY;
+    }
+    ret = p11prov_session_open(sess, false, NULL, 0);
     if (ret != CKR_OK) {
-        P11PROV_raise(provctx, ret, "Failed to open session on slot %lu", id);
         return ret;
     }
     *session = sess;
     return CKR_OK;
-}
-
-void p11prov_put_session(P11PROV_CTX *provctx, CK_SESSION_HANDLE session)
-{
-    CK_FUNCTION_LIST *f;
-    CK_RV ret;
-
-    ret = p11prov_ctx_status(provctx, &f);
-    if (ret != CKR_OK) {
-        return;
-    }
-
-    ret = f->C_CloseSession(session);
-    if (ret != CKR_OK) {
-        P11PROV_raise(provctx, ret, "Failed to close session %lu", session);
-    }
 }

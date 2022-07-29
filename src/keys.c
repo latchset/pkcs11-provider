@@ -117,7 +117,7 @@ CK_ULONG p11prov_key_size(P11PROV_KEY *key)
     return key->key_size;
 }
 
-static int fetch_rsa_key(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
+static int fetch_rsa_key(CK_FUNCTION_LIST *f, P11PROV_SESSION *session,
                          CK_OBJECT_HANDLE object, P11PROV_KEY *key)
 {
     struct fetch_attrs attrs[2];
@@ -151,7 +151,7 @@ static int fetch_rsa_key(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
     return CKR_OK;
 }
 
-static int fetch_ec_key(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
+static int fetch_ec_key(CK_FUNCTION_LIST *f, P11PROV_SESSION *session,
                         CK_OBJECT_HANDLE object, P11PROV_KEY *key)
 {
     struct fetch_attrs attrs[2];
@@ -221,7 +221,7 @@ static int fetch_ec_key(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
 
 /* TODO: may want to have a hashmap with cached keys */
 static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f, CK_SLOT_ID slotid,
-                                         CK_SESSION_HANDLE session,
+                                         P11PROV_SESSION *session,
                                          CK_OBJECT_HANDLE object)
 {
     P11PROV_KEY *key;
@@ -285,11 +285,12 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f, CK_SLOT_ID slotid,
 
 #define MAX_OBJS_IN_STORE 1024
 
-CK_RV find_keys(P11PROV_CTX *provctx, CK_SESSION_HANDLE session,
+CK_RV find_keys(P11PROV_CTX *provctx, P11PROV_SESSION *session,
                 CK_SLOT_ID slotid, P11PROV_URI *uri, store_key_callback cb,
                 void *cb_ctx)
 {
     CK_FUNCTION_LIST *f;
+    CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
     CK_OBJECT_CLASS class = p11prov_uri_get_class(uri);
     CK_ATTRIBUTE id = p11prov_uri_get_id(uri);
     char *label = p11prov_uri_get_object(uri);
@@ -324,14 +325,16 @@ CK_RV find_keys(P11PROV_CTX *provctx, CK_SESSION_HANDLE session,
         tsize++;
     }
 
-    ret = f->C_FindObjectsInit(session, template, tsize);
+    sess = p11prov_session_handle(session);
+
+    ret = f->C_FindObjectsInit(sess, template, tsize);
     if (ret != CKR_OK) {
         P11PROV_raise(provctx, ret, "Error returned by C_FindObjectsInit");
         return ret;
     }
     for (int idx = 0; idx < MAX_OBJS_IN_STORE; idx += objcount) {
         CK_OBJECT_HANDLE object[64];
-        ret = f->C_FindObjects(session, object, 64, &objcount);
+        ret = f->C_FindObjects(sess, object, 64, &objcount);
         if (ret != CKR_OK || objcount == 0) {
             result = ret;
             break;
@@ -349,7 +352,7 @@ CK_RV find_keys(P11PROV_CTX *provctx, CK_SESSION_HANDLE session,
         }
     }
 
-    ret = f->C_FindObjectsFinal(session);
+    ret = f->C_FindObjectsFinal(sess);
     if (ret != CKR_OK) {
         /* this is not fatal */
         P11PROV_raise(provctx, ret, "Failed to terminate object search");
@@ -359,11 +362,12 @@ CK_RV find_keys(P11PROV_CTX *provctx, CK_SESSION_HANDLE session,
 }
 
 P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
-                                       CK_SESSION_HANDLE session,
+                                       P11PROV_SESSION *session,
                                        bool session_key, unsigned char *secret,
                                        size_t secretlen)
 {
     CK_FUNCTION_LIST *f;
+    CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
     CK_SESSION_INFO session_info;
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
     CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
@@ -382,15 +386,17 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
     unsigned long label_len;
     CK_RV ret;
 
-    P11PROV_debug("keys: create secret key (session:%lu secret:%p[%zu])",
-                  session, secret, secretlen);
+    sess = p11prov_session_handle(session);
+
+    P11PROV_debug("keys: create secret key (session:%ul secret:%p[%zu])", sess,
+                  secret, secretlen);
 
     ret = p11prov_ctx_status(provctx, &f);
     if (ret != CKR_OK) {
         return NULL;
     }
 
-    ret = f->C_GetSessionInfo(session, &session_info);
+    ret = f->C_GetSessionInfo(sess, &session_info);
     if (ret != CKR_OK) {
         P11PROV_raise(provctx, ret, "Error returned by C_GetSessionInfo");
         return NULL;
@@ -400,7 +406,7 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
         return NULL;
     }
 
-    ret = f->C_CreateObject(session, key_template, 5, &key_handle);
+    ret = f->C_CreateObject(sess, key_template, 5, &key_handle);
     if (ret != CKR_OK) {
         P11PROV_raise(provctx, ret,
                       "Error returned by C_CreateObject while creating key");

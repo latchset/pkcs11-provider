@@ -31,7 +31,7 @@ struct p11prov_ctx {
     void *dlhandle;
     CK_FUNCTION_LIST *fns;
 
-    CK_SESSION_HANDLE login_session;
+    P11PROV_SESSION *login_session;
 
     int nslots;
     struct p11prov_slot *slots;
@@ -103,8 +103,7 @@ CK_UTF8CHAR_PTR p11prov_ctx_pin(P11PROV_CTX *ctx)
 }
 
 /* the login_session functions must be called under lock */
-CK_RV p11prov_ctx_get_login_session(P11PROV_CTX *ctx,
-                                    CK_SESSION_HANDLE *session)
+CK_RV p11prov_ctx_get_login_session(P11PROV_CTX *ctx, P11PROV_SESSION **session)
 {
     if (!ctx->is_locked) {
         /* called without mutex held */
@@ -117,7 +116,7 @@ CK_RV p11prov_ctx_get_login_session(P11PROV_CTX *ctx,
     return CKR_OK;
 }
 
-CK_RV p11prov_ctx_set_login_session(P11PROV_CTX *ctx, CK_SESSION_HANDLE session)
+CK_RV p11prov_ctx_set_login_session(P11PROV_CTX *ctx, P11PROV_SESSION *session)
 {
     if (!ctx->is_locked) {
         /* called without mutex held */
@@ -126,8 +125,8 @@ CK_RV p11prov_ctx_set_login_session(P11PROV_CTX *ctx, CK_SESSION_HANDLE session)
         return CKR_MUTEX_NOT_LOCKED;
     }
 
-    if (ctx->login_session != CK_INVALID_HANDLE) {
-        (void)ctx->fns->C_CloseSession(ctx->login_session);
+    if (ctx->login_session) {
+        p11prov_session_free(ctx->login_session);
     }
 
     ctx->login_session = session;
@@ -144,8 +143,8 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
     OSSL_LIB_CTX_free(ctx->libctx);
 
     /* TODO: C_CloseAllSessions ? */
-    if (ctx->login_session != CK_INVALID_HANDLE) {
-        (void)ctx->fns->C_CloseSession(ctx->login_session);
+    if (ctx->login_session) {
+        p11prov_session_free(ctx->login_session);
     }
 
     if (ctx->dlhandle) {

@@ -136,7 +136,8 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
     CK_FUNCTION_LIST *f;
     CK_MECHANISM mechanism;
-    CK_SESSION_HANDLE session;
+    P11PROV_SESSION *session;
+    CK_SESSION_HANDLE sess;
     CK_SLOT_ID slotid;
     CK_OBJECT_HANDLE handle;
     CK_ULONG out_size = *outlen;
@@ -177,14 +178,16 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
         return RET_OSSL_ERR;
     }
 
-    ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
+    ret = p11prov_get_session(encctx->provctx, &slotid, NULL, NULL, NULL, NULL,
+                              &session);
     if (ret != CKR_OK) {
         P11PROV_raise(encctx->provctx, ret,
                       "Failed to open session on slot %lu", slotid);
         return RET_OSSL_ERR;
     }
+    sess = p11prov_session_handle(session);
 
-    ret = f->C_EncryptInit(session, &mechanism, handle);
+    ret = f->C_EncryptInit(sess, &mechanism, handle);
     if (ret != CKR_OK) {
         P11PROV_raise(encctx->provctx, ret, "Error returned by C_EncryptInit");
         if (ret == CKR_MECHANISM_INVALID
@@ -194,7 +197,7 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
         goto endsess;
     }
 
-    ret = f->C_Encrypt(session, (void *)in, inlen, out, &out_size);
+    ret = f->C_Encrypt(sess, (void *)in, inlen, out, &out_size);
     if (ret != CKR_OK) {
         P11PROV_raise(encctx->provctx, ret, "Error returned by C_Encrypt");
         goto endsess;
@@ -204,12 +207,7 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
     result = RET_OSSL_OK;
 
 endsess:
-    ret = f->C_CloseSession(session);
-    if (ret != CKR_OK) {
-        P11PROV_raise(encctx->provctx, ret, "Failed to close session %lu",
-                      session);
-    }
-
+    p11prov_session_free(session);
     return result;
 }
 
@@ -243,7 +241,8 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
     CK_FUNCTION_LIST *f;
     CK_MECHANISM mechanism;
-    CK_SESSION_HANDLE session;
+    P11PROV_SESSION *session;
+    CK_SESSION_HANDLE sess;
     CK_SLOT_ID slotid;
     CK_OBJECT_HANDLE handle;
     CK_ULONG out_size = *outlen;
@@ -284,14 +283,16 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
         return RET_OSSL_ERR;
     }
 
-    ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
+    ret = p11prov_get_session(encctx->provctx, &slotid, NULL, NULL, NULL, NULL,
+                              &session);
     if (ret != CKR_OK) {
         P11PROV_raise(encctx->provctx, ret,
                       "Failed to open session on slot %lu", slotid);
         return RET_OSSL_ERR;
     }
+    sess = p11prov_session_handle(session);
 
-    ret = f->C_DecryptInit(session, &mechanism, handle);
+    ret = f->C_DecryptInit(sess, &mechanism, handle);
     if (ret != CKR_OK) {
         P11PROV_raise(encctx->provctx, ret, "Error returned by C_DecryptInit");
         if (ret == CKR_MECHANISM_INVALID
@@ -301,7 +302,7 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
         goto endsess;
     }
 
-    ret = f->C_Decrypt(session, (void *)in, inlen, out, &out_size);
+    ret = f->C_Decrypt(sess, (void *)in, inlen, out, &out_size);
     if (ret != CKR_OK) {
         P11PROV_raise(encctx->provctx, ret, "Error returned by C_Decrypt");
         goto endsess;
@@ -311,12 +312,7 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     result = RET_OSSL_OK;
 
 endsess:
-    ret = f->C_CloseSession(session);
-    if (ret != CKR_OK) {
-        P11PROV_raise(encctx->provctx, ret, "Failed to close session %lu",
-                      session);
-    }
-
+    p11prov_session_free(session);
     return result;
 }
 

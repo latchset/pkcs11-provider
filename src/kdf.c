@@ -14,7 +14,7 @@ struct p11prov_kdf_ctx {
 
     CK_HKDF_PARAMS params;
 
-    CK_SESSION_HANDLE session;
+    P11PROV_SESSION *session;
 };
 typedef struct p11prov_kdf_ctx P11PROV_KDF_CTX;
 
@@ -107,8 +107,9 @@ static void p11prov_hkdf_reset(void *ctx)
 
     /* free all allocated resources */
     p11prov_key_free(hkdfctx->key);
-    if (hkdfctx->session != CK_INVALID_HANDLE) {
-        p11prov_put_session(hkdfctx->provctx, hkdfctx->session);
+    if (hkdfctx->session) {
+        p11prov_session_free(hkdfctx->session);
+        hkdfctx->session = NULL;
     }
 
     OPENSSL_cleanse(hkdfctx->params.pSalt, hkdfctx->params.ulSaltLen);
@@ -142,6 +143,7 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
     CK_MECHANISM mechanism;
     CK_OBJECT_HANDLE pkey_handle;
     CK_OBJECT_HANDLE dkey_handle;
+    CK_SESSION_HANDLE session;
     int ret = RET_OSSL_ERR;
 
     ret = p11prov_ctx_status(hkdfctx->provctx, &f);
@@ -178,8 +180,13 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
         hkdfctx->params.ulSaltType = CKF_HKDF_SALT_NULL;
     }
 
-    ret = f->C_DeriveKey(hkdfctx->session, &mechanism, pkey_handle,
-                         key_template, 5, &dkey_handle);
+    session = p11prov_session_handle(hkdfctx->session);
+    if (session == CK_INVALID_HANDLE) {
+        return RET_OSSL_ERR;
+    }
+
+    ret = f->C_DeriveKey(session, &mechanism, pkey_handle, key_template, 5,
+                         &dkey_handle);
     if (ret == CKR_OK) {
         unsigned long dkey_len;
         P11PROV_debug("HKDF derived hey handle: %lu", dkey_handle);
@@ -282,15 +289,14 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         }
 
         /* Create Session  and key from key material */
-
-        if (hkdfctx->session == CK_INVALID_HANDLE) {
+        if (hkdfctx->session == NULL) {
             ret = p11prov_get_session(hkdfctx->provctx, &slotid, NULL, NULL,
                                       NULL, NULL, &hkdfctx->session);
             if (ret != CKR_OK) {
                 return RET_OSSL_ERR;
             }
         }
-        if (hkdfctx->session == CK_INVALID_HANDLE) {
+        if (hkdfctx->session == NULL) {
             return RET_OSSL_ERR;
         }
 

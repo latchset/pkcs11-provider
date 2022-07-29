@@ -42,6 +42,7 @@ typedef struct p11prov_ctx P11PROV_CTX;
 typedef struct p11prov_key P11PROV_KEY;
 typedef struct p11prov_uri P11PROV_URI;
 typedef struct p11prov_obj P11PROV_OBJ;
+typedef struct p11prov_session P11PROV_SESSION;
 
 struct p11prov_slot {
     CK_SLOT_ID id;
@@ -59,9 +60,8 @@ int p11prov_ctx_lock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
 void p11prov_ctx_unlock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
 /* the login_session functions must be called under lock */
 CK_RV p11prov_ctx_get_login_session(P11PROV_CTX *ctx,
-                                    CK_SESSION_HANDLE *session);
-CK_RV p11prov_ctx_set_login_session(P11PROV_CTX *ctx,
-                                    CK_SESSION_HANDLE session);
+                                    P11PROV_SESSION **session);
+CK_RV p11prov_ctx_set_login_session(P11PROV_CTX *ctx, P11PROV_SESSION *session);
 
 /* Errors */
 void p11prov_raise(P11PROV_CTX *ctx, const char *file, int line,
@@ -113,11 +113,11 @@ CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key);
 CK_ULONG p11prov_key_size(P11PROV_KEY *key);
 
 typedef CK_RV (*store_key_callback)(void *, CK_OBJECT_CLASS, P11PROV_KEY *);
-CK_RV find_keys(P11PROV_CTX *provctx, CK_SESSION_HANDLE session,
+CK_RV find_keys(P11PROV_CTX *provctx, P11PROV_SESSION *session,
                 CK_SLOT_ID slotid, P11PROV_URI *uri, store_key_callback cb,
                 void *cb_ctx);
 P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
-                                       CK_SESSION_HANDLE session,
+                                       P11PROV_SESSION *session,
                                        bool session_key, unsigned char *secret,
                                        size_t secretlen);
 
@@ -249,7 +249,7 @@ struct fetch_attrs {
         x.ulValueLen = _c; \
     } while (0)
 
-int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
+int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, P11PROV_SESSION *session,
                              CK_OBJECT_HANDLE object, struct fetch_attrs *attrs,
                              unsigned long attrnums);
 
@@ -260,9 +260,15 @@ CK_OBJECT_CLASS p11prov_uri_get_class(P11PROV_URI *uri);
 CK_ATTRIBUTE p11prov_uri_get_id(P11PROV_URI *uri);
 char *p11prov_uri_get_object(P11PROV_URI *uri);
 int p11prov_get_pin(const char *in, char **out);
+
+P11PROV_SESSION *p11prov_session_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid);
+P11PROV_SESSION *p11prov_session_ref(P11PROV_SESSION *session);
+CK_RV p11prov_session_open(P11PROV_SESSION *session, bool login,
+                           CK_UTF8CHAR_PTR pin, CK_ULONG pinlen);
+void p11prov_session_free(P11PROV_SESSION *session);
+CK_SESSION_HANDLE p11prov_session_handle(P11PROV_SESSION *session);
 CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                           CK_SLOT_ID *next_slotid, P11PROV_URI *uri,
                           OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg,
-                          CK_SESSION_HANDLE *session);
-void p11prov_put_session(P11PROV_CTX *provctx, CK_SESSION_HANDLE session);
+                          P11PROV_SESSION **session);
 #endif /* _PROVIDER_H */
