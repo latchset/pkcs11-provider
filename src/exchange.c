@@ -237,6 +237,7 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     };
     CK_FUNCTION_LIST *f;
     CK_MECHANISM mechanism;
+    P11PROV_SESSION *sess;
     CK_SESSION_HANDLE session;
     CK_OBJECT_HANDLE handle;
     CK_OBJECT_HANDLE secret_handle;
@@ -304,12 +305,14 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
         return RET_OSSL_ERR;
     }
 
-    ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
+    ret = p11prov_get_session(ecdhctx->provctx, &slotid, NULL, NULL, NULL, NULL,
+                              &sess);
     if (ret != CKR_OK) {
         P11PROV_raise(ecdhctx->provctx, ret,
                       "Failed to open session on slot %lu", slotid);
         return ret;
     }
+    session = p11prov_session_handle(sess);
 
     ret = f->C_DeriveKey(session, &mechanism, handle, key_template, 5,
                          &secret_handle);
@@ -319,7 +322,7 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
         struct fetch_attrs attrs[1] = {
             { CKA_VALUE, &secret, &secret_len, false, true },
         };
-        ret = p11prov_fetch_attributes(f, session, secret_handle, attrs, 1);
+        ret = p11prov_fetch_attributes(f, sess, secret_handle, attrs, 1);
         if (ret != CKR_OK) {
             P11PROV_debug("ecdh failed to retrieve secret %lu", ret);
         }
@@ -330,12 +333,7 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
         result = RET_OSSL_ERR;
     }
 
-    ret = f->C_CloseSession(session);
-    if (ret != CKR_OK) {
-        P11PROV_raise(ecdhctx->provctx, ret, "Failed to close session %lu",
-                      session);
-    }
-
+    p11prov_session_free(sess);
     return result;
 }
 

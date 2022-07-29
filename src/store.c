@@ -180,7 +180,7 @@ struct p11prov_store_ctx {
     char *properties;
     char *input_type;
 
-    CK_SESSION_HANDLE session;
+    P11PROV_SESSION *session;
 
     int loaded;
 
@@ -198,12 +198,8 @@ static void p11prov_store_ctx_free(struct p11prov_store_ctx *ctx)
         return;
     }
 
-    if (ctx->session != CK_INVALID_HANDLE) {
-        CK_FUNCTION_LIST_PTR f;
-        CK_RV ret = p11prov_ctx_status(ctx->provctx, &f);
-        if (ret == CKR_OK) {
-            (void)f->C_CloseSession(ctx->session);
-        }
+    if (ctx->session != NULL) {
+        p11prov_session_free(ctx->session);
     }
 
     p11prov_uri_free(ctx->parsed_uri);
@@ -264,8 +260,8 @@ static void store_load(struct p11prov_store_ctx *ctx,
     do {
         nextid = CK_UNAVAILABLE_INFORMATION;
 
-        if (ctx->session != CK_INVALID_HANDLE) {
-            p11prov_put_session(ctx->provctx, ctx->session);
+        if (ctx->session != NULL) {
+            p11prov_session_free(ctx->session);
         }
 
         ret =
