@@ -92,7 +92,8 @@ CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key);
 CK_ULONG p11prov_key_size(P11PROV_KEY *key);
 
 int find_keys(P11PROV_CTX *provctx, P11PROV_KEY **priv, P11PROV_KEY **pub,
-              CK_SLOT_ID slotid, CK_OBJECT_CLASS class, P11PROV_URI *uri);
+              CK_SESSION_HANDLE session, CK_SLOT_ID slotid,
+              CK_OBJECT_CLASS class, P11PROV_URI *uri);
 P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        CK_SESSION_HANDLE session,
                                        bool session_key, unsigned char *secret,
