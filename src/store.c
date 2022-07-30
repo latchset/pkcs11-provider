@@ -254,8 +254,8 @@ static void store_load(struct p11prov_store_ctx *ctx,
             P11PROV_KEY *pub_key = NULL;
             CK_RV ret;
 
-            ret = find_keys(ctx->provctx, &priv_key, &pub_key, slotid, class,
-                            ctx->parsed_uri);
+            ret = find_keys(ctx->provctx, &priv_key, &pub_key, ctx->session,
+                            slotid, class, ctx->parsed_uri);
             if (ret == CKR_OK) {
                 /* new object */
                 P11PROV_OBJ *obj;

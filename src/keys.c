@@ -285,10 +285,10 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f, CK_SLOT_ID slotid,
 }
 
 int find_keys(P11PROV_CTX *provctx, P11PROV_KEY **priv, P11PROV_KEY **pub,
-              CK_SLOT_ID slotid, CK_OBJECT_CLASS class, P11PROV_URI *uri)
+              CK_SESSION_HANDLE session, CK_SLOT_ID slotid,
+              CK_OBJECT_CLASS class, P11PROV_URI *uri)
 {
     CK_FUNCTION_LIST *f = p11prov_ctx_fns(provctx);
-    CK_SESSION_HANDLE session;
     CK_ATTRIBUTE id = p11prov_uri_get_id(uri);
     char *label = p11prov_uri_get_object(uri);
     CK_ATTRIBUTE template[3] = {
@@ -306,13 +306,6 @@ int find_keys(P11PROV_CTX *provctx, P11PROV_KEY **priv, P11PROV_KEY **pub,
 
     if (f == NULL) {
         return result;
-    }
-
-    ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
-    if (ret != CKR_OK) {
-        P11PROV_raise(provctx, ret, "Failed to open session on slot %lu",
-                      slotid);
-        return ret;
     }
 
     if (id.type == CKA_ID) {
@@ -370,11 +363,6 @@ again:
         }
     } else {
         P11PROV_raise(provctx, ret, "Error returned by C_FindObjectsInit");
-    }
-
-    ret = f->C_CloseSession(session);
-    if (ret != CKR_OK) {
-        P11PROV_raise(provctx, ret, "Failed to close session %lu", session);
     }
 
     if (result == CKR_OK) {
