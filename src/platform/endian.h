@@ -156,4 +156,6 @@
 #endif /* WORDS_BIGENDIAN */
 #endif /* !htobe64 */
 
+void byteswap_buf(unsigned char *src, unsigned char *dest, size_t len);
+
 #endif /* _P11PROV_ENDIAN_H */

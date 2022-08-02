@@ -4,6 +4,7 @@
 #include "provider.h"
 #include <openssl/store.h>
 #include "platform/endian.h"
+#include <string.h>
 
 struct p11prov_obj {
     CK_OBJECT_CLASS class;
@@ -14,8 +15,8 @@ struct p11prov_obj {
     int refcnt;
 };
 
-static CK_RV p11prov_object_new(P11PROV_CTX *ctx, CK_OBJECT_CLASS class,
-                                P11PROV_KEY *key, P11PROV_OBJ **object)
+CK_RV p11prov_object_new(P11PROV_CTX *ctx, CK_OBJECT_CLASS class,
+                         P11PROV_KEY *key, P11PROV_OBJ **object)
 {
     P11PROV_OBJ *obj;
 
@@ -98,27 +99,11 @@ P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj, CK_OBJECT_CLASS class)
  * endianess of the buffer.
  * Src and Dest, can be the same area, but not partially
  * overlapping memory areas */
-static void endianfix(unsigned char *src, unsigned char *dest, size_t len)
-{
-    int s = 0;
-    int e = len - 1;
-    unsigned char sb;
-    unsigned char eb;
-
-    while (e >= s) {
-        sb = src[s];
-        eb = src[e];
-        dest[s] = eb;
-        dest[e] = sb;
-        s++;
-        e--;
-    }
-}
 
 #if BYTE_ORDER == LITTLE_ENDIAN
 #define WITH_FIXED_BUFFER(src, ptr) \
     unsigned char fix_##src[src->ulValueLen]; \
-    endianfix(src->pValue, fix_##src, src->ulValueLen); \
+    byteswap_buf(src->pValue, fix_##src, src->ulValueLen); \
     ptr = fix_##src;
 #else
 #define WITH_FIXED_BUFFER(src, ptr) ptr = src->pValue;
@@ -365,13 +350,42 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
         store_load(ctx, pw_cb, pw_cbarg);
     }
 
-    if (ctx->loaded != 1 || ctx->fetched >= ctx->num_objs) {
+    if (ctx->loaded != 1) {
         return RET_OSSL_ERR;
     }
 
-    /* FIXME: fetch next object with filters as set by openssl */
-    obj = ctx->objects[ctx->fetched];
-    ctx->fetched++;
+    while (ctx->fetched <= ctx->num_objs) {
+        obj = ctx->objects[ctx->fetched];
+        ctx->fetched++;
+
+        /* Supported search types in OSSL_STORE_SEARCH(3) */
+        switch (obj->class) {
+        case CKO_CERTIFICATE:
+            /* ctx->subject */
+            /* ctx->issuer */
+            /* ctx->serial */
+            break;
+        case CKO_PUBLIC_KEY:
+        case CKO_PRIVATE_KEY:
+            /* ctx->digest */
+            /* ctx->fingerprint */
+            if (ctx->alias) {
+                CK_ATTRIBUTE *label;
+                label = p11prov_key_attr(obj->data.key, CKA_LABEL);
+                if (!label || strcmp(ctx->alias, label->pValue) != 0) {
+                    continue;
+                }
+            }
+            break;
+        default:
+            continue;
+        }
+        break;
+    }
+
+    if (ctx->fetched > ctx->num_objs) {
+        return RET_OSSL_ERR;
+    }
 
     switch (obj->class) {
     case CKO_PUBLIC_KEY:
