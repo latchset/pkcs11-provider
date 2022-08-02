@@ -5,6 +5,7 @@
 #include "provider.h"
 #include <string.h>
 #include <time.h>
+#include "platform/endian.h"
 
 CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                                CK_OBJECT_HANDLE object,
@@ -481,4 +482,25 @@ bool cyclewait_with_timeout(uint64_t max_wait, uint64_t interval,
     }
 
     return true;
+}
+
+void byteswap_buf(unsigned char *src, unsigned char *dest, size_t len)
+{
+#if BYTE_ORDER == LITTLE_ENDIAN
+    int s = 0;
+    int e = len - 1;
+    unsigned char sb;
+    unsigned char eb;
+
+    while (e >= s) {
+        sb = src[s];
+        eb = src[e];
+        dest[s] = eb;
+        dest[e] = sb;
+        s++;
+        e--;
+    }
+#else
+    memmove(dest, src, len);
+#endif
 }

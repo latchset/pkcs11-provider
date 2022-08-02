@@ -605,7 +605,7 @@ static int p11prov_exch_hkdf_init(void *ctx, void *provobj,
         return RET_OSSL_ERR;
     }
 
-    if (provobj != &p11prov_hkdfkm_static_ctx) {
+    if (provobj != &p11prov_hkdf_static_ctx) {
         p11prov_key_free(hkdfctx->key);
         hkdfctx->key = p11prov_object_get_key(obj, CKO_PRIVATE_KEY);
         if (hkdfctx->key == NULL) {

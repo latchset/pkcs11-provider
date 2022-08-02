@@ -30,6 +30,8 @@
 #define P11PROV_DEFAULT_PROPERTIES "provider=pkcs11"
 #define P11PROV_NAMES_RSA "PKCS11-RSA"
 #define P11PROV_DESCS_RSA "PKCS11 RSA Implementation"
+#define P11PROV_NAMES_EC "PKCS11-EC"
+#define P11PROV_DESCS_EC "PKCS11 EC Implementation"
 #define P11PROV_NAMES_ECDSA "PKCS11-ECDSA"
 #define P11PROV_DESCS_ECDSA "PKCS11 ECDSA Implementation"
 #define P11PROV_NAMES_ECDH "PKCS11-ECDH"
@@ -37,6 +39,9 @@
 #define P11PROV_NAMES_HKDF "PKCS11-HKDF"
 #define P11PROV_DESCS_HKDF "PKCS11 HKDF Implementation"
 #define P11PROV_DESCS_URI "PKCS11 URI Store"
+
+#define P11PROV_PARAM_KEY_LABEL "pkcs11_key_label"
+#define P11PROV_PARAM_KEY_ID "pkcs11_key_id"
 
 typedef struct p11prov_ctx P11PROV_CTX;
 typedef struct p11prov_key P11PROV_KEY;
@@ -120,6 +125,9 @@ CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key);
 CK_ULONG p11prov_key_size(P11PROV_KEY *key);
 
 typedef CK_RV (*store_key_callback)(void *, CK_OBJECT_CLASS, P11PROV_KEY *);
+P11PROV_KEY *p11prov_object_handle_to_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
+                                          P11PROV_SESSION *session,
+                                          CK_OBJECT_HANDLE object);
 CK_RV find_keys(P11PROV_CTX *provctx, P11PROV_SESSION *session,
                 CK_SLOT_ID slotid, P11PROV_URI *uri, store_key_callback cb,
                 void *cb_ctx);
@@ -133,6 +141,8 @@ CK_RV p11prov_derive_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                          P11PROV_SESSION **session, CK_OBJECT_HANDLE *key);
 
 /* Object Store */
+CK_RV p11prov_object_new(P11PROV_CTX *ctx, CK_OBJECT_CLASS class,
+                         P11PROV_KEY *key, P11PROV_OBJ **object);
 void p11prov_object_free(P11PROV_OBJ *obj);
 bool p11prov_object_check_key(P11PROV_OBJ *obj, bool priv);
 P11PROV_OBJ *p11prov_obj_from_reference(const void *reference,
@@ -145,29 +155,15 @@ P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj, CK_OBJECT_CLASS class);
 #define DECL_DISPATCH_FUNC(type, prefix, name) \
     static OSSL_FUNC_##type##_##name##_fn prefix##_##name
 
-/* rsa keymgmt */
-#define DISPATCH_RSAKM_FN(name) DECL_DISPATCH_FUNC(keymgmt, p11prov_rsakm, name)
-#define DISPATCH_RSAKM_ELEM(NAME, name) \
+/* keymgmt */
+#define DISPATCH_KEYMGMT_FN(type, name) \
+    DECL_DISPATCH_FUNC(keymgmt, p11prov_##type, name)
+#define DISPATCH_KEYMGMT_ELEM(type, NAME, name) \
     { \
-        OSSL_FUNC_KEYMGMT_##NAME, (void (*)(void))p11prov_rsakm_##name \
+        OSSL_FUNC_KEYMGMT_##NAME, (void (*)(void))p11prov_##type##_##name \
     }
 extern const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[];
-
-/* ecdsa keymgmt */
-#define DISPATCH_ECKM_FN(name) DECL_DISPATCH_FUNC(keymgmt, p11prov_eckm, name)
-#define DISPATCH_ECKM_ELEM(NAME, name) \
-    { \
-        OSSL_FUNC_KEYMGMT_##NAME, (void (*)(void))p11prov_eckm_##name \
-    }
 extern const OSSL_DISPATCH p11prov_ecdsa_keymgmt_functions[];
-
-/* hkdf keymgmt */
-#define DISPATCH_HKDFKM_FN(name) \
-    DECL_DISPATCH_FUNC(keymgmt, p11prov_hkdfkm, name)
-#define DISPATCH_HKDFKM_ELEM(NAME, name) \
-    { \
-        OSSL_FUNC_KEYMGMT_##NAME, (void (*)(void))p11prov_hkdfkm_##name \
-    }
 extern const OSSL_DISPATCH p11prov_hkdf_keymgmt_functions[];
 
 #define DISPATCH_STORE_FN(name) DECL_DISPATCH_FUNC(store, p11prov_store, name)
@@ -224,7 +220,7 @@ extern const OSSL_DISPATCH p11prov_hkdf_exchange_functions[];
     { \
         OSSL_FUNC_KDF_##NAME, (void (*)(void))p11prov_##prefix##_##name \
     }
-extern const void *p11prov_hkdfkm_static_ctx;
+extern const void *p11prov_hkdf_static_ctx;
 extern const OSSL_DISPATCH p11prov_hkdf_kdf_functions[];
 
 /* Utilities to fetch objects from tokens */
