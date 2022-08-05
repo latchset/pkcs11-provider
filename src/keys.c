@@ -151,13 +151,14 @@ static int fetch_rsa_key(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
     return CKR_OK;
 }
 
-static int fetch_ec_public_key(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
-                               CK_OBJECT_HANDLE object, P11PROV_KEY *key)
+static int fetch_ec_key(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
+                        CK_OBJECT_HANDLE object, P11PROV_KEY *key)
 {
     struct fetch_attrs attrs[2];
     unsigned long params_len = 0, point_len = 0;
     CK_BYTE *params = NULL, *point = NULL;
     size_t n_bytes = 0;
+    int n;
     int ret;
 
     key->attrs = OPENSSL_zalloc(2 * sizeof(CK_ATTRIBUTE));
@@ -165,9 +166,14 @@ static int fetch_ec_public_key(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
         return CKR_HOST_MEMORY;
     }
 
-    FA_ASSIGN_ALL(attrs[0], CKA_EC_PARAMS, &params, &params_len, true, true);
-    FA_ASSIGN_ALL(attrs[1], CKA_EC_POINT, &point, &point_len, true, true);
-    ret = p11prov_fetch_attributes(f, session, object, attrs, 2);
+    n = 0;
+    FA_ASSIGN_ALL(attrs[n], CKA_EC_PARAMS, &params, &params_len, true, true);
+    n++;
+    if (key->class == CKO_PUBLIC_KEY) {
+        FA_ASSIGN_ALL(attrs[n], CKA_EC_POINT, &point, &point_len, true, true);
+        n++;
+    }
+    ret = p11prov_fetch_attributes(f, session, object, attrs, n);
     if (ret != CKR_OK) {
         /* free any allocated memory */
         OPENSSL_free(params);
@@ -206,8 +212,10 @@ static int fetch_ec_public_key(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
 
     key->key_size = n_bytes;
     CKATTR_ASSIGN_ALL(key->attrs[0], CKA_EC_PARAMS, params, params_len);
-    CKATTR_ASSIGN_ALL(key->attrs[1], CKA_EC_POINT, point, point_len);
-    key->numattrs = 2;
+    if (n > 1) {
+        CKATTR_ASSIGN_ALL(key->attrs[1], CKA_EC_POINT, point, point_len);
+    }
+    key->numattrs = n;
     return CKR_OK;
 }
 
@@ -259,11 +267,7 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f, CK_SLOT_ID slotid,
         }
         break;
     case CKK_EC:
-        if (key->class == CKO_PRIVATE_KEY) {
-            /* no params to fetch */
-            break;
-        }
-        ret = fetch_ec_public_key(f, session, object, key);
+        ret = fetch_ec_key(f, session, object, key);
         if (ret != CKR_OK) {
             p11prov_key_free(key);
             return NULL;

@@ -79,7 +79,7 @@ bool p11prov_object_check_key(P11PROV_OBJ *obj, bool priv)
     if (priv) {
         return obj->class == CKO_PRIVATE_KEY;
     }
-    return obj->class == CKO_PRIVATE_KEY;
+    return obj->class == CKO_PUBLIC_KEY;
 }
 
 P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj, CK_OBJECT_CLASS class)
