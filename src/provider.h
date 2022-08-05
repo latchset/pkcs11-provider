@@ -91,9 +91,10 @@ CK_SLOT_ID p11prov_key_slotid(P11PROV_KEY *key);
 CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key);
 CK_ULONG p11prov_key_size(P11PROV_KEY *key);
 
-int find_keys(P11PROV_CTX *provctx, P11PROV_KEY **priv, P11PROV_KEY **pub,
-              CK_SESSION_HANDLE session, CK_SLOT_ID slotid,
-              CK_OBJECT_CLASS class, P11PROV_URI *uri);
+typedef CK_RV (*store_key_callback)(void *, CK_OBJECT_CLASS, P11PROV_KEY *);
+CK_RV find_keys(P11PROV_CTX *provctx, CK_SESSION_HANDLE session,
+                CK_SLOT_ID slotid, P11PROV_URI *uri, store_key_callback cb,
+                void *cb_ctx);
 P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        CK_SESSION_HANDLE session,
                                        bool session_key, unsigned char *secret,
@@ -106,7 +107,7 @@ P11PROV_OBJ *p11prov_obj_from_reference(const void *reference,
                                         size_t reference_sz);
 int p11prov_object_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
                                          void *cb_arg);
-P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj, bool priv);
+P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj, CK_OBJECT_CLASS class);
 
 /* dispatching */
 #define DECL_DISPATCH_FUNC(type, prefix, name) \
@@ -198,8 +199,8 @@ extern const OSSL_DISPATCH p11prov_hkdf_kdf_functions[];
 
 struct fetch_attrs {
     CK_ATTRIBUTE_TYPE type;
-    unsigned char **value;
-    unsigned long *value_len;
+    CK_BYTE **value;
+    CK_ULONG *value_len;
     bool allocate;
     bool required;
 };

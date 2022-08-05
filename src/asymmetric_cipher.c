@@ -115,10 +115,7 @@ static int p11prov_rsaenc_encrypt_init(void *ctx, void *provkey,
     p11prov_debug("encrypt init (ctx=%p, key=%p, params=%p)\n", ctx, provkey,
                   params);
 
-    encctx->key = p11prov_object_get_key(obj, false);
-    if (encctx->key == NULL) {
-        encctx->key = p11prov_object_get_key(obj, true);
-    }
+    encctx->key = p11prov_object_get_key(obj, 0);
     if (encctx->key == NULL) {
         return RET_OSSL_ERR;
     }
@@ -219,7 +216,7 @@ static int p11prov_rsaenc_decrypt_init(void *ctx, void *provkey,
     p11prov_debug("encrypt init (ctx=%p, key=%p, params=%p)\n", ctx, provkey,
                   params);
 
-    encctx->key = p11prov_object_get_key(obj, true);
+    encctx->key = p11prov_object_get_key(obj, CKO_PRIVATE_KEY);
     if (encctx->key == NULL) {
         return RET_OSSL_ERR;
     }

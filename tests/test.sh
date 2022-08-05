@@ -243,14 +243,10 @@ fi
 title PARA "Sign and Verify with provided Hash and RSA"
 ossl 'dgst -sha256 -binary -out ${TMPDIR}/sha256.bin ${SEEDFILE}'
 ossl '
-pkeyutl -sign -inkey "${BASEURI}"
+pkeyutl -sign -inkey "${PRIURI}"
               -in ${TMPDIR}/sha256.bin
               -out ${TMPDIR}/sha256-sig.bin'
 
-ossl '
-pkeyutl -verify -inkey "${PRIURI}"
-                -in ${TMPDIR}/sha256.bin
-                -sigfile ${TMPDIR}/sha256-sig.bin'
 ossl '
 pkeyutl -verify -inkey "${PUBURI}"
                 -pubin
@@ -264,7 +260,7 @@ pkeyutl -sign -inkey "${ECBASEURI}"
               -out ${TMPDIR}/sha256-ecsig.bin'
 
 ossl '
-pkeyutl -verify -inkey "${ECBASEURI}"
+pkeyutl -verify -inkey "${ECBASEURI}" -pubin
                 -in ${TMPDIR}/sha256.bin
                 -sigfile ${TMPDIR}/sha256-ecsig.bin'
 
@@ -278,7 +274,7 @@ pkeyutl -sign -inkey "${BASEURI}"
               -rawin
               -out ${TMPDIR}/sha256-dgstsig.bin'
 ossl '
-pkeyutl -verify -inkey "${BASEURI}"
+pkeyutl -verify -inkey "${BASEURI}" -pubin
                 -digest sha256
                 -in ${TMPDIR}/64krandom.bin
                 -rawin
@@ -302,7 +298,7 @@ pkeyutl -sign -inkey "${BASEURI}"
               -rawin
               -out ${TMPDIR}/sha256-dgstsig.bin'
 ossl '
-pkeyutl -verify -inkey "${BASEURI}"
+pkeyutl -verify -inkey "${BASEURI}" -pubin
                 -digest sha256
                 -pkeyopt pad-mode:pss
                 -pkeyopt mgf1-digest:sha256
@@ -331,7 +327,7 @@ pkeyutl -sign -inkey "${ECBASEURI}"
               -rawin
               -out ${TMPDIR}/sha256-ecdgstsig.bin'
 ossl '
-pkeyutl -verify -inkey "${ECBASEURI}"
+pkeyutl -verify -inkey "${ECBASEURI}" -pubin
                 -digest sha256
                 -in ${TMPDIR}/64krandom.bin
                 -rawin
@@ -359,7 +355,7 @@ diff ${TMPDIR}/secret.txt ${TMPDIR}/secret.txt.dec
 
 title LINE "Now again all in the token"
 ossl '
-pkeyutl -encrypt -inkey "${PRIURI}"
+pkeyutl -encrypt -inkey "${PUBURI}" -pubin
                  -in ${TMPDIR}/secret.txt
                  -out ${TMPDIR}/secret.txt.enc2'
 ossl '

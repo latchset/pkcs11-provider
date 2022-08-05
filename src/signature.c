@@ -10,8 +10,7 @@ struct p11prov_sig_ctx {
     P11PROV_CTX *provctx;
     char *properties;
 
-    P11PROV_KEY *priv_key;
-    P11PROV_KEY *pub_key;
+    P11PROV_KEY *key;
 
     CK_MECHANISM_TYPE mechtype;
     CK_MECHANISM_TYPE digest;
@@ -79,8 +78,7 @@ static void *p11prov_sig_dupctx(void *ctx)
         return NULL;
     }
 
-    newctx->priv_key = p11prov_key_ref(sigctx->priv_key);
-    newctx->pub_key = p11prov_key_ref(sigctx->pub_key);
+    newctx->key = p11prov_key_ref(sigctx->key);
     newctx->mechtype = sigctx->mechtype;
     newctx->digest = sigctx->digest;
     newctx->pss_params = sigctx->pss_params;
@@ -100,12 +98,9 @@ static void *p11prov_sig_dupctx(void *ctx)
 
     switch (sigctx->operation) {
     case CKF_SIGN:
-        slotid = p11prov_key_slotid(sigctx->priv_key);
-        handle = p11prov_key_handle(newctx->priv_key);
-        break;
     case CKF_VERIFY:
-        slotid = p11prov_key_slotid(sigctx->pub_key);
-        handle = p11prov_key_handle(newctx->pub_key);
+        slotid = p11prov_key_slotid(sigctx->key);
+        handle = p11prov_key_handle(newctx->key);
         break;
     default:
         p11prov_sig_freectx(newctx);
@@ -174,8 +169,7 @@ static void p11prov_sig_freectx(void *ctx)
         }
     }
 
-    p11prov_key_free(sigctx->priv_key);
-    p11prov_key_free(sigctx->pub_key);
+    p11prov_key_free(sigctx->key);
     OPENSSL_free(sigctx->properties);
     OPENSSL_clear_free(sigctx, sizeof(P11PROV_SIG_CTX));
 }
@@ -319,19 +313,17 @@ static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
 
     if (result == CKR_OK) {
         p11prov_debug_mechanism(sigctx->provctx,
-                                p11prov_key_slotid(sigctx->pub_key),
+                                p11prov_key_slotid(sigctx->key),
                                 mechanism->mechanism);
     }
     return result;
 }
 
-#define ANYKEY(ctx) (ctx->pub_key ? ctx->pub_key : ctx->priv_key)
-
 static int p11prov_sig_get_sig_size(void *ctx, size_t *siglen)
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
-    CK_KEY_TYPE type = p11prov_key_type(ANYKEY(sigctx));
-    CK_ULONG size = p11prov_key_size(ANYKEY(sigctx));
+    CK_KEY_TYPE type = p11prov_key_type(sigctx->key);
+    CK_ULONG size = p11prov_key_size(sigctx->key);
 
     if (type == CK_UNAVAILABLE_INFORMATION) {
         return RET_OSSL_ERR;
@@ -377,12 +369,14 @@ static int p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
     P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
 
-    sigctx->priv_key = p11prov_object_get_key(obj, true);
-    if (sigctx->priv_key == NULL) {
+    if (operation == CKF_SIGN) {
+        sigctx->key = p11prov_object_get_key(obj, CKO_PRIVATE_KEY);
+    } else {
+        sigctx->key = p11prov_object_get_key(obj, CKO_PUBLIC_KEY);
+    }
+    if (sigctx->key == NULL) {
         return RET_OSSL_ERR;
     }
-    sigctx->pub_key = p11prov_object_get_key(obj, false);
-
     sigctx->operation = operation;
 
     if (digest) {
@@ -404,7 +398,6 @@ static int p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
     CK_SESSION_HANDLE session;
     CK_OBJECT_HANDLE handle;
     CK_SLOT_ID slotid;
-    P11PROV_KEY *key;
     int ret;
 
     f = p11prov_ctx_fns(sigctx->provctx);
@@ -412,24 +405,13 @@ static int p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
         return CKR_GENERAL_ERROR;
     }
 
-    switch (sigctx->operation) {
-    case CKF_SIGN:
-        key = sigctx->priv_key;
-        break;
-    case CKF_VERIFY:
-        key = sigctx->pub_key;
-        break;
-    default:
-        return CKR_FUNCTION_REJECTED;
-    }
-
-    handle = p11prov_key_handle(key);
+    handle = p11prov_key_handle(sigctx->key);
     if (handle == CK_INVALID_HANDLE) {
         P11PROV_raise(sigctx->provctx, CKR_KEY_HANDLE_INVALID,
                       "Provided key has invalid handle");
         return CKR_KEY_HANDLE_INVALID;
     }
-    slotid = p11prov_key_slotid(key);
+    slotid = p11prov_key_slotid(sigctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
         P11PROV_raise(sigctx->provctx, CKR_SLOT_ID_INVALID,
                       "Provided key has invalid slot");
@@ -969,9 +951,8 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         }
         sigctx->mechtype = mechtype;
 
-        p11prov_debug_mechanism(sigctx->provctx,
-                                p11prov_key_slotid(sigctx->pub_key),
-                                sigctx->mechtype);
+        p11prov_debug_mechanism(
+            sigctx->provctx, p11prov_key_slotid(sigctx->key), sigctx->mechtype);
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_PSS_SALTLEN);
