@@ -238,9 +238,9 @@ CK_OBJECT_CLASS p11prov_uri_get_class(P11PROV_URI *uri);
 CK_ATTRIBUTE p11prov_uri_get_id(P11PROV_URI *uri);
 char *p11prov_uri_get_object(P11PROV_URI *uri);
 int p11prov_get_pin(const char *in, char **out);
-CK_SESSION_HANDLE p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
-                                      CK_SLOT_ID *next_slotid, P11PROV_URI *uri,
-                                      OSSL_PASSPHRASE_CALLBACK *pw_cb,
-                                      void *pw_cbarg);
+CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
+                          CK_SLOT_ID *next_slotid, P11PROV_URI *uri,
+                          OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg,
+                          CK_SESSION_HANDLE *session);
 void p11prov_put_session(P11PROV_CTX *provctx, CK_SESSION_HANDLE session);
 #endif /* _PROVIDER_H */
