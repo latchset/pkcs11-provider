@@ -309,13 +309,13 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
                          &secret_handle);
     if (ret == CKR_OK) {
         unsigned long secret_len;
-        p11prov_debug("ECDH derived hey handle: %lu\n", secret_handle);
+        P11PROV_debug("ECDH derived hey handle: %lu", secret_handle);
         struct fetch_attrs attrs[1] = {
             { CKA_VALUE, &secret, &secret_len, false, true },
         };
         ret = p11prov_fetch_attributes(f, session, secret_handle, attrs, 1);
         if (ret != CKR_OK) {
-            p11prov_debug("ecdh failed to retrieve secret %d\n", ret);
+            P11PROV_debug("ecdh failed to retrieve secret %d", ret);
         }
         *psecretlen = secret_len;
         result = RET_OSSL_OK;
@@ -339,7 +339,7 @@ static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     const OSSL_PARAM *p;
     int ret;
 
-    p11prov_debug("ecdh set ctx params (ctx=%p, params=%p)\n", ecdhctx, params);
+    P11PROV_debug("ecdh set ctx params (ctx=%p, params=%p)", ecdhctx, params);
 
     if (params == NULL) {
         return RET_OSSL_OK;
@@ -461,7 +461,7 @@ static int p11prov_ecdh_get_ctx_params(void *ctx, OSSL_PARAM *params)
     OSSL_PARAM *p;
     int ret;
 
-    p11prov_debug("ecdh get ctx params (ctx=%p, params=%p)\n", ctx, params);
+    P11PROV_debug("ecdh get ctx params (ctx=%p, params=%p)", ctx, params);
 
     p = OSSL_PARAM_locate(params, OSSL_EXCHANGE_PARAM_EC_ECDH_COFACTOR_MODE);
     if (p) {
@@ -558,7 +558,7 @@ static void *p11prov_exch_hkdf_newctx(void *provctx)
     P11PROV_EXCH_CTX *hkdfctx;
     EVP_KDF *kdf = NULL;
 
-    p11prov_debug("hkdf exchange newctx\n");
+    P11PROV_debug("hkdf exchange newctx");
 
     hkdfctx = OPENSSL_zalloc(sizeof(P11PROV_EXCH_CTX));
     if (hkdfctx == NULL) {
@@ -590,7 +590,7 @@ static void p11prov_exch_hkdf_freectx(void *ctx)
 {
     P11PROV_EXCH_CTX *hkdfctx = (P11PROV_EXCH_CTX *)ctx;
 
-    p11prov_debug("hkdf exchange freectx\n");
+    P11PROV_debug("hkdf exchange freectx");
 
     if (hkdfctx == NULL) {
         return;
@@ -607,7 +607,7 @@ static int p11prov_exch_hkdf_init(void *ctx, void *provobj,
     P11PROV_EXCH_CTX *hkdfctx = (P11PROV_EXCH_CTX *)ctx;
     P11PROV_OBJ *obj = (P11PROV_OBJ *)provobj;
 
-    p11prov_debug("hkdf exchange init (ctx:%p obj:%p params:%p)\n", ctx, obj,
+    P11PROV_debug("hkdf exchange init (ctx:%p obj:%p params:%p)", ctx, obj,
                   params);
 
     if (ctx == NULL || provobj == NULL) {
@@ -630,7 +630,7 @@ static int p11prov_exch_hkdf_derive(void *ctx, unsigned char *secret,
 {
     P11PROV_EXCH_CTX *hkdfctx = (P11PROV_EXCH_CTX *)ctx;
 
-    p11prov_debug("hkdf exchange derive (ctx:%p)\n", ctx);
+    P11PROV_debug("hkdf exchange derive (ctx:%p)", ctx);
 
     if (secret == NULL) {
         *secretlen = EVP_KDF_CTX_get_kdf_size(hkdfctx->kdfctx);
@@ -645,7 +645,7 @@ static int p11prov_exch_hkdf_set_ctx_params(void *ctx,
 {
     P11PROV_EXCH_CTX *hkdfctx = (P11PROV_EXCH_CTX *)ctx;
 
-    p11prov_debug("hkdf exchange set ctx params (ctx:%p, params:%p)\n", ctx,
+    P11PROV_debug("hkdf exchange set ctx params (ctx:%p, params:%p)", ctx,
                   params);
 
     return EVP_KDF_CTX_set_params(hkdfctx->kdfctx, params);

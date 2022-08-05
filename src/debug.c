@@ -4,34 +4,44 @@
 #include "provider.h"
 #include <string.h>
 
-static int debug_lazy_init = 0;
-void p11prov_debug(const char *fmt, ...)
-{
-    static FILE *stddebug = NULL;
-    va_list args;
+int debug_lazy_init = 0;
+FILE *stddebug = NULL;
 
-    if (debug_lazy_init == 0) {
-        char *env = getenv("PKCS11_PROVIDER_DEBUG");
-        if (env) {
-            debug_lazy_init = 1;
-            if (strncmp(env, "file:", 5) == 0) {
-                stddebug = fopen(&env[5], "a");
-                if (stddebug == NULL) {
-                    debug_lazy_init = -1;
-                }
-            } else {
-                stddebug = stderr;
+/* this function relies on being called by P11PROV_debug, after
+ * an __atomic_compare_exchange_n sets debug_lazy_init to -1,
+ * This allows only 1 thread to ever init, as any other thread
+ * would see debugging as disabled. This means some debugging may
+ * be lost but will not risk multiplt thread stopming on each
+ * other to open the debug file */
+void p11prov_debug_init(void)
+{
+    char *env = getenv("PKCS11_PROVIDER_DEBUG");
+    if (env) {
+        if (strncmp(env, "file:", 5) == 0) {
+            stddebug = fopen(&env[5], "a");
+            if (stddebug == NULL) {
+                return;
             }
         } else {
-            debug_lazy_init = -1;
+            stddebug = stderr;
         }
+        int enable = 1;
+        int orig;
+        /* set enable value to debug_lazy_init atomically */
+        __atomic_exchange(&debug_lazy_init, &enable, &orig, __ATOMIC_SEQ_CST);
     }
-    if (debug_lazy_init > 0) {
-        va_start(args, fmt);
-        vfprintf(stddebug, fmt, args);
-        va_end(args);
-        fflush(stddebug);
-    }
+}
+
+void p11prov_debug(const char *fmt, ...)
+{
+    const char newline[] = "\n";
+    va_list args;
+
+    va_start(args, fmt);
+    vfprintf(stddebug, fmt, args);
+    va_end(args);
+    fwrite(newline, sizeof(newline), 1, stddebug);
+    fflush(stddebug);
 }
 
 struct ckmap {
@@ -87,7 +97,7 @@ void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
 
 extern struct ckmap token_flags[];
 
-void p11prov_debug_token_info(CK_TOKEN_INFO *info)
+static void p11prov_debug_token_info(CK_TOKEN_INFO *info)
 {
     p11prov_debug(
         "Token Info:\n"

@@ -112,7 +112,7 @@ static int p11prov_rsaenc_encrypt_init(void *ctx, void *provkey,
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
     P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
 
-    p11prov_debug("encrypt init (ctx=%p, key=%p, params=%p)\n", ctx, provkey,
+    P11PROV_debug("encrypt init (ctx=%p, key=%p, params=%p)", ctx, provkey,
                   params);
 
     encctx->key = p11prov_object_get_key(obj, 0);
@@ -137,7 +137,7 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
     int result = RET_OSSL_ERR;
     int ret;
 
-    p11prov_debug("encrypt (ctx=%p)\n", ctx);
+    P11PROV_debug("encrypt (ctx=%p)", ctx);
 
     if (out == NULL) {
         CK_ULONG size = p11prov_key_size(encctx->key);
@@ -213,7 +213,7 @@ static int p11prov_rsaenc_decrypt_init(void *ctx, void *provkey,
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
     P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
 
-    p11prov_debug("encrypt init (ctx=%p, key=%p, params=%p)\n", ctx, provkey,
+    P11PROV_debug("encrypt init (ctx=%p, key=%p, params=%p)", ctx, provkey,
                   params);
 
     encctx->key = p11prov_object_get_key(obj, CKO_PRIVATE_KEY);
@@ -238,7 +238,7 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     int result = RET_OSSL_ERR;
     int ret;
 
-    p11prov_debug("decrypt (ctx=%p)\n", ctx);
+    P11PROV_debug("decrypt (ctx=%p)", ctx);
 
     if (out == NULL) {
         CK_ULONG size = p11prov_key_size(encctx->key);
@@ -386,7 +386,7 @@ static int p11prov_rsaenc_get_ctx_params(void *ctx, OSSL_PARAM *params)
     OSSL_PARAM *p;
     int ret;
 
-    p11prov_debug("rsaenc get ctx params (ctx=%p, params=%p)\n", ctx, params);
+    P11PROV_debug("rsaenc get ctx params (ctx=%p, params=%p)", ctx, params);
 
     if (params == NULL) {
         return RET_OSSL_OK;
@@ -449,7 +449,7 @@ static int p11prov_rsaenc_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     const OSSL_PARAM *p;
     int ret;
 
-    p11prov_debug("rsaenc set ctx params (ctx=%p, params=%p)\n", ctx, params);
+    P11PROV_debug("rsaenc set ctx params (ctx=%p, params=%p)", ctx, params);
 
     if (params == NULL) {
         return RET_OSSL_OK;
@@ -489,7 +489,7 @@ static int p11prov_rsaenc_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         }
         encctx->mechtype = mechtype;
 
-        p11prov_debug_mechanism(
+        P11PROV_debug_mechanism(
             encctx->provctx, p11prov_key_slotid(encctx->key), encctx->mechtype);
     }
 

@@ -52,13 +52,13 @@ static P11PROV_OBJ *p11prov_object_ref(P11PROV_OBJ *obj)
 
 void p11prov_object_free(P11PROV_OBJ *obj)
 {
-    p11prov_debug("object free (%p)\n", obj);
+    P11PROV_debug("object free (%p)", obj);
 
     if (obj == NULL) {
         return;
     }
     if (__atomic_sub_fetch(&obj->refcnt, 1, __ATOMIC_ACQ_REL) != 0) {
-        p11prov_debug("object free: reference held\n");
+        P11PROV_debug("object free: reference held");
         return;
     }
 
@@ -68,7 +68,7 @@ void p11prov_object_free(P11PROV_OBJ *obj)
         p11prov_key_free(obj->data.key);
         break;
     default:
-        p11prov_debug("object_free: invalid class: %lu", obj->class);
+        P11PROV_debug("object_free: invalid class: %lu", obj->class);
     }
 
     OPENSSL_clear_free(obj, sizeof(P11PROV_OBJ));
@@ -192,7 +192,7 @@ struct p11prov_store_ctx {
 
 static void p11prov_store_ctx_free(struct p11prov_store_ctx *ctx)
 {
-    p11prov_debug("store ctx free (%p)\n", ctx);
+    P11PROV_debug("store ctx free (%p)", ctx);
 
     if (ctx == NULL) {
         return;
@@ -316,7 +316,7 @@ static void *p11prov_store_open(void *pctx, const char *uri)
     struct p11prov_store_ctx *ctx = NULL;
     CK_RV result = CKR_CANCEL;
 
-    p11prov_debug("object open (%p, %s)\n", pctx, uri);
+    P11PROV_debug("object open (%p, %s)", pctx, uri);
 
     ctx = OPENSSL_zalloc(sizeof(struct p11prov_store_ctx));
     if (ctx == NULL) {
@@ -345,7 +345,7 @@ static void *p11prov_store_attach(void *pctx, OSSL_CORE_BIO *in)
 {
     struct p11prov_store_ctx *ctx = (struct p11prov_store_ctx *)pctx;
 
-    p11prov_debug("object attach (%p, %p)\n", ctx, in);
+    P11PROV_debug("object attach (%p, %p)", ctx, in);
 
     return NULL;
 }
@@ -361,7 +361,7 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
     CK_KEY_TYPE type;
     char *data_type;
 
-    p11prov_debug("store load (%p)\n", ctx);
+    P11PROV_debug("store load (%p)", ctx);
 
     if (ctx->loaded == 0) {
         store_load(ctx, pw_cb, pw_cbarg);
@@ -430,7 +430,7 @@ static int p11prov_store_eof(void *pctx)
 {
     struct p11prov_store_ctx *ctx = (struct p11prov_store_ctx *)pctx;
 
-    p11prov_debug("store eof (%p)\n", ctx);
+    P11PROV_debug("store eof (%p)", ctx);
 
     if (ctx->loaded == -1) {
         /* error condition nothing more to return */
@@ -445,7 +445,7 @@ static int p11prov_store_close(void *pctx)
 {
     struct p11prov_store_ctx *ctx = (struct p11prov_store_ctx *)pctx;
 
-    p11prov_debug("store close (%p)\n", ctx);
+    P11PROV_debug("store close (%p)", ctx);
 
     if (ctx == NULL) {
         return 0;
@@ -471,7 +471,7 @@ static int p11prov_store_export_object(void *loaderctx, const void *reference,
 {
     P11PROV_OBJ *obj = NULL;
 
-    p11prov_debug("store (%p) export object %p, %zu\n", loaderctx, reference,
+    P11PROV_debug("store (%p) export object %p, %zu", loaderctx, reference,
                   reference_sz);
 
     /* the contents of the reference is the address to our object */
@@ -507,7 +507,7 @@ static int p11prov_store_set_ctx_params(void *pctx, const OSSL_PARAM params[])
     const OSSL_PARAM *p;
     int ret;
 
-    p11prov_debug("set ctx params (%p, %p)\n", ctx, params);
+    P11PROV_debug("set ctx params (%p, %p)", ctx, params);
 
     if (params == NULL) {
         return RET_OSSL_OK;

@@ -74,7 +74,7 @@ static void *p11prov_hkdf_newctx(void *provctx)
     P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
     P11PROV_KDF_CTX *hkdfctx;
 
-    p11prov_debug("hkdf newctx\n");
+    P11PROV_debug("hkdf newctx");
 
     hkdfctx = OPENSSL_zalloc(sizeof(P11PROV_KDF_CTX));
     if (hkdfctx == NULL) {
@@ -91,7 +91,7 @@ static void *p11prov_hkdf_newctx(void *provctx)
 
 static void p11prov_hkdf_freectx(void *ctx)
 {
-    p11prov_debug("hkdf freectx (ctx:%p)\n", ctx);
+    P11PROV_debug("hkdf freectx (ctx:%p)", ctx);
 
     p11prov_hkdf_reset(ctx);
     OPENSSL_free(ctx);
@@ -103,7 +103,7 @@ static void p11prov_hkdf_reset(void *ctx)
     /* save provider context */
     void *provctx = hkdfctx->provctx;
 
-    p11prov_debug("hkdf reset (ctx:%p)\n", ctx);
+    P11PROV_debug("hkdf reset (ctx:%p)", ctx);
 
     /* free all allocated resources */
     p11prov_key_free(hkdfctx->key);
@@ -144,7 +144,7 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
     CK_OBJECT_HANDLE dkey_handle;
     int ret = RET_OSSL_ERR;
 
-    p11prov_debug("hkdf derive (ctx:%p, key:%p[%zu], params:%p)\n", ctx, key,
+    P11PROV_debug("hkdf derive (ctx:%p, key:%p[%zu], params:%p)", ctx, key,
                   keylen, params);
 
     if (hkdfctx->key == NULL || key == NULL) {
@@ -182,14 +182,14 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
                          key_template, 5, &dkey_handle);
     if (ret == CKR_OK) {
         unsigned long dkey_len;
-        p11prov_debug("HKDF derived hey handle: %lu\n", dkey_handle);
+        P11PROV_debug("HKDF derived hey handle: %lu", dkey_handle);
         struct fetch_attrs attrs[1] = {
             { CKA_VALUE, &key, &dkey_len, false, true },
         };
         ret = p11prov_fetch_attributes(f, hkdfctx->session, dkey_handle, attrs,
                                        1);
         if (ret != CKR_OK) {
-            p11prov_debug("hkdf failed to retrieve secret %d\n", ret);
+            P11PROV_debug("hkdf failed to retrieve secret %d", ret);
         }
     } else {
         P11PROV_raise(hkdfctx->provctx, ret, "Error returned by C_DeriveKey");
@@ -205,7 +205,7 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     const OSSL_PARAM *p;
     int ret;
 
-    p11prov_debug("hkdf set ctx params (ctx=%p, params=%p)\n", hkdfctx, params);
+    P11PROV_debug("hkdf set ctx params (ctx=%p, params=%p)", hkdfctx, params);
 
     if (params == NULL) {
         return RET_OSSL_OK;
@@ -225,7 +225,7 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
-        p11prov_debug("set digest to %lu\n", hkdfctx->params.prfHashMechanism);
+        P11PROV_debug("set digest to %lu", hkdfctx->params.prfHashMechanism);
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_MODE);
@@ -265,7 +265,7 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_MODE);
             return RET_OSSL_ERR;
         }
-        p11prov_debug("set mode to extract:%d expand:%d\n",
+        P11PROV_debug("set mode to extract:%d expand:%d",
                       (int)hkdfctx->params.bExtract,
                       (int)hkdfctx->params.bExpand);
     }
@@ -314,7 +314,7 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         hkdfctx->params.ulSaltType = CKF_HKDF_SALT_DATA;
         hkdfctx->params.pSalt = ptr;
         hkdfctx->params.ulSaltLen = len;
-        p11prov_debug("set salt (len:%lu)\n", hkdfctx->params.ulSaltLen);
+        P11PROV_debug("set salt (len:%lu)", hkdfctx->params.ulSaltLen);
     }
 
     /* can be multiple paramaters, which wil be all concatenated */
@@ -336,7 +336,7 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         memcpy(ptr + hkdfctx->params.ulInfoLen, p->data, p->data_size);
         hkdfctx->params.pInfo = ptr;
         hkdfctx->params.ulInfoLen = len;
-        p11prov_debug("set info (len:%lu)\n", hkdfctx->params.ulInfoLen);
+        P11PROV_debug("set info (len:%lu)", hkdfctx->params.ulInfoLen);
     }
 
     return RET_OSSL_OK;
@@ -362,7 +362,7 @@ static int p11prov_hkdf_get_ctx_params(void *ctx, OSSL_PARAM *params)
     P11PROV_KDF_CTX *hkdfctx = (P11PROV_KDF_CTX *)ctx;
     OSSL_PARAM *p;
 
-    p11prov_debug("hkdf get ctx params (ctx=%p, params=%p)\n", hkdfctx, params);
+    P11PROV_debug("hkdf get ctx params (ctx=%p, params=%p)", hkdfctx, params);
 
     if (params == NULL) {
         return RET_OSSL_OK;

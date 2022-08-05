@@ -312,7 +312,7 @@ static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
     }
 
     if (result == CKR_OK) {
-        p11prov_debug_mechanism(sigctx->provctx,
+        P11PROV_debug_mechanism(sigctx->provctx,
                                 p11prov_key_slotid(sigctx->key),
                                 mechanism->mechanism);
     }
@@ -668,7 +668,7 @@ static int p11prov_rsasig_sign_init(void *ctx, void *provkey,
 {
     int ret;
 
-    p11prov_debug("rsa sign init (ctx=%p, key=%p, params=%p)\n", ctx, provkey,
+    P11PROV_debug("rsa sign init (ctx=%p, key=%p, params=%p)", ctx, provkey,
                   params);
 
     ret = p11prov_sig_op_init(ctx, provkey, CKF_SIGN, NULL, params);
@@ -685,7 +685,7 @@ static int p11prov_rsasig_sign(void *ctx, unsigned char *sig, size_t *siglen,
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
 
-    p11prov_debug("rsa sign (ctx=%p)\n", ctx);
+    P11PROV_debug("rsa sign (ctx=%p)", ctx);
 
     return p11prov_sig_operate(sigctx, sig, siglen, sigsize, (void *)tbs,
                                tbslen);
@@ -696,7 +696,7 @@ static int p11prov_rsasig_verify_init(void *ctx, void *provkey,
 {
     int ret;
 
-    p11prov_debug("rsa verify init (ctx=%p, key=%p, params=%p)\n", ctx, provkey,
+    P11PROV_debug("rsa verify init (ctx=%p, key=%p, params=%p)", ctx, provkey,
                   params);
 
     ret = p11prov_sig_op_init(ctx, provkey, CKF_VERIFY, NULL, params);
@@ -713,7 +713,7 @@ static int p11prov_rsasig_verify(void *ctx, const unsigned char *sig,
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
 
-    p11prov_debug("rsa verify (ctx=%p)\n", ctx);
+    P11PROV_debug("rsa verify (ctx=%p)", ctx);
 
     return p11prov_sig_operate(sigctx, (void *)sig, NULL, siglen, (void *)tbs,
                                tbslen);
@@ -725,7 +725,7 @@ static int p11prov_rsasig_digest_sign_init(void *ctx, const char *digest,
 {
     int ret;
 
-    p11prov_debug("rsa digest sign init (ctx=%p, key=%p, params=%p)\n", ctx,
+    P11PROV_debug("rsa digest sign init (ctx=%p, key=%p, params=%p)", ctx,
                   provkey, params);
 
     ret = p11prov_sig_op_init(ctx, provkey, CKF_SIGN, digest, params);
@@ -742,8 +742,8 @@ static int p11prov_rsasig_digest_sign_update(void *ctx,
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
 
-    p11prov_debug("rsa digest sign update (ctx=%p, data=%p, datalen=%zu)\n",
-                  ctx, data, datalen);
+    P11PROV_debug("rsa digest sign update (ctx=%p, data=%p, datalen=%zu)", ctx,
+                  data, datalen);
 
     if (sigctx == NULL) {
         return RET_OSSL_ERR;
@@ -757,9 +757,9 @@ static int p11prov_rsasig_digest_sign_final(void *ctx, unsigned char *sig,
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
 
-    p11prov_debug(
+    P11PROV_debug(
         "rsa digest sign final (ctx=%p, sig=%p, siglen=%zu, "
-        "sigsize=%zu)\n",
+        "sigsize=%zu)",
         ctx, sig, *siglen, sigsize);
 
     if (sigctx == NULL) {
@@ -775,7 +775,7 @@ static int p11prov_rsasig_digest_verify_init(void *ctx, const char *digest,
 {
     int ret;
 
-    p11prov_debug("rsa digest verify init (ctx=%p, key=%p, params=%p)\n", ctx,
+    P11PROV_debug("rsa digest verify init (ctx=%p, key=%p, params=%p)", ctx,
                   provkey, params);
 
     ret = p11prov_sig_op_init(ctx, provkey, CKF_VERIFY, digest, params);
@@ -792,7 +792,7 @@ static int p11prov_rsasig_digest_verify_update(void *ctx,
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
 
-    p11prov_debug("rsa digest verify update (ctx=%p, data=%p, datalen=%zu)\n",
+    P11PROV_debug("rsa digest verify update (ctx=%p, data=%p, datalen=%zu)",
                   ctx, data, datalen);
 
     if (sigctx == NULL) {
@@ -808,7 +808,7 @@ static int p11prov_rsasig_digest_verify_final(void *ctx,
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
 
-    p11prov_debug("rsa digest verify final (ctx=%p, sig=%p, siglen=%zu)\n", ctx,
+    P11PROV_debug("rsa digest verify final (ctx=%p, sig=%p, siglen=%zu)", ctx,
                   sig, siglen);
 
     if (sigctx == NULL) {
@@ -840,7 +840,7 @@ static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
         OSSL_SIGNATURE_PARAM_ALGORITHM_ID
      */
 
-    p11prov_debug("rsasig get ctx params (ctx=%p, params=%p)\n", ctx, params);
+    P11PROV_debug("rsasig get ctx params (ctx=%p, params=%p)", ctx, params);
 
     if (params == NULL) {
         return RET_OSSL_OK;
@@ -894,8 +894,7 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     const OSSL_PARAM *p;
     int ret;
 
-    p11prov_debug("rsasig set ctx params (ctx=%p, params=%p)\n", sigctx,
-                  params);
+    P11PROV_debug("rsasig set ctx params (ctx=%p, params=%p)", sigctx, params);
 
     if (params == NULL) {
         return RET_OSSL_OK;
@@ -951,7 +950,7 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         }
         sigctx->mechtype = mechtype;
 
-        p11prov_debug_mechanism(
+        P11PROV_debug_mechanism(
             sigctx->provctx, p11prov_key_slotid(sigctx->key), sigctx->mechtype);
     }
 
@@ -1098,7 +1097,7 @@ static int p11prov_ecdsa_sign_init(void *ctx, void *provkey,
 {
     int ret;
 
-    p11prov_debug("rsa sign init (ctx=%p, key=%p, params=%p)\n", ctx, provkey,
+    P11PROV_debug("rsa sign init (ctx=%p, key=%p, params=%p)", ctx, provkey,
                   params);
 
     ret = p11prov_sig_op_init(ctx, provkey, CKF_SIGN, NULL, params);
@@ -1115,7 +1114,7 @@ static int p11prov_ecdsa_sign(void *ctx, unsigned char *sig, size_t *siglen,
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
 
-    p11prov_debug("ecdsa sign (ctx=%p)\n", ctx);
+    P11PROV_debug("ecdsa sign (ctx=%p)", ctx);
 
     return p11prov_sig_operate(sigctx, sig, siglen, sigsize, (void *)tbs,
                                tbslen);
@@ -1126,8 +1125,8 @@ static int p11prov_ecdsa_verify_init(void *ctx, void *provkey,
 {
     int ret;
 
-    p11prov_debug("ecdsa verify init (ctx=%p, key=%p, params=%p)\n", ctx,
-                  provkey, params);
+    P11PROV_debug("ecdsa verify init (ctx=%p, key=%p, params=%p)", ctx, provkey,
+                  params);
 
     ret = p11prov_sig_op_init(ctx, provkey, CKF_VERIFY, NULL, params);
     if (ret != RET_OSSL_OK) {
@@ -1143,7 +1142,7 @@ static int p11prov_ecdsa_verify(void *ctx, const unsigned char *sig,
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
 
-    p11prov_debug("rsa verify (ctx=%p)\n", ctx);
+    P11PROV_debug("rsa verify (ctx=%p)", ctx);
 
     return p11prov_sig_operate(sigctx, (void *)sig, NULL, siglen, (void *)tbs,
                                tbslen);
@@ -1155,7 +1154,7 @@ static int p11prov_ecdsa_digest_sign_init(void *ctx, const char *digest,
 {
     int ret;
 
-    p11prov_debug("ecdsa digest sign init (ctx=%p, key=%p, params=%p)\n", ctx,
+    P11PROV_debug("ecdsa digest sign init (ctx=%p, key=%p, params=%p)", ctx,
                   provkey, params);
 
     ret = p11prov_sig_op_init(ctx, provkey, CKF_SIGN, digest, params);
@@ -1172,7 +1171,7 @@ static int p11prov_ecdsa_digest_sign_update(void *ctx,
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
 
-    p11prov_debug("ecdsa digest sign update (ctx=%p, data=%p, datalen=%zu)\n",
+    P11PROV_debug("ecdsa digest sign update (ctx=%p, data=%p, datalen=%zu)",
                   ctx, data, datalen);
 
     if (sigctx == NULL) {
@@ -1187,9 +1186,9 @@ static int p11prov_ecdsa_digest_sign_final(void *ctx, unsigned char *sig,
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
 
-    p11prov_debug(
+    P11PROV_debug(
         "ecdsa digest sign final (ctx=%p, sig=%p, siglen=%zu, "
-        "sigsize=%zu)\n",
+        "sigsize=%zu)",
         ctx, sig, *siglen, sigsize);
 
     if (sigctx == NULL) {
@@ -1205,7 +1204,7 @@ static int p11prov_ecdsa_digest_verify_init(void *ctx, const char *digest,
 {
     int ret;
 
-    p11prov_debug("ecdsa digest verify init (ctx=%p, key=%p, params=%p)\n", ctx,
+    P11PROV_debug("ecdsa digest verify init (ctx=%p, key=%p, params=%p)", ctx,
                   provkey, params);
 
     ret = p11prov_sig_op_init(ctx, provkey, CKF_VERIFY, digest, params);
@@ -1222,10 +1221,8 @@ static int p11prov_ecdsa_digest_verify_update(void *ctx,
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
 
-    p11prov_debug(
-        "ecdsa digest verify update (ctx=%p, data=%p, "
-        "datalen=%zu)\n",
-        ctx, data, datalen);
+    P11PROV_debug("ecdsa digest verify update (ctx=%p, data=%p, datalen=%zu)",
+                  ctx, data, datalen);
 
     if (sigctx == NULL) {
         return RET_OSSL_ERR;
@@ -1240,8 +1237,8 @@ static int p11prov_ecdsa_digest_verify_final(void *ctx,
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
 
-    p11prov_debug("ecdsa digest verify final (ctx=%p, sig=%p, siglen=%zu)\n",
-                  ctx, sig, siglen);
+    P11PROV_debug("ecdsa digest verify final (ctx=%p, sig=%p, siglen=%zu)", ctx,
+                  sig, siglen);
 
     if (sigctx == NULL) {
         return RET_OSSL_ERR;
@@ -1260,7 +1257,7 @@ static int p11prov_ecdsa_get_ctx_params(void *ctx, OSSL_PARAM *params)
         OSSL_SIGNATURE_PARAM_ALGORITHM_ID
      */
 
-    p11prov_debug("ecdsa get ctx params (ctx=%p, params=%p)\n", ctx, params);
+    P11PROV_debug("ecdsa get ctx params (ctx=%p, params=%p)", ctx, params);
 
     p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_DIGEST);
     if (p) {
@@ -1280,7 +1277,7 @@ static int p11prov_ecdsa_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     const OSSL_PARAM *p;
     int ret;
 
-    p11prov_debug("ecdsa set ctx params (ctx=%p, params=%p)\n", sigctx, params);
+    P11PROV_debug("ecdsa set ctx params (ctx=%p, params=%p)", sigctx, params);
 
     if (params == NULL) {
         return RET_OSSL_OK;

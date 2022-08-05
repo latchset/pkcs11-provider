@@ -54,7 +54,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
         }
     } else if (ret == CKR_ATTRIBUTE_SENSITIVE
                || ret == CKR_ATTRIBUTE_TYPE_INVALID) {
-        p11prov_debug("Quering attributes one by one\n");
+        P11PROV_debug("Quering attributes one by one");
         /* go one by one as this PKCS11 does not have some attributes
          * and does not handle it gracefully */
         for (size_t i = 0; i < attrnums; i++) {
@@ -84,7 +84,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
                     return ret;
                 }
             }
-            p11prov_debug("Attribute| type:%lu value:%p, len:%lu\n",
+            P11PROV_debug("Attribute| type:%lu value:%p, len:%lu",
                           attrs[i].type, *attrs[i].value, *attrs[i].value_len);
         }
         ret = CKR_OK;
@@ -200,13 +200,13 @@ static int get_pin_file(const char *str, size_t len, char **output,
 
     fp = BIO_new_file(filename, "r");
     if (fp == NULL) {
-        p11prov_debug("Failed to get pin from %s\n", filename);
+        P11PROV_debug("Failed to get pin from %s", filename);
         ret = ENOENT;
         goto done;
     }
     ret = BIO_gets(fp, pin, MAX_PIN_LENGTH);
     if (ret <= 0) {
-        p11prov_debug("Failed to get pin from %s (%d)\n", filename, ret);
+        P11PROV_debug("Failed to get pin from %s (%d)", filename, ret);
         ret = EINVAL;
         BIO_free(fp);
         goto done;
@@ -320,12 +320,12 @@ P11PROV_URI *p11prov_parse_uri(const char *uri)
             } else if (len == 7 && strncmp(p, "secret", 7) == 0) {
                 u->class = CKO_SECRET_KEY;
             } else {
-                p11prov_debug("Unknown object type\n");
+                P11PROV_debug("Unknown object type");
                 ret = EINVAL;
                 goto done;
             }
         } else {
-            p11prov_debug("Ignoring unkown pkcs11 URI attribute\n");
+            P11PROV_debug("Ignoring unkown pkcs11 URI attribute");
         }
 
         if (ptr) {

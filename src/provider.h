@@ -71,15 +71,36 @@ void p11prov_raise(P11PROV_CTX *ctx, const char *file, int line,
     do { \
         p11prov_raise((ctx), OPENSSL_FILE, OPENSSL_LINE, OPENSSL_FUNC, \
                       (errnum), __VA_ARGS__); \
-        if (errnum) p11prov_debug("Error: %lu", (unsigned long)(errnum)); \
-        p11prov_debug(__VA_ARGS__); \
+        if (errnum) P11PROV_debug("Error: %lu", (unsigned long)(errnum)); \
+        P11PROV_debug(__VA_ARGS__); \
     } while (0)
 
 /* Debugging */
+extern int debug_lazy_init;
+#define P11PROV_debug_status(action) \
+    do { \
+        int enabled = 0; \
+        if (__atomic_compare_exchange_n(&debug_lazy_init, &enabled, -1, true, \
+                                        __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) { \
+            p11prov_debug_init(); \
+        } \
+        if (enabled == 1) { \
+            action; \
+        } \
+    } while (0)
+
+#define P11PROV_debug(...) P11PROV_debug_status(p11prov_debug(__VA_ARGS__))
+
+#define P11PROV_debug_mechanism(...) \
+    P11PROV_debug_status(p11prov_debug_mechanism(__VA_ARGS__))
+
+#define P11PROV_debug_slot(...) \
+    P11PROV_debug_status(p11prov_debug_slot(__VA_ARGS__))
+
+void p11prov_debug_init(void);
 void p11prov_debug(const char *fmt, ...);
 void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                              CK_MECHANISM_TYPE type);
-void p11prov_debug_token_info(CK_TOKEN_INFO *info);
 void p11prov_debug_slot(struct p11prov_slot *slot);
 
 /* Keys */
