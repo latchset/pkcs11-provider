@@ -190,7 +190,7 @@ static int p11prov_rsakm_get_params(void *keydata, OSSL_PARAM params[])
         return 0;
     }
 
-    key = p11prov_object_get_key(obj, false);
+    key = p11prov_object_get_key(obj, 0);
     if (key == NULL) {
         ret = RET_OSSL_ERR;
         goto done;
@@ -435,7 +435,7 @@ static int p11prov_eckm_get_params(void *keydata, OSSL_PARAM params[])
         return 0;
     }
 
-    key = p11prov_object_get_key(obj, false);
+    key = p11prov_object_get_key(obj, 0);
     if (key == NULL) {
         ret = RET_OSSL_ERR;
         goto done;

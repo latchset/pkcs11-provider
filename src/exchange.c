@@ -186,7 +186,7 @@ static int p11prov_ecdh_init(void *ctx, void *provkey,
     }
 
     p11prov_key_free(ecdhctx->key);
-    ecdhctx->key = p11prov_object_get_key(obj, true);
+    ecdhctx->key = p11prov_object_get_key(obj, CKO_PRIVATE_KEY);
     if (ecdhctx->key == NULL) {
         return RET_OSSL_ERR;
     }
@@ -204,7 +204,7 @@ static int p11prov_ecdh_set_peer(void *ctx, void *provkey)
     }
 
     p11prov_key_free(ecdhctx->peer_key);
-    ecdhctx->peer_key = p11prov_object_get_key(obj, false);
+    ecdhctx->peer_key = p11prov_object_get_key(obj, CKO_PUBLIC_KEY);
     if (ecdhctx->peer_key == NULL) {
         return RET_OSSL_ERR;
     }
@@ -616,7 +616,7 @@ static int p11prov_exch_hkdf_init(void *ctx, void *provobj,
 
     if (provobj != &p11prov_hkdfkm_static_ctx) {
         p11prov_key_free(hkdfctx->key);
-        hkdfctx->key = p11prov_object_get_key(obj, true);
+        hkdfctx->key = p11prov_object_get_key(obj, CKO_PRIVATE_KEY);
         if (hkdfctx->key == NULL) {
             return RET_OSSL_ERR;
         }

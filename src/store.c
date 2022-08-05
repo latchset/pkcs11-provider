@@ -6,28 +6,39 @@
 #include "platform/endian.h"
 
 struct p11prov_obj {
-    struct p11prov_key *priv_key;
-    struct p11prov_key *pub_key;
+    CK_OBJECT_CLASS class;
+    union {
+        struct p11prov_key *key;
+    } data;
 
     int refcnt;
 };
 
-static P11PROV_OBJ *p11prov_object_new(P11PROV_KEY *priv_key,
-                                       P11PROV_KEY *pub_key)
+static CK_RV p11prov_object_new(P11PROV_CTX *ctx, CK_OBJECT_CLASS class,
+                                P11PROV_KEY *key, P11PROV_OBJ **object)
 {
     P11PROV_OBJ *obj;
 
     obj = OPENSSL_zalloc(sizeof(P11PROV_OBJ));
     if (obj == NULL) {
-        return NULL;
+        return CKR_HOST_MEMORY;
     }
-
-    obj->priv_key = p11prov_key_ref(priv_key);
-    obj->pub_key = p11prov_key_ref(pub_key);
+    obj->class = class;
+    switch (class) {
+    case CKO_PUBLIC_KEY:
+    case CKO_PRIVATE_KEY:
+        obj->data.key = p11prov_key_ref(key);
+        break;
+    default:
+        P11PROV_raise(ctx, CKR_ARGUMENTS_BAD, "Unsupported object type");
+        OPENSSL_free(obj);
+        return CKR_ARGUMENTS_BAD;
+    }
 
     obj->refcnt = 1;
 
-    return obj;
+    *object = obj;
+    return CKR_OK;
 }
 
 static P11PROV_OBJ *p11prov_object_ref(P11PROV_OBJ *obj)
@@ -51,8 +62,14 @@ void p11prov_object_free(P11PROV_OBJ *obj)
         return;
     }
 
-    p11prov_key_free(obj->priv_key);
-    p11prov_key_free(obj->pub_key);
+    switch (obj->class) {
+    case CKO_PUBLIC_KEY:
+    case CKO_PRIVATE_KEY:
+        p11prov_key_free(obj->data.key);
+        break;
+    default:
+        p11prov_debug("object_free: invalid class: %lu", obj->class);
+    }
 
     OPENSSL_clear_free(obj, sizeof(P11PROV_OBJ));
 }
@@ -60,17 +77,20 @@ void p11prov_object_free(P11PROV_OBJ *obj)
 bool p11prov_object_check_key(P11PROV_OBJ *obj, bool priv)
 {
     if (priv) {
-        return obj->priv_key != NULL;
+        return obj->class == CKO_PRIVATE_KEY;
     }
-    return obj->pub_key != NULL;
+    return obj->class == CKO_PRIVATE_KEY;
 }
 
-P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj, bool priv)
+P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj, CK_OBJECT_CLASS class)
 {
-    if (priv) {
-        return p11prov_key_ref(obj->priv_key);
+    if (class == CKO_PRIVATE_KEY && obj->class != CKO_PRIVATE_KEY) {
+        return NULL;
     }
-    return p11prov_key_ref(obj->pub_key);
+    if (class == CKO_PUBLIC_KEY && obj->class != CKO_PUBLIC_KEY) {
+        return NULL;
+    }
+    return p11prov_key_ref(obj->data.key);
 }
 
 /* Tokens return data in bigendian order, while openssl
@@ -110,11 +130,19 @@ int p11prov_object_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
     CK_ATTRIBUTE *n, *e;
     unsigned char *val;
 
-    if (p11prov_key_type(obj->pub_key) != CKK_RSA) {
+    switch (obj->class) {
+    case CKO_PUBLIC_KEY:
+    case CKO_PRIVATE_KEY:
+        break;
+    default:
         return RET_OSSL_ERR;
     }
 
-    n = p11prov_key_attr(obj->pub_key, CKA_MODULUS);
+    if (p11prov_key_type(obj->data.key) != CKK_RSA) {
+        return RET_OSSL_ERR;
+    }
+
+    n = p11prov_key_attr(obj->data.key, CKA_MODULUS);
     if (n == NULL) {
         return RET_OSSL_ERR;
     }
@@ -123,7 +151,7 @@ int p11prov_object_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
     params[0] =
         OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N, val, n->ulValueLen);
 
-    e = p11prov_key_attr(obj->pub_key, CKA_PUBLIC_EXPONENT);
+    e = p11prov_key_attr(obj->data.key, CKA_PUBLIC_EXPONENT);
     if (e == NULL) {
         return RET_OSSL_ERR;
     }
@@ -195,15 +223,25 @@ static void p11prov_store_ctx_free(struct p11prov_store_ctx *ctx)
 }
 
 #define OBJS_ALLOC_SIZE 8
-static CK_RV p11prov_store_ctx_add_obj(struct p11prov_store_ctx *ctx,
-                                       P11PROV_OBJ *obj)
+static CK_RV p11prov_store_ctx_add_key(void *pctx, CK_OBJECT_CLASS class,
+                                       P11PROV_KEY *key)
 {
+    struct p11prov_store_ctx *ctx = (struct p11prov_store_ctx *)pctx;
+    P11PROV_OBJ *obj;
+    CK_RV ret;
+
+    ret = p11prov_object_new(ctx->provctx, class, key, &obj);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+
     if ((ctx->num_objs % OBJS_ALLOC_SIZE) == 0) {
         P11PROV_OBJ **tmp =
             OPENSSL_realloc(ctx->objects, ctx->num_objs + OBJS_ALLOC_SIZE);
         if (tmp == NULL) {
             P11PROV_raise(ctx->provctx, CKR_HOST_MEMORY,
                           "Failed to allocate store objects");
+            p11prov_object_free(obj);
             return CKR_HOST_MEMORY;
         }
         ctx->objects = tmp;
@@ -214,22 +252,11 @@ static CK_RV p11prov_store_ctx_add_obj(struct p11prov_store_ctx *ctx,
     return CKR_OK;
 }
 
-DISPATCH_STORE_FN(open);
-DISPATCH_STORE_FN(attach);
-DISPATCH_STORE_FN(load);
-DISPATCH_STORE_FN(eof);
-DISPATCH_STORE_FN(close);
-DISPATCH_STORE_FN(export_object);
-DISPATCH_STORE_FN(set_ctx_params);
-DISPATCH_STORE_FN(settable_ctx_params);
-
 static void store_load(struct p11prov_store_ctx *ctx,
                        OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
 {
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     CK_SLOT_ID nextid = CK_UNAVAILABLE_INFORMATION;
-    /* 0 is CKO_DATA but we do not use it */
-    CK_OBJECT_CLASS class = 0;
     CK_RV ret;
 
     do {
@@ -262,37 +289,11 @@ static void store_load(struct p11prov_store_ctx *ctx,
             return;
         }
 
-        /* FIXME: we should probbaly just load everything, filter later */
-        class = CKO_PRIVATE_KEY;
-        if (p11prov_uri_get_class(ctx->parsed_uri) == CKO_PUBLIC_KEY) {
-            class = CKO_PUBLIC_KEY;
-        }
-        if (class == CKO_PUBLIC_KEY || class == CKO_PRIVATE_KEY) {
-            P11PROV_KEY *priv_key = NULL;
-            P11PROV_KEY *pub_key = NULL;
-
-            ret = find_keys(ctx->provctx, &priv_key, &pub_key, ctx->session,
-                            slotid, class, ctx->parsed_uri);
-            if (ret == CKR_OK) {
-                /* new object */
-                P11PROV_OBJ *obj;
-
-                obj = p11prov_object_new(priv_key, pub_key);
-                if (obj == NULL) {
-                    p11prov_key_free(priv_key);
-                    p11prov_key_free(pub_key);
-                    return;
-                }
-                ret = p11prov_store_ctx_add_obj(ctx, obj);
-                if (ret != CKR_OK) {
-                    p11prov_key_free(priv_key);
-                    p11prov_key_free(pub_key);
-                    p11prov_object_free(obj);
-                    return;
-                }
-            }
-            p11prov_key_free(priv_key);
-            p11prov_key_free(pub_key);
+        ret = find_keys(ctx->provctx, ctx->session, slotid, ctx->parsed_uri,
+                        p11prov_store_ctx_add_key, ctx);
+        if (ret != CKR_OK) {
+            ctx->loaded = -1;
+            return;
         }
         slotid = nextid;
 
@@ -300,6 +301,15 @@ static void store_load(struct p11prov_store_ctx *ctx,
 
     ctx->loaded = 1;
 }
+
+DISPATCH_STORE_FN(open);
+DISPATCH_STORE_FN(attach);
+DISPATCH_STORE_FN(load);
+DISPATCH_STORE_FN(eof);
+DISPATCH_STORE_FN(close);
+DISPATCH_STORE_FN(export_object);
+DISPATCH_STORE_FN(set_ctx_params);
+DISPATCH_STORE_FN(settable_ctx_params);
 
 static void *p11prov_store_open(void *pctx, const char *uri)
 {
@@ -365,43 +375,45 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
     obj = ctx->objects[ctx->fetched];
     ctx->fetched++;
 
-    /* FIXME: always a key for now */
-    object_type = OSSL_OBJECT_PKEY;
-    params[0] = OSSL_PARAM_construct_int(OSSL_OBJECT_PARAM_TYPE, &object_type);
-
-    if (obj->pub_key) {
-        type = p11prov_key_type(obj->pub_key);
-    } else {
-        type = p11prov_key_type(obj->priv_key);
-    }
-    switch (type) {
-    case CKK_RSA:
-        /* REMOVE once we have encoders to export pub keys.
-         *  we have to handle private keys as our own type,
-         * while we can let openssl import public keys and
-         * deal with them in the default provider */
-        switch (ctx->expect) {
-        case OSSL_STORE_INFO_PKEY:
-            data_type = (char *)P11PROV_NAMES_RSA;
-            break;
-        case OSSL_STORE_INFO_PUBKEY:
-            data_type = (char *)"RSA";
-            break;
-        default:
-            if (obj->priv_key) {
+    switch (obj->class) {
+    case CKO_PUBLIC_KEY:
+    case CKO_PRIVATE_KEY:
+        object_type = OSSL_OBJECT_PKEY;
+        type = p11prov_key_type(obj->data.key);
+        switch (type) {
+        case CKK_RSA:
+            /* REMOVE once we have encoders to export pub keys.
+             *  we have to handle private keys as our own type,
+             * while we can let openssl import public keys and
+             * deal with them in the default provider */
+            switch (ctx->expect) {
+            case OSSL_STORE_INFO_PKEY:
                 data_type = (char *)P11PROV_NAMES_RSA;
-            } else {
+                break;
+            case OSSL_STORE_INFO_PUBKEY:
                 data_type = (char *)"RSA";
+                break;
+            default:
+                if (obj->class == CKO_PRIVATE_KEY) {
+                    data_type = (char *)P11PROV_NAMES_RSA;
+                } else {
+                    data_type = (char *)"RSA";
+                }
+                break;
             }
             break;
+        case CKK_EC:
+            data_type = (char *)P11PROV_NAMES_ECDSA;
+            break;
+        default:
+            return RET_OSSL_ERR;
         }
-        break;
-    case CKK_EC:
-        data_type = (char *)P11PROV_NAMES_ECDSA;
         break;
     default:
         return RET_OSSL_ERR;
     }
+
+    params[0] = OSSL_PARAM_construct_int(OSSL_OBJECT_PARAM_TYPE, &object_type);
     params[1] = OSSL_PARAM_construct_utf8_string(OSSL_OBJECT_PARAM_DATA_TYPE,
                                                  data_type, 0);
 
@@ -420,7 +432,10 @@ static int p11prov_store_eof(void *pctx)
 
     p11prov_debug("store eof (%p)\n", ctx);
 
-    if (ctx->loaded && (ctx->fetched >= ctx->num_objs)) {
+    if (ctx->loaded == -1) {
+        /* error condition nothing more to return */
+        return 1;
+    } else if (ctx->loaded && ctx->fetched >= ctx->num_objs) {
         return 1;
     }
     return 0;
@@ -466,14 +481,7 @@ static int p11prov_store_export_object(void *loaderctx, const void *reference,
     }
 
     /* we can only export public bits, so that's all we do */
-    switch (p11prov_key_type(obj->pub_key)) {
-    case CKK_RSA:
-        return p11prov_object_export_public_rsa_key(obj, cb_fn, cb_arg);
-    case CKK_EC:
-    default:
-        break;
-    }
-    return RET_OSSL_ERR;
+    return p11prov_object_export_public_rsa_key(obj, cb_fn, cb_arg);
 }
 
 static const OSSL_PARAM *p11prov_store_settable_ctx_params(void *provctx)
