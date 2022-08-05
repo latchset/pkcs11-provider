@@ -212,6 +212,15 @@ ossl 'pkey -in $PRIURI -pubin -pubout -out ${TSTCRT}.pub'
 title LINE "Export Public key to a file (with pin)"
 ossl 'pkey -in $BASEURIWITHPIN -pubin -pubout -out ${TSTCRT}.pub'
 
+title PARA "Export Public check error"
+FAIL=0
+ossl 'pkey -in pkcs11:id=%de%ad -pubin
+           -pubout -out ${TSTCRT}-invlid.pub' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Invalid pkcs11 uri resulted in no error exporting key"
+    exit 1
+fi
+
 title PARA "Export EC Public key to a file"
 #ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${ECCRT}.pub'
 

@@ -284,8 +284,11 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         /* Create Session  and key from key material */
 
         if (hkdfctx->session == CK_INVALID_HANDLE) {
-            hkdfctx->session = p11prov_get_session(hkdfctx->provctx, &slotid,
-                                                   NULL, NULL, NULL, NULL);
+            ret = p11prov_get_session(hkdfctx->provctx, &slotid, NULL, NULL,
+                                      NULL, NULL, &hkdfctx->session);
+            if (ret != CKR_OK) {
+                return RET_OSSL_ERR;
+            }
         }
         if (hkdfctx->session == CK_INVALID_HANDLE) {
             return RET_OSSL_ERR;

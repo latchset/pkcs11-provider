@@ -363,6 +363,7 @@ again:
         }
     } else {
         P11PROV_raise(provctx, ret, "Error returned by C_FindObjectsInit");
+        result = ret;
     }
 
     if (result == CKR_OK) {

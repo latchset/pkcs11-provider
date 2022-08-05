@@ -502,12 +502,12 @@ done:
     return ret;
 }
 
-CK_SESSION_HANDLE p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
-                                      CK_SLOT_ID *next_slotid, P11PROV_URI *uri,
-                                      OSSL_PASSPHRASE_CALLBACK *pw_cb,
-                                      void *pw_cbarg)
+CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
+                          CK_SLOT_ID *next_slotid, P11PROV_URI *uri,
+                          OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg,
+                          CK_SESSION_HANDLE *session)
 {
-    CK_SESSION_HANDLE session = CK_INVALID_HANDLE;
+    CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
     CK_SLOT_ID id = *slotid;
     CK_FUNCTION_LIST *f;
     struct p11prov_slot *slots = NULL;
@@ -538,45 +538,50 @@ CK_SESSION_HANDLE p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
 
             /* skip slots that do not match */
             ret = match_token(&token, uri);
+            if (ret == CKR_CANCEL) {
+                continue;
+            }
             if (ret == CKR_OK && (token.flags & CKF_LOGIN_REQUIRED)) {
                 ret = token_login(provctx, id, uri, pw_cb, pw_cbarg);
             }
         }
-
-        if (ret == CKR_CANCEL) {
-            continue;
-        }
         break;
     }
 
-    /* Found a slot, return it and the next slot to the caller for continuation
-     * if the current slot does not yield the desired results */
-    *slotid = id;
-    if (next_slotid) {
-        if (i + 1 < nslots) {
-            *next_slotid = slots[i + 1].id;
-        } else {
-            *next_slotid = CK_UNAVAILABLE_INFORMATION;
+    if (ret == CKR_OK) {
+        /* Found a slot, return it and the next slot to the caller for
+         * continuation if the current slot does not yield the desired
+         * results */
+        *slotid = id;
+        if (next_slotid) {
+            if (i + 1 < nslots) {
+                *next_slotid = slots[i + 1].id;
+            } else {
+                *next_slotid = CK_UNAVAILABLE_INFORMATION;
+            }
         }
+    } else {
+        *next_slotid = CK_UNAVAILABLE_INFORMATION;
     }
 
     p11prov_ctx_unlock_slots(provctx, &slots);
 
     if (ret != CKR_OK) {
-        return CK_INVALID_HANDLE;
+        return ret;
     }
 
     f = p11prov_ctx_fns(provctx);
     if (f == NULL) {
-        return CK_INVALID_HANDLE;
+        return CKR_GENERAL_ERROR;
     }
 
-    ret = f->C_OpenSession(id, CKF_SERIAL_SESSION, NULL, NULL, &session);
+    ret = f->C_OpenSession(id, CKF_SERIAL_SESSION, NULL, NULL, &sess);
     if (ret != CKR_OK) {
         P11PROV_raise(provctx, ret, "Failed to open session on slot %lu", id);
-        return CK_INVALID_HANDLE;
+        return ret;
     }
-    return session;
+    *session = sess;
+    return CKR_OK;
 }
 
 void p11prov_put_session(P11PROV_CTX *provctx, CK_SESSION_HANDLE session)

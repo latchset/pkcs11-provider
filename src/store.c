@@ -230,6 +230,7 @@ static void store_load(struct p11prov_store_ctx *ctx,
     CK_SLOT_ID nextid = CK_UNAVAILABLE_INFORMATION;
     /* 0 is CKO_DATA but we do not use it */
     CK_OBJECT_CLASS class = 0;
+    CK_RV ret;
 
     do {
         nextid = CK_UNAVAILABLE_INFORMATION;
@@ -238,8 +239,25 @@ static void store_load(struct p11prov_store_ctx *ctx,
             p11prov_put_session(ctx->provctx, ctx->session);
         }
 
-        ctx->session = p11prov_get_session(ctx->provctx, &slotid, &nextid,
-                                           ctx->parsed_uri, pw_cb, pw_cbarg);
+        ret =
+            p11prov_get_session(ctx->provctx, &slotid, &nextid, ctx->parsed_uri,
+                                pw_cb, pw_cbarg, &ctx->session);
+        switch (ret) {
+        case CKR_OK:
+            break;
+        case CKR_PIN_INCORRECT:
+        case CKR_PIN_INVALID:
+        case CKR_PIN_LEN_RANGE:
+            if (pw_cb == NULL) {
+                /* potentially recoverable error */
+                return;
+            }
+            /* fallthrough */
+        default:
+            /* mark unrecoverable error */
+            ctx->loaded = -1;
+            return;
+        }
         if (ctx->session == CK_INVALID_HANDLE) {
             return;
         }
@@ -252,7 +270,6 @@ static void store_load(struct p11prov_store_ctx *ctx,
         if (class == CKO_PUBLIC_KEY || class == CKO_PRIVATE_KEY) {
             P11PROV_KEY *priv_key = NULL;
             P11PROV_KEY *pub_key = NULL;
-            CK_RV ret;
 
             ret = find_keys(ctx->provctx, &priv_key, &pub_key, ctx->session,
                             slotid, class, ctx->parsed_uri);
@@ -273,10 +290,6 @@ static void store_load(struct p11prov_store_ctx *ctx,
                     p11prov_object_free(obj);
                     return;
                 }
-
-                /* we successflly loaded at least one object,
-                 * mark overall load as a success */
-                ctx->loaded = 1;
             }
             p11prov_key_free(priv_key);
             p11prov_key_free(pub_key);
@@ -284,6 +297,8 @@ static void store_load(struct p11prov_store_ctx *ctx,
         slotid = nextid;
 
     } while (nextid != CK_UNAVAILABLE_INFORMATION);
+
+    ctx->loaded = 1;
 }
 
 static void *p11prov_store_open(void *pctx, const char *uri)
