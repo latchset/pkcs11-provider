@@ -20,36 +20,36 @@ DISPATCH_RSAKM_FN(gettable_params);
 
 static void *p11prov_rsakm_new(void *provctx)
 {
-    p11prov_debug("rsa new\n");
+    P11PROV_debug("rsa new");
     return NULL;
 }
 
 static void *p11prov_rsakm_gen_init(void *provctx, int selection,
                                     const OSSL_PARAM params[])
 {
-    p11prov_debug("rsa gen_init\n");
+    P11PROV_debug("rsa gen_init");
     return NULL;
 }
 
 static void *p11prov_rsakm_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
-    p11prov_debug("rsa gen %p %p %p\n", genctx, cb_fn, cb_arg);
+    P11PROV_debug("rsa gen %p %p %p", genctx, cb_fn, cb_arg);
     return NULL;
 }
 static void p11prov_rsakm_gen_cleanup(void *genctx)
 {
-    p11prov_debug("rsa gen_cleanup %p\n", genctx);
+    P11PROV_debug("rsa gen_cleanup %p", genctx);
 }
 
 static void p11prov_rsakm_free(void *key)
 {
-    p11prov_debug("rsa free %p\n", key);
+    P11PROV_debug("rsa free %p", key);
     p11prov_object_free((P11PROV_OBJ *)key);
 }
 
 static void *p11prov_rsakm_load(const void *reference, size_t reference_sz)
 {
-    p11prov_debug("rsa load %p, %ld\n", reference, reference_sz);
+    P11PROV_debug("rsa load %p, %ld", reference, reference_sz);
 
     /* the contents of the reference is the address to our object */
     return p11prov_obj_from_reference(reference, reference_sz);
@@ -59,7 +59,7 @@ static int p11prov_rsakm_has(const void *keydata, int selection)
 {
     P11PROV_OBJ *obj = (P11PROV_OBJ *)keydata;
 
-    p11prov_debug("rsa has %p %d\n", obj, selection);
+    P11PROV_debug("rsa has %p %d", obj, selection);
 
     if (obj == NULL) {
         return 0;
@@ -83,7 +83,7 @@ static int p11prov_rsakm_has(const void *keydata, int selection)
 static int p11prov_rsakm_import(void *keydata, int selection,
                                 const OSSL_PARAM params[])
 {
-    p11prov_debug("rsa import %p\n", keydata);
+    P11PROV_debug("rsa import %p", keydata);
     return 0;
 }
 
@@ -92,7 +92,7 @@ static int p11prov_rsakm_export(void *keydata, int selection,
 {
     P11PROV_OBJ *obj = (P11PROV_OBJ *)keydata;
 
-    p11prov_debug("rsa export %p\n", keydata);
+    P11PROV_debug("rsa export %p", keydata);
 
     if (obj == NULL) {
         return 0;
@@ -113,7 +113,7 @@ static const OSSL_PARAM p11prov_rsakm_key_types[] = {
 
 static const OSSL_PARAM *p11prov_rsakm_import_types(int selection)
 {
-    p11prov_debug("rsa import types\n");
+    P11PROV_debug("rsa import types");
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return p11prov_rsakm_key_types;
     }
@@ -122,7 +122,7 @@ static const OSSL_PARAM *p11prov_rsakm_import_types(int selection)
 
 static const OSSL_PARAM *p11prov_rsakm_export_types(int selection)
 {
-    p11prov_debug("rsa export types\n");
+    P11PROV_debug("rsa export types");
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return p11prov_rsakm_key_types;
     }
@@ -184,7 +184,7 @@ static int p11prov_rsakm_get_params(void *keydata, OSSL_PARAM params[])
     OSSL_PARAM *p;
     int ret;
 
-    p11prov_debug("rsa get params %p\n", keydata);
+    P11PROV_debug("rsa get params %p", keydata);
 
     if (obj == NULL) {
         return 0;
@@ -282,36 +282,36 @@ DISPATCH_ECKM_FN(gettable_params);
 
 static void *p11prov_eckm_new(void *provctx)
 {
-    p11prov_debug("ec new\n");
+    P11PROV_debug("ec new");
     return NULL;
 }
 
 static void *p11prov_eckm_gen_init(void *provctx, int selection,
                                    const OSSL_PARAM params[])
 {
-    p11prov_debug("ec gen_init\n");
+    P11PROV_debug("ec gen_init");
     return NULL;
 }
 
 static void *p11prov_eckm_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
-    p11prov_debug("ec gen %p %p %p\n", genctx, cb_fn, cb_arg);
+    P11PROV_debug("ec gen %p %p %p", genctx, cb_fn, cb_arg);
     return NULL;
 }
 static void p11prov_eckm_gen_cleanup(void *genctx)
 {
-    p11prov_debug("ec gen_cleanup %p\n", genctx);
+    P11PROV_debug("ec gen_cleanup %p", genctx);
 }
 
 static void p11prov_eckm_free(void *key)
 {
-    p11prov_debug("ec free %p\n", key);
+    P11PROV_debug("ec free %p", key);
     p11prov_object_free((P11PROV_OBJ *)key);
 }
 
 static void *p11prov_eckm_load(const void *reference, size_t reference_sz)
 {
-    p11prov_debug("ec load %p, %ld\n", reference, reference_sz);
+    P11PROV_debug("ec load %p, %ld", reference, reference_sz);
 
     /* the contents of the reference is the address to our object */
     return p11prov_obj_from_reference(reference, reference_sz);
@@ -321,7 +321,7 @@ static int p11prov_eckm_has(const void *keydata, int selection)
 {
     P11PROV_OBJ *obj = (P11PROV_OBJ *)keydata;
 
-    p11prov_debug("ec has %p %d\n", obj, selection);
+    P11PROV_debug("ec has %p %d", obj, selection);
 
     if (obj == NULL) {
         return 0;
@@ -345,7 +345,7 @@ static int p11prov_eckm_has(const void *keydata, int selection)
 static int p11prov_eckm_import(void *keydata, int selection,
                                const OSSL_PARAM params[])
 {
-    p11prov_debug("ec import %p\n", keydata);
+    P11PROV_debug("ec import %p", keydata);
     return 0;
 }
 
@@ -354,7 +354,7 @@ static int p11prov_eckm_export(void *keydata, int selection,
 {
     P11PROV_OBJ *obj = (P11PROV_OBJ *)keydata;
 
-    p11prov_debug("ec export %p\n", keydata);
+    P11PROV_debug("ec export %p", keydata);
 
     if (obj == NULL) {
         return RET_OSSL_ERR;
@@ -375,7 +375,7 @@ static const OSSL_PARAM p11prov_eckm_key_types[] = {
 
 static const OSSL_PARAM *p11prov_eckm_import_types(int selection)
 {
-    p11prov_debug("ec import types\n");
+    P11PROV_debug("ec import types");
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return p11prov_eckm_key_types;
     }
@@ -384,7 +384,7 @@ static const OSSL_PARAM *p11prov_eckm_import_types(int selection)
 
 static const OSSL_PARAM *p11prov_eckm_export_types(int selection)
 {
-    p11prov_debug("ec export types\n");
+    P11PROV_debug("ec export types");
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return p11prov_eckm_key_types;
     }
@@ -429,7 +429,7 @@ static int p11prov_eckm_get_params(void *keydata, OSSL_PARAM params[])
     CK_ULONG group_size;
     int ret;
 
-    p11prov_debug("ec get params %p\n", keydata);
+    P11PROV_debug("ec get params %p", keydata);
 
     if (obj == NULL) {
         return 0;
@@ -537,23 +537,23 @@ const void *p11prov_hkdfkm_static_ctx = NULL;
 
 static void *p11prov_hkdfkm_new(void *provctx)
 {
-    p11prov_debug("hkdf keymgmt new\n");
+    P11PROV_debug("hkdf keymgmt new");
     return (void *)&p11prov_hkdfkm_static_ctx;
 }
 
 static void p11prov_hkdfkm_free(void *kdfdata)
 {
-    p11prov_debug("hkdf keymgmt free %p\n", kdfdata);
+    P11PROV_debug("hkdf keymgmt free %p", kdfdata);
 
     if (kdfdata != &p11prov_hkdfkm_static_ctx) {
-        p11prov_debug("Invalid HKDF Keymgmt context: %p != %p\n", kdfdata,
+        P11PROV_debug("Invalid HKDF Keymgmt context: %p != %p", kdfdata,
                       &p11prov_hkdfkm_static_ctx);
     }
 }
 
 static const char *p11prov_hkdfkm_query_operation_name(int operation_id)
 {
-    p11prov_debug("hkdf keymgmt query op name %d\n", operation_id);
+    P11PROV_debug("hkdf keymgmt query op name %d", operation_id);
 
     switch (operation_id) {
     case OSSL_OP_KEYEXCH:
@@ -565,9 +565,9 @@ static const char *p11prov_hkdfkm_query_operation_name(int operation_id)
 
 static int p11prov_hkdfkm_has(const void *kdfdata, int selection)
 {
-    p11prov_debug("hkdf keymgmt has\n");
+    P11PROV_debug("hkdf keymgmt has");
     if (kdfdata != &p11prov_hkdfkm_static_ctx) {
-        p11prov_debug("Invalid HKDF Keymgmt context: %p != %p\n", kdfdata,
+        P11PROV_debug("Invalid HKDF Keymgmt context: %p != %p", kdfdata,
                       &p11prov_hkdfkm_static_ctx);
         return RET_OSSL_ERR;
     }

@@ -49,13 +49,13 @@ P11PROV_KEY *p11prov_key_ref(P11PROV_KEY *key)
 
 void p11prov_key_free(P11PROV_KEY *key)
 {
-    p11prov_debug("key free (%p)\n", key);
+    P11PROV_debug("key free (%p)", key);
 
     if (key == NULL) {
         return;
     }
     if (__atomic_sub_fetch(&key->refcnt, 1, __ATOMIC_ACQ_REL) != 0) {
-        p11prov_debug("key free: reference held\n");
+        P11PROV_debug("key free: reference held");
         return;
     }
 
@@ -250,7 +250,7 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f, CK_SLOT_ID slotid,
 
     ret = p11prov_fetch_attributes(f, session, object, attrs, 4);
     if (ret != CKR_OK) {
-        p11prov_debug("Failed to query object attributes (%d)\n", ret);
+        P11PROV_debug("Failed to query object attributes (%d)", ret);
         p11prov_key_free(key);
         return NULL;
     }
@@ -275,7 +275,7 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f, CK_SLOT_ID slotid,
         break;
     default:
         /* unknown key type, we can't handle it */
-        p11prov_debug("Unsupported key type (%lu)\n", key->type);
+        P11PROV_debug("Unsupported key type (%lu)", key->type);
         p11prov_key_free(key);
         return NULL;
     }
@@ -300,7 +300,7 @@ CK_RV find_keys(P11PROV_CTX *provctx, CK_SESSION_HANDLE session,
     CK_RV result = CKR_GENERAL_ERROR;
     CK_RV ret;
 
-    p11prov_debug("Find keys\n");
+    P11PROV_debug("Find keys");
 
     if (f == NULL) {
         return result;
@@ -381,7 +381,7 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
     unsigned long label_len;
     CK_RV ret;
 
-    p11prov_debug("keys: create secret key (session:%lu secret:%p[%zu])\n",
+    P11PROV_debug("keys: create secret key (session:%lu secret:%p[%zu])",
                   session, secret, secretlen);
 
     f = p11prov_ctx_fns(provctx);
@@ -395,7 +395,7 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
         return NULL;
     }
     if (((session_info.flags & CKF_RW_SESSION) == 0) && val_token == CK_TRUE) {
-        p11prov_debug("Invalid read only session for token key request\n");
+        P11PROV_debug("Invalid read only session for token key request");
         return NULL;
     }
 
@@ -422,7 +422,7 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
     FA_ASSIGN_ALL(attrs[1], CKA_LABEL, &key->label, &label_len, true, false);
     ret = p11prov_fetch_attributes(f, session, key_handle, attrs, 2);
     if (ret != CKR_OK) {
-        p11prov_debug("Failed to query object attributes (%lu)\n", ret);
+        P11PROV_debug("Failed to query object attributes (%lu)", ret);
     }
 
     if (ret != CKR_OK) {

@@ -529,13 +529,13 @@ static int refresh_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
     ret = ctx->fns->C_OpenSession(slot->id, CKF_SERIAL_SESSION, NULL, NULL,
                                   &session);
     if (ret != CKR_OK) {
-        p11prov_debug("OpenSession failed %d\n", ret);
+        P11PROV_debug("OpenSession failed %d", ret);
         return ret;
     }
 
     ret = ctx->fns->C_FindObjectsInit(session, template, 2);
     if (ret != CKR_OK) {
-        p11prov_debug("C_FindObjectsInit failed %d\n", ret);
+        P11PROV_debug("C_FindObjectsInit failed %d", ret);
         (void)ctx->fns->C_CloseSession(session);
         return ret;
     }
@@ -543,12 +543,12 @@ static int refresh_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
     /* at most 5 objects as there are 5 profiles for now */
     ret = ctx->fns->C_FindObjects(session, object, 5, &objcount);
     if (ret != CKR_OK) {
-        p11prov_debug("C_FindObjects failed %d\n", ret);
+        P11PROV_debug("C_FindObjects failed %d", ret);
         goto done;
     }
 
     if (objcount == 0) {
-        p11prov_debug("No profiles for slot %lu\n", slot->id);
+        P11PROV_debug("No profiles for slot %lu", slot->id);
         goto done;
     }
 
@@ -558,7 +558,7 @@ static int refresh_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
 
         ret = ctx->fns->C_GetAttributeValue(session, object[i], &profileid, 1);
         if (ret != CKR_OK || value == CK_UNAVAILABLE_INFORMATION) {
-            p11prov_debug("C_GetAttributeValue failed %d\n", ret);
+            P11PROV_debug("C_GetAttributeValue failed %d", ret);
             continue;
         }
 
@@ -627,7 +627,7 @@ static int refresh_slots(P11PROV_CTX *ctx)
         }
         (void)refresh_slot_profiles(ctx, &slots[i]);
 
-        p11prov_debug_slot(&slots[i]);
+        P11PROV_debug_slot(&slots[i]);
     }
 
     OPENSSL_free(slotid);
@@ -664,13 +664,13 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
 
     pthread_mutex_init(&ctx->lock, 0);
 
-    p11prov_debug("PKCS#11: Initializing the module: %s\n", ctx->module);
+    P11PROV_debug("PKCS#11: Initializing the module: %s", ctx->module);
 
     dlerror();
     ctx->dlhandle = dlopen(ctx->module, RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
     if (ctx->dlhandle == NULL) {
         char *err = dlerror();
-        p11prov_debug("dlopen() failed: %s\n", err);
+        P11PROV_debug("dlopen() failed: %s", err);
         return -ENOENT;
     }
 
@@ -682,7 +682,7 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
     }
     if (ret != CKR_OK) {
         char *err = dlerror();
-        p11prov_debug("dlsym() failed: %s\n", err);
+        P11PROV_debug("dlsym() failed: %s", err);
         dlclose(ctx->dlhandle);
         ctx->dlhandle = NULL;
         return -ENOENT;
@@ -690,7 +690,7 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
 
     ret = ctx->fns->C_Initialize(&args);
     if (ret && ret != CKR_CRYPTOKI_ALREADY_INITIALIZED) {
-        p11prov_debug("init failed: %d (%s:%d)\n", ret, __FILE__, __LINE__);
+        P11PROV_debug("init failed: %d (%s:%d)", ret, __FILE__, __LINE__);
         return -EFAULT;
     }
 
@@ -698,7 +698,7 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
     if (ret) {
         return -EFAULT;
     }
-    p11prov_debug("Module Info: ck_ver:%d.%d lib: '%s' '%s' ver:%d.%d\n",
+    P11PROV_debug("Module Info: ck_ver:%d.%d lib: '%s' '%s' ver:%d.%d",
                   (int)ck_info.cryptokiVersion.major,
                   (int)ck_info.cryptokiVersion.minor, ck_info.manufacturerID,
                   ck_info.libraryDescription, (int)ck_info.libraryVersion.major,
