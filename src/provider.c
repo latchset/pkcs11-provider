@@ -607,7 +607,7 @@ static int refresh_slots(P11PROV_CTX *ctx)
         goto done;
     }
 
-    slots = OPENSSL_malloc(nslots * sizeof(struct p11prov_slot));
+    slots = OPENSSL_zalloc(nslots * sizeof(struct p11prov_slot));
     if (slots == NULL) {
         OPENSSL_free(slotid);
         ret = -ENOMEM;
