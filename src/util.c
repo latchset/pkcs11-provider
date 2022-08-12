@@ -77,7 +77,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, CK_SESSION_HANDLE session,
                               *attrs[i].value_len);
             ret = f->C_GetAttributeValue(session, object, r, 1);
             if (ret != CKR_OK) {
-                if (r[i].ulValueLen == CK_UNAVAILABLE_INFORMATION) {
+                if (r[0].ulValueLen == CK_UNAVAILABLE_INFORMATION) {
                     FA_RETURN_LEN(attrs[i], 0);
                 }
                 if (attrs[i].required) {
