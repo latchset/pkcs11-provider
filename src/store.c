@@ -237,7 +237,8 @@ static CK_RV p11prov_store_ctx_add_key(void *pctx, CK_OBJECT_CLASS class,
 
     if ((ctx->num_objs % OBJS_ALLOC_SIZE) == 0) {
         P11PROV_OBJ **tmp =
-            OPENSSL_realloc(ctx->objects, ctx->num_objs + OBJS_ALLOC_SIZE);
+            OPENSSL_realloc(ctx->objects, (ctx->num_objs + OBJS_ALLOC_SIZE)
+                                              * sizeof(P11PROV_OBJ *));
         if (tmp == NULL) {
             P11PROV_raise(ctx->provctx, CKR_HOST_MEMORY,
                           "Failed to allocate store objects");
