@@ -235,20 +235,14 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
         { CKA_EXTRACTABLE, &val_true, sizeof(val_true) },
         { CKA_VALUE_LEN, &key_size, sizeof(key_size) },
     };
-    CK_FUNCTION_LIST *f;
     CK_MECHANISM mechanism;
-    P11PROV_SESSION *sess;
-    CK_SESSION_HANDLE session;
+    P11PROV_SESSION *session = NULL;
     CK_OBJECT_HANDLE handle;
     CK_OBJECT_HANDLE secret_handle;
     CK_SLOT_ID slotid;
-    int result = RET_OSSL_ERR;
+    unsigned long secret_len;
+    struct fetch_attrs attrs[1];
     CK_RV ret;
-
-    ret = p11prov_ctx_status(ecdhctx->provctx, &f);
-    if (ret != CKR_OK) {
-        return RET_OSSL_ERR;
-    }
 
     if (ecdhctx->key == NULL || ecdhctx->peer_key == NULL) {
         ERR_raise(ERR_LIB_PROV, PROV_R_MISSING_KEY);
@@ -305,36 +299,23 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
         return RET_OSSL_ERR;
     }
 
-    ret = p11prov_get_session(ecdhctx->provctx, &slotid, NULL, NULL, NULL, NULL,
-                              &sess);
+    ret = p11prov_derive_key(ecdhctx->provctx, slotid, &mechanism, handle,
+                             key_template, 5, &session, &secret_handle);
     if (ret != CKR_OK) {
-        P11PROV_raise(ecdhctx->provctx, ret,
-                      "Failed to open session on slot %lu", slotid);
-        return ret;
-    }
-    session = p11prov_session_handle(sess);
-
-    ret = f->C_DeriveKey(session, &mechanism, handle, key_template, 5,
-                         &secret_handle);
-    if (ret == CKR_OK) {
-        unsigned long secret_len;
-        P11PROV_debug("ECDH derived hey handle: %lu", secret_handle);
-        struct fetch_attrs attrs[1] = {
-            { CKA_VALUE, &secret, &secret_len, false, true },
-        };
-        ret = p11prov_fetch_attributes(f, sess, secret_handle, attrs, 1);
-        if (ret != CKR_OK) {
-            P11PROV_debug("ecdh failed to retrieve secret %lu", ret);
-        }
-        *psecretlen = secret_len;
-        result = RET_OSSL_OK;
-    } else {
-        P11PROV_raise(ecdhctx->provctx, ret, "Error returned by C_DeriveKey");
-        result = RET_OSSL_ERR;
+        return RET_OSSL_ERR;
     }
 
-    p11prov_session_free(sess);
-    return result;
+    P11PROV_debug("ECDH derived hey handle: %lu", secret_handle);
+    FA_ASSIGN_ALL(attrs[0], CKA_VALUE, &secret, &secret_len, false, true);
+    ret = p11prov_fetch_attributes(ecdhctx->provctx, session, secret_handle,
+                                   attrs, 1);
+    p11prov_session_free(session);
+    if (ret != CKR_OK) {
+        P11PROV_debug("ecdh failed to retrieve secret %lu", ret);
+        return RET_OSSL_ERR;
+    }
+    *psecretlen = secret_len;
+    return RET_OSSL_OK;
 }
 
 static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])

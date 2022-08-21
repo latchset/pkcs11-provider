@@ -73,8 +73,14 @@ static void *p11prov_hkdf_newctx(void *provctx)
 {
     P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
     P11PROV_KDF_CTX *hkdfctx;
+    CK_RV ret;
 
     P11PROV_debug("hkdf newctx");
+
+    ret = p11prov_ctx_status(ctx, NULL);
+    if (ret != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
 
     hkdfctx = OPENSSL_zalloc(sizeof(P11PROV_KDF_CTX));
     if (hkdfctx == NULL) {
@@ -139,17 +145,13 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
         { CKA_EXTRACTABLE, &val_true, sizeof(val_true) },
         { CKA_VALUE_LEN, &key_size, sizeof(key_size) },
     };
-    CK_FUNCTION_LIST *f;
     CK_MECHANISM mechanism;
     CK_OBJECT_HANDLE pkey_handle;
     CK_OBJECT_HANDLE dkey_handle;
-    CK_SESSION_HANDLE session;
-    int ret = RET_OSSL_ERR;
-
-    ret = p11prov_ctx_status(hkdfctx->provctx, &f);
-    if (ret != CKR_OK) {
-        return RET_OSSL_ERR;
-    }
+    CK_SLOT_ID slotid;
+    unsigned long dkey_len;
+    struct fetch_attrs attrs[1];
+    CK_RV ret;
 
     P11PROV_debug("hkdf derive (ctx:%p, key:%p[%zu], params:%p)", ctx, key,
                   keylen, params);
@@ -180,26 +182,25 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
         hkdfctx->params.ulSaltType = CKF_HKDF_SALT_NULL;
     }
 
-    session = p11prov_session_handle(hkdfctx->session);
-    if (session == CK_INVALID_HANDLE) {
+    slotid = p11prov_key_slotid(hkdfctx->key);
+    if (slotid == CK_UNAVAILABLE_INFORMATION) {
+        P11PROV_raise(hkdfctx->provctx, CKR_SLOT_ID_INVALID,
+                      "Provided key has invalid slot");
         return RET_OSSL_ERR;
     }
 
-    ret = f->C_DeriveKey(session, &mechanism, pkey_handle, key_template, 5,
-                         &dkey_handle);
-    if (ret == CKR_OK) {
-        unsigned long dkey_len;
-        P11PROV_debug("HKDF derived hey handle: %lu", dkey_handle);
-        struct fetch_attrs attrs[1] = {
-            { CKA_VALUE, &key, &dkey_len, false, true },
-        };
-        ret = p11prov_fetch_attributes(f, hkdfctx->session, dkey_handle, attrs,
-                                       1);
-        if (ret != CKR_OK) {
-            P11PROV_debug("hkdf failed to retrieve secret %d", ret);
-        }
-    } else {
-        P11PROV_raise(hkdfctx->provctx, ret, "Error returned by C_DeriveKey");
+    ret = p11prov_derive_key(hkdfctx->provctx, slotid, &mechanism, pkey_handle,
+                             key_template, 5, &hkdfctx->session, &dkey_handle);
+    if (ret != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
+
+    P11PROV_debug("HKDF derived hey handle: %lu", dkey_handle);
+    FA_ASSIGN_ALL(attrs[0], CKA_VALUE, &key, &dkey_len, false, true);
+    ret = p11prov_fetch_attributes(hkdfctx->provctx, hkdfctx->session,
+                                   dkey_handle, attrs, 1);
+    if (ret != CKR_OK) {
+        P11PROV_debug("hkdf failed to retrieve secret %lu", ret);
         return RET_OSSL_ERR;
     }
 

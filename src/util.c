@@ -4,14 +4,21 @@
 #include "provider.h"
 #include <string.h>
 
-int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, P11PROV_SESSION *session,
-                             CK_OBJECT_HANDLE object, struct fetch_attrs *attrs,
-                             unsigned long attrnums)
+CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
+                               CK_OBJECT_HANDLE object,
+                               struct fetch_attrs *attrs,
+                               unsigned long attrnums)
 {
+    CK_FUNCTION_LIST *f;
     CK_SESSION_HANDLE sess = p11prov_session_handle(session);
     CK_ATTRIBUTE q[attrnums];
     CK_ATTRIBUTE r[attrnums];
-    int ret;
+    CK_RV ret;
+
+    ret = p11prov_ctx_status(ctx, &f);
+    if (ret != CKR_OK) {
+        return ret;
+    }
 
     for (size_t i = 0; i < attrnums; i++) {
         if (attrs[i].allocate) {
@@ -29,7 +36,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, P11PROV_SESSION *session,
         for (size_t i = 0; i < attrnums; i++) {
             if (q[i].ulValueLen == CK_UNAVAILABLE_INFORMATION) {
                 if (attrs[i].required) {
-                    return -ENOENT;
+                    return CKR_HOST_MEMORY;
                 }
                 FA_RETURN_LEN(attrs[i], 0);
                 continue;
@@ -39,7 +46,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, P11PROV_SESSION *session,
                  * zero terminated strings work automatically */
                 uint8_t *a = OPENSSL_zalloc(q[i].ulValueLen + 1);
                 if (a == NULL) {
-                    return -ENOMEM;
+                    return CKR_HOST_MEMORY;
                 }
                 FA_RETURN_VAL(attrs[i], a, q[i].ulValueLen);
 
@@ -69,7 +76,7 @@ int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, P11PROV_SESSION *session,
                 } else {
                     uint8_t *a = OPENSSL_zalloc(q[0].ulValueLen + 1);
                     if (a == NULL) {
-                        return -ENOMEM;
+                        return CKR_HOST_MEMORY;
                     }
                     FA_RETURN_VAL(attrs[i], a, q[0].ulValueLen);
                 }
