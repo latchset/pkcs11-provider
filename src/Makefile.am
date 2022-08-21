@@ -20,6 +20,7 @@ pkcs11_provider_la_SOURCES = \
 	platform/endian.h \
 	provider.h \
 	provider.c \
+	session.c \
 	signature.c \
 	store.c \
 	util.c \
