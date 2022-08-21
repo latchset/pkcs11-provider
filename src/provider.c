@@ -31,35 +31,18 @@ struct p11prov_ctx {
     void *dlhandle;
     CK_FUNCTION_LIST *fns;
 
-    P11PROV_SESSION *login_session;
-
     int nslots;
     struct p11prov_slot *slots;
 };
 
-int p11prov_ctx_lock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
+int p11prov_ctx_get_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
 {
     if (ctx->status != P11PROV_INITIALIZED) {
         return RET_OSSL_ERR;
     }
 
-    pthread_mutex_lock(&ctx->lock);
-    ctx->is_locked = true;
-
     *slots = ctx->slots;
     return ctx->nslots;
-}
-
-void p11prov_ctx_unlock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
-{
-    if (ctx->status != P11PROV_INITIALIZED) {
-        return;
-    }
-
-    *slots = NULL;
-
-    ctx->is_locked = false;
-    pthread_mutex_unlock(&ctx->lock);
 }
 
 OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx)
@@ -102,37 +85,6 @@ CK_UTF8CHAR_PTR p11prov_ctx_pin(P11PROV_CTX *ctx)
     return (CK_UTF8CHAR_PTR)ctx->pin;
 }
 
-/* the login_session functions must be called under lock */
-CK_RV p11prov_ctx_get_login_session(P11PROV_CTX *ctx, P11PROV_SESSION **session)
-{
-    if (!ctx->is_locked) {
-        /* called without mutex held */
-        P11PROV_raise(ctx, CKR_MUTEX_NOT_LOCKED,
-                      "Tried to get login session without lock");
-        return CKR_MUTEX_NOT_LOCKED;
-    }
-
-    *session = ctx->login_session;
-    return CKR_OK;
-}
-
-CK_RV p11prov_ctx_set_login_session(P11PROV_CTX *ctx, P11PROV_SESSION *session)
-{
-    if (!ctx->is_locked) {
-        /* called without mutex held */
-        P11PROV_raise(ctx, CKR_MUTEX_NOT_LOCKED,
-                      "Tried to get login session without lock");
-        return CKR_MUTEX_NOT_LOCKED;
-    }
-
-    if (ctx->login_session) {
-        p11prov_session_free(ctx->login_session);
-    }
-
-    ctx->login_session = session;
-    return CKR_OK;
-}
-
 static void p11prov_ctx_free(P11PROV_CTX *ctx)
 {
     if (ctx->status != P11PROV_UNINITIALIZED) {
@@ -142,20 +94,18 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
 
     OSSL_LIB_CTX_free(ctx->libctx);
 
-    /* TODO: C_CloseAllSessions ? */
-    if (ctx->login_session) {
-        p11prov_session_free(ctx->login_session);
-    }
-
     if (ctx->dlhandle) {
-        ctx->fns->C_Finalize(NULL);
-        dlclose(ctx->dlhandle);
-
         if (ctx->slots) {
+            for (int i = 0; i < ctx->nslots; i++) {
+                (void)p11prov_session_pool_free(ctx->slots[i].pool);
+            }
             OPENSSL_free(ctx->slots);
             ctx->slots = NULL;
             ctx->nslots = 0;
         }
+
+        ctx->fns->C_Finalize(NULL);
+        dlclose(ctx->dlhandle);
     }
 
     if (ctx->pin) {
@@ -529,7 +479,7 @@ static const OSSL_DISPATCH p11prov_dispatch_table[] = {
     { 0, NULL },
 };
 
-static int refresh_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
+static int get_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
 {
     CK_SESSION_HANDLE session;
     CK_BBOOL token = CK_TRUE;
@@ -590,46 +540,38 @@ done:
     return ret;
 }
 
-static int refresh_slots(P11PROV_CTX *ctx)
+static CK_RV get_slots(P11PROV_CTX *ctx)
 {
     CK_ULONG nslots;
     CK_SLOT_ID *slotid;
     struct p11prov_slot *slots;
     int ret;
 
-    if (ctx->status == P11PROV_INITIALIZED) {
-        pthread_mutex_lock(&ctx->lock);
-        ctx->is_locked = true;
-    }
-
     ret = ctx->fns->C_GetSlotList(CK_FALSE, NULL, &nslots);
     if (ret) {
-        goto done;
+        return ret;
     }
 
     /* arbitrary number from libp11 */
     if (nslots > 0x10000) {
-        ret = -E2BIG;
-        goto done;
+        return CKR_GENERAL_ERROR;
     }
 
     slotid = OPENSSL_malloc(nslots * sizeof(CK_SLOT_ID));
     if (slotid == NULL) {
-        ret = -ENOMEM;
-        goto done;
+        return CKR_HOST_MEMORY;
     }
 
     ret = ctx->fns->C_GetSlotList(CK_FALSE, slotid, &nslots);
     if (ret) {
         OPENSSL_free(slotid);
-        goto done;
+        return ret;
     }
 
     slots = OPENSSL_zalloc(nslots * sizeof(struct p11prov_slot));
     if (slots == NULL) {
         OPENSSL_free(slotid);
-        ret = -ENOMEM;
-        goto done;
+        return CKR_HOST_MEMORY;
     }
 
     for (size_t i = 0; i < nslots; i++) {
@@ -639,26 +581,30 @@ static int refresh_slots(P11PROV_CTX *ctx)
             ret = ctx->fns->C_GetTokenInfo(slotid[i], &slots[i].token);
         }
         if (ret) {
-            OPENSSL_free(slotid);
-            OPENSSL_free(slots);
             goto done;
         }
-        (void)refresh_slot_profiles(ctx, &slots[i]);
+
+        ret = p11prov_session_pool_init(ctx, &slots[i].token, &(slots[i].pool));
+        if (ret) {
+            goto done;
+        }
+
+        (void)get_slot_profiles(ctx, &slots[i]);
 
         P11PROV_debug_slot(&slots[i]);
     }
 
-    OPENSSL_free(slotid);
-    OPENSSL_free(ctx->slots);
-    ctx->slots = slots;
-    ctx->nslots = nslots;
-
 done:
-    if (ctx->status == P11PROV_INITIALIZED) {
-        ctx->is_locked = false;
-        pthread_mutex_unlock(&ctx->lock);
+    if (ret != CKR_OK) {
+        for (size_t i = 0; i < nslots; i++) {
+            p11prov_session_pool_free(slots[i].pool);
+        }
+        OPENSSL_free(slots);
+    } else {
+        ctx->slots = slots;
+        ctx->nslots = nslots;
     }
-
+    OPENSSL_free(slotid);
     return ret;
 }
 
@@ -722,7 +668,7 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
                   ck_info.libraryDescription, (int)ck_info.libraryVersion.major,
                   (int)ck_info.libraryVersion.minor);
 
-    ret = refresh_slots(ctx);
+    ret = get_slots(ctx);
     if (ret) {
         return -EFAULT;
     }
