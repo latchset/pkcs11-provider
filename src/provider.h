@@ -43,11 +43,14 @@ typedef struct p11prov_key P11PROV_KEY;
 typedef struct p11prov_uri P11PROV_URI;
 typedef struct p11prov_obj P11PROV_OBJ;
 typedef struct p11prov_session P11PROV_SESSION;
+typedef struct p11prov_session_pool P11PROV_SESSION_POOL;
 
 struct p11prov_slot {
     CK_SLOT_ID id;
     CK_SLOT_INFO slot;
     CK_TOKEN_INFO token;
+
+    P11PROV_SESSION_POOL *pool;
 
     CK_ULONG profiles[5];
 };
@@ -56,12 +59,7 @@ struct p11prov_slot {
 CK_UTF8CHAR_PTR p11prov_ctx_pin(P11PROV_CTX *ctx);
 OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx);
 CK_RV p11prov_ctx_status(P11PROV_CTX *ctx, CK_FUNCTION_LIST **fns);
-int p11prov_ctx_lock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
-void p11prov_ctx_unlock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
-/* the login_session functions must be called under lock */
-CK_RV p11prov_ctx_get_login_session(P11PROV_CTX *ctx,
-                                    P11PROV_SESSION **session);
-CK_RV p11prov_ctx_set_login_session(P11PROV_CTX *ctx, P11PROV_SESSION *session);
+int p11prov_ctx_get_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
 
 /* Errors */
 void p11prov_raise(P11PROV_CTX *ctx, const char *file, int line,
@@ -269,10 +267,9 @@ CK_RV p11prov_uri_match_token(P11PROV_URI *uri, CK_TOKEN_INFO *token);
 int p11prov_get_pin(const char *in, char **out);
 
 /* Sessions */
-P11PROV_SESSION *p11prov_session_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid);
-P11PROV_SESSION *p11prov_session_ref(P11PROV_SESSION *session);
-CK_RV p11prov_session_open(P11PROV_SESSION *session, bool login,
-                           CK_UTF8CHAR_PTR pin, CK_ULONG pinlen);
+CK_RV p11prov_session_pool_init(P11PROV_CTX *ctx, CK_TOKEN_INFO *token,
+                                P11PROV_SESSION_POOL **_pool);
+CK_RV p11prov_session_pool_free(P11PROV_SESSION_POOL *pool);
 void p11prov_session_free(P11PROV_SESSION *session);
 CK_SESSION_HANDLE p11prov_session_handle(P11PROV_SESSION *session);
 CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
