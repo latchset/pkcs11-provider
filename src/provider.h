@@ -120,6 +120,10 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        P11PROV_SESSION *session,
                                        bool session_key, unsigned char *secret,
                                        size_t secretlen);
+CK_RV p11prov_derive_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
+                         CK_MECHANISM *mechanism, CK_OBJECT_HANDLE handle,
+                         CK_ATTRIBUTE *template, CK_ULONG nattrs,
+                         P11PROV_SESSION **session, CK_OBJECT_HANDLE *key);
 
 /* Object Store */
 void p11prov_object_free(P11PROV_OBJ *obj);
@@ -249,9 +253,10 @@ struct fetch_attrs {
         x.ulValueLen = _c; \
     } while (0)
 
-int p11prov_fetch_attributes(CK_FUNCTION_LIST *f, P11PROV_SESSION *session,
-                             CK_OBJECT_HANDLE object, struct fetch_attrs *attrs,
-                             unsigned long attrnums);
+CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
+                               CK_OBJECT_HANDLE object,
+                               struct fetch_attrs *attrs,
+                               unsigned long attrnums);
 
 #define MAX_PIN_LENGTH 32
 P11PROV_URI *p11prov_parse_uri(const char *uri);

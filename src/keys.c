@@ -117,7 +117,7 @@ CK_ULONG p11prov_key_size(P11PROV_KEY *key)
     return key->key_size;
 }
 
-static int fetch_rsa_key(CK_FUNCTION_LIST *f, P11PROV_SESSION *session,
+static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                          CK_OBJECT_HANDLE object, P11PROV_KEY *key)
 {
     struct fetch_attrs attrs[2];
@@ -131,7 +131,7 @@ static int fetch_rsa_key(CK_FUNCTION_LIST *f, P11PROV_SESSION *session,
     }
     FA_ASSIGN_ALL(attrs[0], CKA_MODULUS, &n, &n_len, true, true);
     FA_ASSIGN_ALL(attrs[1], CKA_PUBLIC_EXPONENT, &e, &e_len, true, true);
-    ret = p11prov_fetch_attributes(f, session, object, attrs, 2);
+    ret = p11prov_fetch_attributes(ctx, session, object, attrs, 2);
     if (ret != CKR_OK) {
         /* free any allocated memory */
         OPENSSL_free(n);
@@ -151,7 +151,7 @@ static int fetch_rsa_key(CK_FUNCTION_LIST *f, P11PROV_SESSION *session,
     return CKR_OK;
 }
 
-static int fetch_ec_key(CK_FUNCTION_LIST *f, P11PROV_SESSION *session,
+static int fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                         CK_OBJECT_HANDLE object, P11PROV_KEY *key)
 {
     struct fetch_attrs attrs[2];
@@ -173,7 +173,7 @@ static int fetch_ec_key(CK_FUNCTION_LIST *f, P11PROV_SESSION *session,
         FA_ASSIGN_ALL(attrs[n], CKA_EC_POINT, &point, &point_len, true, true);
         n++;
     }
-    ret = p11prov_fetch_attributes(f, session, object, attrs, n);
+    ret = p11prov_fetch_attributes(ctx, session, object, attrs, n);
     if (ret != CKR_OK) {
         /* free any allocated memory */
         OPENSSL_free(params);
@@ -220,7 +220,7 @@ static int fetch_ec_key(CK_FUNCTION_LIST *f, P11PROV_SESSION *session,
 }
 
 /* TODO: may want to have a hashmap with cached keys */
-static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f, CK_SLOT_ID slotid,
+static P11PROV_KEY *object_handle_to_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                                          P11PROV_SESSION *session,
                                          CK_OBJECT_HANDLE object)
 {
@@ -248,7 +248,7 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f, CK_SLOT_ID slotid,
     /* TODO: fetch also other attributes as specified in
      * Spev v3 - 4.9 Private key objects  ?? */
 
-    ret = p11prov_fetch_attributes(f, session, object, attrs, 4);
+    ret = p11prov_fetch_attributes(ctx, session, object, attrs, 4);
     if (ret != CKR_OK) {
         P11PROV_debug("Failed to query object attributes (%d)", ret);
         p11prov_key_free(key);
@@ -260,14 +260,14 @@ static P11PROV_KEY *object_handle_to_key(CK_FUNCTION_LIST *f, CK_SLOT_ID slotid,
 
     switch (key->type) {
     case CKK_RSA:
-        ret = fetch_rsa_key(f, session, object, key);
+        ret = fetch_rsa_key(ctx, session, object, key);
         if (ret != CKR_OK) {
             p11prov_key_free(key);
             return NULL;
         }
         break;
     case CKK_EC:
-        ret = fetch_ec_key(f, session, object, key);
+        ret = fetch_ec_key(ctx, session, object, key);
         if (ret != CKR_OK) {
             p11prov_key_free(key);
             return NULL;
@@ -341,7 +341,7 @@ CK_RV find_keys(P11PROV_CTX *provctx, P11PROV_SESSION *session,
         }
 
         for (CK_ULONG k = 0; k < objcount; k++) {
-            key = object_handle_to_key(f, slotid, session, object[k]);
+            key = object_handle_to_key(provctx, slotid, session, object[k]);
             if (key) {
                 ret = cb(cb_ctx, key->class, key);
                 if (ret != CKR_OK) {
@@ -427,7 +427,7 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
 
     FA_ASSIGN_ALL(attrs[0], CKA_ID, &key->id, &key->id_len, true, false);
     FA_ASSIGN_ALL(attrs[1], CKA_LABEL, &key->label, &label_len, true, false);
-    ret = p11prov_fetch_attributes(f, session, key_handle, attrs, 2);
+    ret = p11prov_fetch_attributes(provctx, session, key_handle, attrs, 2);
     if (ret != CKR_OK) {
         P11PROV_debug("Failed to query object attributes (%lu)", ret);
     }
@@ -437,4 +437,54 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
         key = NULL;
     }
     return key;
+}
+
+CK_RV p11prov_derive_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
+                         CK_MECHANISM *mechanism, CK_OBJECT_HANDLE handle,
+                         CK_ATTRIBUTE *template, CK_ULONG nattrs,
+                         P11PROV_SESSION **session, CK_OBJECT_HANDLE *key)
+{
+    bool first_pass = true;
+    P11PROV_SESSION *s = *session;
+    CK_FUNCTION_LIST *f;
+    CK_RV ret;
+
+    ret = p11prov_ctx_status(ctx, &f);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+
+again:
+    if (!s) {
+        ret = p11prov_get_session(ctx, &slotid, NULL, NULL, NULL, NULL, &s);
+        if (ret != CKR_OK) {
+            P11PROV_raise(ctx, ret, "Failed to open session on slot %lu",
+                          slotid);
+            return ret;
+        }
+    }
+
+    ret = f->C_DeriveKey(p11prov_session_handle(s), mechanism, handle, template,
+                         nattrs, key);
+    switch (ret) {
+    case CKR_OK:
+        *session = s;
+        return CKR_OK;
+    case CKR_SESSION_CLOSED:
+    case CKR_SESSION_HANDLE_INVALID:
+        if (first_pass) {
+            first_pass = false;
+            /* TODO: Explicilty mark handle invalid */
+            p11prov_session_free(s);
+            s = *session = NULL;
+            goto again;
+        }
+        /* fallthrough */
+    default:
+        if (*session == NULL) {
+            p11prov_session_free(s);
+        }
+        P11PROV_raise(ctx, ret, "Error returned by C_DeriveKey");
+        return ret;
+    }
 }
