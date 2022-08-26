@@ -43,7 +43,7 @@ static CK_RV p11prov_object_new(P11PROV_CTX *ctx, CK_OBJECT_CLASS class,
 
 static P11PROV_OBJ *p11prov_object_ref(P11PROV_OBJ *obj)
 {
-    if (obj && __atomic_fetch_add(&obj->refcnt, 1, __ATOMIC_ACQ_REL) > 0) {
+    if (obj && __atomic_fetch_add(&obj->refcnt, 1, __ATOMIC_SEQ_CST) > 0) {
         return obj;
     }
 
@@ -57,7 +57,7 @@ void p11prov_object_free(P11PROV_OBJ *obj)
     if (obj == NULL) {
         return;
     }
-    if (__atomic_sub_fetch(&obj->refcnt, 1, __ATOMIC_ACQ_REL) != 0) {
+    if (__atomic_sub_fetch(&obj->refcnt, 1, __ATOMIC_SEQ_CST) != 0) {
         P11PROV_debug("object free: reference held");
         return;
     }

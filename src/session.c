@@ -36,7 +36,7 @@ P11PROV_SESSION *p11prov_session_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid)
 P11PROV_SESSION *p11prov_session_ref(P11PROV_SESSION *session)
 {
     if (session
-        && __atomic_fetch_add(&session->refcnt, 1, __ATOMIC_ACQ_REL) > 0) {
+        && __atomic_fetch_add(&session->refcnt, 1, __ATOMIC_SEQ_CST) > 0) {
         return session;
     }
 
@@ -88,7 +88,7 @@ void p11prov_session_free(P11PROV_SESSION *session)
         return;
     }
 
-    if (__atomic_sub_fetch(&session->refcnt, 1, __ATOMIC_ACQ_REL) != 0) {
+    if (__atomic_sub_fetch(&session->refcnt, 1, __ATOMIC_SEQ_CST) != 0) {
         return;
     }
 
