@@ -40,7 +40,7 @@ static P11PROV_KEY *p11prov_key_new(void)
 
 P11PROV_KEY *p11prov_key_ref(P11PROV_KEY *key)
 {
-    if (key && __atomic_fetch_add(&key->refcnt, 1, __ATOMIC_ACQ_REL) > 0) {
+    if (key && __atomic_fetch_add(&key->refcnt, 1, __ATOMIC_SEQ_CST) > 0) {
         return key;
     }
 
@@ -54,7 +54,7 @@ void p11prov_key_free(P11PROV_KEY *key)
     if (key == NULL) {
         return;
     }
-    if (__atomic_sub_fetch(&key->refcnt, 1, __ATOMIC_ACQ_REL) != 0) {
+    if (__atomic_sub_fetch(&key->refcnt, 1, __ATOMIC_SEQ_CST) != 0) {
         P11PROV_debug("key free: reference held");
         return;
     }
