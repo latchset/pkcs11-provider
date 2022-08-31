@@ -2,6 +2,10 @@
 tests/openssl.cnf
 tests/tokens
 tests/tmp
+tests/*.log
+tests/*.trs
+/pkcs11-provider-?.?/
+/pkcs11-provider-?.?.tar.?z
 
 # generic ignore patterns (c, autotools, etc)
 INSTALL
