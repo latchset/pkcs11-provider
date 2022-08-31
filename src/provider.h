@@ -95,6 +95,15 @@ extern int debug_lazy_init;
 #define P11PROV_debug_slot(...) \
     P11PROV_debug_status(p11prov_debug_slot(__VA_ARGS__))
 
+#define P11PROV_debug_once(...) \
+    do { \
+        static int called = 0; \
+        if (!called) { \
+            P11PROV_debug_status(p11prov_debug(__VA_ARGS__)); \
+            called = 1; \
+        } \
+    } while (0)
+
 void p11prov_debug_init(void);
 void p11prov_debug(const char *fmt, ...);
 void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
@@ -265,6 +274,8 @@ char *p11prov_uri_get_object(P11PROV_URI *uri);
 char *p11prov_uri_get_pin(P11PROV_URI *uri);
 CK_RV p11prov_uri_match_token(P11PROV_URI *uri, CK_TOKEN_INFO *token);
 int p11prov_get_pin(const char *in, char **out);
+bool cyclewait_with_timeout(uint64_t max_wait, uint64_t interval,
+                            uint64_t *start_time);
 
 /* Sessions */
 CK_RV p11prov_session_pool_init(P11PROV_CTX *ctx, CK_TOKEN_INFO *token,

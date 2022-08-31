@@ -1,8 +1,10 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
    SPDX-License-Identifier: Apache-2.0 */
 
+#define _XOPEN_SOURCE 500
 #include "provider.h"
 #include <string.h>
+#include <time.h>
 
 CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                                CK_OBJECT_HANDLE object,
@@ -438,4 +440,45 @@ int p11prov_get_pin(const char *in, char **out)
     }
 
     return 0;
+}
+
+/* Calculates the start time and then nano-sleeps by 'interval' time.
+ * On the first invocation the content of start_time must be 0.
+ * The content of start_time must not be altered outside this function after
+ * the first invocation.
+ * This function does not guarantee each sleep is 'interval' long.
+ *
+ * Returns true if max_wait has not been reached yet.
+ * Returns false on an error or if max_wait is exceeded.
+ */
+bool cyclewait_with_timeout(uint64_t max_wait, uint64_t interval,
+                            uint64_t *start_time)
+{
+#define NANOS_SEC 1000000000
+    uint64_t current_time;
+    struct timespec ts;
+    int ret;
+
+    ret = clock_gettime(CLOCK_MONOTONIC, &ts);
+    if (ret != 0) {
+        return false;
+    }
+
+    current_time = ts.tv_sec * NANOS_SEC + ts.tv_nsec;
+    if (*start_time == 0) {
+        *start_time = current_time;
+    } else {
+        if (current_time > *start_time + max_wait) {
+            return false;
+        }
+    }
+
+    ts.tv_sec = interval / NANOS_SEC;
+    ts.tv_nsec = interval % NANOS_SEC;
+    ret = nanosleep(&ts, NULL);
+    if (ret != 0 && ret != EINTR) {
+        return false;
+    }
+
+    return true;
 }
