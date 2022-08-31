@@ -1,3 +1,9 @@
+# project-specific ignore patterns
+tests/openssl.cnf
+tests/tokens
+tests/tmp
+
+# generic ignore patterns (c, autotools, etc)
 INSTALL
 Makefile
 Makefile.in
@@ -21,20 +27,14 @@ m4/ltsugar.m4
 m4/ltversion.m4
 m4/lt~obsolete.m4
 missing
-src/.deps/
-src/Makefile
-src/Makefile.in
 src/config.h
 src/config.h.in
 src/stamp-h1
 cscope.out
-src/.libs/
-src/*.la
-src/*.lo
-src/*.o
+.deps/
+.libs/
+*.la
+*.lo
+*.o
 *~
-src/*~
 test-driver
-tests/openssl.cnf
-tests/tokens
-tests/tmp
