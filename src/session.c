@@ -31,6 +31,51 @@ struct p11prov_session_pool {
     pthread_mutex_t lock;
 };
 
+/* in nanoseconds, 1 seconds */
+#define MAX_WAIT 1000000000
+/* sleep interval, 50 microseconds (max 20 attempts) */
+#define SLEEP 50000
+static CK_RV internal_session_open(P11PROV_SESSION_POOL *p, CK_SLOT_ID slot,
+                                   CK_SESSION_HANDLE *session)
+{
+    CK_FUNCTION_LIST *f;
+    bool wait_ok = true;
+    CK_ULONG cs = 0;
+    uint64_t startime = 0;
+    CK_RV ret;
+
+    ret = p11prov_ctx_status(p->provctx, &f);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+
+    while (wait_ok) {
+        if (cs == 0) {
+            cs = __atomic_add_fetch(&p->cur_sessions, 1, __ATOMIC_SEQ_CST);
+            if (cs > p->max_sessions) {
+                P11PROV_debug_once("Max Session (%lu) exceeded!", cs);
+                (void)__atomic_sub_fetch(&p->cur_sessions, 1, __ATOMIC_SEQ_CST);
+                ret = CKR_SESSION_COUNT;
+                cs = 0;
+                wait_ok = cyclewait_with_timeout(MAX_WAIT, SLEEP, &startime);
+                continue;
+            }
+        }
+
+        wait_ok = false;
+        ret = f->C_OpenSession(slot, CKF_SERIAL_SESSION, NULL, NULL, session);
+        P11PROV_debug("C_OpenSession ret:%lu (session: %lu)", ret, session);
+        if (ret == CKR_SESSION_COUNT) {
+            wait_ok = cyclewait_with_timeout(MAX_WAIT, SLEEP, &startime);
+        }
+    }
+
+    if (ret != CKR_OK && cs != 0) {
+        (void)__atomic_sub_fetch(&p->cur_sessions, 1, __ATOMIC_SEQ_CST);
+    }
+    return ret;
+}
+
 static void internal_session_close(P11PROV_SESSION *session)
 {
     if (session->session != CK_INVALID_HANDLE) {
@@ -204,42 +249,34 @@ static CK_RV p11prov_session_open(P11PROV_SESSION *session, bool login,
                                   CK_UTF8CHAR_PTR pin, CK_ULONG pinlen)
 {
     P11PROV_SESSION_POOL *p = session->pool;
-    CK_ULONG cur_sessions;
-    CK_FUNCTION_LIST *f;
     CK_RV ret;
 
-    ret = p11prov_ctx_status(session->provctx, &f);
-    if (ret != CKR_OK) {
-        return ret;
-    }
-
-    cur_sessions = __atomic_add_fetch(&p->cur_sessions, 1, __ATOMIC_SEQ_CST);
-    if (cur_sessions > p->max_sessions) {
-        P11PROV_raise(session->provctx, ret, "Max sessions limit");
-        (void)__atomic_sub_fetch(&p->cur_sessions, 1, __ATOMIC_SEQ_CST);
-        return CKR_SESSION_COUNT;
-    }
-
-    ret = f->C_OpenSession(session->slotid, CKF_SERIAL_SESSION, NULL, NULL,
-                           &session->session);
+    ret = internal_session_open(p, session->slotid, &session->session);
     if (ret != CKR_OK) {
         P11PROV_raise(session->provctx, ret,
                       "Failed to open session on slot %lu", session->slotid);
-        (void)__atomic_sub_fetch(&p->cur_sessions, 1, __ATOMIC_SEQ_CST);
         return ret;
     }
 
     if (login) {
-        /* Supports only USER login sessions for now */
-        ret = f->C_Login(session->session, CKU_USER, pin, pinlen);
-        if (ret != CKR_OK && ret != CKR_USER_ALREADY_LOGGED_IN) {
+        CK_FUNCTION_LIST *f;
+        ret = p11prov_ctx_status(session->provctx, &f);
+        if (ret == CKR_OK) {
+            /* Supports only USER login sessions for now */
+            ret = f->C_Login(session->session, CKU_USER, pin, pinlen);
+        }
+        P11PROV_debug("Login session; ret:%lu, session:%lu", ret,
+                      session->session);
+        if (ret == CKR_USER_ALREADY_LOGGED_IN) {
+            ret = CKR_OK;
+        }
+        if (ret != CKR_OK) {
             P11PROV_raise(session->provctx, ret, "Error returned by C_Login");
             internal_session_close(session);
-            return ret;
         }
     }
 
-    return CKR_OK;
+    return ret;
 }
 
 void p11prov_session_free(P11PROV_SESSION *session)
