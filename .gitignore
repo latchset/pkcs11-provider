@@ -30,7 +30,6 @@ missing
 src/config.h
 src/config.h.in
 src/stamp-h1
-cscope.out
 .deps/
 .libs/
 *.la
@@ -38,3 +37,18 @@ cscope.out
 *.o
 *~
 test-driver
+tags
+.tags
+!tags/
+TAGS
+.TAGS
+!TAGS/
+gtags.files
+GTAGS
+GRTAGS
+GPATH
+GSYMS
+cscope.files
+cscope.out
+cscope.in.out
+cscope.po.out
