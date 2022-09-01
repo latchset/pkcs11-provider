@@ -17,3 +17,20 @@ check-style-show:
 
 check-style-fix:
 	git diff -U0 --no-color --relative origin/main | clang-format-diff -i -p1
+
+DISTCLEANFILES = \
+	*~
+
+MAINTAINERCLEANFILES = \
+	Makefile.in \
+	aclocal.m4 \
+	ar-lib compile \
+	config.guess \
+	config.sub \
+	configure \
+	depcomp \
+	install-sh \
+	ltmain.sh \
+	m4/* \
+	missing \
+	test-driver
