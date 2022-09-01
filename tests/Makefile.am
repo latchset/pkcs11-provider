@@ -24,6 +24,12 @@ clean-local:
 	rm -Rf tmp
 	rm -Rf tokens
 
+DISTCLEANFILES = \
+	*~
+
+MAINTAINERCLEANFILES = \
+	Makefile.in
+
 edit_cmd = $(SED) \
     -e 's|@softokenpath[@]|$(softokenpath)|g' \
     -e 's|@libtoollibs[@]|$(libtoollibs)|g' \

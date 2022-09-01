@@ -35,4 +35,8 @@ pkcs11_provider_la_LDFLAGS = \
 	-avoid-version \
 	-export-symbols "$(srcdir)/provider.exports"
 
+DISTCLEANFILES = \
+	*~
 
+MAINTAINERCLEANFILES = \
+	Makefile.in config.h.in
