@@ -8,6 +8,8 @@ testsdir=@abs_top_builddir@/tests
 dist_check_SCRIPTS = \
 	test.sh
 
+check_SCRIPTS = $(softokenpath)
+
 TESTS = $(dist_check_SCRIPTS)
 
 TESTS_ENVIRONMENT =     \
