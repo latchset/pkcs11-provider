@@ -2,6 +2,7 @@
 tests/openssl.cnf
 tests/tokens
 tests/tmp
+tests/tsession
 tests/*.log
 tests/*.trs
 /pkcs11-provider-?.?/
