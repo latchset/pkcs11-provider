@@ -40,7 +40,7 @@ void p11prov_debug(const char *fmt, ...)
     va_start(args, fmt);
     vfprintf(stddebug, fmt, args);
     va_end(args);
-    fwrite(newline, sizeof(newline), 1, stddebug);
+    fwrite(newline, 1, 1, stddebug);
     fflush(stddebug);
 }
 
