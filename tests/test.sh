@@ -415,4 +415,7 @@ pkeyutl -derive -kdf HKDF -kdflen 48
                 -out ${TMPDIR}/hkdf2-out.bin'
 diff ${TMPDIR}/hkdf2-out-pkcs11.bin ${TMPDIR}/hkdf2-out.bin
 
+title PARA "Test session support"
+BASEURI="${BASEURI}" ./tsession
+
 exit 0
