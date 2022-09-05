@@ -61,14 +61,14 @@ static void *p11prov_sig_dupctx(void *ctx)
     CK_OBJECT_HANDLE handle = CK_INVALID_HANDLE;
     CK_BYTE_PTR state = NULL;
     CK_ULONG state_len;
-    int ret;
+    CK_RV ret;
 
     if (sigctx == NULL) {
         return NULL;
     }
 
-    f = p11prov_ctx_fns(sigctx->provctx);
-    if (f == NULL) {
+    ret = p11prov_ctx_status(sigctx->provctx, &f);
+    if (ret != CKR_OK) {
         return NULL;
     }
 
@@ -163,8 +163,9 @@ static void p11prov_sig_freectx(void *ctx)
     }
 
     if (sigctx->session != CK_INVALID_HANDLE) {
-        CK_FUNCTION_LIST *f = p11prov_ctx_fns(sigctx->provctx);
-        if (f) {
+        CK_FUNCTION_LIST *f;
+        CK_RV ret = p11prov_ctx_status(sigctx->provctx, &f);
+        if (ret == CKR_OK) {
             f->C_CloseSession(sigctx->session);
         }
     }
@@ -368,6 +369,12 @@ static int p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
     P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
+    CK_RV ret;
+
+    ret = p11prov_ctx_status(sigctx->provctx, NULL);
+    if (ret != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
 
     if (operation == CKF_SIGN) {
         sigctx->key = p11prov_object_get_key(obj, CKO_PRIVATE_KEY);
@@ -398,11 +405,11 @@ static int p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
     CK_SESSION_HANDLE session;
     CK_OBJECT_HANDLE handle;
     CK_SLOT_ID slotid;
-    int ret;
+    CK_RV ret;
 
-    f = p11prov_ctx_fns(sigctx->provctx);
-    if (f == NULL) {
-        return CKR_GENERAL_ERROR;
+    ret = p11prov_ctx_status(sigctx->provctx, &f);
+    if (ret != CKR_OK) {
+        return ret;
     }
 
     handle = p11prov_key_handle(sigctx->key);
@@ -468,7 +475,7 @@ static int p11prov_sig_operate(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
     CK_SESSION_HANDLE session;
     CK_ULONG sig_size = sigsize;
     int result = RET_OSSL_ERR;
-    int ret;
+    CK_RV ret;
 
     if (sig == NULL) {
         if (sigctx->operation == CKF_VERIFY) {
@@ -493,8 +500,8 @@ static int p11prov_sig_operate(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
         return RET_OSSL_ERR;
     }
 
-    f = p11prov_ctx_fns(sigctx->provctx);
-    if (f == NULL) {
+    ret = p11prov_ctx_status(sigctx->provctx, &f);
+    if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }
 
@@ -532,10 +539,10 @@ static int p11prov_sig_digest_update(P11PROV_SIG_CTX *sigctx,
                                      unsigned char *data, size_t datalen)
 {
     CK_FUNCTION_LIST *f;
-    int ret;
+    CK_RV ret;
 
-    f = p11prov_ctx_fns(sigctx->provctx);
-    if (f == NULL) {
+    ret = p11prov_ctx_status(sigctx->provctx, &f);
+    if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }
 
@@ -579,7 +586,7 @@ static int p11prov_sig_digest_final(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
     CK_ULONG sig_size = sigsize;
     CK_FUNCTION_LIST *f;
     int result = RET_OSSL_ERR;
-    int ret;
+    CK_RV ret;
 
     if (sigctx->session == CK_INVALID_HANDLE) {
         return RET_OSSL_ERR;
@@ -592,8 +599,8 @@ static int p11prov_sig_digest_final(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
         return p11prov_sig_get_sig_size(sigctx, siglen);
     }
 
-    f = p11prov_ctx_fns(sigctx->provctx);
-    if (f == NULL) {
+    ret = p11prov_ctx_status(sigctx->provctx, &f);
+    if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }
 

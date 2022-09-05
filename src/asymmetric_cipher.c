@@ -111,9 +111,15 @@ static int p11prov_rsaenc_encrypt_init(void *ctx, void *provkey,
 {
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
     P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
+    CK_RV ret;
 
     P11PROV_debug("encrypt init (ctx=%p, key=%p, params=%p)", ctx, provkey,
                   params);
+
+    ret = p11prov_ctx_status(encctx->provctx, NULL);
+    if (ret != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
 
     encctx->key = p11prov_object_get_key(obj, 0);
     if (encctx->key == NULL) {
@@ -135,7 +141,7 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
     CK_OBJECT_HANDLE handle;
     CK_ULONG out_size = *outlen;
     int result = RET_OSSL_ERR;
-    int ret;
+    CK_RV ret;
 
     P11PROV_debug("encrypt (ctx=%p)", ctx);
 
@@ -149,8 +155,8 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
         return RET_OSSL_OK;
     }
 
-    f = p11prov_ctx_fns(encctx->provctx);
-    if (f == NULL) {
+    ret = p11prov_ctx_status(encctx->provctx, &f);
+    if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }
     slotid = p11prov_key_slotid(encctx->key);
@@ -212,9 +218,15 @@ static int p11prov_rsaenc_decrypt_init(void *ctx, void *provkey,
 {
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
     P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
+    CK_RV ret;
 
     P11PROV_debug("encrypt init (ctx=%p, key=%p, params=%p)", ctx, provkey,
                   params);
+
+    ret = p11prov_ctx_status(encctx->provctx, NULL);
+    if (ret != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
 
     encctx->key = p11prov_object_get_key(obj, CKO_PRIVATE_KEY);
     if (encctx->key == NULL) {
@@ -236,7 +248,7 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     CK_OBJECT_HANDLE handle;
     CK_ULONG out_size = *outlen;
     int result = RET_OSSL_ERR;
-    int ret;
+    CK_RV ret;
 
     P11PROV_debug("decrypt (ctx=%p)", ctx);
 
@@ -250,8 +262,8 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
         return RET_OSSL_OK;
     }
 
-    f = p11prov_ctx_fns(encctx->provctx);
-    if (f == NULL) {
+    ret = p11prov_ctx_status(encctx->provctx, &f);
+    if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }
     slotid = p11prov_key_slotid(encctx->key);

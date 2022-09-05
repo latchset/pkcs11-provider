@@ -448,9 +448,9 @@ static CK_RV token_login(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
         return CKR_OK;
     }
 
-    f = p11prov_ctx_fns(provctx);
-    if (f == NULL) {
-        return CKR_FUNCTION_FAILED;
+    ret = p11prov_ctx_status(provctx, &f);
+    if (ret != CKR_OK) {
+        return ret;
     }
     if (uri->pin) {
         pin = (CK_UTF8CHAR_PTR)uri->pin;
@@ -513,8 +513,14 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
     struct p11prov_slot *slots = NULL;
     int nslots = 0;
     int i;
-    CK_RV ret = CKR_CANCEL;
+    CK_RV ret;
 
+    ret = p11prov_ctx_status(provctx, &f);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+
+    ret = CKR_CANCEL;
     nslots = p11prov_ctx_lock_slots(provctx, &slots);
 
     for (i = 0; i < nslots; i++) {
@@ -570,11 +576,6 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
         return ret;
     }
 
-    f = p11prov_ctx_fns(provctx);
-    if (f == NULL) {
-        return CKR_GENERAL_ERROR;
-    }
-
     ret = f->C_OpenSession(id, CKF_SERIAL_SESSION, NULL, NULL, &sess);
     if (ret != CKR_OK) {
         P11PROV_raise(provctx, ret, "Failed to open session on slot %lu", id);
@@ -589,8 +590,8 @@ void p11prov_put_session(P11PROV_CTX *provctx, CK_SESSION_HANDLE session)
     CK_FUNCTION_LIST *f;
     CK_RV ret;
 
-    f = p11prov_ctx_fns(provctx);
-    if (f == NULL) {
+    ret = p11prov_ctx_status(provctx, &f);
+    if (ret != CKR_OK) {
         return;
     }
 

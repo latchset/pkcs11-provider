@@ -7,7 +7,12 @@
 
 struct p11prov_ctx {
 
-    bool initialized;
+    enum {
+        P11PROV_UNINITIALIZED,
+        P11PROV_INITIALIZED,
+        P11PROV_IN_ERROR,
+    } status;
+
     pthread_mutex_t lock;
     bool is_locked;
 
@@ -34,7 +39,7 @@ struct p11prov_ctx {
 
 int p11prov_ctx_lock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
 {
-    if (!ctx->initialized) {
+    if (ctx->status != P11PROV_INITIALIZED) {
         return RET_OSSL_ERR;
     }
 
@@ -47,7 +52,7 @@ int p11prov_ctx_lock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
 
 void p11prov_ctx_unlock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
 {
-    if (!ctx->initialized) {
+    if (ctx->status != P11PROV_INITIALIZED) {
         return;
     }
 
@@ -59,25 +64,39 @@ void p11prov_ctx_unlock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
 
 OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx)
 {
-    if (!ctx->initialized) {
+    if (ctx->status != P11PROV_INITIALIZED) {
         return NULL;
     }
     return ctx->libctx;
 }
 
-CK_FUNCTION_LIST *p11prov_ctx_fns(P11PROV_CTX *ctx)
+CK_RV p11prov_ctx_status(P11PROV_CTX *ctx, CK_FUNCTION_LIST **fns)
 {
-    if (!ctx->initialized) {
+    switch (ctx->status) {
+    case P11PROV_UNINITIALIZED:
+        P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Module uninitialized!");
+        return CKR_GENERAL_ERROR;
+    case P11PROV_INITIALIZED:
+        break;
+    case P11PROV_IN_ERROR:
+        P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Module in error state!");
+        return CKR_GENERAL_ERROR;
+    }
+    if (ctx->fns == NULL) {
         P11PROV_raise(ctx, CKR_GENERAL_ERROR,
                       "Failed to fetch PKCS#11 Function List");
-        return NULL;
+        ctx->status = P11PROV_IN_ERROR;
+        return CKR_GENERAL_ERROR;
     }
-    return ctx->fns;
+    if (fns) {
+        *fns = ctx->fns;
+    }
+    return CKR_OK;
 }
 
 CK_UTF8CHAR_PTR p11prov_ctx_pin(P11PROV_CTX *ctx)
 {
-    if (!ctx->initialized) {
+    if (ctx->status != P11PROV_INITIALIZED) {
         return NULL;
     }
     return (CK_UTF8CHAR_PTR)ctx->pin;
@@ -117,7 +136,7 @@ CK_RV p11prov_ctx_set_login_session(P11PROV_CTX *ctx, CK_SESSION_HANDLE session)
 
 static void p11prov_ctx_free(P11PROV_CTX *ctx)
 {
-    if (ctx->initialized) {
+    if (ctx->status != P11PROV_UNINITIALIZED) {
         pthread_mutex_lock(&ctx->lock);
         ctx->is_locked = true;
     }
@@ -144,7 +163,7 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
         OPENSSL_clear_free(ctx->pin, strlen(ctx->pin));
     }
 
-    if (ctx->initialized) {
+    if (ctx->status != P11PROV_UNINITIALIZED) {
         pthread_mutex_unlock(&ctx->lock);
     }
     pthread_mutex_destroy(&ctx->lock);
@@ -579,7 +598,7 @@ static int refresh_slots(P11PROV_CTX *ctx)
     struct p11prov_slot *slots;
     int ret;
 
-    if (ctx->initialized) {
+    if (ctx->status == P11PROV_INITIALIZED) {
         pthread_mutex_lock(&ctx->lock);
         ctx->is_locked = true;
     }
@@ -636,7 +655,7 @@ static int refresh_slots(P11PROV_CTX *ctx)
     ctx->nslots = nslots;
 
 done:
-    if (ctx->initialized) {
+    if (ctx->status == P11PROV_INITIALIZED) {
         ctx->is_locked = false;
         pthread_mutex_unlock(&ctx->lock);
     }
@@ -658,7 +677,7 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
     CK_INFO ck_info = { 0 };
     int ret;
 
-    if (ctx->initialized) {
+    if (ctx->status != P11PROV_UNINITIALIZED) {
         return 0;
     }
 
@@ -709,7 +728,7 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
         return -EFAULT;
     }
 
-    ctx->initialized = true;
+    ctx->status = P11PROV_INITIALIZED;
     return 0;
 }
 

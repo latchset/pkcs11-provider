@@ -144,6 +144,11 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
     CK_OBJECT_HANDLE dkey_handle;
     int ret = RET_OSSL_ERR;
 
+    ret = p11prov_ctx_status(hkdfctx->provctx, &f);
+    if (ret != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
+
     P11PROV_debug("hkdf derive (ctx:%p, key:%p[%zu], params:%p)", ctx, key,
                   keylen, params);
 
@@ -171,11 +176,6 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
     /* no salt ? */
     if (hkdfctx->params.ulSaltType == 0) {
         hkdfctx->params.ulSaltType = CKF_HKDF_SALT_NULL;
-    }
-
-    f = p11prov_ctx_fns(hkdfctx->provctx);
-    if (f == NULL) {
-        return RET_OSSL_ERR;
     }
 
     ret = f->C_DeriveKey(hkdfctx->session, &mechanism, pkey_handle,
