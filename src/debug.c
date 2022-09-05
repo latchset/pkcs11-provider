@@ -57,14 +57,14 @@ void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
     CK_MECHANISM_INFO info = { 0 };
     CK_FUNCTION_LIST *f;
     const char *mechname = "UNKNOWN";
-    int ret;
+    CK_RV ret;
 
     if (debug_lazy_init < 0) {
         return;
     }
 
-    f = p11prov_ctx_fns(ctx);
-    if (f == NULL) {
+    ret = p11prov_ctx_status(ctx, &f);
+    if (ret != CKR_OK) {
         return;
     }
 

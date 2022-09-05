@@ -180,8 +180,14 @@ static int p11prov_ecdh_init(void *ctx, void *provkey,
 {
     P11PROV_EXCH_CTX *ecdhctx = (P11PROV_EXCH_CTX *)ctx;
     P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
+    CK_RV ret;
 
     if (ctx == NULL || provkey == NULL) {
+        return RET_OSSL_ERR;
+    }
+
+    ret = p11prov_ctx_status(ecdhctx->provctx, NULL);
+    if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }
 
@@ -236,7 +242,12 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     CK_OBJECT_HANDLE secret_handle;
     CK_SLOT_ID slotid;
     int result = RET_OSSL_ERR;
-    int ret;
+    CK_RV ret;
+
+    ret = p11prov_ctx_status(ecdhctx->provctx, &f);
+    if (ret != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
 
     if (ecdhctx->key == NULL || ecdhctx->peer_key == NULL) {
         ERR_raise(ERR_LIB_PROV, PROV_R_MISSING_KEY);
@@ -291,11 +302,6 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
         P11PROV_raise(ecdhctx->provctx, CKR_SLOT_ID_INVALID,
                       "Provided key has invalid slot");
         return RET_OSSL_ERR;
-    }
-
-    f = p11prov_ctx_fns(ecdhctx->provctx);
-    if (f == NULL) {
-        return CKR_GENERAL_ERROR;
     }
 
     ret = f->C_OpenSession(slotid, CKF_SERIAL_SESSION, NULL, NULL, &session);
@@ -606,11 +612,17 @@ static int p11prov_exch_hkdf_init(void *ctx, void *provobj,
 {
     P11PROV_EXCH_CTX *hkdfctx = (P11PROV_EXCH_CTX *)ctx;
     P11PROV_OBJ *obj = (P11PROV_OBJ *)provobj;
+    CK_RV ret;
 
     P11PROV_debug("hkdf exchange init (ctx:%p obj:%p params:%p)", ctx, obj,
                   params);
 
     if (ctx == NULL || provobj == NULL) {
+        return RET_OSSL_ERR;
+    }
+
+    ret = p11prov_ctx_status(hkdfctx->provctx, NULL);
+    if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }
 

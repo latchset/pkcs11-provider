@@ -199,8 +199,9 @@ static void p11prov_store_ctx_free(struct p11prov_store_ctx *ctx)
     }
 
     if (ctx->session != CK_INVALID_HANDLE) {
-        CK_FUNCTION_LIST_PTR f = p11prov_ctx_fns(ctx->provctx);
-        if (f) {
+        CK_FUNCTION_LIST_PTR f;
+        CK_RV ret = p11prov_ctx_status(ctx->provctx, &f);
+        if (ret == CKR_OK) {
             (void)f->C_CloseSession(ctx->session);
         }
     }

@@ -54,7 +54,7 @@ struct p11prov_slot {
 /* Provider ctx */
 CK_UTF8CHAR_PTR p11prov_ctx_pin(P11PROV_CTX *ctx);
 OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx);
-CK_FUNCTION_LIST *p11prov_ctx_fns(P11PROV_CTX *ctx);
+CK_RV p11prov_ctx_status(P11PROV_CTX *ctx, CK_FUNCTION_LIST **fns);
 int p11prov_ctx_lock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
 void p11prov_ctx_unlock_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
 /* the login_session functions must be called under lock */

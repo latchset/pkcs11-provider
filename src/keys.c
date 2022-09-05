@@ -289,7 +289,7 @@ CK_RV find_keys(P11PROV_CTX *provctx, CK_SESSION_HANDLE session,
                 CK_SLOT_ID slotid, P11PROV_URI *uri, store_key_callback cb,
                 void *cb_ctx)
 {
-    CK_FUNCTION_LIST *f = p11prov_ctx_fns(provctx);
+    CK_FUNCTION_LIST *f;
     CK_OBJECT_CLASS class = p11prov_uri_get_class(uri);
     CK_ATTRIBUTE id = p11prov_uri_get_id(uri);
     char *label = p11prov_uri_get_object(uri);
@@ -302,8 +302,9 @@ CK_RV find_keys(P11PROV_CTX *provctx, CK_SESSION_HANDLE session,
 
     P11PROV_debug("Find keys");
 
-    if (f == NULL) {
-        return result;
+    ret = p11prov_ctx_status(provctx, &f);
+    if (ret != CKR_OK) {
+        return ret;
     }
 
     if (class != CK_UNAVAILABLE_INFORMATION) {
@@ -384,8 +385,8 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
     P11PROV_debug("keys: create secret key (session:%lu secret:%p[%zu])",
                   session, secret, secretlen);
 
-    f = p11prov_ctx_fns(provctx);
-    if (f == NULL) {
+    ret = p11prov_ctx_status(provctx, &f);
+    if (ret != CKR_OK) {
         return NULL;
     }
 
