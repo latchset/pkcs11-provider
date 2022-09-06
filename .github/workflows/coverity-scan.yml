@@ -1,8 +1,10 @@
 name: Coverity Scan
 
 on:
+  push:
+    branches: [ "main" ]
   schedule:
-    - cron:  '41 3 * * 1-5'
+    - cron:  '41 3 * * 0'
 
 jobs:
   coverity:
@@ -19,8 +21,16 @@ jobs:
       run: |
         autoreconf -fiv
         ./configure
-    - uses: vapier/coverity-scan-action@v1
-      name: Coverity Scan
+    - name: Check for changes
+      run: |
+          echo "RUN_COV=0" >> $GITHUB_ENV;
+          DIFF=`git log --since=1week | wc -l`
+          if [ x${DIFF} != "x0" ]; then
+            echo "RUN_COV=1" >> $GITHUB_ENV;
+          fi
+    - name: Coverity Scan
+      if: env.RUN_COV == 1
+      uses: vapier/coverity-scan-action@v1
       with:
         project: "PKCS%2311+Provider"
         email: ${{ secrets.COVERITY_SCAN_EMAIL }}
