@@ -76,7 +76,7 @@ void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
 
     ret = f->C_GetMechanismInfo(slotid, type, &info);
     if (ret != CKR_OK) {
-        p11prov_debug("C_GetMechanismInfo for %s(%lu) failed %d\n", mechname,
+        p11prov_debug("C_GetMechanismInfo for %s(%lu) failed %lu\n", mechname,
                       type, ret);
     } else {
         p11prov_debug(
