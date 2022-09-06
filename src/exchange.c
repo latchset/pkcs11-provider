@@ -321,7 +321,7 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
         };
         ret = p11prov_fetch_attributes(f, session, secret_handle, attrs, 1);
         if (ret != CKR_OK) {
-            P11PROV_debug("ecdh failed to retrieve secret %d", ret);
+            P11PROV_debug("ecdh failed to retrieve secret %lu", ret);
         }
         *psecretlen = secret_len;
         result = RET_OSSL_OK;
