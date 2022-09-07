@@ -3,6 +3,7 @@ tests/openssl.cnf
 tests/tokens
 tests/tmp
 tests/tsession
+tests/tgenkey
 tests/*.log
 tests/*.trs
 /pkcs11-provider-?.?/
