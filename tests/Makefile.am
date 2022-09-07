@@ -5,18 +5,22 @@ softokenpath=@SOFTOKENDIR@/@SOFTOKEN_SUBDIR@libsoftokn3.so
 libtoollibs=@abs_top_builddir@/src/.libs
 testsdir=@abs_top_builddir@/tests
 
-check_PROGRAMS = tsession
+check_PROGRAMS = tsession tgenkey
 
 tsession_SOURCES = tsession.c
 tsession_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
 tsession_LDADD = $(OPENSSL_LIBS)
+
+tgenkey_SOURCES = tgenkey.c
+tgenkey_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
+tgenkey_LDADD = $(OPENSSL_LIBS)
 
 dist_check_SCRIPTS = \
 	test.sh
 
 check_SCRIPTS = $(softokenpath)
 
-TESTS = $(dist_check_SCRIPTS)
+TESTS = $(dist_check_SCRIPTS) tgenkey
 
 TESTS_ENVIRONMENT =     \
 	OPENSSL_CONF="openssl.cnf" \
