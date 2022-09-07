@@ -179,7 +179,7 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
     }
 
     ret = p11prov_get_session(encctx->provctx, &slotid, NULL, NULL, NULL, NULL,
-                              &session);
+                              false, false, &session);
     if (ret != CKR_OK) {
         P11PROV_raise(encctx->provctx, ret,
                       "Failed to open session on slot %lu", slotid);
@@ -284,7 +284,7 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     }
 
     ret = p11prov_get_session(encctx->provctx, &slotid, NULL, NULL, NULL, NULL,
-                              &session);
+                              true, false, &session);
     if (ret != CKR_OK) {
         P11PROV_raise(encctx->provctx, ret,
                       "Failed to open session on slot %lu", slotid);

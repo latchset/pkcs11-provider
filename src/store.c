@@ -266,7 +266,7 @@ static void store_load(struct p11prov_store_ctx *ctx,
 
         ret =
             p11prov_get_session(ctx->provctx, &slotid, &nextid, ctx->parsed_uri,
-                                pw_cb, pw_cbarg, &ctx->session);
+                                pw_cb, pw_cbarg, false, false, &ctx->session);
         switch (ret) {
         case CKR_OK:
             break;

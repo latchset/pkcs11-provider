@@ -61,6 +61,7 @@ static void *p11prov_sig_dupctx(void *ctx)
     CK_OBJECT_HANDLE handle = CK_INVALID_HANDLE;
     CK_BYTE_PTR state = NULL;
     CK_ULONG state_len;
+    bool reqlogin = false;
     CK_RV ret;
 
     if (sigctx == NULL) {
@@ -98,6 +99,8 @@ static void *p11prov_sig_dupctx(void *ctx)
 
     switch (sigctx->operation) {
     case CKF_SIGN:
+        reqlogin = true;
+        /* fallthrough */
     case CKF_VERIFY:
         slotid = p11prov_key_slotid(sigctx->key);
         handle = p11prov_key_handle(newctx->key);
@@ -130,7 +133,7 @@ static void *p11prov_sig_dupctx(void *ctx)
         }
 
         ret = p11prov_get_session(sigctx->provctx, &slotid, NULL, NULL, NULL,
-                                  NULL, &sigctx->session);
+                                  NULL, reqlogin, false, &sigctx->session);
         if (ret != CKR_OK) {
             P11PROV_raise(sigctx->provctx, ret,
                           "Failed to open session on slot %lu", slotid);
@@ -399,6 +402,7 @@ static int p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
     CK_SESSION_HANDLE sess;
     CK_OBJECT_HANDLE handle;
     CK_SLOT_ID slotid;
+    bool reqlogin = false;
     CK_RV ret;
 
     ret = p11prov_ctx_status(sigctx->provctx, &f);
@@ -424,8 +428,12 @@ static int p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
         return ret;
     }
 
+    if (sigctx->operation == CKF_SIGN) {
+        reqlogin = true;
+    }
+
     ret = p11prov_get_session(sigctx->provctx, &slotid, NULL, NULL, NULL, NULL,
-                              &session);
+                              reqlogin, false, &session);
     if (ret != CKR_OK) {
         P11PROV_raise(sigctx->provctx, ret,
                       "Failed to open session on slot %lu", slotid);

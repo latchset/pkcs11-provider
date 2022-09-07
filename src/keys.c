@@ -456,7 +456,8 @@ CK_RV p11prov_derive_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
 
 again:
     if (!s) {
-        ret = p11prov_get_session(ctx, &slotid, NULL, NULL, NULL, NULL, &s);
+        ret = p11prov_get_session(ctx, &slotid, NULL, NULL, NULL, NULL, false,
+                                  false, &s);
         if (ret != CKR_OK) {
             P11PROV_raise(ctx, ret, "Failed to open session on slot %lu",
                           slotid);
