@@ -492,10 +492,10 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
     pthread_mutex_lock(&slot->pool->lock);
     for (i = 0; i < slot->pool->num_p11sessions; i++) {
         if (slot->pool->sessions[i]->free) {
+            /* store the first free session we find, but continue to search for
+             * a free session with an actual cached token session */
             if (slot->pool->sessions[i]->session == CK_INVALID_HANDLE) {
-                /* store session found but continue to search for one with
-                 * an actual cached token session if any is available */
-                if (session != NULL) {
+                if (session == NULL) {
                     session = slot->pool->sessions[i];
                 }
                 continue;
