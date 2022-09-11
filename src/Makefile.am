@@ -9,6 +9,7 @@ SHARED_EXT=@SHARED_EXT@
 pkcs11_provider_la_SOURCES = \
 	asymmetric_cipher.c \
 	debug.c \
+	encoder.c \
 	exchange.c \
 	kdf.c \
 	keymgmt.c \

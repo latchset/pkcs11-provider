@@ -223,6 +223,29 @@ extern const OSSL_DISPATCH p11prov_hkdf_exchange_functions[];
 extern const void *p11prov_hkdf_static_ctx;
 extern const OSSL_DISPATCH p11prov_hkdf_kdf_functions[];
 
+/* Encoders */
+#define DISPATCH_TEXT_ENCODER_FN(type, name) \
+    static OSSL_FUNC_encoder_##name##_fn p11prov_##type##_encoder_##name##_text
+#define DISPATCH_BASE_ENCODER_FN(type, name) \
+    DECL_DISPATCH_FUNC(encoder, p11prov_##type##_encoder, name)
+#define DISPATCH_BASE_ENCODER_ELEM(NAME, type, name) \
+    { \
+        OSSL_FUNC_ENCODER_##NAME, \
+            (void (*)(void))p11prov_##type##_encoder_##name \
+    }
+#define DISPATCH_ENCODER_FN(type, structure, format, name) \
+    DECL_DISPATCH_FUNC(encoder, \
+                       p11prov_##type##_encoder_##structure##_##format, name)
+#define DISPATCH_ENCODER_ELEM(NAME, type, structure, format, name) \
+    { \
+        OSSL_FUNC_ENCODER_##NAME, \
+            (void (*)( \
+                void))p11prov_##type##_encoder_##structure##_##format##_##name \
+    }
+extern const OSSL_DISPATCH p11prov_rsa_encoder_text_functions[];
+extern const OSSL_DISPATCH p11prov_rsa_encoder_pkcs1_der_functions[];
+extern const OSSL_DISPATCH p11prov_rsa_encoder_pkcs1_pem_functions[];
+
 /* Utilities to fetch objects from tokens */
 
 struct fetch_attrs {
