@@ -388,7 +388,7 @@ P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
 
     sess = p11prov_session_handle(session);
 
-    P11PROV_debug("keys: create secret key (session:%ul secret:%p[%zu])", sess,
+    P11PROV_debug("keys: create secret key (session:%lu secret:%p[%zu])", sess,
                   secret, secretlen);
 
     ret = p11prov_ctx_status(provctx, &f);
