@@ -64,7 +64,7 @@ static CK_RV internal_session_open(P11PROV_SESSION_POOL *p, CK_SLOT_ID slot,
 
         wait_ok = false;
         ret = f->C_OpenSession(slot, CKF_SERIAL_SESSION, NULL, NULL, session);
-        P11PROV_debug("C_OpenSession ret:%lu (session: %lu)", ret, session);
+        P11PROV_debug("C_OpenSession ret:%lu (session: %lu)", ret, *session);
         if (ret == CKR_SESSION_COUNT) {
             wait_ok = cyclewait_with_timeout(MAX_WAIT, SLEEP, &startime);
         }
