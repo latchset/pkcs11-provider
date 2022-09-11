@@ -340,6 +340,46 @@ static const OSSL_ALGORITHM p11prov_kdf[] = {
     { NULL, NULL, NULL, NULL },
 };
 
+static const OSSL_ALGORITHM p11prov_encoder[] = {
+    {
+        "RSA",
+        "provider=pkcs11,output=text",
+        p11prov_rsa_encoder_text_functions,
+        P11PROV_DESCS_RSA,
+    },
+    {
+        "RSA",
+        "provider=pkcs11,output=der,structure=pkcs1",
+        p11prov_rsa_encoder_pkcs1_der_functions,
+        P11PROV_DESCS_RSA,
+    },
+    {
+        "RSA",
+        "provider=pkcs11,output=pem,structure=pkcs1",
+        p11prov_rsa_encoder_pkcs1_pem_functions,
+        P11PROV_DESCS_RSA,
+    },
+    {
+        P11PROV_NAMES_RSA,
+        "output=text",
+        p11prov_rsa_encoder_text_functions,
+        P11PROV_DESCS_RSA,
+    },
+    {
+        P11PROV_NAMES_RSA,
+        "output=der,structure=pkcs1",
+        p11prov_rsa_encoder_pkcs1_der_functions,
+        P11PROV_DESCS_RSA,
+    },
+    {
+        P11PROV_NAMES_RSA,
+        "output=pem,structure=pkcs1",
+        p11prov_rsa_encoder_pkcs1_pem_functions,
+        P11PROV_DESCS_RSA,
+    },
+    { NULL, NULL, NULL, NULL },
+};
+
 static const OSSL_ALGORITHM *
 p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
 {
@@ -357,6 +397,8 @@ p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
         return p11prov_exchange;
     case OSSL_OP_KDF:
         return p11prov_kdf;
+    case OSSL_OP_ENCODER:
+        return p11prov_encoder;
     }
     return NULL;
 }
