@@ -57,6 +57,9 @@ struct p11prov_slot {
 
     P11PROV_SESSION_POOL *pool;
 
+    CK_MECHANISM_TYPE *mechs;
+    CK_ULONG mechs_num;
+
     CK_ULONG profiles[5];
 };
 
@@ -113,7 +116,7 @@ void p11prov_debug_init(void);
 void p11prov_debug(const char *fmt, ...);
 void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                              CK_MECHANISM_TYPE type);
-void p11prov_debug_slot(struct p11prov_slot *slot);
+void p11prov_debug_slot(P11PROV_CTX *ctx, struct p11prov_slot *slot);
 
 /* Keys */
 P11PROV_KEY *p11prov_key_ref(P11PROV_KEY *key);
