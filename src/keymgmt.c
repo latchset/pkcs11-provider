@@ -291,7 +291,8 @@ static int p11prov_common_gen_set_params(void *genctx,
             }
             if (ec_name_to_params[i].name == NULL) {
                 P11PROV_raise(ctx->provctx, CKR_ARGUMENTS_BAD,
-                              "Unknown Curve %*s", p->data_size, p->data);
+                              "Unknown Curve %*s", (int)p->data_size,
+                              (char *)p->data);
                 return RET_OSSL_ERR;
             }
             ctx->data.ec.ec_params = ec_name_to_params[i].ec_param;
