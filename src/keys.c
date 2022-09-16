@@ -278,7 +278,7 @@ P11PROV_KEY *p11prov_object_handle_to_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
 
     ret = p11prov_fetch_attributes(ctx, session, object, attrs, 2);
     if (ret != CKR_OK) {
-        P11PROV_debug("Failed to query object attributes (%d)", ret);
+        P11PROV_debug("Failed to query object attributes (%lu)", ret);
         p11prov_key_free(key);
         return NULL;
     }
