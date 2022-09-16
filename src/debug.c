@@ -135,7 +135,7 @@ static void p11prov_debug_token_info(CK_TOKEN_INFO *info)
 extern struct ckmap slot_flags[];
 extern struct ckmap profile_ids[];
 
-void p11prov_debug_slot(struct p11prov_slot *slot)
+void p11prov_debug_slot(P11PROV_CTX *ctx, struct p11prov_slot *slot)
 {
     p11prov_debug(
         "Slot Info:\n"
@@ -159,6 +159,11 @@ void p11prov_debug_slot(struct p11prov_slot *slot)
     if (slot->slot.flags & CKF_TOKEN_PRESENT) {
         p11prov_debug_token_info(&slot->token);
     }
+
+    for (CK_ULONG i = 0; i < slot->mechs_num; i++) {
+        p11prov_debug_mechanism(ctx, slot->id, slot->mechs[i]);
+    }
+
     if (slot->profiles[0] != CKP_INVALID_ID) {
         p11prov_debug("  Available profiles:\n");
         for (int c = 0; c < 5; c++) {

@@ -98,6 +98,7 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
         if (ctx->slots) {
             for (int i = 0; i < ctx->nslots; i++) {
                 (void)p11prov_session_pool_free(ctx->slots[i].pool);
+                OPENSSL_free(ctx->slots[i].mechs);
             }
             OPENSSL_free(ctx->slots);
             ctx->slots = NULL;
@@ -600,6 +601,35 @@ done:
     return ret;
 }
 
+static void get_slot_mechanisms(P11PROV_CTX *ctx, struct p11prov_slot *slot)
+{
+    int ret;
+
+    ret = ctx->fns->C_GetMechanismList(slot->id, NULL, &slot->mechs_num);
+    if (ret != CKR_OK) {
+        P11PROV_raise(ctx, ret, "GetMechanismList(NULL) failed");
+        return;
+    }
+
+    slot->mechs = OPENSSL_malloc(slot->mechs_num * sizeof(CK_MECHANISM_TYPE));
+    if (!slot->mechs) {
+        P11PROV_raise(ctx, CKR_HOST_MEMORY, "Failed to alloc for mech list");
+        slot->mechs_num = 0;
+        return;
+    }
+
+    ret = ctx->fns->C_GetMechanismList(slot->id, slot->mechs, &slot->mechs_num);
+    if (ret != CKR_OK) {
+        P11PROV_raise(ctx, ret, "GetMechanismList(%lu) failed",
+                      slot->mechs_num);
+        OPENSSL_free(slot->mechs);
+        slot->mechs_num = 0;
+        return;
+    }
+
+    P11PROV_debug("Slot(%lu) mechs found: %lu", slot->id, slot->mechs_num);
+}
+
 static CK_RV get_slots(P11PROV_CTX *ctx)
 {
     CK_ULONG nslots;
@@ -650,8 +680,9 @@ static CK_RV get_slots(P11PROV_CTX *ctx)
         }
 
         (void)get_slot_profiles(ctx, &slots[i]);
+        get_slot_mechanisms(ctx, &slots[i]);
 
-        P11PROV_debug_slot(&slots[i]);
+        P11PROV_debug_slot(ctx, &slots[i]);
     }
 
 done:
@@ -718,6 +749,8 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
         return -EFAULT;
     }
 
+    ctx->status = P11PROV_INITIALIZED;
+
     ret = ctx->fns->C_GetInfo(&ck_info);
     if (ret) {
         return -EFAULT;
@@ -733,7 +766,6 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
         return -EFAULT;
     }
 
-    ctx->status = P11PROV_INITIALIZED;
     return 0;
 }
 
