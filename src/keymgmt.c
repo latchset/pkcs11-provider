@@ -265,6 +265,7 @@ static int p11prov_common_gen_set_params(void *genctx,
                 if (p->data_size > 8) {
                     P11PROV_raise(ctx->provctx, CKR_ARGUMENTS_BAD,
                                   "Unsupported RSA exponent size");
+                    return RET_OSSL_ERR;
                 }
                 /* fix byte order if necessary while copying */
                 byteswap_buf(p->data, ctx->data.rsa.exponent, p->data_size);
