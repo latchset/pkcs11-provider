@@ -33,6 +33,14 @@ struct p11prov_ctx {
 
     int nslots;
     struct p11prov_slot *slots;
+
+    OSSL_ALGORITHM *op_kdf;
+    OSSL_ALGORITHM *op_keymgmt;
+    OSSL_ALGORITHM *op_exchange;
+    OSSL_ALGORITHM *op_signature;
+    OSSL_ALGORITHM *op_asym_cipher;
+    OSSL_ALGORITHM *op_encoder;
+    OSSL_ALGORITHM *op_store;
 };
 
 int p11prov_ctx_get_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
@@ -227,51 +235,242 @@ static int p11prov_get_params(void *provctx, OSSL_PARAM params[])
 
 /* TODO: this needs to be made dynamic,
  * based on what the pkcs11 module supports */
-static const OSSL_ALGORITHM p11prov_keymgmt[] = {
-    {
-        P11PROV_NAMES_RSA,
-        P11PROV_DEFAULT_PROPERTIES,
-        p11prov_rsa_keymgmt_functions,
-        P11PROV_DESCS_RSA,
-    },
-    {
-        "RSA",
-        P11PROV_DEFAULT_PROPERTIES,
-        p11prov_rsa_keymgmt_functions,
-        P11PROV_DESCS_RSA,
-    },
-    {
-        P11PROV_NAMES_ECDSA,
-        P11PROV_DEFAULT_PROPERTIES,
-        p11prov_ecdsa_keymgmt_functions,
-        P11PROV_DESCS_ECDSA,
-    },
-    {
-        P11PROV_NAMES_EC,
-        P11PROV_DEFAULT_PROPERTIES,
-        p11prov_ecdsa_keymgmt_functions,
-        P11PROV_DESCS_ECDSA,
-    },
-    {
-        "EC",
-        P11PROV_DEFAULT_PROPERTIES,
-        p11prov_ecdsa_keymgmt_functions,
-        P11PROV_DESCS_ECDSA,
-    },
-    {
-        P11PROV_NAMES_HKDF,
-        P11PROV_DEFAULT_PROPERTIES,
-        p11prov_hkdf_keymgmt_functions,
-        P11PROV_DESCS_HKDF,
-    },
-    {
-        "HKDF",
-        P11PROV_DEFAULT_PROPERTIES,
-        p11prov_hkdf_keymgmt_functions,
-        P11PROV_DESCS_HKDF,
-    },
-    { NULL, NULL, NULL, NULL },
-};
+#define ALGOS_ALLOC 4
+static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
+{
+    if (idx % ALGOS_ALLOC == 0) {
+        OSSL_ALGORITHM *tmp =
+            OPENSSL_realloc(*op, sizeof(OSSL_ALGORITHM) * (idx + ALGOS_ALLOC));
+        if (!tmp) {
+            return CKR_HOST_MEMORY;
+        }
+        *op = tmp;
+    }
+    (*op)[idx] = *alg;
+    return CKR_OK;
+}
+
+#define ADD_ALGO_EXT_INT(NAME, operation, prop, func) \
+    do { \
+        CK_RV alg_ret; \
+        OSSL_ALGORITHM alg = { P11PROV_NAMES_##NAME, prop, func, \
+                               P11PROV_DESCS_##NAME }; \
+        alg_ret = alg_set_op(&ctx->op_##operation, operation##_idx, &alg); \
+        if (alg_ret != CKR_OK) { \
+            P11PROV_raise(ctx, alg_ret, "Failed to store mech algo"); \
+            return RET_OSSL_ERR; \
+        } \
+        operation##_idx++; \
+    } while (0);
+
+#define ADD_ALGO_EXT(NAME, operation, prop, func) \
+    do { \
+        ADD_ALGO_EXT_INT(NAME, operation, prop, func); \
+        ADD_ALGO_EXT_INT(PKCS11_##NAME, operation, prop, func); \
+    } while (0)
+
+#define ADD_ALGO(NAME, name, operation) \
+    ADD_ALGO_EXT(NAME, operation, P11PROV_DEFAULT_PROPERTIES, \
+                 p11prov_##name##_##operation##_functions)
+
+#define TERM_ALGO(operation) \
+    do { \
+        CK_RV alg_ret; \
+        OSSL_ALGORITHM alg = { NULL, NULL, NULL, NULL }; \
+        alg_ret = alg_set_op(&ctx->op_##operation, operation##_idx, &alg); \
+        if (alg_ret != CKR_OK) { \
+            P11PROV_raise(ctx, alg_ret, "Failed to terminate mech algo"); \
+            return RET_OSSL_ERR; \
+        } \
+    } while (0);
+
+#define RSA_SIG_MECHS \
+    CKM_RSA_PKCS, CKM_SHA1_RSA_PKCS, CKM_SHA224_RSA_PKCS, CKM_SHA256_RSA_PKCS, \
+        CKM_SHA384_RSA_PKCS, CKM_SHA512_RSA_PKCS, CKM_SHA3_224_RSA_PKCS, \
+        CKM_SHA3_256_RSA_PKCS, CKM_SHA3_384_RSA_PKCS, CKM_SHA3_512_RSA_PKCS
+
+#define RSA_ENC_MECHS \
+    CKM_RSA_PKCS, CKM_RSA_PKCS_OAEP, CKM_RSA_X_509, CKM_RSA_X9_31
+
+#define ECDSA_SIG_MECHS \
+    CKM_ECDSA, CKM_ECDSA_SHA1, CKM_ECDSA_SHA224, CKM_ECDSA_SHA256, \
+        CKM_ECDSA_SHA384, CKM_ECDSA_SHA512, CKM_ECDSA_SHA3_224, \
+        CKM_ECDSA_SHA3_256, CKM_ECDSA_SHA3_384, CKM_ECDSA_SHA3_512
+
+static void alg_rm_mechs(CK_ULONG *checklist, CK_ULONG *rmlist, int *clsize,
+                         int rmsize)
+{
+    CK_ULONG tmplist[*clsize];
+    int t = 0;
+
+    for (int i = 0; i < *clsize; i++) {
+        tmplist[t] = checklist[i];
+        for (int j = 0; j < rmsize; j++) {
+            if (tmplist[t] == rmlist[j]) {
+                tmplist[t] = CK_UNAVAILABLE_INFORMATION;
+                break;
+            }
+        }
+        if (tmplist[t] != CK_UNAVAILABLE_INFORMATION) {
+            t++;
+        }
+    }
+    memcpy(checklist, tmplist, t * sizeof(CK_ULONG));
+    *clsize = t;
+}
+
+#define UNCHECK_MECHS(...) \
+    do { \
+        CK_ULONG rmlist[] = { __VA_ARGS__ }; \
+        int rmsize = sizeof(rmlist) / sizeof(CK_ULONG); \
+        alg_rm_mechs(checklist, rmlist, &cl_size, rmsize); \
+    } while (0);
+
+static int p11prov_operations_init(P11PROV_CTX *ctx)
+{
+    CK_ULONG checklist[] = {
+        CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_SIG_MECHS,   RSA_ENC_MECHS,
+        CKM_EC_KEY_PAIR_GEN,       ECDSA_SIG_MECHS, CKM_ECDH1_DERIVE,
+        CKM_ECDH1_COFACTOR_DERIVE, CKM_HKDF_DERIVE
+    };
+    bool keymgmt_rsa = false;
+    bool keymgmt_ec = false;
+    bool keymgmt_hkdf = false;
+    int cl_size = sizeof(checklist) / sizeof(CK_ULONG);
+    int kdf_idx = 0;
+    int keymgmt_idx = 0;
+    int exchange_idx = 0;
+    int signature_idx = 0;
+    int asym_cipher_idx = 0;
+    int encoder_idx = 0;
+
+    for (int ns = 0; ns < ctx->nslots; ns++) {
+        for (CK_ULONG ms = 0; ms < ctx->slots->mechs_num; ms++) {
+            CK_ULONG mech = CK_UNAVAILABLE_INFORMATION;
+            if (cl_size == 0) {
+                /* we are done*/
+                break;
+            }
+            for (int cl = 0; cl < cl_size; cl++) {
+                if (ctx->slots->mechs[ms] == checklist[cl]) {
+                    mech = ctx->slots->mechs[ms];
+                    /* found */
+                    break;
+                }
+            }
+            if (mech == CK_UNAVAILABLE_INFORMATION) {
+                continue;
+            }
+            switch (mech) {
+            case CKM_RSA_PKCS_KEY_PAIR_GEN:
+                keymgmt_rsa = true;
+                UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN);
+                break;
+            case CKM_RSA_PKCS:
+                keymgmt_rsa = true;
+                ADD_ALGO(RSA, rsa, signature);
+                UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_SIG_MECHS);
+                ADD_ALGO(RSA, rsa, asym_cipher);
+                UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_ENC_MECHS);
+                break;
+            case CKM_SHA1_RSA_PKCS:
+            case CKM_SHA224_RSA_PKCS:
+            case CKM_SHA256_RSA_PKCS:
+            case CKM_SHA384_RSA_PKCS:
+            case CKM_SHA512_RSA_PKCS:
+            case CKM_SHA3_224_RSA_PKCS:
+            case CKM_SHA3_256_RSA_PKCS:
+            case CKM_SHA3_384_RSA_PKCS:
+            case CKM_SHA3_512_RSA_PKCS:
+                keymgmt_rsa = true;
+                ADD_ALGO(RSA, rsa, signature);
+                UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_SIG_MECHS);
+                break;
+            case CKM_RSA_PKCS_OAEP:
+            case CKM_RSA_X_509:
+            case CKM_RSA_X9_31:
+                keymgmt_rsa = true;
+                ADD_ALGO(RSA, rsa, asym_cipher);
+                UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_ENC_MECHS);
+                break;
+            case CKM_EC_KEY_PAIR_GEN:
+                keymgmt_ec = true;
+                UNCHECK_MECHS(CKM_EC_KEY_PAIR_GEN);
+                break;
+            case CKM_ECDSA:
+            case CKM_ECDSA_SHA1:
+            case CKM_ECDSA_SHA224:
+            case CKM_ECDSA_SHA256:
+            case CKM_ECDSA_SHA384:
+            case CKM_ECDSA_SHA512:
+            case CKM_ECDSA_SHA3_224:
+            case CKM_ECDSA_SHA3_256:
+            case CKM_ECDSA_SHA3_384:
+            case CKM_ECDSA_SHA3_512:
+                keymgmt_ec = true;
+                ADD_ALGO(ECDSA, ecdsa, signature);
+                UNCHECK_MECHS(CKM_EC_KEY_PAIR_GEN, ECDSA_SIG_MECHS);
+                break;
+            case CKM_ECDH1_DERIVE:
+            case CKM_ECDH1_COFACTOR_DERIVE:
+                keymgmt_ec = true;
+                ADD_ALGO(ECDH, ecdh, exchange);
+                UNCHECK_MECHS(CKM_EC_KEY_PAIR_GEN, CKM_ECDH1_DERIVE,
+                              CKM_ECDH1_COFACTOR_DERIVE);
+                break;
+            case CKM_HKDF_DERIVE:
+                keymgmt_hkdf = true;
+                ADD_ALGO(HKDF, hkdf, kdf);
+                ADD_ALGO(HKDF, hkdf, exchange);
+                UNCHECK_MECHS(CKM_HKDF_DERIVE);
+                break;
+            default:
+                P11PROV_raise(ctx, CKR_GENERAL_ERROR,
+                              "Unhandled mechianism %lu", mech);
+                break;
+            }
+        }
+    }
+
+    /* keymgmt */
+    if (keymgmt_rsa) {
+        ADD_ALGO(RSA, rsa, keymgmt);
+    }
+    if (keymgmt_ec) {
+        ADD_ALGO(EC, ec, keymgmt);
+    }
+    if (keymgmt_hkdf) {
+        ADD_ALGO(HKDF, hkdf, keymgmt);
+    }
+
+    /* terminations */
+    if (kdf_idx > 0) {
+        TERM_ALGO(keymgmt);
+    }
+    if (keymgmt_idx > 0) {
+        TERM_ALGO(keymgmt);
+    }
+    if (exchange_idx > 0) {
+        TERM_ALGO(exchange);
+    }
+    if (signature_idx > 0) {
+        TERM_ALGO(signature);
+    }
+    if (asym_cipher_idx > 0) {
+        TERM_ALGO(asym_cipher);
+    }
+
+    /* encoder/decoder */
+    ADD_ALGO_EXT(RSA, encoder, "provider=pkcs11,output=text",
+                 p11prov_rsa_encoder_text_functions);
+    ADD_ALGO_EXT(RSA, encoder, "provider=pkcs11,output=der,structure=pkcs1",
+                 p11prov_rsa_encoder_pkcs1_der_functions);
+    ADD_ALGO_EXT(RSA, encoder, "provider=pkcs11,output=pem,structure=pkcs1",
+                 p11prov_rsa_encoder_pkcs1_pem_functions);
+    TERM_ALGO(encoder);
+
+    return RET_OSSL_OK;
+}
 
 static const OSSL_ALGORITHM p11prov_store[] = {
     {
@@ -283,123 +482,26 @@ static const OSSL_ALGORITHM p11prov_store[] = {
     { NULL, NULL, NULL, NULL },
 };
 
-static const OSSL_ALGORITHM p11prov_signature[] = {
-    {
-        P11PROV_NAMES_RSA,
-        P11PROV_DEFAULT_PROPERTIES,
-        p11prov_rsa_signature_functions,
-        P11PROV_DESCS_RSA,
-    },
-    {
-        P11PROV_NAMES_ECDSA,
-        P11PROV_DEFAULT_PROPERTIES,
-        p11prov_ecdsa_signature_functions,
-        P11PROV_DESCS_ECDSA,
-    },
-    { NULL, NULL, NULL, NULL },
-};
-
-static const OSSL_ALGORITHM p11prov_asym_cipher[] = {
-    {
-        P11PROV_NAMES_RSA,
-        P11PROV_DEFAULT_PROPERTIES,
-        p11prov_rsa_asym_cipher_functions,
-        P11PROV_DESCS_RSA,
-    },
-    { NULL, NULL, NULL, NULL },
-};
-
-static const OSSL_ALGORITHM p11prov_exchange[] = {
-    {
-        P11PROV_NAMES_ECDH,
-        P11PROV_DEFAULT_PROPERTIES,
-        p11prov_ecdh_exchange_functions,
-        P11PROV_DESCS_ECDH,
-    },
-    {
-        P11PROV_NAMES_HKDF,
-        P11PROV_DEFAULT_PROPERTIES,
-        p11prov_hkdf_exchange_functions,
-        P11PROV_DESCS_HKDF,
-    },
-    { NULL, NULL, NULL, NULL },
-};
-
-static const OSSL_ALGORITHM p11prov_kdf[] = {
-    {
-        P11PROV_NAMES_HKDF,
-        P11PROV_DEFAULT_PROPERTIES,
-        p11prov_hkdf_kdf_functions,
-        P11PROV_DESCS_HKDF,
-    },
-    {
-        "HKDF",
-        P11PROV_DEFAULT_PROPERTIES,
-        p11prov_hkdf_kdf_functions,
-        P11PROV_DESCS_HKDF,
-    },
-    { NULL, NULL, NULL, NULL },
-};
-
-static const OSSL_ALGORITHM p11prov_encoder[] = {
-    {
-        "RSA",
-        "provider=pkcs11,output=text",
-        p11prov_rsa_encoder_text_functions,
-        P11PROV_DESCS_RSA,
-    },
-    {
-        "RSA",
-        "provider=pkcs11,output=der,structure=pkcs1",
-        p11prov_rsa_encoder_pkcs1_der_functions,
-        P11PROV_DESCS_RSA,
-    },
-    {
-        "RSA",
-        "provider=pkcs11,output=pem,structure=pkcs1",
-        p11prov_rsa_encoder_pkcs1_pem_functions,
-        P11PROV_DESCS_RSA,
-    },
-    {
-        P11PROV_NAMES_RSA,
-        "output=text",
-        p11prov_rsa_encoder_text_functions,
-        P11PROV_DESCS_RSA,
-    },
-    {
-        P11PROV_NAMES_RSA,
-        "output=der,structure=pkcs1",
-        p11prov_rsa_encoder_pkcs1_der_functions,
-        P11PROV_DESCS_RSA,
-    },
-    {
-        P11PROV_NAMES_RSA,
-        "output=pem,structure=pkcs1",
-        p11prov_rsa_encoder_pkcs1_pem_functions,
-        P11PROV_DESCS_RSA,
-    },
-    { NULL, NULL, NULL, NULL },
-};
-
 static const OSSL_ALGORITHM *
 p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
 {
+    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
     *no_cache = 0;
     switch (operation_id) {
+    case OSSL_OP_KDF:
+        return ctx->op_kdf;
     case OSSL_OP_KEYMGMT:
-        return p11prov_keymgmt;
+        return ctx->op_keymgmt;
+    case OSSL_OP_KEYEXCH:
+        return ctx->op_exchange;
+    case OSSL_OP_SIGNATURE:
+        return ctx->op_signature;
+    case OSSL_OP_ASYM_CIPHER:
+        return ctx->op_asym_cipher;
+    case OSSL_OP_ENCODER:
+        return ctx->op_encoder;
     case OSSL_OP_STORE:
         return p11prov_store;
-    case OSSL_OP_SIGNATURE:
-        return p11prov_signature;
-    case OSSL_OP_ASYM_CIPHER:
-        return p11prov_asym_cipher;
-    case OSSL_OP_KEYEXCH:
-        return p11prov_exchange;
-    case OSSL_OP_KDF:
-        return p11prov_kdf;
-    case OSSL_OP_ENCODER:
-        return p11prov_encoder;
     }
     return NULL;
 }
@@ -763,6 +865,11 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
 
     ret = get_slots(ctx);
     if (ret) {
+        return -EFAULT;
+    }
+
+    ret = p11prov_operations_init(ctx);
+    if (ret != RET_OSSL_OK) {
         return -EFAULT;
     }
 

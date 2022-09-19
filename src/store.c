@@ -400,14 +400,14 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
              * deal with them in the default provider */
             switch (ctx->expect) {
             case OSSL_STORE_INFO_PKEY:
-                data_type = (char *)P11PROV_NAMES_RSA;
+                data_type = (char *)P11PROV_NAMES_PKCS11_RSA;
                 break;
             case OSSL_STORE_INFO_PUBKEY:
                 data_type = (char *)"RSA";
                 break;
             default:
                 if (obj->class == CKO_PRIVATE_KEY) {
-                    data_type = (char *)P11PROV_NAMES_RSA;
+                    data_type = (char *)P11PROV_NAMES_PKCS11_RSA;
                 } else {
                     data_type = (char *)"RSA";
                 }
@@ -415,7 +415,7 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
             }
             break;
         case CKK_EC:
-            data_type = (char *)P11PROV_NAMES_ECDSA;
+            data_type = (char *)P11PROV_NAMES_PKCS11_EC;
             break;
         default:
             return RET_OSSL_ERR;

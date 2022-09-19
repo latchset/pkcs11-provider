@@ -28,15 +28,25 @@
 #define P11PROV_PKCS11_MODULE_TOKEN_PIN "pkcs11-module-token-pin"
 
 #define P11PROV_DEFAULT_PROPERTIES "provider=pkcs11"
-#define P11PROV_NAMES_RSA "PKCS11-RSA"
+#define P11PROV_NAMES_PKCS11_RSA "PKCS11-RSA"
+#define P11PROV_NAMES_RSA "RSA:rsaEncryption:1.2.840.113549.1.1.1"
+#define P11PROV_DESCS_PKCS11_RSA "PKCS11 RSA Implementation"
 #define P11PROV_DESCS_RSA "PKCS11 RSA Implementation"
-#define P11PROV_NAMES_EC "PKCS11-EC"
+#define P11PROV_NAMES_PKCS11_EC "PKCS11-EC"
+#define P11PROV_NAMES_EC "EC:id-ecPublicKey:1.2.840.10045.2.1"
+#define P11PROV_DESCS_PKCS11_EC "PKCS11 EC Implementation"
 #define P11PROV_DESCS_EC "PKCS11 EC Implementation"
-#define P11PROV_NAMES_ECDSA "PKCS11-ECDSA"
+#define P11PROV_NAMES_PKCS11_ECDSA "PKCS11-ECDSA"
+#define P11PROV_NAMES_ECDSA "ECDSA"
+#define P11PROV_DESCS_PKCS11_ECDSA "PKCS11 ECDSA Implementation"
 #define P11PROV_DESCS_ECDSA "PKCS11 ECDSA Implementation"
-#define P11PROV_NAMES_ECDH "PKCS11-ECDH"
+#define P11PROV_NAMES_PKCS11_ECDH "PKCS11-ECDH"
+#define P11PROV_NAMES_ECDH "ECDH"
+#define P11PROV_DESCS_PKCS11_ECDH "PKCS11 ECDH Implementation"
 #define P11PROV_DESCS_ECDH "PKCS11 ECDH Implementation"
-#define P11PROV_NAMES_HKDF "PKCS11-HKDF"
+#define P11PROV_NAMES_PKCS11_HKDF "PKCS11-HKDF"
+#define P11PROV_NAMES_HKDF "HKDF"
+#define P11PROV_DESCS_PKCS11_HKDF "PKCS11 HKDF Implementation"
 #define P11PROV_DESCS_HKDF "PKCS11 HKDF Implementation"
 #define P11PROV_DESCS_URI "PKCS11 URI Store"
 
@@ -166,7 +176,7 @@ P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj, CK_OBJECT_CLASS class);
         OSSL_FUNC_KEYMGMT_##NAME, (void (*)(void))p11prov_##type##_##name \
     }
 extern const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[];
-extern const OSSL_DISPATCH p11prov_ecdsa_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_ec_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_hkdf_keymgmt_functions[];
 
 #define DISPATCH_STORE_FN(name) DECL_DISPATCH_FUNC(store, p11prov_store, name)
