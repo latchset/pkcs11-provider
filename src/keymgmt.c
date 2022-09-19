@@ -559,7 +559,7 @@ static const char *p11prov_rsa_query_operation_name(int operation_id)
     switch (operation_id) {
     case OSSL_OP_SIGNATURE:
     case OSSL_OP_ASYM_CIPHER:
-        return P11PROV_NAMES_RSA;
+        return P11PROV_NAMES_PKCS11_RSA;
     default:
         return "RSA";
     }
@@ -849,9 +849,9 @@ static const char *p11prov_ec_query_operation_name(int operation_id)
 {
     switch (operation_id) {
     case OSSL_OP_SIGNATURE:
-        return P11PROV_NAMES_ECDSA;
+        return P11PROV_NAMES_PKCS11_ECDSA;
     case OSSL_OP_KEYEXCH:
-        return P11PROV_NAMES_ECDH;
+        return P11PROV_NAMES_PKCS11_ECDH;
     default:
         return "ECDSA";
     }
@@ -964,7 +964,7 @@ static const OSSL_PARAM *p11prov_ec_gettable_params(void *provctx)
     return params;
 }
 
-const OSSL_DISPATCH p11prov_ecdsa_keymgmt_functions[] = {
+const OSSL_DISPATCH p11prov_ec_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ec, NEW, new),
     DISPATCH_KEYMGMT_ELEM(ec, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(ec, GEN, gen),
@@ -1013,7 +1013,7 @@ static const char *p11prov_hkdf_query_operation_name(int operation_id)
 
     switch (operation_id) {
     case OSSL_OP_KEYEXCH:
-        return P11PROV_NAMES_HKDF;
+        return P11PROV_NAMES_PKCS11_HKDF;
     default:
         return "HKDF";
     }
