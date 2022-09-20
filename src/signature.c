@@ -365,6 +365,7 @@ static int p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
     P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
+    CK_OBJECT_CLASS class;
     CK_RV ret;
 
     ret = p11prov_ctx_status(sigctx->provctx, NULL);
@@ -372,12 +373,23 @@ static int p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
         return RET_OSSL_ERR;
     }
 
-    if (operation == CKF_SIGN) {
-        sigctx->key = p11prov_object_get_key(obj, CKO_PRIVATE_KEY);
-    } else {
-        sigctx->key = p11prov_object_get_key(obj, CKO_PUBLIC_KEY);
-    }
+    sigctx->key = p11prov_object_get_key(obj);
     if (sigctx->key == NULL) {
+        return RET_OSSL_ERR;
+    }
+    class = p11prov_key_class(sigctx->key);
+    switch (operation) {
+    case CKF_SIGN:
+        if (class != CKO_PRIVATE_KEY) {
+            return RET_OSSL_ERR;
+        }
+        break;
+    case CKF_VERIFY:
+        if (class != CKO_PUBLIC_KEY) {
+            return RET_OSSL_ERR;
+        }
+        break;
+    default:
         return RET_OSSL_ERR;
     }
     sigctx->operation = operation;
@@ -655,9 +667,9 @@ static void *p11prov_rsasig_newctx(void *provctx, const char *properties)
     }
 
     /* default PSS Params */
-    sigctx->pss_params.hashAlg = CKM_SHA_1;
-    sigctx->pss_params.mgf = CKG_MGF1_SHA1;
-    sigctx->pss_params.sLen = 20;
+    sigctx->pss_params.hashAlg = CKM_SHA256;
+    sigctx->pss_params.mgf = CKG_MGF1_SHA256;
+    sigctx->pss_params.sLen = 32;
 
     return sigctx;
 }

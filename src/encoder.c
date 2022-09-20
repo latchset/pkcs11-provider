@@ -100,21 +100,29 @@ static int p11prov_rsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
         return RET_OSSL_ERR;
     }
 
-    key = p11prov_object_get_key(obj, class);
+    key = p11prov_object_get_key(obj);
     if (!key) {
         P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid Object class");
+        return RET_OSSL_ERR;
+    }
+
+    if (p11prov_key_class(key) != class) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid Key class");
+        p11prov_key_free(key);
         return RET_OSSL_ERR;
     }
 
     type = p11prov_key_type(key);
     if (type != CKK_RSA) {
         P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid Key Type");
+        p11prov_key_free(key);
         return RET_OSSL_ERR;
     }
 
     out = BIO_new_from_core_bio(p11prov_ctx_get_libctx(ctx->provctx), cbio);
     if (!out) {
         P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Failed to init BIO");
+        p11prov_key_free(key);
         return RET_OSSL_ERR;
     }
 
@@ -153,6 +161,7 @@ static int p11prov_rsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
     }
 
     BIO_free(out);
+    p11prov_key_free(key);
     return RET_OSSL_OK;
 }
 

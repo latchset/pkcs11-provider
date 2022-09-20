@@ -121,7 +121,7 @@ static int p11prov_rsaenc_encrypt_init(void *ctx, void *provkey,
         return RET_OSSL_ERR;
     }
 
-    encctx->key = p11prov_object_get_key(obj, 0);
+    encctx->key = p11prov_object_get_key(obj);
     if (encctx->key == NULL) {
         return RET_OSSL_ERR;
     }
@@ -226,8 +226,12 @@ static int p11prov_rsaenc_decrypt_init(void *ctx, void *provkey,
         return RET_OSSL_ERR;
     }
 
-    encctx->key = p11prov_object_get_key(obj, CKO_PRIVATE_KEY);
+    encctx->key = p11prov_object_get_key(obj);
     if (encctx->key == NULL) {
+        return RET_OSSL_ERR;
+    }
+    if (p11prov_key_class(encctx->key) != CKO_PRIVATE_KEY) {
+        P11PROV_raise(encctx->provctx, CKR_ARGUMENTS_BAD, "Invalid key class");
         return RET_OSSL_ERR;
     }
 

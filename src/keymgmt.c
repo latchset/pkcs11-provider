@@ -6,12 +6,12 @@
 #include <string.h>
 
 DISPATCH_KEYMGMT_FN(common, gen_set_params);
-DISPATCH_KEYMGMT_FN(common, gen_settable_params);
 DISPATCH_KEYMGMT_FN(common, gen_cleanup);
 
 DISPATCH_KEYMGMT_FN(rsa, new);
 DISPATCH_KEYMGMT_FN(rsa, gen_init);
 DISPATCH_KEYMGMT_FN(rsa, gen);
+DISPATCH_KEYMGMT_FN(rsa, gen_settable_params);
 DISPATCH_KEYMGMT_FN(rsa, load);
 DISPATCH_KEYMGMT_FN(rsa, free);
 DISPATCH_KEYMGMT_FN(rsa, has);
@@ -108,11 +108,15 @@ struct key_generator {
     CK_BYTE *id;
     CK_ULONG id_len;
 
+    CK_MECHANISM mechanism;
+
     union {
         struct {
             CK_ULONG modulus_bits;
             CK_BYTE exponent[8];
             CK_ULONG exponent_size;
+            CK_MECHANISM_TYPE *allowed_types;
+            CK_ULONG allowed_types_size;
         } rsa;
         struct {
             const CK_BYTE *ec_params;
@@ -153,11 +157,13 @@ static void *p11prov_common_gen_init(void *provctx, int selection,
     /* set defaults */
     switch (type) {
     case CKK_RSA:
+        ctx->mechanism.mechanism = CKM_RSA_PKCS_KEY_PAIR_GEN;
         ctx->data.rsa.modulus_bits = 2048;
         ctx->data.rsa.exponent_size = sizeof(def_e);
         memcpy(ctx->data.rsa.exponent, def_e, ctx->data.rsa.exponent_size);
         break;
     case CKK_EC:
+        ctx->mechanism.mechanism = CKM_EC_KEY_PAIR_GEN;
         ctx->data.ec.ec_params = prime256v1_param;
         ctx->data.ec.ec_params_size = sizeof(prime256v1_param);
         break;
@@ -173,39 +179,6 @@ static void *p11prov_common_gen_init(void *provctx, int selection,
         ctx = NULL;
     }
     return ctx;
-}
-
-static const OSSL_PARAM p11prov_rsa_params[] = {
-    OSSL_PARAM_utf8_string(P11PROV_PARAM_KEY_LABEL, NULL, 0),
-    OSSL_PARAM_octet_string(P11PROV_PARAM_KEY_ID, NULL, 0),
-    OSSL_PARAM_size_t(OSSL_PKEY_PARAM_RSA_BITS, NULL),
-    OSSL_PARAM_size_t(OSSL_PKEY_PARAM_RSA_PRIMES, NULL),
-    OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_E, NULL, 0),
-    OSSL_PARAM_END,
-};
-
-static const OSSL_PARAM p11prov_ec_params[] = {
-    OSSL_PARAM_utf8_string(P11PROV_PARAM_KEY_LABEL, NULL, 0),
-    OSSL_PARAM_octet_string(P11PROV_PARAM_KEY_ID, NULL, 0),
-    OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, NULL, 0),
-    OSSL_PARAM_END,
-};
-
-static const OSSL_PARAM *p11prov_common_gen_settable_params(void *genctx,
-                                                            void *provctx)
-{
-    struct key_generator *ctx = (struct key_generator *)genctx;
-
-    switch (ctx->type) {
-    case CKK_RSA:
-        return p11prov_rsa_params;
-    case CKK_EC:
-        return p11prov_ec_params;
-    default:
-        P11PROV_raise(ctx->provctx, CKR_ARGUMENTS_BAD,
-                      "Invalid key gen type %lu", ctx->type);
-    }
-    return NULL;
 }
 
 static int p11prov_common_gen_set_params(void *genctx,
@@ -308,7 +281,6 @@ static int p11prov_common_gen_set_params(void *genctx,
 }
 
 static void *p11prov_common_gen(struct key_generator *ctx,
-                                CK_MECHANISM *mechanism,
                                 CK_ATTRIBUTE *pubkey_template,
                                 CK_ATTRIBUTE *privkey_template, int pubtsize,
                                 int privtsize)
@@ -373,7 +345,7 @@ static void *p11prov_common_gen(struct key_generator *ctx,
         privtsize++;
     }
 
-    ret = f->C_GenerateKeyPair(sh, mechanism, pubkey_template, pubtsize,
+    ret = f->C_GenerateKeyPair(sh, &ctx->mechanism, pubkey_template, pubtsize,
                                privkey_template, privtsize, &pubkey, &privkey);
     if (ret != CKR_OK) {
         p11prov_session_free(session);
@@ -386,7 +358,7 @@ static void *p11prov_common_gen(struct key_generator *ctx,
         return NULL;
     }
 
-    ret = p11prov_object_new(ctx->provctx, CKO_PRIVATE_KEY, key, &obj);
+    ret = p11prov_object_new(ctx->provctx, key, &obj);
     if (ret != CKR_OK) {
         obj = NULL;
     }
@@ -407,6 +379,11 @@ static void p11prov_common_gen_cleanup(void *genctx)
     if (ctx->id) {
         OPENSSL_clear_free(ctx->id, ctx->id_len);
     }
+    if (ctx->type == CKK_RSA) {
+        if (ctx->data.rsa.allowed_types_size) {
+            OPENSSL_free(ctx->data.rsa.allowed_types);
+        }
+    }
 
     OPENSSL_clear_free(genctx, sizeof(struct key_generator));
 }
@@ -423,7 +400,6 @@ static void *p11prov_rsa_gen_init(void *provctx, int selection,
 static void *p11prov_rsa_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
     struct key_generator *ctx = (struct key_generator *)genctx;
-    CK_MECHANISM mechanism = { CKM_RSA_PKCS_KEY_PAIR_GEN, NULL_PTR, 0 };
     CK_BBOOL val_true = CK_TRUE;
     /* CK_BBOOL val_false = CK_FALSE; */
 
@@ -456,28 +432,71 @@ static void *p11prov_rsa_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
 
     P11PROV_debug("rsa gen %p %p %p", genctx, cb_fn, cb_arg);
 
-    return p11prov_common_gen(ctx, &mechanism, pubkey_template,
-                              privkey_template, pubtsize, privtsize);
+    return p11prov_common_gen(ctx, pubkey_template, privkey_template, pubtsize,
+                              privtsize);
+}
+
+static const OSSL_PARAM *p11prov_rsa_gen_settable_params(void *genctx,
+                                                         void *provctx)
+{
+    static OSSL_PARAM p11prov_rsa_params[] = {
+        OSSL_PARAM_utf8_string(P11PROV_PARAM_KEY_LABEL, NULL, 0),
+        OSSL_PARAM_octet_string(P11PROV_PARAM_KEY_ID, NULL, 0),
+        OSSL_PARAM_size_t(OSSL_PKEY_PARAM_RSA_BITS, NULL),
+        OSSL_PARAM_size_t(OSSL_PKEY_PARAM_RSA_PRIMES, NULL),
+        OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_E, NULL, 0),
+        OSSL_PARAM_END,
+    };
+    return p11prov_rsa_params;
 }
 
 static void *p11prov_rsa_new(void *provctx)
 {
+    P11PROV_OBJ *obj = NULL;
+    CK_RV ret;
+
     P11PROV_debug("rsa new");
-    return NULL;
+
+    ret = p11prov_object_new(provctx, NULL, &obj);
+    if (ret != CKR_OK) {
+        P11PROV_raise(provctx, ret, "Failed to allocate object");
+    }
+    return obj;
 }
 
-static void p11prov_rsa_free(void *key)
+static void p11prov_rsa_free(void *obj)
 {
-    P11PROV_debug("rsa free %p", key);
-    p11prov_object_free((P11PROV_OBJ *)key);
+    P11PROV_debug("rsa free %p", obj);
+    p11prov_object_free((P11PROV_OBJ *)obj);
 }
 
 static void *p11prov_rsa_load(const void *reference, size_t reference_sz)
 {
+    P11PROV_OBJ *obj;
+
     P11PROV_debug("rsa load %p, %ld", reference, reference_sz);
 
     /* the contents of the reference is the address to our object */
-    return p11prov_obj_from_reference(reference, reference_sz);
+    obj = p11prov_obj_from_reference(reference, reference_sz);
+    if (obj) {
+        P11PROV_KEY *key;
+        CK_KEY_TYPE type = CK_UNAVAILABLE_INFORMATION;
+
+        /* this takes a reference to the key, free later */
+        key = p11prov_object_get_key(obj);
+        if (key) {
+            type = p11prov_key_type(key);
+            p11prov_key_free(key);
+
+            if (type != CKK_RSA) {
+                obj = NULL;
+            }
+        } else {
+            obj = NULL;
+        }
+    }
+
+    return obj;
 }
 
 static int p11prov_rsa_has(const void *keydata, int selection)
@@ -491,13 +510,13 @@ static int p11prov_rsa_has(const void *keydata, int selection)
     }
 
     if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        if (!p11prov_object_check_key(obj, true)) {
+        if (p11prov_object_get_class(obj) != CKO_PRIVATE_KEY) {
             return 0;
         }
     }
 
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        if (!p11prov_object_check_key(obj, false)) {
+        if (p11prov_object_get_class(obj) != CKO_PUBLIC_KEY) {
             return 0;
         }
     }
@@ -556,13 +575,7 @@ static const OSSL_PARAM *p11prov_rsa_export_types(int selection)
 
 static const char *p11prov_rsa_query_operation_name(int operation_id)
 {
-    switch (operation_id) {
-    case OSSL_OP_SIGNATURE:
-    case OSSL_OP_ASYM_CIPHER:
-        return P11PROV_NAMES_PKCS11_RSA;
-    default:
-        return "RSA";
-    }
+    return P11PROV_NAMES_PKCS11_RSA;
 }
 
 static int p11prov_rsa_secbits(int bits)
@@ -615,7 +628,7 @@ static int p11prov_rsa_get_params(void *keydata, OSSL_PARAM params[])
         return 0;
     }
 
-    key = p11prov_object_get_key(obj, 0);
+    key = p11prov_object_get_key(obj);
     if (key == NULL) {
         ret = RET_OSSL_ERR;
         goto done;
@@ -677,7 +690,111 @@ const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(rsa, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(rsa, GEN, gen),
     DISPATCH_KEYMGMT_ELEM(common, GEN_SET_PARAMS, gen_set_params),
-    DISPATCH_KEYMGMT_ELEM(common, GEN_SETTABLE_PARAMS, gen_settable_params),
+    DISPATCH_KEYMGMT_ELEM(rsa, GEN_SETTABLE_PARAMS, gen_settable_params),
+    DISPATCH_KEYMGMT_ELEM(common, GEN_CLEANUP, gen_cleanup),
+    DISPATCH_KEYMGMT_ELEM(rsa, LOAD, load),
+    DISPATCH_KEYMGMT_ELEM(rsa, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(rsa, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(rsa, IMPORT, import),
+    DISPATCH_KEYMGMT_ELEM(rsa, IMPORT_TYPES, import_types),
+    DISPATCH_KEYMGMT_ELEM(rsa, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(rsa, EXPORT_TYPES, export_types),
+    DISPATCH_KEYMGMT_ELEM(rsa, QUERY_OPERATION_NAME, query_operation_name),
+    DISPATCH_KEYMGMT_ELEM(rsa, GET_PARAMS, get_params),
+    DISPATCH_KEYMGMT_ELEM(rsa, GETTABLE_PARAMS, gettable_params),
+    { 0, NULL },
+};
+
+DISPATCH_KEYMGMT_FN(rsapss, gen);
+DISPATCH_KEYMGMT_FN(rsa, gen_settable_params);
+
+CK_MECHANISM_TYPE rsapss_mechs[] = {
+    CKM_SHA1_RSA_PKCS_PSS,     CKM_SHA224_RSA_PKCS_PSS,
+    CKM_SHA256_RSA_PKCS_PSS,   CKM_SHA384_RSA_PKCS_PSS,
+    CKM_SHA512_RSA_PKCS_PSS,   CKM_SHA3_224_RSA_PKCS_PSS,
+    CKM_SHA3_256_RSA_PKCS_PSS, CKM_SHA3_384_RSA_PKCS_PSS,
+    CKM_SHA3_512_RSA_PKCS_PSS
+};
+
+static void *p11prov_rsapss_gen(void *genctx, OSSL_CALLBACK *cb_fn,
+                                void *cb_arg)
+{
+    struct key_generator *ctx = (struct key_generator *)genctx;
+    P11PROV_KEY *key;
+    P11PROV_OBJ *obj;
+    CK_RV ret;
+
+    obj = p11prov_rsa_gen(genctx, cb_fn, cb_arg);
+    if (!obj) {
+        return NULL;
+    }
+
+    /* params could already be caying pss restriction. If allowed_types
+     * is already set, skip setting defaults */
+    if (!ctx->data.rsa.allowed_types_size) {
+        ctx->data.rsa.allowed_types = OPENSSL_malloc(sizeof(rsapss_mechs));
+        if (ctx->data.rsa.allowed_types == NULL) {
+            P11PROV_raise(ctx->provctx, CKR_HOST_MEMORY, "Allocating data");
+            p11prov_object_free(obj);
+            return NULL;
+        }
+        memcpy(ctx->data.rsa.allowed_types, rsapss_mechs, sizeof(rsapss_mechs));
+        ctx->data.rsa.allowed_types_size =
+            sizeof(rsapss_mechs) / sizeof(CK_MECHANISM_TYPE);
+    }
+
+    key = p11prov_object_get_key(obj);
+    if (!key) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid object");
+        p11prov_object_free(obj);
+        return NULL;
+    }
+
+    if (true) {
+        CK_ATTRIBUTE template[] = {
+            { CKA_ALLOWED_MECHANISMS, ctx->data.rsa.allowed_types,
+              ctx->data.rsa.allowed_types_size },
+        };
+        CK_ULONG tsize = 1;
+
+        ret = p11prov_key_set_attributes(ctx->provctx, NULL, key, template,
+                                         tsize);
+        if (ret != CKR_OK) {
+            /* this can fail on tokens, so we ignore the error and just
+             * throw in some debug log for it for now */
+            P11PROV_debug("Failed to add RSAPSS restrictions (%lu)", ret);
+        }
+    }
+    p11prov_key_free(key);
+    return obj;
+}
+
+static const OSSL_PARAM *p11prov_rsapss_gen_settable_params(void *genctx,
+                                                            void *provctx)
+{
+    static OSSL_PARAM p11prov_rsapss_params[] = {
+        OSSL_PARAM_utf8_string(P11PROV_PARAM_KEY_LABEL, NULL, 0),
+        OSSL_PARAM_octet_string(P11PROV_PARAM_KEY_ID, NULL, 0),
+        OSSL_PARAM_size_t(OSSL_PKEY_PARAM_RSA_BITS, NULL),
+        OSSL_PARAM_size_t(OSSL_PKEY_PARAM_RSA_PRIMES, NULL),
+        OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_E, NULL, 0),
+        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_RSA_DIGEST, NULL, 0),
+        /* unsupportable yet:
+         * OSSL_PKEY_PARAM_RSA_DIGEST_PROPS
+         * OSSL_PKEY_PARAM_RSA_MASKGENFUNC
+         * OSSL_PKEY_PARAM_RSA_MGF1_DIGEST
+         * OSSL_PKEY_PARAM_RSA_PSS_SALTLEN */
+        OSSL_PARAM_END,
+    };
+    return p11prov_rsapss_params;
+}
+
+const OSSL_DISPATCH p11prov_rsapss_keymgmt_functions[] = {
+    DISPATCH_KEYMGMT_ELEM(rsa, NEW, new),
+    DISPATCH_KEYMGMT_ELEM(rsa, GEN_INIT, gen_init),
+    DISPATCH_KEYMGMT_ELEM(rsapss, GEN, gen),
+    DISPATCH_KEYMGMT_ELEM(common, GEN_SET_PARAMS, gen_set_params),
+    DISPATCH_KEYMGMT_ELEM(rsapss, GEN_SETTABLE_PARAMS, gen_settable_params),
     DISPATCH_KEYMGMT_ELEM(common, GEN_CLEANUP, gen_cleanup),
     DISPATCH_KEYMGMT_ELEM(rsa, LOAD, load),
     DISPATCH_KEYMGMT_ELEM(rsa, FREE, free),
@@ -695,6 +812,7 @@ const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[] = {
 DISPATCH_KEYMGMT_FN(ec, new);
 DISPATCH_KEYMGMT_FN(ec, gen_init);
 DISPATCH_KEYMGMT_FN(ec, gen);
+DISPATCH_KEYMGMT_FN(ec, gen_settable_params);
 DISPATCH_KEYMGMT_FN(ec, load);
 DISPATCH_KEYMGMT_FN(ec, free);
 DISPATCH_KEYMGMT_FN(ec, has);
@@ -723,7 +841,6 @@ static void *p11prov_ec_gen_init(void *provctx, int selection,
 static void *p11prov_ec_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
     struct key_generator *ctx = (struct key_generator *)genctx;
-    CK_MECHANISM mechanism = { CKM_EC_KEY_PAIR_GEN, NULL_PTR, 0 };
     CK_BBOOL val_true = CK_TRUE;
     /* CK_BBOOL val_false = CK_FALSE; */
 
@@ -753,8 +870,20 @@ static void *p11prov_ec_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
 
     P11PROV_debug("ec gen %p %p %p", ctx, cb_fn, cb_arg);
 
-    return p11prov_common_gen(ctx, &mechanism, pubkey_template,
-                              privkey_template, pubtsize, privtsize);
+    return p11prov_common_gen(ctx, pubkey_template, privkey_template, pubtsize,
+                              privtsize);
+}
+
+static const OSSL_PARAM *p11prov_ec_gen_settable_params(void *genctx,
+                                                        void *provctx)
+{
+    static OSSL_PARAM p11prov_ec_params[] = {
+        OSSL_PARAM_utf8_string(P11PROV_PARAM_KEY_LABEL, NULL, 0),
+        OSSL_PARAM_octet_string(P11PROV_PARAM_KEY_ID, NULL, 0),
+        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, NULL, 0),
+        OSSL_PARAM_END,
+    };
+    return p11prov_ec_params;
 }
 
 static void p11prov_ec_free(void *key)
@@ -782,13 +911,13 @@ static int p11prov_ec_has(const void *keydata, int selection)
     }
 
     if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        if (!p11prov_object_check_key(obj, true)) {
+        if (p11prov_object_get_class(obj) != CKO_PRIVATE_KEY) {
             return 0;
         }
     }
 
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        if (!p11prov_object_check_key(obj, false)) {
+        if (p11prov_object_get_class(obj) != CKO_PUBLIC_KEY) {
             return 0;
         }
     }
@@ -852,9 +981,8 @@ static const char *p11prov_ec_query_operation_name(int operation_id)
         return P11PROV_NAMES_PKCS11_ECDSA;
     case OSSL_OP_KEYEXCH:
         return P11PROV_NAMES_PKCS11_ECDH;
-    default:
-        return "ECDSA";
     }
+    return NULL;
 }
 
 static int p11prov_ec_secbits(int bits)
@@ -889,7 +1017,7 @@ static int p11prov_ec_get_params(void *keydata, OSSL_PARAM params[])
         return 0;
     }
 
-    key = p11prov_object_get_key(obj, 0);
+    key = p11prov_object_get_key(obj);
     if (key == NULL) {
         ret = RET_OSSL_ERR;
         goto done;
@@ -970,7 +1098,7 @@ const OSSL_DISPATCH p11prov_ec_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ec, GEN, gen),
     DISPATCH_KEYMGMT_ELEM(common, GEN_CLEANUP, gen_cleanup),
     DISPATCH_KEYMGMT_ELEM(common, GEN_SET_PARAMS, gen_set_params),
-    DISPATCH_KEYMGMT_ELEM(common, GEN_SETTABLE_PARAMS, gen_settable_params),
+    DISPATCH_KEYMGMT_ELEM(ec, GEN_SETTABLE_PARAMS, gen_settable_params),
     DISPATCH_KEYMGMT_ELEM(ec, LOAD, load),
     DISPATCH_KEYMGMT_ELEM(ec, FREE, free),
     DISPATCH_KEYMGMT_ELEM(ec, HAS, has),
@@ -1011,12 +1139,7 @@ static const char *p11prov_hkdf_query_operation_name(int operation_id)
 {
     P11PROV_debug("hkdf keymgmt query op name %d", operation_id);
 
-    switch (operation_id) {
-    case OSSL_OP_KEYEXCH:
-        return P11PROV_NAMES_PKCS11_HKDF;
-    default:
-        return "HKDF";
-    }
+    return P11PROV_NAMES_PKCS11_HKDF;
 }
 
 static int p11prov_hkdf_has(const void *kdfdata, int selection)

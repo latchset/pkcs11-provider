@@ -289,6 +289,13 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
         CKM_SHA384_RSA_PKCS, CKM_SHA512_RSA_PKCS, CKM_SHA3_224_RSA_PKCS, \
         CKM_SHA3_256_RSA_PKCS, CKM_SHA3_384_RSA_PKCS, CKM_SHA3_512_RSA_PKCS
 
+#define RSAPSS_SIG_MECHS \
+    CKM_RSA_PKCS_PSS, CKM_SHA1_RSA_PKCS_PSS, CKM_SHA224_RSA_PKCS_PSS, \
+        CKM_SHA256_RSA_PKCS_PSS, CKM_SHA384_RSA_PKCS_PSS, \
+        CKM_SHA512_RSA_PKCS_PSS, CKM_SHA3_224_RSA_PKCS_PSS, \
+        CKM_SHA3_256_RSA_PKCS_PSS, CKM_SHA3_384_RSA_PKCS_PSS, \
+        CKM_SHA3_512_RSA_PKCS_PSS
+
 #define RSA_ENC_MECHS \
     CKM_RSA_PKCS, CKM_RSA_PKCS_OAEP, CKM_RSA_X_509, CKM_RSA_X9_31
 
@@ -328,12 +335,19 @@ static void alg_rm_mechs(CK_ULONG *checklist, CK_ULONG *rmlist, int *clsize,
 
 static int p11prov_operations_init(P11PROV_CTX *ctx)
 {
-    CK_ULONG checklist[] = {
-        CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_SIG_MECHS,   RSA_ENC_MECHS,
-        CKM_EC_KEY_PAIR_GEN,       ECDSA_SIG_MECHS, CKM_ECDH1_DERIVE,
-        CKM_ECDH1_COFACTOR_DERIVE, CKM_HKDF_DERIVE
-    };
+    CK_ULONG checklist[] = { CKM_RSA_PKCS_KEY_PAIR_GEN,
+                             RSA_SIG_MECHS,
+                             RSAPSS_SIG_MECHS,
+                             RSA_ENC_MECHS,
+                             CKM_EC_KEY_PAIR_GEN,
+                             ECDSA_SIG_MECHS,
+                             CKM_ECDH1_DERIVE,
+                             CKM_ECDH1_COFACTOR_DERIVE,
+                             CKM_HKDF_DERIVE };
+    bool add_rsasig = false;
+    bool add_rsaenc = false;
     bool keymgmt_rsa = false;
+    bool keymgmt_rsapss = false;
     bool keymgmt_ec = false;
     bool keymgmt_hkdf = false;
     int cl_size = sizeof(checklist) / sizeof(CK_ULONG);
@@ -368,9 +382,9 @@ static int p11prov_operations_init(P11PROV_CTX *ctx)
                 break;
             case CKM_RSA_PKCS:
                 keymgmt_rsa = true;
-                ADD_ALGO(RSA, rsa, signature);
+                add_rsasig = true;
+                add_rsaenc = true;
                 UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_SIG_MECHS);
-                ADD_ALGO(RSA, rsa, asym_cipher);
                 UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_ENC_MECHS);
                 break;
             case CKM_SHA1_RSA_PKCS:
@@ -383,14 +397,28 @@ static int p11prov_operations_init(P11PROV_CTX *ctx)
             case CKM_SHA3_384_RSA_PKCS:
             case CKM_SHA3_512_RSA_PKCS:
                 keymgmt_rsa = true;
-                ADD_ALGO(RSA, rsa, signature);
+                add_rsasig = true;
                 UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_SIG_MECHS);
+                break;
+            case CKM_RSA_PKCS_PSS:
+            case CKM_SHA1_RSA_PKCS_PSS:
+            case CKM_SHA224_RSA_PKCS_PSS:
+            case CKM_SHA256_RSA_PKCS_PSS:
+            case CKM_SHA384_RSA_PKCS_PSS:
+            case CKM_SHA512_RSA_PKCS_PSS:
+            case CKM_SHA3_224_RSA_PKCS_PSS:
+            case CKM_SHA3_256_RSA_PKCS_PSS:
+            case CKM_SHA3_384_RSA_PKCS_PSS:
+            case CKM_SHA3_512_RSA_PKCS_PSS:
+                keymgmt_rsapss = true;
+                add_rsasig = true;
+                UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSAPSS_SIG_MECHS);
                 break;
             case CKM_RSA_PKCS_OAEP:
             case CKM_RSA_X_509:
             case CKM_RSA_X9_31:
                 keymgmt_rsa = true;
-                ADD_ALGO(RSA, rsa, asym_cipher);
+                add_rsaenc = true;
                 UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_ENC_MECHS);
                 break;
             case CKM_EC_KEY_PAIR_GEN:
@@ -436,6 +464,9 @@ static int p11prov_operations_init(P11PROV_CTX *ctx)
     if (keymgmt_rsa) {
         ADD_ALGO(RSA, rsa, keymgmt);
     }
+    if (keymgmt_rsapss) {
+        ADD_ALGO(RSAPSS, rsapss, keymgmt);
+    }
     if (keymgmt_ec) {
         ADD_ALGO(EC, ec, keymgmt);
     }
@@ -443,6 +474,12 @@ static int p11prov_operations_init(P11PROV_CTX *ctx)
         ADD_ALGO(HKDF, hkdf, keymgmt);
     }
 
+    if (add_rsasig) {
+        ADD_ALGO(RSA, rsa, signature);
+    }
+    if (add_rsaenc) {
+        ADD_ALGO(RSA, rsa, asym_cipher);
+    }
     /* terminations */
     if (kdf_idx > 0) {
         TERM_ALGO(keymgmt);
