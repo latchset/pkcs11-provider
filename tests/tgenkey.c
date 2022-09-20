@@ -71,11 +71,10 @@ static void check_keys(OSSL_STORE_CTX *store)
 }
 
 static void gen_keys(const char *key_type, const char *label, unsigned char *id,
-                     const OSSL_PARAM *params)
+                     const char *idhex, const OSSL_PARAM *params)
 {
     EVP_PKEY_CTX *ctx;
     EVP_PKEY *key = NULL;
-    char idhex[16 * 3 + 1];
     char *uri;
     OSSL_STORE_CTX *store;
     OSSL_STORE_SEARCH *search;
@@ -107,7 +106,6 @@ static void gen_keys(const char *key_type, const char *label, unsigned char *id,
     ctx = NULL;
 
     /* now try to search by id */
-    hexify(idhex, id, 16);
     ret = asprintf(&uri, "pkcs11:id=%s", idhex);
     if (ret == -1) {
         fprintf(stderr, "Failed to allocate uri\n");
@@ -149,19 +147,21 @@ int main(int argc, char *argv[])
 {
     char *label;
     unsigned char id[16];
+    char idhex[16 * 3 + 1];
     size_t rsa_bits = 3072;
-    OSSL_PARAM params[4];
+    OSSL_PARAM params[5];
     int ret;
 
     /* RSA */
-    label = strdup("Test RSA gen");
-    if (!label) {
-        fprintf(stderr, "Failed to make label");
-        exit(EXIT_FAILURE);
-    }
     ret = RAND_bytes(id, 16);
     if (ret != 1) {
         fprintf(stderr, "Failed to set generate key id\n");
+        exit(EXIT_FAILURE);
+    }
+    hexify(idhex, id, 16);
+    asprintf(&label, "Test RSA gen [%.9s]", idhex);
+    if (!label) {
+        fprintf(stderr, "Failed to make label");
         exit(EXIT_FAILURE);
     }
     params[0] = OSSL_PARAM_construct_utf8_string("pkcs11_key_label", label, 0);
@@ -169,18 +169,41 @@ int main(int argc, char *argv[])
     params[2] = OSSL_PARAM_construct_size_t("rsa_keygen_bits", &rsa_bits);
     params[3] = OSSL_PARAM_construct_end();
 
-    gen_keys("RSA", label, id, params);
+    gen_keys("RSA", label, id, idhex, params);
     free(label);
 
-    /* EC */
-    label = strdup("Test EC gen");
+    /* RSA-PSS */
+    ret = RAND_bytes(id, 16);
+    if (ret != 1) {
+        fprintf(stderr, "Failed to set generate key id\n");
+        exit(EXIT_FAILURE);
+    }
+    hexify(idhex, id, 16);
+    asprintf(&label, "Test RSA-PSS gen [%.9s]", idhex);
     if (!label) {
         fprintf(stderr, "Failed to make label");
         exit(EXIT_FAILURE);
     }
+    params[0] = OSSL_PARAM_construct_utf8_string("pkcs11_key_label", label, 0);
+    params[1] = OSSL_PARAM_construct_octet_string("pkcs11_key_id", id, 16);
+    params[2] = OSSL_PARAM_construct_size_t("rsa_keygen_bits", &rsa_bits);
+    params[3] = OSSL_PARAM_construct_utf8_string("rsa_pss_keygen_md",
+                                                 (char *)"SHA256", 0);
+    params[4] = OSSL_PARAM_construct_end();
+
+    gen_keys("RSA-PSS", label, id, idhex, params);
+    free(label);
+
+    /* EC */
     ret = RAND_bytes(id, 16);
     if (ret != 1) {
         fprintf(stderr, "Failed to set generate key id\n");
+        exit(EXIT_FAILURE);
+    }
+    hexify(idhex, id, 16);
+    asprintf(&label, "Test EC gen [%.9s]", idhex);
+    if (!label) {
+        fprintf(stderr, "Failed to make label");
         exit(EXIT_FAILURE);
     }
     params[0] = OSSL_PARAM_construct_utf8_string("pkcs11_key_label", label, 0);
@@ -189,7 +212,7 @@ int main(int argc, char *argv[])
                                                  (char *)"P-256", 0);
     params[3] = OSSL_PARAM_construct_end();
 
-    gen_keys("EC", label, id, params);
+    gen_keys("EC", label, id, idhex, params);
     free(label);
 
     fprintf(stderr, "ALL A-OK!");

@@ -32,6 +32,10 @@
 #define P11PROV_NAMES_RSA "RSA:rsaEncryption:1.2.840.113549.1.1.1"
 #define P11PROV_DESCS_PKCS11_RSA "PKCS11 RSA Implementation"
 #define P11PROV_DESCS_RSA "PKCS11 RSA Implementation"
+#define P11PROV_NAMES_PKCS11_RSAPSS "PKCS11-RSAPSS"
+#define P11PROV_NAMES_RSAPSS "RSA-PSS:RSASSA-PSS:1.2.840.113549.1.1.10"
+#define P11PROV_DESCS_PKCS11_RSAPSS "PKCS11 RSA PSS Implementation"
+#define P11PROV_DESCS_RSAPSS "PKCS11 RSA PSS Implementation"
 #define P11PROV_NAMES_PKCS11_EC "PKCS11-EC"
 #define P11PROV_NAMES_EC "EC:id-ecPublicKey:1.2.840.10045.2.1"
 #define P11PROV_DESCS_PKCS11_EC "PKCS11 EC Implementation"
@@ -132,12 +136,13 @@ void p11prov_debug_slot(P11PROV_CTX *ctx, struct p11prov_slot *slot);
 P11PROV_KEY *p11prov_key_ref(P11PROV_KEY *key);
 void p11prov_key_free(P11PROV_KEY *key);
 CK_ATTRIBUTE *p11prov_key_attr(P11PROV_KEY *key, CK_ATTRIBUTE_TYPE type);
+CK_OBJECT_CLASS p11prov_key_class(P11PROV_KEY *key);
 CK_KEY_TYPE p11prov_key_type(P11PROV_KEY *key);
 CK_SLOT_ID p11prov_key_slotid(P11PROV_KEY *key);
 CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key);
 CK_ULONG p11prov_key_size(P11PROV_KEY *key);
 
-typedef CK_RV (*store_key_callback)(void *, CK_OBJECT_CLASS, P11PROV_KEY *);
+typedef CK_RV (*store_key_callback)(void *, P11PROV_KEY *);
 P11PROV_KEY *p11prov_object_handle_to_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                                           P11PROV_SESSION *session,
                                           CK_OBJECT_HANDLE object);
@@ -152,17 +157,20 @@ CK_RV p11prov_derive_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                          CK_MECHANISM *mechanism, CK_OBJECT_HANDLE handle,
                          CK_ATTRIBUTE *template, CK_ULONG nattrs,
                          P11PROV_SESSION **session, CK_OBJECT_HANDLE *key);
+CK_RV p11prov_key_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
+                                 P11PROV_KEY *key, CK_ATTRIBUTE *template,
+                                 CK_ULONG tsize);
 
 /* Object Store */
-CK_RV p11prov_object_new(P11PROV_CTX *ctx, CK_OBJECT_CLASS class,
-                         P11PROV_KEY *key, P11PROV_OBJ **object);
+CK_RV p11prov_object_new(P11PROV_CTX *ctx, P11PROV_KEY *key,
+                         P11PROV_OBJ **object);
 void p11prov_object_free(P11PROV_OBJ *obj);
-bool p11prov_object_check_key(P11PROV_OBJ *obj, bool priv);
+CK_OBJECT_CLASS p11prov_object_get_class(P11PROV_OBJ *obj);
 P11PROV_OBJ *p11prov_obj_from_reference(const void *reference,
                                         size_t reference_sz);
 int p11prov_object_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
                                          void *cb_arg);
-P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj, CK_OBJECT_CLASS class);
+P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj);
 
 /* dispatching */
 #define DECL_DISPATCH_FUNC(type, prefix, name) \
@@ -176,6 +184,7 @@ P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj, CK_OBJECT_CLASS class);
         OSSL_FUNC_KEYMGMT_##NAME, (void (*)(void))p11prov_##type##_##name \
     }
 extern const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_rsapss_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_ec_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_hkdf_keymgmt_functions[];
 
@@ -287,9 +296,9 @@ struct fetch_attrs {
 
 #define CKATTR_ASSIGN_ALL(x, _a, _b, _c) \
     do { \
-        x.type = _a; \
-        x.pValue = (void *)_b; \
-        x.ulValueLen = _c; \
+        x.type = (_a); \
+        x.pValue = (void *)(_b); \
+        x.ulValueLen = (_c); \
     } while (0)
 
 CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,

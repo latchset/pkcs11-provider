@@ -7,6 +7,7 @@
 #include <string.h>
 
 struct p11prov_obj {
+    P11PROV_CTX *ctx;
     CK_OBJECT_CLASS class;
     union {
         struct p11prov_key *key;
@@ -15,8 +16,8 @@ struct p11prov_obj {
     int refcnt;
 };
 
-CK_RV p11prov_object_new(P11PROV_CTX *ctx, CK_OBJECT_CLASS class,
-                         P11PROV_KEY *key, P11PROV_OBJ **object)
+CK_RV p11prov_object_new(P11PROV_CTX *ctx, P11PROV_KEY *key,
+                         P11PROV_OBJ **object)
 {
     P11PROV_OBJ *obj;
 
@@ -24,16 +25,13 @@ CK_RV p11prov_object_new(P11PROV_CTX *ctx, CK_OBJECT_CLASS class,
     if (obj == NULL) {
         return CKR_HOST_MEMORY;
     }
-    obj->class = class;
-    switch (class) {
-    case CKO_PUBLIC_KEY:
-    case CKO_PRIVATE_KEY:
+    obj->ctx = ctx;
+
+    if (key != NULL) {
+        obj->class = p11prov_key_class(key);
         obj->data.key = p11prov_key_ref(key);
-        break;
-    default:
-        P11PROV_raise(ctx, CKR_ARGUMENTS_BAD, "Unsupported object type");
-        OPENSSL_free(obj);
-        return CKR_ARGUMENTS_BAD;
+    } else {
+        obj->class = CK_UNAVAILABLE_INFORMATION;
     }
 
     obj->refcnt = 1;
@@ -75,23 +73,22 @@ void p11prov_object_free(P11PROV_OBJ *obj)
     OPENSSL_clear_free(obj, sizeof(P11PROV_OBJ));
 }
 
-bool p11prov_object_check_key(P11PROV_OBJ *obj, bool priv)
+CK_OBJECT_CLASS p11prov_object_get_class(P11PROV_OBJ *obj)
 {
-    if (priv) {
-        return obj->class == CKO_PRIVATE_KEY;
-    }
-    return obj->class == CKO_PUBLIC_KEY;
+    return obj->class;
 }
 
-P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj, CK_OBJECT_CLASS class)
+P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj)
 {
-    if (class == CKO_PRIVATE_KEY && obj->class != CKO_PRIVATE_KEY) {
-        return NULL;
+    switch (obj->class) {
+    case CKO_PRIVATE_KEY:
+    case CKO_PUBLIC_KEY:
+        if (obj->data.key) {
+            return p11prov_key_ref(obj->data.key);
+        }
+        break;
     }
-    if (class == CKO_PUBLIC_KEY && obj->class != CKO_PUBLIC_KEY) {
-        return NULL;
-    }
-    return p11prov_key_ref(obj->data.key);
+    return NULL;
 }
 
 /* Tokens return data in bigendian order, while openssl
@@ -205,14 +202,13 @@ static void p11prov_store_ctx_free(struct p11prov_store_ctx *ctx)
 }
 
 #define OBJS_ALLOC_SIZE 8
-static CK_RV p11prov_store_ctx_add_key(void *pctx, CK_OBJECT_CLASS class,
-                                       P11PROV_KEY *key)
+static CK_RV p11prov_store_ctx_add_key(void *pctx, P11PROV_KEY *key)
 {
     struct p11prov_store_ctx *ctx = (struct p11prov_store_ctx *)pctx;
     P11PROV_OBJ *obj;
     CK_RV ret;
 
-    ret = p11prov_object_new(ctx->provctx, class, key, &obj);
+    ret = p11prov_object_new(ctx->provctx, key, &obj);
     if (ret != CKR_OK) {
         return ret;
     }

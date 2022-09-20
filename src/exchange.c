@@ -192,8 +192,13 @@ static int p11prov_ecdh_init(void *ctx, void *provkey,
     }
 
     p11prov_key_free(ecdhctx->key);
-    ecdhctx->key = p11prov_object_get_key(obj, CKO_PRIVATE_KEY);
+    ecdhctx->key = p11prov_object_get_key(obj);
     if (ecdhctx->key == NULL) {
+        P11PROV_raise(ecdhctx->provctx, CKR_ARGUMENTS_BAD, "Invalid object");
+        return RET_OSSL_ERR;
+    }
+    if (p11prov_key_class(ecdhctx->key) != CKO_PRIVATE_KEY) {
+        P11PROV_raise(ecdhctx->provctx, CKR_ARGUMENTS_BAD, "Invalid key class");
         return RET_OSSL_ERR;
     }
 
@@ -210,8 +215,13 @@ static int p11prov_ecdh_set_peer(void *ctx, void *provkey)
     }
 
     p11prov_key_free(ecdhctx->peer_key);
-    ecdhctx->peer_key = p11prov_object_get_key(obj, CKO_PUBLIC_KEY);
+    ecdhctx->peer_key = p11prov_object_get_key(obj);
     if (ecdhctx->peer_key == NULL) {
+        P11PROV_raise(ecdhctx->provctx, CKR_ARGUMENTS_BAD, "Invalid object");
+        return RET_OSSL_ERR;
+    }
+    if (p11prov_key_class(ecdhctx->peer_key) != CKO_PUBLIC_KEY) {
+        P11PROV_raise(ecdhctx->provctx, CKR_ARGUMENTS_BAD, "Invalid key class");
         return RET_OSSL_ERR;
     }
 
@@ -607,8 +617,15 @@ static int p11prov_exch_hkdf_init(void *ctx, void *provobj,
 
     if (provobj != &p11prov_hkdf_static_ctx) {
         p11prov_key_free(hkdfctx->key);
-        hkdfctx->key = p11prov_object_get_key(obj, CKO_PRIVATE_KEY);
+        hkdfctx->key = p11prov_object_get_key(obj);
         if (hkdfctx->key == NULL) {
+            P11PROV_raise(hkdfctx->provctx, CKR_ARGUMENTS_BAD,
+                          "Invalid object");
+            return RET_OSSL_ERR;
+        }
+        if (p11prov_key_class(hkdfctx->key) != CKO_PRIVATE_KEY) {
+            P11PROV_raise(hkdfctx->provctx, CKR_ARGUMENTS_BAD,
+                          "Invalid key class");
             return RET_OSSL_ERR;
         }
     }

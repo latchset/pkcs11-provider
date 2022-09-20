@@ -79,6 +79,14 @@ CK_ATTRIBUTE *p11prov_key_attr(P11PROV_KEY *key, CK_ATTRIBUTE_TYPE type)
     return NULL;
 }
 
+CK_OBJECT_CLASS p11prov_key_class(P11PROV_KEY *key)
+{
+    if (key) {
+        return key->class;
+    }
+    return CK_UNAVAILABLE_INFORMATION;
+}
+
 CK_KEY_TYPE p11prov_key_type(P11PROV_KEY *key)
 {
     if (key) {
@@ -372,7 +380,7 @@ CK_RV find_keys(P11PROV_CTX *provctx, P11PROV_SESSION *session,
             key = p11prov_object_handle_to_key(provctx, slotid, session,
                                                object[k]);
             if (key) {
-                ret = cb(cb_ctx, key->class, key);
+                ret = cb(cb_ctx, key);
                 if (ret != CKR_OK) {
                     result = ret;
                     break;
@@ -535,4 +543,42 @@ again:
         P11PROV_raise(ctx, ret, "Error returned by C_DeriveKey");
         return ret;
     }
+}
+
+CK_RV p11prov_key_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
+                                 P11PROV_KEY *key, CK_ATTRIBUTE *template,
+                                 CK_ULONG tsize)
+{
+    P11PROV_SESSION *s = session;
+    CK_SLOT_ID slotid = key->slotid;
+    CK_FUNCTION_LIST *f;
+    CK_RV ret;
+
+    if (!s) {
+        ret = p11prov_get_session(ctx, &slotid, NULL, NULL, NULL, NULL, false,
+                                  true, &s);
+        if (ret != CKR_OK) {
+            P11PROV_raise(ctx, ret, "Failed to open session on slot %lu",
+                          slotid);
+            return ret;
+        }
+    }
+
+    ret = p11prov_ctx_status(ctx, &f);
+    if (ret != CKR_OK) {
+        goto done;
+    }
+
+    ret = f->C_SetAttributeValue(p11prov_session_handle(s), key->handle,
+                                 template, tsize);
+
+    /* TODO: should we retry iterating value by value on each element of
+     * template to be able to set as much as we can and return which attribute
+     * exactly the token is refusing ? */
+
+done:
+    if (s != session) {
+        p11prov_session_free(s);
+    }
+    return ret;
 }
