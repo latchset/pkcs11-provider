@@ -343,6 +343,7 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
     int object_type;
     CK_KEY_TYPE type;
     char *data_type;
+    bool found = false;
 
     P11PROV_debug("store load (%p)", ctx);
 
@@ -354,7 +355,7 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
         return RET_OSSL_ERR;
     }
 
-    while (ctx->fetched <= ctx->num_objs) {
+    while (!found && ctx->fetched < ctx->num_objs) {
         obj = ctx->objects[ctx->fetched];
         ctx->fetched++;
 
@@ -372,18 +373,17 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
             if (ctx->alias) {
                 CK_ATTRIBUTE *label;
                 label = p11prov_key_attr(obj->data.key, CKA_LABEL);
-                if (!label || strcmp(ctx->alias, label->pValue) != 0) {
-                    continue;
+                if (label && strcmp(ctx->alias, label->pValue) == 0) {
+                    found = true;
                 }
+            } else {
+                found = true;
             }
             break;
-        default:
-            continue;
         }
-        break;
     }
 
-    if (ctx->fetched > ctx->num_objs) {
+    if (!found) {
         return RET_OSSL_ERR;
     }
 
