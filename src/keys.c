@@ -321,7 +321,7 @@ CK_RV find_keys(P11PROV_CTX *provctx, P11PROV_SESSION *session,
     CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
     CK_OBJECT_CLASS class = p11prov_uri_get_class(uri);
     CK_ATTRIBUTE id = p11prov_uri_get_id(uri);
-    char *label = p11prov_uri_get_object(uri);
+    CK_ATTRIBUTE label = p11prov_uri_get_label(uri);
     CK_ATTRIBUTE template[3] = { 0 };
     CK_ULONG tsize = 0;
     CK_ULONG objcount = 0;
@@ -348,8 +348,8 @@ CK_RV find_keys(P11PROV_CTX *provctx, P11PROV_SESSION *session,
         template[tsize] = id;
         tsize++;
     }
-    if (label) {
-        CKATTR_ASSIGN_ALL(template[tsize], CKA_LABEL, label, strlen(label));
+    if (label.type == CKA_LABEL) {
+        template[tsize] = label;
         tsize++;
     }
 
