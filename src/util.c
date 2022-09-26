@@ -110,6 +110,7 @@ struct p11prov_uri {
     char *serial;
     char *object;
     CK_ATTRIBUTE id;
+    CK_ATTRIBUTE label;
     char *pin;
     CK_OBJECT_CLASS class;
 };
@@ -268,7 +269,7 @@ P11PROV_URI *p11prov_parse_uri(const char *uri)
         unsigned char **ptr;
         size_t *ptrlen;
         size_t len;
-        bool id_fill = false;
+        bool id_fill = false, label_fill = false;
 
         end = strpbrk(p, ";?&");
         if (end) {
@@ -301,6 +302,11 @@ P11PROV_URI *p11prov_parse_uri(const char *uri)
             len -= 3;
             ptr = (unsigned char **)&u->id.pValue;
             id_fill = true;
+        } else if (strncmp(p, "object=", 7) == 0) {
+            p += 7;
+            len -= 7;
+            ptr = (unsigned char **)&u->label.pValue;
+            label_fill = true;
         } else if (strncmp(p, "pin-value=", 10) == 0) {
             p += 10;
             len -= 10;
@@ -348,6 +354,10 @@ P11PROV_URI *p11prov_parse_uri(const char *uri)
                 u->id.type = CKA_ID;
                 u->id.ulValueLen = outlen;
             }
+            if (label_fill) {
+                u->label.type = CKA_LABEL;
+                u->label.ulValueLen = outlen;
+            }
         }
 
         if (end) {
@@ -392,6 +402,11 @@ CK_OBJECT_CLASS p11prov_uri_get_class(P11PROV_URI *uri)
 CK_ATTRIBUTE p11prov_uri_get_id(P11PROV_URI *uri)
 {
     return uri->id;
+}
+
+CK_ATTRIBUTE p11prov_uri_get_label(P11PROV_URI *uri)
+{
+    return uri->label;
 }
 
 char *p11prov_uri_get_object(P11PROV_URI *uri)
