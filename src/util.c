@@ -1,7 +1,6 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
    SPDX-License-Identifier: Apache-2.0 */
 
-#define _XOPEN_SOURCE 500
 #include "provider.h"
 #include <string.h>
 #include <time.h>
@@ -518,4 +517,35 @@ void byteswap_buf(unsigned char *src, unsigned char *dest, size_t len)
 #else
     memmove(dest, src, len);
 #endif
+}
+
+CK_RV p11prov_token_sup_attr(P11PROV_CTX *ctx, CK_SLOT_ID id, int action,
+                             CK_ATTRIBUTE_TYPE attr, CK_BBOOL *data)
+{
+    CK_ULONG data_size = sizeof(CK_BBOOL);
+    void *data_ptr = &data;
+    char alloc_name[32];
+    const char *name;
+    int err;
+
+    switch (attr) {
+    case CKA_ALLOWED_MECHANISMS:
+        name = "sup_attr_CKA_ALLOWED_MECHANISMS";
+        break;
+    default:
+        err = snprintf(alloc_name, 32, "sup_attr_%016lx", attr);
+        if (err < 0 || err >= 32) {
+            return CKR_HOST_MEMORY;
+        }
+        name = alloc_name;
+    }
+
+    switch (action) {
+    case GET_ATTR:
+        return p11prov_ctx_get_quirk(ctx, id, name, data_ptr, &data_size);
+    case SET_ATTR:
+        return p11prov_ctx_set_quirk(ctx, id, name, data, data_size);
+    default:
+        return CKR_ARGUMENTS_BAD;
+    }
 }
