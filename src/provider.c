@@ -2,8 +2,11 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
+#include <pthread.h>
 #include <dlfcn.h>
 #include <string.h>
+
+struct quirk;
 
 struct p11prov_ctx {
 
@@ -13,8 +16,7 @@ struct p11prov_ctx {
         P11PROV_IN_ERROR,
     } status;
 
-    pthread_mutex_t lock;
-    bool is_locked;
+    pthread_rwlock_t rwlock;
 
     /* Provider handles */
     const OSSL_CORE_HANDLE *handle;
@@ -41,7 +43,176 @@ struct p11prov_ctx {
     OSSL_ALGORITHM *op_asym_cipher;
     OSSL_ALGORITHM *op_encoder;
     OSSL_ALGORITHM *op_store;
+
+    struct quirk *quirks;
+    int nquirks;
 };
+
+struct quirk {
+    CK_SLOT_ID id;
+    char *name;
+    union {
+        void *ptr;
+        CK_ULONG ulong;
+    } data;
+    CK_ULONG size;
+};
+
+CK_RV p11prov_ctx_get_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
+                            void **data, CK_ULONG *size)
+{
+    int lock;
+    CK_RV ret;
+
+    lock = pthread_rwlock_rdlock(&ctx->rwlock);
+    if (lock != 0) {
+        ret = CKR_CANT_LOCK;
+        P11PROV_raise(ctx, ret, "Failure to rdlock! (%d)", errno);
+        return ret;
+    }
+
+    for (int i = 0; i < ctx->nquirks; i++) {
+        if (id != ctx->quirks[i].id) {
+            continue;
+        }
+        if (strcmp(name, ctx->quirks[i].name) != 0) {
+            continue;
+        }
+        /* return only if requested and if ancillary data exists */
+        if (data && ctx->quirks[i].size > 0) {
+            if (*size == 0) {
+                *data = OPENSSL_malloc(ctx->quirks[i].size);
+                if (!*data) {
+                    ret = CKR_HOST_MEMORY;
+                    goto done;
+                }
+            } else {
+                if (*size < ctx->quirks[i].size) {
+                    ret = CKR_BUFFER_TOO_SMALL;
+                    goto done;
+                }
+            }
+            if (ctx->quirks[i].size > sizeof(CK_ULONG)) {
+                memcpy(*data, ctx->quirks[i].data.ptr, ctx->quirks[i].size);
+            } else {
+                memcpy(*data, &ctx->quirks[i].data.ulong, ctx->quirks[i].size);
+            }
+            *size = ctx->quirks[i].size;
+        }
+        break;
+    }
+
+    ret = CKR_OK;
+
+done:
+    lock = pthread_rwlock_unlock(&ctx->rwlock);
+    if (lock != 0) {
+        P11PROV_raise(ctx, CKR_CANT_LOCK, "Failure to unlock! (%d)", errno);
+        /* we do not return an error in this case, as we got the info */
+    }
+    return ret;
+}
+
+#define DATA_SWAP(t, d, s) \
+    do { \
+        t _tmp = d; \
+        d = s; \
+        s = _tmp; \
+    } while (0)
+#define QUIRK_ALLOC 4
+CK_RV p11prov_ctx_set_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
+                            void *data, CK_ULONG size)
+{
+    char *_name = NULL;
+    void *_data = NULL;
+    CK_ULONG _ulong = 0;
+    CK_ULONG _size = size;
+    int lock;
+    CK_RV ret;
+    bool found = false;
+    int i;
+
+    /* do potentially costly memory allocation operations before locking */
+    _name = strdup(name);
+    if (!_name) {
+        ret = CKR_HOST_MEMORY;
+        P11PROV_raise(ctx, ret, "Failure to copy name");
+        return ret;
+    }
+    if (_size > 0) {
+        if (_size > sizeof(CK_ULONG)) {
+            _data = OPENSSL_malloc(_size);
+            if (!_data) {
+                ret = CKR_HOST_MEMORY;
+                P11PROV_raise(ctx, ret, "Failure to allocate for data");
+                return ret;
+            }
+        } else {
+            _data = &_ulong;
+        }
+        memcpy(_data, data, _size);
+    }
+
+    lock = pthread_rwlock_wrlock(&ctx->rwlock);
+    if (lock != 0) {
+        ret = CKR_CANT_LOCK;
+        P11PROV_raise(ctx, ret, "Failure to wrlock! (%d)", errno);
+        return ret;
+    }
+
+    /* first see if we are replacing quirk data */
+    for (i = 0; i < ctx->nquirks; i++) {
+        if (id != ctx->quirks[i].id) {
+            continue;
+        }
+        if (strcmp(_name, ctx->quirks[i].name) != 0) {
+            continue;
+        }
+
+        found = true;
+        /* free previous data */
+        break;
+    }
+
+    if (!found) {
+        if ((ctx->nquirks % QUIRK_ALLOC) == 0) {
+            size_t asize = sizeof(struct quirk) * (ctx->nquirks + QUIRK_ALLOC);
+            struct quirk *q = OPENSSL_realloc(ctx->quirks, asize);
+            if (!q) {
+                ret = CKR_HOST_MEMORY;
+                goto done;
+            }
+            ctx->quirks = q;
+            memset(&ctx->quirks[ctx->nquirks], 0, asize);
+            i = ctx->nquirks;
+            ctx->nquirks++;
+        }
+    }
+
+    ctx->quirks[i].id = id;
+    /* swap so that we free the old data at fn exit, where
+     * precopied data is also freed in case of error */
+    DATA_SWAP(char *, ctx->quirks[i].name, _name);
+    if (_size > sizeof(CK_ULONG)) {
+        DATA_SWAP(void *, ctx->quirks[i].data.ptr, _data);
+    } else {
+        ctx->quirks[i].data.ulong = _ulong;
+        _data = NULL;
+    }
+    DATA_SWAP(CK_ULONG, ctx->quirks[i].size, _size);
+    ret = CKR_OK;
+
+done:
+    P11PROV_debug("Set quirk '%s' of size %lu", name, size);
+    lock = pthread_rwlock_unlock(&ctx->rwlock);
+    if (lock != 0) {
+        P11PROV_raise(ctx, CKR_CANT_LOCK, "Failure to unlock! (%d)", errno);
+        /* we do not return an error in this case, as we got the info */
+    }
+    OPENSSL_free(_name);
+    OPENSSL_clear_free(_data, _size);
+    return ret;
+}
 
 int p11prov_ctx_get_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
 {
@@ -95,9 +266,15 @@ CK_UTF8CHAR_PTR p11prov_ctx_pin(P11PROV_CTX *ctx)
 
 static void p11prov_ctx_free(P11PROV_CTX *ctx)
 {
+    int ret;
+
     if (ctx->status != P11PROV_UNINITIALIZED) {
-        pthread_mutex_lock(&ctx->lock);
-        ctx->is_locked = true;
+        ret = pthread_rwlock_wrlock(&ctx->rwlock);
+        if (ret != 0) {
+            P11PROV_raise(ctx, CKR_CANT_LOCK,
+                          "Failure to wrlock! Data corruption may happen (%d)",
+                          errno);
+        }
     }
 
     OSSL_LIB_CTX_free(ctx->libctx);
@@ -121,10 +298,31 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
         OPENSSL_clear_free(ctx->pin, strlen(ctx->pin));
     }
 
-    if (ctx->status != P11PROV_UNINITIALIZED) {
-        pthread_mutex_unlock(&ctx->lock);
+    if (ctx->quirks) {
+        for (int i = 0; i < ctx->nquirks; i++) {
+            OPENSSL_free(ctx->quirks[i].name);
+            if (ctx->quirks[i].size > sizeof(CK_ULONG)) {
+                OPENSSL_clear_free(ctx->quirks[i].data.ptr,
+                                   ctx->quirks[i].size);
+            }
+        }
+        OPENSSL_free(ctx->quirks);
     }
-    pthread_mutex_destroy(&ctx->lock);
+
+    if (ctx->status != P11PROV_UNINITIALIZED) {
+        ret = pthread_rwlock_unlock(&ctx->rwlock);
+        if (ret != 0) {
+            P11PROV_raise(ctx, CKR_CANT_LOCK,
+                          "Failure to unlock! Data corruption may happen (%d)",
+                          errno);
+        }
+    }
+    ret = pthread_rwlock_destroy(&ctx->rwlock);
+    if (ret != 0) {
+        P11PROV_raise(ctx, CKR_CANT_LOCK,
+                      "Failure to free lock! Data corruption may happen (%d)",
+                      errno);
+    }
     OPENSSL_clear_free(ctx, sizeof(P11PROV_CTX));
 }
 
@@ -856,8 +1054,6 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
         return 0;
     }
 
-    pthread_mutex_init(&ctx->lock, 0);
-
     P11PROV_debug("PKCS#11: Initializing the module: %s", ctx->module);
 
     dlerror();
@@ -889,6 +1085,13 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
     }
 
     ctx->status = P11PROV_INITIALIZED;
+
+    ret = pthread_rwlock_init(&ctx->rwlock, NULL);
+    if (ret != 0) {
+        ret = errno;
+        P11PROV_debug("rwlock init failed (%d)", ret);
+        return -ret;
+    }
 
     ret = ctx->fns->C_GetInfo(&ck_info);
     if (ret) {

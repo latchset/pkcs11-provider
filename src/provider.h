@@ -4,6 +4,7 @@
 #ifndef _PROVIDER_H
 #define _PROVIDER_H
 
+#define _XOPEN_SOURCE 500
 #include "config.h"
 
 #include <stdbool.h>
@@ -82,6 +83,10 @@ CK_UTF8CHAR_PTR p11prov_ctx_pin(P11PROV_CTX *ctx);
 OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx);
 CK_RV p11prov_ctx_status(P11PROV_CTX *ctx, CK_FUNCTION_LIST **fns);
 int p11prov_ctx_get_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
+CK_RV p11prov_ctx_get_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
+                            void **data, CK_ULONG *size);
+CK_RV p11prov_ctx_set_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
+                            void *data, CK_ULONG size);
 
 /* Errors */
 void p11prov_raise(P11PROV_CTX *ctx, const char *file, int line,
@@ -317,6 +322,10 @@ CK_RV p11prov_uri_match_token(P11PROV_URI *uri, CK_TOKEN_INFO *token);
 int p11prov_get_pin(const char *in, char **out);
 bool cyclewait_with_timeout(uint64_t max_wait, uint64_t interval,
                             uint64_t *start_time);
+#define GET_ATTR 0
+#define SET_ATTR 1
+CK_RV p11prov_token_sup_attr(P11PROV_CTX *ctx, CK_SLOT_ID id, int action,
+                             CK_ATTRIBUTE_TYPE attr, CK_BBOOL *data);
 
 /* Sessions */
 CK_RV p11prov_session_pool_init(P11PROV_CTX *ctx, CK_TOKEN_INFO *token,
