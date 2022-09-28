@@ -708,20 +708,35 @@ const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[] = {
 DISPATCH_KEYMGMT_FN(rsapss, gen);
 DISPATCH_KEYMGMT_FN(rsa, gen_settable_params);
 
-CK_MECHANISM_TYPE rsapss_mechs[] = {
-    CKM_SHA1_RSA_PKCS_PSS,     CKM_SHA224_RSA_PKCS_PSS,
-    CKM_SHA256_RSA_PKCS_PSS,   CKM_SHA384_RSA_PKCS_PSS,
-    CKM_SHA512_RSA_PKCS_PSS,   CKM_SHA3_224_RSA_PKCS_PSS,
-    CKM_SHA3_256_RSA_PKCS_PSS, CKM_SHA3_384_RSA_PKCS_PSS,
-    CKM_SHA3_512_RSA_PKCS_PSS
-};
+static CK_RV set_default_rsapss_mechanisms(struct key_generator *ctx)
+{
+    CK_MECHANISM_TYPE rsapss_mechs[] = {
+        CKM_SHA1_RSA_PKCS_PSS,     CKM_SHA224_RSA_PKCS_PSS,
+        CKM_SHA256_RSA_PKCS_PSS,   CKM_SHA384_RSA_PKCS_PSS,
+        CKM_SHA512_RSA_PKCS_PSS,   CKM_SHA3_224_RSA_PKCS_PSS,
+        CKM_SHA3_256_RSA_PKCS_PSS, CKM_SHA3_384_RSA_PKCS_PSS,
+        CKM_SHA3_512_RSA_PKCS_PSS
+    };
+
+    ctx->data.rsa.allowed_types = OPENSSL_malloc(sizeof(rsapss_mechs));
+    if (ctx->data.rsa.allowed_types == NULL) {
+        P11PROV_raise(ctx->provctx, CKR_HOST_MEMORY, "Allocating data");
+        return CKR_HOST_MEMORY;
+    }
+    memcpy(ctx->data.rsa.allowed_types, rsapss_mechs, sizeof(rsapss_mechs));
+    ctx->data.rsa.allowed_types_size =
+        sizeof(rsapss_mechs) / sizeof(CK_MECHANISM_TYPE);
+
+    return CKR_OK;
+}
 
 static void *p11prov_rsapss_gen(void *genctx, OSSL_CALLBACK *cb_fn,
                                 void *cb_arg)
 {
     struct key_generator *ctx = (struct key_generator *)genctx;
-    P11PROV_KEY *key;
-    P11PROV_OBJ *obj;
+    CK_BBOOL token_supports_allowed_mechs = CK_TRUE;
+    P11PROV_KEY *key = NULL;
+    P11PROV_OBJ *obj = NULL;
     CK_RV ret;
 
     obj = p11prov_rsa_gen(genctx, cb_fn, cb_arg);
@@ -729,28 +744,32 @@ static void *p11prov_rsapss_gen(void *genctx, OSSL_CALLBACK *cb_fn,
         return NULL;
     }
 
-    /* params could already be caying pss restriction. If allowed_types
-     * is already set, skip setting defaults */
-    if (!ctx->data.rsa.allowed_types_size) {
-        ctx->data.rsa.allowed_types = OPENSSL_malloc(sizeof(rsapss_mechs));
-        if (ctx->data.rsa.allowed_types == NULL) {
-            P11PROV_raise(ctx->provctx, CKR_HOST_MEMORY, "Allocating data");
-            p11prov_object_free(obj);
-            return NULL;
-        }
-        memcpy(ctx->data.rsa.allowed_types, rsapss_mechs, sizeof(rsapss_mechs));
-        ctx->data.rsa.allowed_types_size =
-            sizeof(rsapss_mechs) / sizeof(CK_MECHANISM_TYPE);
-    }
-
     key = p11prov_object_get_key(obj);
     if (!key) {
+        ret = CKR_GENERAL_ERROR;
         P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid object");
-        p11prov_object_free(obj);
-        return NULL;
+        goto done;
     }
 
-    if (true) {
+    /* params could already be caying pss restriction. If allowed_types
+     * is already set, skip setting defaults */
+    if (!ctx->data.rsa.allowed_types) {
+        ret = set_default_rsapss_mechanisms(ctx);
+        if (ret != CKR_OK) {
+            P11PROV_raise(ctx->provctx, ret, "Failed to get pss params");
+            goto done;
+        }
+    }
+
+    ret = p11prov_token_sup_attr(ctx->provctx, p11prov_key_slotid(key),
+                                 GET_ATTR, CKA_ALLOWED_MECHANISMS,
+                                 &token_supports_allowed_mechs);
+    if (ret != CKR_OK && ret != CKR_CANCEL) {
+        P11PROV_raise(ctx->provctx, ret, "Failed to probe quirk");
+        goto done;
+    }
+
+    if (token_supports_allowed_mechs == CK_TRUE) {
         CK_ATTRIBUTE template[] = {
             { CKA_ALLOWED_MECHANISMS, ctx->data.rsa.allowed_types,
               ctx->data.rsa.allowed_types_size },
@@ -760,10 +779,23 @@ static void *p11prov_rsapss_gen(void *genctx, OSSL_CALLBACK *cb_fn,
         ret = p11prov_key_set_attributes(ctx->provctx, NULL, key, template,
                                          tsize);
         if (ret != CKR_OK) {
-            /* this can fail on tokens, so we ignore the error and just
-             * throw in some debug log for it for now */
             P11PROV_debug("Failed to add RSAPSS restrictions (%lu)", ret);
+            if (ret == CKR_ATTRIBUTE_TYPE_INVALID) {
+                /* set quirk to disable future attempts for this token */
+                token_supports_allowed_mechs = CK_FALSE;
+                (void)p11prov_token_sup_attr(
+                    ctx->provctx, p11prov_key_slotid(key), SET_ATTR,
+                    CKA_ALLOWED_MECHANISMS, &token_supports_allowed_mechs);
+            }
         }
+    }
+
+    ret = CKR_OK;
+
+done:
+    if (ret != CKR_OK) {
+        p11prov_object_free(obj);
+        obj = NULL;
     }
     p11prov_key_free(key);
     return obj;
