@@ -764,7 +764,7 @@ static void *p11prov_rsapss_gen(void *genctx, OSSL_CALLBACK *cb_fn,
     ret = p11prov_token_sup_attr(ctx->provctx, p11prov_key_slotid(key),
                                  GET_ATTR, CKA_ALLOWED_MECHANISMS,
                                  &token_supports_allowed_mechs);
-    if (ret != CKR_OK && ret != CKR_CANCEL) {
+    if (ret != CKR_OK) {
         P11PROV_raise(ctx->provctx, ret, "Failed to probe quirk");
         goto done;
     }
