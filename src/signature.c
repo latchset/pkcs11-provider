@@ -252,6 +252,37 @@ static CK_MECHANISM_TYPE p11prov_sig_map_digest(const char *digest)
     return CK_UNAVAILABLE_INFORMATION;
 }
 
+static CK_RV p11prov_sig_pss_restrictions(P11PROV_SIG_CTX *sigctx,
+                                          CK_MECHANISM *mechanism)
+{
+    CK_ATTRIBUTE *allowed_mechs =
+        p11prov_key_attr(sigctx->key, CKA_ALLOWED_MECHANISMS);
+
+    if (allowed_mechs) {
+        CK_ATTRIBUTE_TYPE *mechs = (CK_ATTRIBUTE_TYPE *)allowed_mechs->pValue;
+        int num_mechs = allowed_mechs->ulValueLen;
+        bool allowed = false;
+
+        for (int i = 0; i < num_mechs; i++) {
+            if (mechs[i] == mechanism->mechanism) {
+                allowed = true;
+                break;
+            }
+        }
+
+        if (allowed) {
+            return CKR_OK;
+        }
+
+        P11PROV_raise(sigctx->provctx, CKR_ACTION_PROHIBITED,
+                      "mechanism not allowed with this key");
+        return CKR_ACTION_PROHIBITED;
+    }
+
+    /* there are no restrictions on this key */
+    return CKR_OK;
+}
+
 static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
                                      CK_MECHANISM *mechanism)
 {
@@ -295,6 +326,9 @@ static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
                 result = CKR_OK;
                 break;
             }
+        }
+        if (result == CKR_OK) {
+            result = p11prov_sig_pss_restrictions(ctx, mechanism);
         }
         break;
     case CKM_ECDSA:

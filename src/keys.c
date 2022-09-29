@@ -119,10 +119,12 @@ CK_ULONG p11prov_key_size(P11PROV_KEY *key)
     return key->key_size;
 }
 
+#define BASE_KEY_ATTRS_NUM 3
+
+#define RSA_ATTRS_NUM (BASE_KEY_ATTRS_NUM + 2)
 static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                          CK_OBJECT_HANDLE object, P11PROV_KEY *key)
 {
-#define RSA_ATTRS_NUM 4
     struct fetch_attrs attrs[RSA_ATTRS_NUM];
     CK_ULONG n_len = 0, e_len = 0, id_len = 0, label_len = 0;
     CK_BYTE *n = NULL, *e = NULL, *id = NULL;
@@ -137,7 +139,7 @@ static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     FA_ASSIGN_ALL(attrs[1], CKA_PUBLIC_EXPONENT, &e, &e_len, true, true);
     FA_ASSIGN_ALL(attrs[2], CKA_ID, &id, &id_len, true, false);
     FA_ASSIGN_ALL(attrs[3], CKA_LABEL, &label, &label_len, true, false);
-    ret = p11prov_fetch_attributes(ctx, session, object, attrs, RSA_ATTRS_NUM);
+    ret = p11prov_fetch_attributes(ctx, session, object, attrs, 4);
     if (ret != CKR_OK) {
         /* free any allocated memory */
         OPENSSL_free(n);
@@ -168,10 +170,10 @@ static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     return CKR_OK;
 }
 
+#define EC_ATTRS_NUM (BASE_KEY_ATTRS_NUM + 2)
 static int fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                         CK_OBJECT_HANDLE object, P11PROV_KEY *key)
 {
-#define EC_ATTRS_NUM 4
     struct fetch_attrs attrs[EC_ATTRS_NUM];
     CK_ULONG params_len = 0, point_len = 0, id_len = 0, label_len = 0;
     CK_BYTE *params = NULL, *point = NULL, *id = NULL;
@@ -269,6 +271,7 @@ P11PROV_KEY *p11prov_object_handle_to_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
     CK_KEY_TYPE *key_type;
     CK_ULONG key_type_len = sizeof(CK_KEY_TYPE);
     struct fetch_attrs attrs[2];
+    CK_BBOOL token_supports_allowed_mechs = CK_TRUE;
     CK_RV ret;
 
     key = p11prov_key_new();
@@ -314,6 +317,30 @@ P11PROV_KEY *p11prov_object_handle_to_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
         P11PROV_debug("Unsupported key type (%lu)", key->type);
         p11prov_key_free(key);
         return NULL;
+    }
+
+    /* do this at the end as it often won't be a supported attributed */
+    ret = p11prov_token_sup_attr(ctx, key->slotid, GET_ATTR,
+                                 CKA_ALLOWED_MECHANISMS,
+                                 &token_supports_allowed_mechs);
+    if (ret != CKR_OK) {
+        P11PROV_raise(ctx, ret, "Failed to probe quirk");
+    } else if (token_supports_allowed_mechs == CK_TRUE) {
+        CK_BYTE *value;
+        CK_ULONG value_len;
+        FA_ASSIGN_ALL(attrs[0], CKA_ALLOWED_MECHANISMS, &value, &value_len,
+                      true, false);
+        ret = p11prov_fetch_attributes(ctx, session, object, attrs, 1);
+        if (ret == CKR_OK) {
+            CKATTR_ASSIGN_ALL(key->attrs[key->numattrs], CKA_ALLOWED_MECHANISMS,
+                              value, value_len);
+            key->numattrs++;
+        } else if (ret == CKR_ATTRIBUTE_TYPE_INVALID) {
+            token_supports_allowed_mechs = CK_FALSE;
+            (void)p11prov_token_sup_attr(ctx, key->slotid, SET_ATTR,
+                                         CKA_ALLOWED_MECHANISMS,
+                                         &token_supports_allowed_mechs);
+        }
     }
 
     return key;

@@ -62,8 +62,9 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         if (retrnums > 0) {
             ret = f->C_GetAttributeValue(sess, object, r, retrnums);
         }
-    } else if (ret == CKR_ATTRIBUTE_SENSITIVE
-               || ret == CKR_ATTRIBUTE_TYPE_INVALID) {
+    } else if (attrnums > 1
+               && (ret == CKR_ATTRIBUTE_SENSITIVE
+                   || ret == CKR_ATTRIBUTE_TYPE_INVALID)) {
         P11PROV_debug("Quering attributes one by one");
         /* go one by one as this PKCS11 does not have some attributes
          * and does not handle it gracefully */
