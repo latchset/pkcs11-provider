@@ -210,7 +210,9 @@ done:
         /* we do not return an error in this case, as we got the info */
     }
     OPENSSL_free(_name);
-    OPENSSL_clear_free(_data, _size);
+    if (_data != &_ulong) {
+        OPENSSL_clear_free(_data, _size);
+    }
     return ret;
 }
 
