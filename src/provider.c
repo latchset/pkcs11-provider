@@ -133,7 +133,7 @@ CK_RV p11prov_ctx_set_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
     int i;
 
     /* do potentially costly memory allocation operations before locking */
-    _name = strdup(name);
+    _name = OPENSSL_strdup(name);
     if (!_name) {
         ret = CKR_HOST_MEMORY;
         P11PROV_raise(ctx, ret, "Failure to copy name");
