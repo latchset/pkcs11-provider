@@ -145,7 +145,7 @@ CK_RV p11prov_ctx_set_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
             if (!_data) {
                 ret = CKR_HOST_MEMORY;
                 P11PROV_raise(ctx, ret, "Failure to allocate for data");
-                return ret;
+                goto failed;
             }
         } else {
             _data = &_ulong;
@@ -157,7 +157,7 @@ CK_RV p11prov_ctx_set_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
     if (lock != 0) {
         ret = CKR_CANT_LOCK;
         P11PROV_raise(ctx, ret, "Failure to wrlock! (%d)", errno);
-        return ret;
+        goto failed;
     }
 
     /* first see if we are replacing quirk data */
@@ -209,6 +209,7 @@ done:
         P11PROV_raise(ctx, CKR_CANT_LOCK, "Failure to unlock! (%d)", errno);
         /* we do not return an error in this case, as we got the info */
     }
+failed:
     OPENSSL_free(_name);
     if (_data != &_ulong) {
         OPENSSL_clear_free(_data, _size);
