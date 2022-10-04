@@ -306,7 +306,7 @@ pkeyutl -verify -inkey "${BASEURI}" -pubin
                 -in ${TMPDIR}/64krandom.bin
                 -rawin
                 -sigfile ${TMPDIR}/sha256-dgstsig.bin'
-title LINE "Re-verify using OpenSSL defult provider"
+title LINE "Re-verify using OpenSSL default provider"
 #(-pubin causes us to export a public key and OpenSSL to import it in the default provider)
 ossl '
 pkeyutl -verify -inkey "${PUBURI}"

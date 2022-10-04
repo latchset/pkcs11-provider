@@ -65,7 +65,7 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     } else if (attrnums > 1
                && (ret == CKR_ATTRIBUTE_SENSITIVE
                    || ret == CKR_ATTRIBUTE_TYPE_INVALID)) {
-        P11PROV_debug("Quering attributes one by one");
+        P11PROV_debug("Querying attributes one by one");
         /* go one by one as this PKCS11 does not have some attributes
          * and does not handle it gracefully */
         for (size_t i = 0; i < attrnums; i++) {
@@ -225,7 +225,7 @@ static int get_pin_file(const char *str, size_t len, char **output,
     }
     BIO_free(fp);
 
-    /* files may contain newlines, remove any control chracter at the end */
+    /* files may contain newlines, remove any control character at the end */
     for (int i = ret - 1; i >= 0; i--) {
         if (pin[i] == '\n' || pin[i] == '\r') {
             pin[i] = '\0';
@@ -342,7 +342,7 @@ P11PROV_URI *p11prov_parse_uri(const char *uri)
                 goto done;
             }
         } else {
-            P11PROV_debug("Ignoring unkown pkcs11 URI attribute");
+            P11PROV_debug("Ignoring unknown pkcs11 URI attribute");
         }
 
         if (ptr) {

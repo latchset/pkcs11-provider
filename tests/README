@@ -5,7 +5,7 @@ uses NSS's softoken (chosen because it does not link openssl in it).
 
 copy it as openssl.cnf, set the correct cknfig dirs in.
 
-Initialize a token with and RSA keypair in tests/tokens
+Initialize a token with and RSA key pair in tests/tokens
 (or whatever you set in openssl.conf)
 $ certutil -d tests/tokens -G
 
