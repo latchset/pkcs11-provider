@@ -537,7 +537,7 @@ const OSSL_DISPATCH p11prov_ecdh_exchange_functions[] = {
 
 /* unclear why OpenSSL makes KDFs go through a middle "exchange" layer
  * when there is a direct KDF facility. I can only assume this is
- * because for some reason they want the command line -derive comamnd
+ * because for some reason they want the command line -derive command
  * to be able to handle both key exchanges like ECDH and symmetric key
  * derivation done by KDFs via the -kdf <type> selector */
 DISPATCH_EXCHHKDF_FN(newctx);

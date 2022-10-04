@@ -93,7 +93,7 @@ P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj)
 
 /* Tokens return data in bigendian order, while openssl
  * wants it in host order, so we may need to fix the
- * endianess of the buffer.
+ * endianness of the buffer.
  * Src and Dest, can be the same area, but not partially
  * overlapping memory areas */
 

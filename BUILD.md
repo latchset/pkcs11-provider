@@ -1,7 +1,7 @@
 ## Build Prerequisites
 
 This package requires the following:
-- OpenSSL 3.0+ libraries and developement headers
+- OpenSSL 3.0+ libraries and development headers
 - autoconf-archives packages for some m4 macros
 - NSS softoken and development headers (for testing)
 - a C compiler that supports at least C11 semantics

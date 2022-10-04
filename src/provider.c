@@ -854,7 +854,7 @@ static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
           C("The cryptographic operations state of the specified "
             "session cannot be saved") },
         { CKR_CRYPTOKI_NOT_INITIALIZED,
-          C("PKCS11 Module has not been intialized yet") },
+          C("PKCS11 Module has not been initialized yet") },
         { 0, NULL },
     };
 

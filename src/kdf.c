@@ -325,7 +325,7 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         P11PROV_debug("set salt (len:%lu)", hkdfctx->params.ulSaltLen);
     }
 
-    /* can be multiple paramaters, which wil be all concatenated */
+    /* can be multiple parameters, which will be all concatenated */
     for (p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_INFO); p != NULL;
          p = OSSL_PARAM_locate_const(p + 1, OSSL_KDF_PARAM_INFO)) {
         uint8_t *ptr;

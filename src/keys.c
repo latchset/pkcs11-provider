@@ -557,7 +557,7 @@ again:
     case CKR_SESSION_HANDLE_INVALID:
         if (first_pass) {
             first_pass = false;
-            /* TODO: Explicilty mark handle invalid */
+            /* TODO: Explicitly mark handle invalid */
             p11prov_session_free(s);
             s = *session = NULL;
             goto again;

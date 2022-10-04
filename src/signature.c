@@ -88,7 +88,7 @@ static void *p11prov_sig_dupctx(void *ctx)
         goto done;
     }
 
-    /* This is not really funny. OpenSSL by dfault asume contexts with
+    /* This is not really funny. OpenSSL by dfault assume contexts with
      * operations in flight can be easily duplicated, with all the
      * cryptographic status and then both context can keep going
      * independently. We'll try here, but on failure we just 'move' the

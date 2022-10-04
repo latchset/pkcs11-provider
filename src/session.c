@@ -92,7 +92,7 @@ static void internal_session_close(P11PROV_SESSION *session)
                               "Failed to close session %lu", session->session);
             }
         }
-        /* regardless of the result the sesssion is gone */
+        /* regardless of the result the session is gone */
         if (session->pool) {
             (void)__atomic_fetch_sub(&session->pool->cur_sessions, 1,
                                      __ATOMIC_SEQ_CST);
@@ -527,7 +527,7 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                                          __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
         if (!ok) {
             P11PROV_raise(provctx, CKR_GENERAL_ERROR,
-                          "Unexpectd busy session while holding lock");
+                          "Unexpected busy session while holding lock");
             ret = CKR_GENERAL_ERROR;
         }
     }

@@ -20,7 +20,7 @@ Useful links to learn about these are:
 
 ### Reporting Bugs
 
-Before reporting bugs please insure that you have cecked the latest changes to
+Before reporting bugs please insure that you have checked the latest changes to
 see if a bug has already been reported and corrected. Peruse your distribution
 repositories and bug report system to find out if the bug has been reported
 there first.
