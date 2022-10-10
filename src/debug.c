@@ -88,7 +88,7 @@ void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
             mechname, type, info.ulMinKeySize, info.ulMaxKeySize, info.flags);
         for (int i = 0; mechanism_flags[i].name != NULL; i++) {
             if (info.flags & mechanism_flags[i].value) {
-                p11prov_debug("    %-25s (%#08lx)\n", mechanism_flags[i].name,
+                p11prov_debug("    %-25s (%#08lx)", mechanism_flags[i].name,
                               mechanism_flags[i].value);
             }
         }
@@ -110,7 +110,7 @@ static void p11prov_debug_token_info(CK_TOKEN_INFO *info)
         info->flags);
     for (int i = 0; token_flags[i].name != NULL; i++) {
         if (info->flags & token_flags[i].value) {
-            p11prov_debug("    %-35s (%#08lx)\n", token_flags[i].name,
+            p11prov_debug("    %-35s (%#08lx)", token_flags[i].name,
                           token_flags[i].value);
         }
     }
@@ -147,7 +147,7 @@ void p11prov_debug_slot(P11PROV_CTX *ctx, struct p11prov_slot *slot)
         slot->slot.flags);
     for (int i = 0; slot_flags[i].name != NULL; i++) {
         if (slot->slot.flags & slot_flags[i].value) {
-            p11prov_debug("    %-25s (%#08lx)\n", slot_flags[i].name,
+            p11prov_debug("    %-25s (%#08lx)", slot_flags[i].name,
                           slot_flags[i].value);
         }
     }
@@ -170,7 +170,7 @@ void p11prov_debug_slot(P11PROV_CTX *ctx, struct p11prov_slot *slot)
             CK_ULONG profile = slot->profiles[c];
             for (int i = 0; profile_ids[i].name != NULL; i++) {
                 if (profile == slot_flags[i].value) {
-                    p11prov_debug("    %-35s (%#08lx)\n", profile_ids[i].name,
+                    p11prov_debug("    %-35s (%#08lx)", profile_ids[i].name,
                                   profile_ids[i].value);
                 }
             }
