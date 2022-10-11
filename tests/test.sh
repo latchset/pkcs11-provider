@@ -207,8 +207,6 @@ title PARA "Export Public key to a file"
 ossl 'pkey -in $BASEURI -pubin -pubout -out ${TSTCRT}.pub'
 title LINE "Export Public key to a file (pub-uri)"
 ossl 'pkey -in $PUBURI -pubin -pubout -out ${TSTCRT}.pub'
-title LINE "Export Public key to a file (pri-uri)"
-ossl 'pkey -in $PRIURI -pubin -pubout -out ${TSTCRT}.pub'
 title LINE "Export Public key to a file (with pin)"
 ossl 'pkey -in $BASEURIWITHPIN -pubin -pubout -out ${TSTCRT}.pub'
 
