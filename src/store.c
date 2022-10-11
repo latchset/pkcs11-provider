@@ -389,28 +389,10 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
         type = p11prov_key_type(obj->data.key);
         switch (type) {
         case CKK_RSA:
-            /* REMOVE once we have encoders to export pub keys.
-             *  we have to handle private keys as our own type,
-             * while we can let openssl import public keys and
-             * deal with them in the default provider */
-            switch (ctx->expect) {
-            case OSSL_STORE_INFO_PKEY:
-                data_type = (char *)P11PROV_NAMES_PKCS11_RSA;
-                break;
-            case OSSL_STORE_INFO_PUBKEY:
-                data_type = (char *)"RSA";
-                break;
-            default:
-                if (obj->class == CKO_PRIVATE_KEY) {
-                    data_type = (char *)P11PROV_NAMES_PKCS11_RSA;
-                } else {
-                    data_type = (char *)"RSA";
-                }
-                break;
-            }
+            data_type = (char *)P11PROV_NAMES_RSA;
             break;
         case CKK_EC:
-            data_type = (char *)P11PROV_NAMES_PKCS11_EC;
+            data_type = (char *)P11PROV_NAMES_EC;
             break;
         default:
             return RET_OSSL_ERR;

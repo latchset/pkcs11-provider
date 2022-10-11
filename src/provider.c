@@ -451,7 +451,7 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
     return CKR_OK;
 }
 
-#define ADD_ALGO_EXT_INT(NAME, operation, prop, func) \
+#define ADD_ALGO_EXT(NAME, operation, prop, func) \
     do { \
         CK_RV alg_ret; \
         OSSL_ALGORITHM alg = { P11PROV_NAMES_##NAME, prop, func, \
@@ -463,12 +463,6 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
         } \
         operation##_idx++; \
     } while (0);
-
-#define ADD_ALGO_EXT(NAME, operation, prop, func) \
-    do { \
-        ADD_ALGO_EXT_INT(NAME, operation, prop, func); \
-        ADD_ALGO_EXT_INT(PKCS11_##NAME, operation, prop, func); \
-    } while (0)
 
 #define ADD_ALGO(NAME, name, operation) \
     ADD_ALGO_EXT(NAME, operation, P11PROV_DEFAULT_PROPERTIES, \
