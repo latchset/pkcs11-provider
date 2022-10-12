@@ -11,27 +11,32 @@ jobs:
     name: CI with softoken
     runs-on: ubuntu-22.04
     strategy:
+      fail-fast: false
       matrix:
-        compiler: [gcc, clang]
+        name: [fedora-gcc, fedora-clang, debian-clang]
+        include:
+          - name: fedora-gcc
+            distro: fedora:latest
+            compiler: gcc
+          - name: fedora-clang
+            distro: fedora:latest
+            compiler: clang
+          - name: debian-clang
+            distro: debian:sid
+            compiler: clang
     steps:
     - uses: actions/checkout@v3
       name: Checkout Repository
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf-archive libnss3 libnss3-tools libnss3-dev clang
-    - name: Setup
-      run: |
-        autoreconf -fiv
-        CC=${{ matrix.compiler }} ./configure
     - name: Build and Test
-      run: |
-        make
-        make check
+      run: ./.github/scripts/run_dockerized.sh
+      env:
+        DISTRO: ${{ matrix.distro }}
+        COMPILER: ${{ matrix.compiler }}
+        ACTION: check
     - uses: actions/upload-artifact@v3
       if: failure()
       with:
-        name: Test logs
+        name: Test logs ${{ matrix.name }}
         path: |
           tests/test.sh.log
           tests/openssl.cnf
@@ -39,4 +44,8 @@ jobs:
           tests/tmp/debugvars
           config.log
     - name: Distribution Check
-      run: make distcheck
+      run: ./.github/scripts/run_dockerized.sh
+      env:
+        DISTRO: ${{ matrix.distro }}
+        COMPILER: ${{ matrix.compiler }}
+        ACTION: distcheck
