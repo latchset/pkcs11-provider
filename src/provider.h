@@ -109,7 +109,7 @@ extern int debug_lazy_init;
                                         __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) { \
             p11prov_debug_init(); \
         } \
-        if (enabled == 1) { \
+        if (enabled >= 1) { \
             action; \
         } \
     } while (0)
