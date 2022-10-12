@@ -42,9 +42,9 @@ AC_SUBST([STD_CFLAGS])
 # Checks for libraries.
 PKG_CHECK_MODULES(
 	[OPENSSL],
-	[libcrypto >= 3.0.0],
+	[libcrypto >= 3.0.5],
 	,
-	[AC_MSG_ERROR([libcrypto >= 3.0.0 is required])]
+	[AC_MSG_ERROR([libcrypto >= 3.0.5 is required])]
 )
 AC_SUBST([SHARED_EXT], $(eval echo "${shrext_cmds}"))
 
