@@ -506,29 +506,29 @@ static int p11prov_rsa_has(const void *keydata, int selection)
     P11PROV_debug("rsa has %p %d", obj, selection);
 
     if (obj == NULL) {
-        return 0;
+        return RET_OSSL_ERR;
     }
 
     if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
         if (p11prov_object_get_class(obj) != CKO_PRIVATE_KEY) {
-            return 0;
+            return RET_OSSL_ERR;
         }
     }
 
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         if (p11prov_object_get_class(obj) != CKO_PUBLIC_KEY) {
-            return 0;
+            return RET_OSSL_ERR;
         }
     }
 
-    return 1;
+    return RET_OSSL_OK;
 }
 
 static int p11prov_rsa_import(void *keydata, int selection,
                               const OSSL_PARAM params[])
 {
     P11PROV_debug("rsa import %p", keydata);
-    return 0;
+    return RET_OSSL_ERR;
 }
 
 static int p11prov_rsa_export(void *keydata, int selection,
@@ -539,14 +539,15 @@ static int p11prov_rsa_export(void *keydata, int selection,
     P11PROV_debug("rsa export %p", keydata);
 
     if (obj == NULL) {
-        return 0;
+        return RET_OSSL_ERR;
     }
 
-    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+    /* if anything else is asked for we can't provide it, so be strict */
+    if (selection == OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return p11prov_object_export_public_rsa_key(obj, cb_fn, cb_arg);
     }
 
-    return 0;
+    return RET_OSSL_ERR;
 }
 
 static const OSSL_PARAM p11prov_rsa_key_types[] = {
@@ -558,7 +559,7 @@ static const OSSL_PARAM p11prov_rsa_key_types[] = {
 static const OSSL_PARAM *p11prov_rsa_import_types(int selection)
 {
     P11PROV_debug("rsa import types");
-    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+    if (selection == OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return p11prov_rsa_key_types;
     }
     return NULL;
@@ -567,7 +568,7 @@ static const OSSL_PARAM *p11prov_rsa_import_types(int selection)
 static const OSSL_PARAM *p11prov_rsa_export_types(int selection)
 {
     P11PROV_debug("rsa export types");
-    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+    if (selection == OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return p11prov_rsa_key_types;
     }
     return NULL;
@@ -625,7 +626,7 @@ static int p11prov_rsa_get_params(void *keydata, OSSL_PARAM params[])
     P11PROV_debug("rsa get params %p", keydata);
 
     if (obj == NULL) {
-        return 0;
+        return RET_OSSL_ERR;
     }
 
     key = p11prov_object_get_key(obj);
@@ -939,29 +940,29 @@ static int p11prov_ec_has(const void *keydata, int selection)
     P11PROV_debug("ec has %p %d", obj, selection);
 
     if (obj == NULL) {
-        return 0;
+        return RET_OSSL_ERR;
     }
 
     if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
         if (p11prov_object_get_class(obj) != CKO_PRIVATE_KEY) {
-            return 0;
+            return RET_OSSL_ERR;
         }
     }
 
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         if (p11prov_object_get_class(obj) != CKO_PUBLIC_KEY) {
-            return 0;
+            return RET_OSSL_ERR;
         }
     }
 
-    return 1;
+    return RET_OSSL_OK;
 }
 
 static int p11prov_ec_import(void *keydata, int selection,
                              const OSSL_PARAM params[])
 {
     P11PROV_debug("ec import %p", keydata);
-    return 0;
+    return RET_OSSL_ERR;
 }
 
 static int p11prov_ec_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
@@ -991,7 +992,7 @@ static const OSSL_PARAM p11prov_ec_key_types[] = {
 static const OSSL_PARAM *p11prov_ec_import_types(int selection)
 {
     P11PROV_debug("ec import types");
-    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+    if (selection == OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return p11prov_ec_key_types;
     }
     return NULL;
@@ -1000,7 +1001,7 @@ static const OSSL_PARAM *p11prov_ec_import_types(int selection)
 static const OSSL_PARAM *p11prov_ec_export_types(int selection)
 {
     P11PROV_debug("ec export types");
-    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+    if (selection == OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return p11prov_ec_key_types;
     }
     return NULL;
@@ -1046,7 +1047,7 @@ static int p11prov_ec_get_params(void *keydata, OSSL_PARAM params[])
     P11PROV_debug("ec get params %p", keydata);
 
     if (obj == NULL) {
-        return 0;
+        return RET_OSSL_ERR;
     }
 
     key = p11prov_object_get_key(obj);
