@@ -55,13 +55,15 @@ PKG_CHECK_EXISTS(
         [PKG_CHECK_VAR([SOFTOKENDIR], [nss-softokn], [libdir])],
         [PKG_CHECK_EXISTS(
                 [nss],
-                [PKG_CHECK_VAR([SOFTOKENDIR], [nss], [libdir], [AC_SUBST([SOFTOKEN_SUBDIR], "nss/")])]
+                [PKG_CHECK_VAR([SOFTOKENDIR], [nss], [libdir])]
         )]
 )
 
-AS_IF([test "x$SOFTOKENDIR" = "x"], [
-  AC_MSG_WARN([Unable to identify softoken plugin path.])
-])
+AC_CHECK_FILE($SOFTOKENDIR/libsoftokn3.so, [],
+    [AC_CHECK_FILE($SOFTOKENDIR/nss/libsoftokn3.so,
+        [AC_SUBST([SOFTOKEN_SUBDIR], "nss/")],
+        [AC_MSG_WARN([Softoken library missing, tests will fail!])])
+    ])
 
 # Checks for header files.
 AC_CHECK_HEADERS([string.h dlfcn.h])
