@@ -12,11 +12,11 @@ TOKDIR="tokens"
 PINVALUE="12345678"
 PINFILE="${TOKDIR}/pinfile.txt"
 
-TMPDIR="tmp"
-TSTCRT="${TMPDIR}/testcert.crt"
-ECCRT="${TMPDIR}/eccert.crt"
-ECPEERCRT="${TMPDIR}/ecpeercert.crt"
-SEEDFILE="${TMPDIR}/noisefile.bin"
+TMPPDIR="tmp"
+TSTCRT="${TMPPDIR}/testcert.crt"
+ECCRT="${TMPPDIR}/eccert.crt"
+ECPEERCRT="${TMPPDIR}/ecpeercert.crt"
+SEEDFILE="${TMPPDIR}/noisefile.bin"
 SERIAL=0
 
 title()
@@ -59,10 +59,10 @@ setup()
     fi
     mkdir ${TOKDIR}
 
-    if [ -d ${TMPDIR} ]; then
-        rm -fr ${TMPDIR}
+    if [ -d ${TMPPDIR} ]; then
+        rm -fr ${TMPPDIR}
     fi
-    mkdir ${TMPDIR}
+    mkdir ${TMPPDIR}
 
     dd if=/dev/urandom of=${SEEDFILE} bs=2048 count=1 >/dev/null 2>&1
     echo ${PINVALUE} > ${PINFILE}
@@ -167,12 +167,12 @@ CERTSCRIPT
     certutil -K -d ${TOKDIR} -f ${PINFILE}
     echo " ----------------------------------------------------------------------------------------------------"
 
-    title LINE "Export variables to ${TMPDIR}/debugvars for easy debugging"
+    title LINE "Export variables to ${TMPPDIR}/debugvars for easy debugging"
     BASEDIR=$(pwd)
-    cat > ${TMPDIR}/debugvars <<DBGSCRIPT
-# debug vars, just 'source ${TMPDIR}/debugvars'
+    cat > ${TMPPDIR}/debugvars <<DBGSCRIPT
+# debug vars, just 'source ${TMPPDIR}/debugvars'
 export TOKDIR="${BASEDIR}/${TOKDIR}"
-export TMPDIR="${BASEDIR}/${TMPDIR}"
+export TMPPDIR="${BASEDIR}/${TMPPDIR}"
 export OPENSSL_CONF="${BASEDIR}/openssl.cnf"
 
 export PINVALUE="${PINVALUE}"
@@ -225,13 +225,13 @@ title PARA "Export EC Public key to a file"
 #ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${ECCRT}.pub'
 
 title PARA "Raw Sign check error"
-dd if=/dev/urandom of=${TMPDIR}/64Brandom.bin bs=64 count=1 >/dev/null 2>&1
+dd if=/dev/urandom of=${TMPPDIR}/64Brandom.bin bs=64 count=1 >/dev/null 2>&1
 FAIL=0
 ossl '
 pkeyutl -sign -inkey "${BASEURI}"
               -pkeyopt pad-mode:none
-              -in ${TMPDIR}/64Brandom.bin
-              -out ${TMPDIR}/raw-sig.bin' || FAIL=1
+              -in ${TMPPDIR}/64Brandom.bin
+              -out ${TMPPDIR}/raw-sig.bin' || FAIL=1
 if [ $FAIL -eq 0 ]; then
     echo "Raw signature should not allow data != modulus size"
     exit 1
@@ -241,51 +241,51 @@ fi
 # to really check a raw signature through pkeyutl
 
 title PARA "Sign and Verify with provided Hash and RSA"
-ossl 'dgst -sha256 -binary -out ${TMPDIR}/sha256.bin ${SEEDFILE}'
+ossl 'dgst -sha256 -binary -out ${TMPPDIR}/sha256.bin ${SEEDFILE}'
 ossl '
 pkeyutl -sign -inkey "${PRIURI}"
-              -in ${TMPDIR}/sha256.bin
-              -out ${TMPDIR}/sha256-sig.bin'
+              -in ${TMPPDIR}/sha256.bin
+              -out ${TMPPDIR}/sha256-sig.bin'
 
 ossl '
 pkeyutl -verify -inkey "${PUBURI}"
                 -pubin
-                -in ${TMPDIR}/sha256.bin
-                -sigfile ${TMPDIR}/sha256-sig.bin'
+                -in ${TMPPDIR}/sha256.bin
+                -sigfile ${TMPPDIR}/sha256-sig.bin'
 
 title PARA "Sign and Verify with provided Hash and EC"
 ossl '
 pkeyutl -sign -inkey "${ECBASEURI}"
-              -in ${TMPDIR}/sha256.bin
-              -out ${TMPDIR}/sha256-ecsig.bin'
+              -in ${TMPPDIR}/sha256.bin
+              -out ${TMPPDIR}/sha256-ecsig.bin'
 
 ossl '
 pkeyutl -verify -inkey "${ECBASEURI}" -pubin
-                -in ${TMPDIR}/sha256.bin
-                -sigfile ${TMPDIR}/sha256-ecsig.bin'
+                -in ${TMPPDIR}/sha256.bin
+                -sigfile ${TMPPDIR}/sha256-ecsig.bin'
 
 
-dd if=/dev/urandom of=${TMPDIR}/64krandom.bin bs=2048 count=32 >/dev/null 2>&1
+dd if=/dev/urandom of=${TMPPDIR}/64krandom.bin bs=2048 count=32 >/dev/null 2>&1
 title PARA "DigestSign and DigestVerify with RSA"
 ossl '
 pkeyutl -sign -inkey "${BASEURI}"
               -digest sha256
-              -in ${TMPDIR}/64krandom.bin
+              -in ${TMPPDIR}/64krandom.bin
               -rawin
-              -out ${TMPDIR}/sha256-dgstsig.bin'
+              -out ${TMPPDIR}/sha256-dgstsig.bin'
 ossl '
 pkeyutl -verify -inkey "${BASEURI}" -pubin
                 -digest sha256
-                -in ${TMPDIR}/64krandom.bin
+                -in ${TMPPDIR}/64krandom.bin
                 -rawin
-                -sigfile ${TMPDIR}/sha256-dgstsig.bin'
+                -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
 ossl '
 pkeyutl -verify -inkey "${PUBURI}"
                 -pubin
                 -digest sha256
-                -in ${TMPDIR}/64krandom.bin
+                -in ${TMPPDIR}/64krandom.bin
                 -rawin
-                -sigfile ${TMPDIR}/sha256-dgstsig.bin'
+                -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
 
 title PARA "DigestSign and DigestVerify with RSA PSS"
 ossl '
@@ -294,18 +294,18 @@ pkeyutl -sign -inkey "${BASEURI}"
               -pkeyopt pad-mode:pss
               -pkeyopt mgf1-digest:sha256
               -pkeyopt saltlen:digest
-              -in ${TMPDIR}/64krandom.bin
+              -in ${TMPPDIR}/64krandom.bin
               -rawin
-              -out ${TMPDIR}/sha256-dgstsig.bin'
+              -out ${TMPPDIR}/sha256-dgstsig.bin'
 ossl '
 pkeyutl -verify -inkey "${BASEURI}" -pubin
                 -digest sha256
                 -pkeyopt pad-mode:pss
                 -pkeyopt mgf1-digest:sha256
                 -pkeyopt saltlen:digest
-                -in ${TMPDIR}/64krandom.bin
+                -in ${TMPPDIR}/64krandom.bin
                 -rawin
-                -sigfile ${TMPDIR}/sha256-dgstsig.bin'
+                -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
 title LINE "Re-verify using OpenSSL default provider"
 #(-pubin causes us to export a public key and OpenSSL to import it in the default provider)
 ossl '
@@ -315,26 +315,26 @@ pkeyutl -verify -inkey "${PUBURI}"
                 -pkeyopt pad-mode:pss
                 -pkeyopt mgf1-digest:sha256
                 -pkeyopt saltlen:digest
-                -in ${TMPDIR}/64krandom.bin
+                -in ${TMPPDIR}/64krandom.bin
                 -rawin
-                -sigfile ${TMPDIR}/sha256-dgstsig.bin'
+                -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
 
 title PARA "DigestSign and DigestVerify with ECC"
 ossl '
 pkeyutl -sign -inkey "${ECBASEURI}"
               -digest sha256
-              -in ${TMPDIR}/64krandom.bin
+              -in ${TMPPDIR}/64krandom.bin
               -rawin
-              -out ${TMPDIR}/sha256-ecdgstsig.bin'
+              -out ${TMPPDIR}/sha256-ecdgstsig.bin'
 ossl '
 pkeyutl -verify -inkey "${ECBASEURI}" -pubin
                 -digest sha256
-                -in ${TMPDIR}/64krandom.bin
+                -in ${TMPPDIR}/64krandom.bin
                 -rawin
-                -sigfile ${TMPDIR}/sha256-ecdgstsig.bin'
+                -sigfile ${TMPPDIR}/sha256-ecdgstsig.bin'
 
 title PARA "Encrypt and decrypt with RSA OAEP"
-echo "Super Secret" > ${TMPDIR}/secret.txt
+echo "Super Secret" > ${TMPPDIR}/secret.txt
 # Let openssl encrypt by importing the public key
 ossl '
 pkeyutl -encrypt -inkey "${BASEURI}"
@@ -342,33 +342,33 @@ pkeyutl -encrypt -inkey "${BASEURI}"
                  -pkeyopt pad-mode:oaep
                  -pkeyopt digest:sha256
                  -pkeyopt mgf1-digest:sha256
-                 -in ${TMPDIR}/secret.txt
-                 -out ${TMPDIR}/secret.txt.enc'
+                 -in ${TMPPDIR}/secret.txt
+                 -out ${TMPPDIR}/secret.txt.enc'
 ossl '
 pkeyutl -decrypt -inkey "${PRIURI}"
                  -pkeyopt pad-mode:oaep
                  -pkeyopt digest:sha256
                  -pkeyopt mgf1-digest:sha256
-                 -in ${TMPDIR}/secret.txt.enc
-                 -out ${TMPDIR}/secret.txt.dec'
-diff ${TMPDIR}/secret.txt ${TMPDIR}/secret.txt.dec
+                 -in ${TMPPDIR}/secret.txt.enc
+                 -out ${TMPPDIR}/secret.txt.dec'
+diff ${TMPPDIR}/secret.txt ${TMPPDIR}/secret.txt.dec
 
 title LINE "Now again all in the token"
 ossl '
 pkeyutl -encrypt -inkey "${PUBURI}" -pubin
-                 -in ${TMPDIR}/secret.txt
-                 -out ${TMPDIR}/secret.txt.enc2'
+                 -in ${TMPPDIR}/secret.txt
+                 -out ${TMPPDIR}/secret.txt.enc2'
 ossl '
 pkeyutl -decrypt -inkey "${PRIURI}"
-                 -in ${TMPDIR}/secret.txt.enc2
-                 -out ${TMPDIR}/secret.txt.dec2'
-diff ${TMPDIR}/secret.txt ${TMPDIR}/secret.txt.dec2
+                 -in ${TMPPDIR}/secret.txt.enc2
+                 -out ${TMPPDIR}/secret.txt.dec2'
+diff ${TMPPDIR}/secret.txt ${TMPPDIR}/secret.txt.dec2
 
 title PARA "ECDH Exchange"
 ossl '
 pkeyutl -derive -inkey ${ECBASEURI}
                 -peerkey ${ECPEERPUBURI}
-                -out ${TMPDIR}/secret.ecdh.bin'
+                -out ${TMPPDIR}/secret.ecdh.bin'
 
 title PARA "HKDF Derivation"
 HKDF_HEX_SECRET=ffeeddccbbaa
@@ -381,7 +381,7 @@ pkeyutl -derive -kdf HKDF -kdflen 48
                 -pkeyopt hexkey:${HKDF_HEX_SECRET}
                 -pkeyopt hexsalt:${HKDF_HEX_SALT}
                 -pkeyopt hexinfo:${HKDF_HEX_INFO}
-                -out ${TMPDIR}/hkdf1-out-pkcs11.bin
+                -out ${TMPPDIR}/hkdf1-out-pkcs11.bin
                 -propquery provider=pkcs11'
 ossl '
 pkeyutl -derive -kdf HKDF -kdflen 48
@@ -390,8 +390,8 @@ pkeyutl -derive -kdf HKDF -kdflen 48
                 -pkeyopt hexkey:${HKDF_HEX_SECRET}
                 -pkeyopt hexsalt:${HKDF_HEX_SALT}
                 -pkeyopt hexinfo:${HKDF_HEX_INFO}
-                -out ${TMPDIR}/hkdf1-out.bin'
-diff ${TMPDIR}/hkdf1-out-pkcs11.bin ${TMPDIR}/hkdf1-out.bin
+                -out ${TMPPDIR}/hkdf1-out.bin'
+diff ${TMPPDIR}/hkdf1-out-pkcs11.bin ${TMPPDIR}/hkdf1-out.bin
 
 HKDF_HEX_SECRET=6dc3bcf529a350e0423befb3deef8aef78d912c4f1dc3e6e52bf61f681e40904
 HKDF_SALT="I'm a Salt!"
@@ -403,7 +403,7 @@ pkeyutl -derive -kdf HKDF -kdflen 48
                 -pkeyopt hexkey:${HKDF_HEX_SECRET}
                 -pkeyopt salt:"${HKDF_SALT}"
                 -pkeyopt info:"${HKDF_INFO}"
-                -out ${TMPDIR}/hkdf2-out-pkcs11.bin
+                -out ${TMPPDIR}/hkdf2-out-pkcs11.bin
                 -propquery provider=pkcs11'
 ossl '
 pkeyutl -derive -kdf HKDF -kdflen 48
@@ -412,8 +412,8 @@ pkeyutl -derive -kdf HKDF -kdflen 48
                 -pkeyopt hexkey:${HKDF_HEX_SECRET}
                 -pkeyopt salt:"${HKDF_SALT}"
                 -pkeyopt info:"${HKDF_INFO}"
-                -out ${TMPDIR}/hkdf2-out.bin'
-diff ${TMPDIR}/hkdf2-out-pkcs11.bin ${TMPDIR}/hkdf2-out.bin
+                -out ${TMPPDIR}/hkdf2-out.bin'
+diff ${TMPPDIR}/hkdf2-out-pkcs11.bin ${TMPPDIR}/hkdf2-out.bin
 
 title PARA "Test session support"
 BASEURI="${BASEURI}" ./tsession
