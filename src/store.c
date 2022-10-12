@@ -114,7 +114,6 @@ int p11prov_object_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
 
     switch (obj->class) {
     case CKO_PUBLIC_KEY:
-    case CKO_PRIVATE_KEY:
         break;
     default:
         return RET_OSSL_ERR;
