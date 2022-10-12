@@ -1,6 +1,8 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
    SPDX-License-Identifier: Apache-2.0 */
 
+/* for strndup we need to define POSIX_C_SOURCE */
+#define _POSIX_C_SOURCE 200809L
 #include "provider.h"
 #include <string.h>
 
@@ -15,17 +17,44 @@ FILE *stddebug = NULL;
  * other to open the debug file */
 void p11prov_debug_init(void)
 {
-    char *env = getenv("PKCS11_PROVIDER_DEBUG");
+    /* The ',' character should not be used in the path as it will
+     * break tokenization, we do not provide any escaping, kiss */
+    const char *env = getenv("PKCS11_PROVIDER_DEBUG");
+    const char *next;
+    int dbg_level = 1;
     if (env) {
-        if (strncmp(env, "file:", 5) == 0) {
-            stddebug = fopen(&env[5], "a");
-            if (stddebug == NULL) {
-                return;
+        do {
+            next = strchr(env, ',');
+            if (strncmp(env, "file:", 5) == 0) {
+                if (next) {
+                    char *fname = strndup(env + 5, next - env - 5);
+                    if (fname == NULL) {
+                        return;
+                    }
+                    stddebug = fopen(fname, "a");
+                    free(fname);
+                    env = next + 1;
+                } else {
+                    stddebug = fopen(env + 5, "a");
+                }
+                if (stddebug == NULL) {
+                    return;
+                }
+            } else if (strncmp(env, "level:", 6) == 0) {
+                dbg_level = atoi(env + 6);
+                if (dbg_level < 1) {
+                    dbg_level = 1;
+                }
+                if (next) {
+                    env = next + 1;
+                }
             }
-        } else {
+        } while (next);
+
+        if (stddebug == NULL) {
             stddebug = stderr;
         }
-        int enable = 1;
+        int enable = dbg_level;
         int orig;
         /* set enable value to debug_lazy_init atomically */
         __atomic_exchange(&debug_lazy_init, &enable, &orig, __ATOMIC_SEQ_CST);
@@ -59,7 +88,7 @@ void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
     const char *mechname = "UNKNOWN";
     CK_RV ret;
 
-    if (debug_lazy_init < 0) {
+    if (debug_lazy_init < 1) {
         return;
     }
 
@@ -160,8 +189,10 @@ void p11prov_debug_slot(P11PROV_CTX *ctx, struct p11prov_slot *slot)
         p11prov_debug_token_info(&slot->token);
     }
 
-    for (CK_ULONG i = 0; i < slot->mechs_num; i++) {
-        p11prov_debug_mechanism(ctx, slot->id, slot->mechs[i]);
+    if (debug_lazy_init > 1) {
+        for (CK_ULONG i = 0; i < slot->mechs_num; i++) {
+            p11prov_debug_mechanism(ctx, slot->id, slot->mechs[i]);
+        }
     }
 
     if (slot->profiles[0] != CKP_INVALID_ID) {
