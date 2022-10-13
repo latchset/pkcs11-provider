@@ -26,6 +26,9 @@ void p11prov_debug_init(void)
         do {
             next = strchr(env, ',');
             if (strncmp(env, "file:", 5) == 0) {
+                if (stddebug != NULL && stddebug != stderr) {
+                    fclose(stddebug);
+                }
                 if (next) {
                     char *fname = strndup(env + 5, next - env - 5);
                     if (fname == NULL) {
