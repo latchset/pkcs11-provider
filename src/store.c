@@ -242,6 +242,7 @@ static void store_load(struct p11prov_store_ctx *ctx,
 
         if (ctx->session != NULL) {
             p11prov_session_free(ctx->session);
+            ctx->session = CK_INVALID_HANDLE;
         }
 
         ret =
