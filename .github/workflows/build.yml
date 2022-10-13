@@ -13,26 +13,47 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [fedora-gcc, fedora-clang, debian-clang]
+        name: [fedora-gcc, fedora-clang, debian-clang, fedora-distcheck]
         include:
           - name: fedora-gcc
-            distro: fedora:latest
+            container: fedora:latest
             compiler: gcc
+            action: check
           - name: fedora-clang
-            distro: fedora:latest
+            container: fedora:latest
             compiler: clang
+            action: check
           - name: debian-clang
-            distro: debian:sid
+            container: debian:sid
             compiler: clang
+            action: check
+          - name: fedora-distcheck
+            container: fedora:latest
+            compiler: gcc
+            action: distcheck
+    container: ${{ matrix.container }}
     steps:
-    - uses: actions/checkout@v3
-      name: Checkout Repository
+    - name: Install Dependencies
+      run: |
+          if [ -f /etc/fedora-release ]; then
+            dnf -y install git ${{ matrix.compiler }} automake libtool \
+              pkgconf-pkg-config autoconf-archive openssl-devel openssl \
+              nss-softokn nss-tools nss-softokn-devel
+          fi
+          if [ -f /etc/debian_version ]; then
+            apt-get -q update
+            apt-get -yq install git ${{ matrix.compiler }} make automake \
+              libtool pkg-config autoconf-archive libssl-dev openssl \
+              libnss3 libnss3-tools libnss3-dev
+          fi
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+    - name: Setup
+      run: |
+        autoreconf -fiv
+        CC=${{ matrix.compiler }} ./configure
     - name: Build and Test
-      run: ./.github/scripts/run_dockerized.sh
-      env:
-        DISTRO: ${{ matrix.distro }}
-        COMPILER: ${{ matrix.compiler }}
-        ACTION: check
+      run: make ${{ matrix.action }}
     - uses: actions/upload-artifact@v3
       if: failure()
       with:
@@ -43,9 +64,3 @@ jobs:
           tests/tmp/p11prov-debug.log
           tests/tmp/debugvars
           config.log
-    - name: Distribution Check
-      run: ./.github/scripts/run_dockerized.sh
-      env:
-        DISTRO: ${{ matrix.distro }}
-        COMPILER: ${{ matrix.compiler }}
-        ACTION: distcheck
