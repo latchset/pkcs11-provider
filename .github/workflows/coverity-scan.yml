@@ -26,6 +26,7 @@ jobs:
     - name: Check for changes
       run: |
           echo "RUN_COV=0" >> $GITHUB_ENV;
+          git config --global --add safe.directory /__w/pkcs11-provider/pkcs11-provider
           DIFF=`git log --since=1week | wc -l`
           if [ x${DIFF} != "x0" ]; then
             echo "RUN_COV=1" >> $GITHUB_ENV;
