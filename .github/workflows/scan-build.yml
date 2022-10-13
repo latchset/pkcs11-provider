@@ -8,13 +8,14 @@ jobs:
   build:
     name: CI with softoken
     runs-on: ubuntu-22.04
+    container: fedora:latest
     steps:
-    - uses: actions/checkout@v3
-      name: Checkout Repository
     - name: Install Dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf-archive clang-tools
+        dnf -y install $COMPILER automake libtool pkgconf-pkg-config autoconf-archive \
+              git openssl-devel clang-analyzer
+    - uses: actions/checkout@v3
+      name: Checkout Repository
     - name: Setup
       run: |
         autoreconf -fiv
