@@ -8,20 +8,21 @@ jobs:
   build:
     name: Check Style
     runs-on: ubuntu-22.04
+    container: fedora:latest
     steps:
-    - uses: actions/checkout@v3
-      name: Checkout Repository
     - name: Install Dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y autoconf-archive clang-format clang-tidy codespell
+        dnf -y install $COMPILER automake libtool pkgconf-pkg-config autoconf-archive \
+              git openssl-devel clang-tools-extra python3-pip codespell
+    - name: Checkout Repository
+      uses: actions/checkout@v3
     - name: Install compiledb
       run: |
-        sudo apt install python3-pip
         pip install compiledb
     - name: Setup
       if: ${{ github.event.pull_request.base.sha }}
       run: |
+        git config --global --add safe.directory /__w/pkcs11-provider/pkcs11-provider
         git fetch origin main ${{ github.event.pull_request.base.sha }}
     - name: Generate Makefile
       run: |
@@ -30,15 +31,12 @@ jobs:
         compiledb make
     - name: Run Clang Tidy
       run: |
-        /usr/bin/run-clang-tidy-14 \
-         -checks=-*,readability-braces-around-statements \
-         -config "{WarningsAsErrors: '*'}" \
-         -header-filter "src/oasis" \
-         -quiet
+        run-clang-tidy \
+          -checks=-*,readability-braces-around-statements \
+          -config "{WarningsAsErrors: '*'}" \
+          -header-filter "src/oasis" \
+          -quiet
     - name: Check the Style
-      run: make check-style
-    - name: Show Style diff in case of failure
-      if: failure()
-      run: make check-style-show
+      run: make check-style || (make check-style-show; exit -1)
     - name: Check spelling
       run: codespell --ignore-words-list="sorce" *.md Makefile.am configure.ac src tests -S src/oasis
