@@ -677,7 +677,7 @@ static int p11prov_operations_init(P11PROV_CTX *ctx)
     }
     /* terminations */
     if (kdf_idx > 0) {
-        TERM_ALGO(keymgmt);
+        TERM_ALGO(kdf);
     }
     if (keymgmt_idx > 0) {
         TERM_ALGO(keymgmt);
