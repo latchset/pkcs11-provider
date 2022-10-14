@@ -230,13 +230,15 @@ static CK_RV p11prov_store_ctx_add_key(void *pctx, P11PROV_KEY *key)
     return CKR_OK;
 }
 
-static void store_load(struct p11prov_store_ctx *ctx,
-                       OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
+static void store_fetch(struct p11prov_store_ctx *ctx,
+                        OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
 {
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     CK_SLOT_ID nextid = CK_UNAVAILABLE_INFORMATION;
     CK_RV ret;
 
+    /* cycle through all available slots,
+     * only stack errors, but not block on any of them */
     do {
         nextid = CK_UNAVAILABLE_INFORMATION;
 
@@ -248,37 +250,30 @@ static void store_load(struct p11prov_store_ctx *ctx,
         ret =
             p11prov_get_session(ctx->provctx, &slotid, &nextid, ctx->parsed_uri,
                                 pw_cb, pw_cbarg, false, false, &ctx->session);
-        switch (ret) {
-        case CKR_OK:
-            break;
-        case CKR_PIN_INCORRECT:
-        case CKR_PIN_INVALID:
-        case CKR_PIN_LEN_RANGE:
-            if (pw_cb == NULL) {
-                /* potentially recoverable error */
-                return;
+        if (ret != CKR_OK || ctx->session == CK_INVALID_HANDLE) {
+            P11PROV_raise(ctx->provctx, ret,
+                          "Failed to get session to load keys");
+
+            /* some cases may be recoverable in store_load if we get a pin
+             * prompter, but if we already had one, this is it */
+            if (pw_cb != NULL && ctx->loaded == 0) {
+                ctx->loaded = -1;
             }
-            /* fallthrough */
-        default:
-            /* mark unrecoverable error */
-            ctx->loaded = -1;
-            return;
-        }
-        if (ctx->session == CK_INVALID_HANDLE) {
             return;
         }
 
         ret = find_keys(ctx->provctx, ctx->session, slotid, ctx->parsed_uri,
                         p11prov_store_ctx_add_key, ctx);
         if (ret != CKR_OK) {
-            ctx->loaded = -1;
-            return;
+            P11PROV_raise(ctx->provctx, ret,
+                          "Failed to load keys from slot (%ld)", slotid);
+        } else {
+            /* if we got here w/o error at least once, consider it a success */
+            ctx->loaded = 1;
         }
         slotid = nextid;
 
     } while (nextid != CK_UNAVAILABLE_INFORMATION);
-
-    ctx->loaded = 1;
 }
 
 DISPATCH_STORE_FN(open);
@@ -308,7 +303,7 @@ static void *p11prov_store_open(void *pctx, const char *uri)
         goto done;
     }
 
-    store_load(ctx, NULL, NULL);
+    store_fetch(ctx, NULL, NULL);
 
     result = CKR_OK;
 
@@ -344,7 +339,7 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
     P11PROV_debug("store load (%p)", ctx);
 
     if (ctx->loaded == 0) {
-        store_load(ctx, pw_cb, pw_cbarg);
+        store_fetch(ctx, pw_cb, pw_cbarg);
     }
 
     if (ctx->loaded != 1) {
