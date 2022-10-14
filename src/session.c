@@ -424,6 +424,49 @@ done:
     return ret;
 }
 
+static CK_RV check_slot(P11PROV_CTX *provctx, struct p11prov_slot *provslot,
+                        bool reqlogin, P11PROV_URI *uri,
+                        OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
+{
+    CK_RV ret = CKR_OK;
+
+    if ((provslot->slot.flags & CKF_TOKEN_PRESENT) == 0) {
+        return CKR_TOKEN_NOT_PRESENT;
+    }
+    if ((provslot->token.flags & CKF_TOKEN_INITIALIZED) == 0) {
+        return CKR_TOKEN_NOT_PRESENT;
+    }
+    if (uri) {
+        /* skip slots that do not match */
+        ret = p11prov_uri_match_token(uri, &provslot->token);
+    }
+    if (ret == CKR_OK
+        && ((provslot->token.flags & CKF_LOGIN_REQUIRED) || reqlogin)) {
+        ret = token_login(provctx, provslot, uri, pw_cb, pw_cbarg);
+    }
+
+    if (ret == CKR_OK && reqlogin && !provslot->pool->login_session) {
+        ret = CKR_USER_NOT_LOGGED_IN;
+    }
+
+    return ret;
+}
+
+/* There are three possible ways to call this function.
+ * 1. One shot call on a specific slot
+ *      slotid must point to a specific slot number
+ *      next_slotid must be NULL
+ * 2. Find first viable slot
+ *      slotid must point to a slot value of CK_UNAVAILABLE_INFORMATION
+ *      next_slotid must be NULL
+ * 3. slot iteration
+ *      slotid must initially specify a value of CK_UNAVAILABLE_INFORMATION
+ *      next_sloitd must NOT be NULL
+ *      on following iterations the next_slotid value must be handed back
+ *        as the slotid value
+ *      if the function returns CK_UNAVAILABLE_INFORMATION in next_slotid
+ *        it means there is no more slots to iterate over
+ */
 CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                           CK_SLOT_ID *next_slotid, P11PROV_URI *uri,
                           OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg,
@@ -442,64 +485,66 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
 
     nslots = p11prov_ctx_get_slots(provctx, &slots);
 
-    for (i = 0; i < nslots; i++) {
-        if (id != CK_UNAVAILABLE_INFORMATION && id != slots[i].id) {
-            continue;
+    if (id != CK_UNAVAILABLE_INFORMATION && next_slotid == NULL) {
+        /* single shot request for a specific slot */
+        for (i = 0; i < nslots; i++) {
+            if (slots[i].id == id) {
+                slot = &slots[i];
+            }
         }
+        if (slot == NULL) {
+            return CKR_SLOT_ID_INVALID;
+        }
+        ret = check_slot(provctx, slot, reqlogin, uri, pw_cb, pw_cbarg);
+        if (ret != CKR_OK) {
+            return ret;
+        }
+    } else {
+        /* caller is cycling through slots, find the next viable one */
+        for (i = 0; i < nslots; i++) {
+            /* seek to next slot to check */
+            if (id != CK_UNAVAILABLE_INFORMATION && id != slots[i].id) {
+                continue;
+            } else {
+                /* found next slot */
+                id = CK_UNAVAILABLE_INFORMATION;
+            }
 
-        /* ignore slots that are not initialized */
-        if ((slots[i].slot.flags & CKF_TOKEN_PRESENT) == 0) {
-            continue;
-        }
-        if ((slots[i].token.flags & CKF_TOKEN_INITIALIZED) == 0) {
-            continue;
-        }
+            ret =
+                check_slot(provctx, &slots[i], reqlogin, uri, pw_cb, pw_cbarg);
+            if (ret != CKR_OK) {
+                /* keep going */
+                continue;
+            }
 
-        slot = &slots[i];
-        ret = CKR_OK;
-
-        if (uri) {
-            /* skip slots that do not match */
-            ret = p11prov_uri_match_token(uri, &slot->token);
-        }
-        if (ret == CKR_OK && (slot->token.flags & CKF_LOGIN_REQUIRED)) {
-            ret = token_login(provctx, slot, uri, pw_cb, pw_cbarg);
-        }
-
-        if (ret == CKR_OK && reqlogin && !slot->pool->login_session) {
-            ret = CKR_USER_NOT_LOGGED_IN;
-        }
-
-        if (ret == CKR_OK) {
+            slot = &slots[i];
             id = slots[i].id;
             break;
         }
-    }
 
-    if (ret == CKR_OK) {
-        /* Found a slot, return it and the next slot to the caller for
-         * continuation if the current slot does not yield the desired
-         * results */
-        *slotid = id;
-        if (next_slotid) {
-            if (i + 1 < nslots) {
-                *next_slotid = slots[i + 1].id;
-            } else {
+        if (ret == CKR_OK) {
+            /* Found a slot, return it and the next slot to the caller for
+             * continuation if the current slot does not yield the desired
+             * results */
+            *slotid = id;
+            if (next_slotid) {
+                if (i + 1 < nslots) {
+                    *next_slotid = slots[i + 1].id;
+                } else {
+                    *next_slotid = CK_UNAVAILABLE_INFORMATION;
+                }
+            }
+        } else {
+            if (next_slotid) {
                 *next_slotid = CK_UNAVAILABLE_INFORMATION;
             }
+            return ret;
         }
-    } else if (next_slotid) {
-        *next_slotid = CK_UNAVAILABLE_INFORMATION;
-    }
-
-    if (ret != CKR_OK) {
-        return ret;
     }
 
     if (rw) {
         flags |= CKF_RW_SESSION;
     }
-    ret = CKR_OK;
 
     /* LOCKED SECTION ------------- */
     pthread_mutex_lock(&slot->pool->lock);
