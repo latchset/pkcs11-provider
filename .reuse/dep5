@@ -20,6 +20,7 @@ Files: **/Makefile.am
        tests/openssl.cnf.in
        .clang-format
        .clang-format-ignore
+       packaging/pkcs11-provider.spec
 Copyright: (C) 2022 Simo Sorce <simo@redhat.com>
 License: Apache-2.0
 
