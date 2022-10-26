@@ -23,7 +23,7 @@ struct p11prov_ctx {
     OSSL_LIB_CTX *libctx;
 
     /* Configuration */
-    const char *module;
+    char *module;
     const char *init_args;
     char *pin;
     /* TODO: ui_method */
@@ -299,6 +299,11 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
 
     if (ctx->pin) {
         OPENSSL_clear_free(ctx->pin, strlen(ctx->pin));
+    }
+
+    if (ctx->module) {
+        OPENSSL_free(ctx->module);
+        ctx->module = NULL;
     }
 
     if (ctx->quirks) {
@@ -1045,10 +1050,18 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
         .pReserved = (void *)ctx->init_args,
     };
     CK_INFO ck_info = { 0 };
+    const char *env_module;
     int ret;
 
     if (ctx->status != P11PROV_UNINITIALIZED) {
         return 0;
+    }
+
+    /* The environment variable has the highest precedence */
+    env_module = getenv("PKCS11_PROVIDER_MODULE");
+    if (env_module && *env_module) {
+        OPENSSL_free(ctx->module);
+        ctx->module = OPENSSL_strdup(env_module);
     }
 
     P11PROV_debug("PKCS#11: Initializing the module: %s", ctx->module);
@@ -1117,6 +1130,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
                        const OSSL_DISPATCH **out, void **provctx)
 {
     OSSL_PARAM core_params[4] = { 0 };
+    const char *module = NULL;
     char *pin = NULL;
     P11PROV_CTX *ctx;
     int ret;
@@ -1139,7 +1153,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
 
     /* get module path */
     core_params[0] = OSSL_PARAM_construct_utf8_ptr(
-        P11PROV_PKCS11_MODULE_PATH, (char **)&ctx->module, sizeof(ctx->module));
+        P11PROV_PKCS11_MODULE_PATH, (char **)&module, sizeof(module));
     core_params[1] = OSSL_PARAM_construct_utf8_ptr(
         P11PROV_PKCS11_MODULE_INIT_ARGS, (char **)&ctx->init_args,
         sizeof(ctx->init_args));
@@ -1151,6 +1165,14 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_GET_PARAMETER);
         p11prov_ctx_free(ctx);
         return ret;
+    }
+    /* Copy the returned module path if there was one */
+    if (module != NULL) {
+        ctx->module = OPENSSL_strdup(module);
+        if (ctx->module == NULL) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_IN_ERROR_STATE);
+            return RET_OSSL_ERR;
+        }
     }
 
     ret = p11prov_module_init(ctx);
