@@ -48,6 +48,13 @@ PKG_CHECK_MODULES(
 )
 AC_SUBST([SHARED_EXT], $(eval echo "${shrext_cmds}"))
 
+# Check whether we have a p11-kit to use as a default PKCS#11 module
+PKG_CHECK_EXISTS([p11-kit-1],
+                 [PKG_CHECK_VAR([DEFAULT_PKCS11_MODULE],
+                                [p11-kit-1],
+                                [proxy_module])],
+                 [AC_MSG_WARN([The P11-kit proxy is not available. No fallback PKCS11 module used.])])
+
 # Try nss-softoken first as used on Fedora,
 # fallback to "nss" as used on Debian
 PKG_CHECK_EXISTS(

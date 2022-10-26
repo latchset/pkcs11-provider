@@ -1064,6 +1064,16 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
         ctx->module = OPENSSL_strdup(env_module);
     }
 
+    /* If the module is not specified in the configuration file, use the p11-kit proxy  */
+    if (ctx->module == NULL) {
+#ifdef DEFAULT_PKCS11_MODULE
+        ctx->module = OPENSSL_strdup(DEFAULT_PKCS11_MODULE);
+#else
+        P11PROV_raise(ctx, CKR_GENERAL_ERROR, "No PKCS#11 module specified.");
+        return -ENOENT;
+#endif
+    }
+
     P11PROV_debug("PKCS#11: Initializing the module: %s", ctx->module);
 
     dlerror();
