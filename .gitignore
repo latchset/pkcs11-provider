@@ -1,9 +1,12 @@
 # project-specific ignore patterns
 tests/openssl.cnf
-tests/tokens
-tests/tmp
+tests/openssl.cnf.softhsm
+tests/tmp.softhsm
+tests/tmp.softokn
 tests/tsession
 tests/tgenkey
+tests/ttls
+tests/pinfile.txt
 tests/*.log
 tests/*.trs
 /pkcs11-provider-?.?/

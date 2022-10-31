@@ -8,12 +8,13 @@ on:
 
 jobs:
   build:
-    name: CI with softoken
+    name: CI with software token
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         name: [fedora-gcc, fedora-clang, debian-clang, fedora-distcheck]
+        token: [softokn, softhsm]
         include:
           - name: fedora-gcc
             container: fedora:latest
@@ -37,14 +38,22 @@ jobs:
       run: |
           if [ -f /etc/fedora-release ]; then
             dnf -y install git ${{ matrix.compiler }} automake libtool \
-              pkgconf-pkg-config autoconf-archive openssl-devel openssl \
-              nss-softokn nss-tools nss-softokn-devel
-          fi
-          if [ -f /etc/debian_version ]; then
+              pkgconf-pkg-config autoconf-archive openssl-devel openssl xz
+            if [ "${{ matrix.token }}" = "softokn" ]; then
+              dnf -y install nss-softokn nss-tools nss-softokn-devel
+            elif [ "${{ matrix.token }}" = "softhsm" ]; then
+              dnf -y install softhsm opensc  p11-kit-devel p11-kit-server
+            fi
+          elif [ -f /etc/debian_version ]; then
             apt-get -q update
             apt-get -yq install git ${{ matrix.compiler }} make automake \
-              libtool pkg-config autoconf-archive libssl-dev openssl \
-              libnss3 libnss3-tools libnss3-dev
+              libtool pkg-config autoconf-archive libssl-dev openssl
+            if [ "${{ matrix.token }}" = "softokn" ]; then
+              apt-get -yq install libnss3 libnss3-tools libnss3-dev
+            elif [ "${{ matrix.token }}" = "softhsm" ]; then
+              apt-get -yq install softhsm opensc p11-kit libp11-kit-dev \
+                p11-kit-modules
+            fi
           fi
     - name: Checkout Repository
       uses: actions/checkout@v3
@@ -59,8 +68,8 @@ jobs:
       with:
         name: Test logs ${{ matrix.name }}
         path: |
-          tests/test.sh.log
+          tests/*.log
           tests/openssl.cnf
-          tests/tmp/p11prov-debug.log
-          tests/tmp/debugvars
+          tests/tmp.${{ matrix.token }}/p11prov-debug.log
+          tests/tmp.${{ matrix.token }}/debugvars
           config.log

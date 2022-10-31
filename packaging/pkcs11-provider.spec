@@ -16,6 +16,10 @@ BuildRequires: nss-devel
 BuildRequires: nss-softokn
 BuildRequires: nss-tools
 BuildRequires: openssl
+BuildRequires: softhsm
+BuildRequires: opensc
+BuildRequires: p11-kit-devel
+BuildRequires: p11-kit-server
 
 
 %description

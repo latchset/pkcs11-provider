@@ -77,6 +77,16 @@ AC_CHECK_FILE($SOFTOKENDIR/libsoftokn3.so, [],
         [AC_MSG_WARN([Softoken library missing, tests will fail!])])
     ])
 
+# find p11-kit-client to separate softhsm openssl context from our tests
+PKG_CHECK_EXISTS([p11-kit-1],
+                 [PKG_CHECK_VAR([P11_MODULE_PATH],
+                                [p11-kit-1],
+                                [p11_module_path])],
+                 [AC_MSG_WARN([The p11-kit client not found. Can not run SoftHSM tests])])
+if test "$P11_MODULE_PATH" != "" ; then
+    AC_SUBST([P11KITCLIENTPATH], "$P11_MODULE_PATH/p11-kit-client.so")
+fi
+
 # Checks for header files.
 AC_CHECK_HEADERS([string.h dlfcn.h])
 
