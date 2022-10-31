@@ -9,6 +9,7 @@ This package requires the following:
 - automake
 - pkg-config
 - libtool
+- p11-kit, p11-kit-server, p11-kit-devel, opensc and softhsm (for testing)
 
 The usual command to build are:
 - autoreconf -fi (if needed)
