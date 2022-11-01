@@ -1181,6 +1181,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         ctx->module = OPENSSL_strdup(module);
         if (ctx->module == NULL) {
             ERR_raise(ERR_LIB_PROV, PROV_R_IN_ERROR_STATE);
+            p11prov_ctx_free(ctx);
             return RET_OSSL_ERR;
         }
     }
