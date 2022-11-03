@@ -26,6 +26,7 @@ struct p11prov_ctx {
     char *module;
     const char *init_args;
     char *pin;
+    int allow_export;
     /* TODO: ui_method */
     /* TODO: fork id */
 
@@ -332,6 +333,12 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
                       errno);
     }
     OPENSSL_clear_free(ctx, sizeof(P11PROV_CTX));
+}
+
+int p11prov_ctx_allow_export(P11PROV_CTX *ctx)
+{
+    P11PROV_debug("allow_export = %d", ctx->allow_export);
+    return ctx->allow_export;
 }
 
 static void p11prov_teardown(void *ctx)
@@ -1139,8 +1146,9 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
 int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
                        const OSSL_DISPATCH **out, void **provctx)
 {
-    OSSL_PARAM core_params[4] = { 0 };
+    OSSL_PARAM core_params[5] = { 0 };
     const char *module = NULL;
+    char *allow_export = NULL;
     char *pin = NULL;
     P11PROV_CTX *ctx;
     int ret;
@@ -1169,7 +1177,10 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         sizeof(ctx->init_args));
     core_params[2] = OSSL_PARAM_construct_utf8_ptr(
         P11PROV_PKCS11_MODULE_TOKEN_PIN, &pin, sizeof(pin));
-    core_params[3] = OSSL_PARAM_construct_end();
+    core_params[3] =
+        OSSL_PARAM_construct_utf8_ptr(P11PROV_PKCS11_MODULE_ALLOW_EXPORT,
+                                      &allow_export, sizeof(allow_export));
+    core_params[4] = OSSL_PARAM_construct_end();
     ret = core_get_params(handle, core_params);
     if (ret != RET_OSSL_OK) {
         ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_GET_PARAMETER);
@@ -1197,6 +1208,18 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         ret = p11prov_get_pin(pin, &ctx->pin);
         if (ret != 0) {
             ERR_raise(ERR_LIB_PROV, PROV_R_IN_ERROR_STATE);
+            p11prov_ctx_free(ctx);
+            return RET_OSSL_ERR;
+        }
+    }
+
+    if (allow_export != NULL) {
+        char *end = NULL;
+        errno = 0;
+        ctx->allow_export = (int)strtol(allow_export, &end, 0);
+        if (errno != 0 || *end != '\0') {
+            P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Invalid value for %s: (%s)",
+                          P11PROV_PKCS11_MODULE_ALLOW_EXPORT, allow_export);
             p11prov_ctx_free(ctx);
             return RET_OSSL_ERR;
         }

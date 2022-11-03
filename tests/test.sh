@@ -189,6 +189,8 @@ export ECPUBURI="${ECPUBURI}"
 export ECPRIURI="${ECPRIURI}"
 DBGSCRIPT
 
+    OPENSSL_CONF="${BASEDIR}/openssl.cnf"
+
     title ENDSECTION
 }
 
@@ -415,5 +417,18 @@ diff ${TMPPDIR}/hkdf2-out-pkcs11.bin ${TMPPDIR}/hkdf2-out.bin
 
 title PARA "Test session support"
 BASEURI="${BASEURI}" ./tsession
+
+title PARA "Test Disallow Public Export"
+FAIL=0
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed "s/#pkcs11-module-allow-export/pkcs11-module-allow-export = 1/" ${OPENSSL_CONF} > ${OPENSSL_CONF}.noexport
+OPENSSL_CONF=${OPENSSL_CONF}.noexport
+ossl 'pkey -in $BASEURI -pubin -pubout -out ${TSTCRT}.pub.fail' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "pkcs11 export should have failed, but actually succeeded"
+    exit 1
+fi
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+rm -f ${OPENSSL_CONF}.noexport
 
 exit 0
