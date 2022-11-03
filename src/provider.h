@@ -27,6 +27,7 @@
 #define P11PROV_PKCS11_MODULE_PATH "pkcs11-module-path"
 #define P11PROV_PKCS11_MODULE_INIT_ARGS "pkcs11-module-init-args"
 #define P11PROV_PKCS11_MODULE_TOKEN_PIN "pkcs11-module-token-pin"
+#define P11PROV_PKCS11_MODULE_ALLOW_EXPORT "pkcs11-module-allow-export"
 
 #define P11PROV_DEFAULT_PROPERTIES "provider=pkcs11"
 #define P11PROV_NAMES_RSA "RSA:rsaEncryption:1.2.840.113549.1.1.1"
@@ -75,6 +76,10 @@ CK_RV p11prov_ctx_get_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
                             void **data, CK_ULONG *size);
 CK_RV p11prov_ctx_set_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
                             void *data, CK_ULONG size);
+
+#define ALLOW_EXPORT_PUBLIC 0
+#define DISALLOW_EXPORT_PUBLIC 1
+int p11prov_ctx_allow_export(P11PROV_CTX *ctx);
 
 /* Errors */
 void p11prov_raise(P11PROV_CTX *ctx, const char *file, int line,

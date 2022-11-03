@@ -24,4 +24,5 @@ module = @libtoollibs@/pkcs11_provider.so
 pkcs11-module-path = @softokenpath@
 pkcs11-module-init-args = configDir=@testsdir@/tokens
 pkcs11-module-token-pin = file:@testsdir@/tokens/pinfile.txt
+#pkcs11-module-allow-export
 activate = 1

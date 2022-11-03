@@ -123,6 +123,10 @@ int p11prov_object_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
         return RET_OSSL_ERR;
     }
 
+    if (p11prov_ctx_allow_export(obj->ctx) & DISALLOW_EXPORT_PUBLIC) {
+        return RET_OSSL_ERR;
+    }
+
     n = p11prov_key_attr(obj->data.key, CKA_MODULUS);
     if (n == NULL) {
         return RET_OSSL_ERR;
