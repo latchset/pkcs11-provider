@@ -3,6 +3,7 @@
 
 #include "provider.h"
 #include <openssl/store.h>
+#include <openssl/ec.h>
 #include "platform/endian.h"
 #include <string.h>
 
@@ -148,6 +149,83 @@ int p11prov_object_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
     params[2] = OSSL_PARAM_construct_end();
 
     return cb_fn(params, cb_arg);
+}
+
+int p11prov_object_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
+                                        void *cb_arg)
+{
+    OSSL_PARAM params[3];
+    CK_ATTRIBUTE *ec_params, *ec_point;
+    ASN1_OCTET_STRING *octet = NULL;
+    int ret;
+
+    switch (obj->class) {
+    case CKO_PUBLIC_KEY:
+        break;
+    default:
+        return RET_OSSL_ERR;
+    }
+
+    if (p11prov_key_type(obj->data.key) != CKK_EC) {
+        return RET_OSSL_ERR;
+    }
+
+    if (p11prov_ctx_allow_export(obj->ctx) & DISALLOW_EXPORT_PUBLIC) {
+        return RET_OSSL_ERR;
+    }
+
+    ec_params = p11prov_key_attr(obj->data.key, CKA_EC_PARAMS);
+    if (ec_params == NULL) {
+        return RET_OSSL_ERR;
+    } else {
+        EC_GROUP *group;
+        const char *curve_name;
+        int curve_nid;
+
+        group =
+            d2i_ECPKParameters(NULL, (const unsigned char **)&ec_params->pValue,
+                               ec_params->ulValueLen);
+        if (group == NULL) {
+            return RET_OSSL_ERR;
+        }
+
+        curve_nid = EC_GROUP_get_curve_name(group);
+        if (curve_nid == NID_undef) {
+            EC_GROUP_free(group);
+            return RET_OSSL_ERR;
+        }
+        curve_name = OSSL_EC_curve_nid2name(curve_nid);
+        if (curve_name == NULL) {
+            EC_GROUP_free(group);
+            return RET_OSSL_ERR;
+        }
+        params[0] = OSSL_PARAM_construct_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME,
+                                                     (char *)curve_name, 0);
+        EC_GROUP_free(group);
+    }
+
+    ec_point = p11prov_key_attr(obj->data.key, CKA_EC_POINT);
+    if (ec_point == NULL) {
+        return RET_OSSL_ERR;
+    } else {
+        octet = d2i_ASN1_OCTET_STRING(NULL,
+                                      (const unsigned char **)&ec_point->pValue,
+                                      ec_point->ulValueLen);
+        if (octet == NULL) {
+            return RET_OSSL_ERR;
+        }
+        params[1] = OSSL_PARAM_construct_octet_string(
+            OSSL_PKEY_PARAM_PUB_KEY, octet->data, octet->length);
+    }
+
+    params[2] = OSSL_PARAM_construct_end();
+
+    ret = cb_fn(params, cb_arg);
+
+    /* must be freed after callback */
+    ASN1_OCTET_STRING_free(octet);
+
+    return ret;
 }
 
 struct p11prov_store_ctx {

@@ -976,9 +976,13 @@ static int p11prov_ec_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
         return RET_OSSL_ERR;
     }
 
-    /* TODO */
+    /* if anything else is asked for we can't provide it, so be strict */
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
+        return RET_OSSL_ERR;
+    }
 
-    return RET_OSSL_ERR;
+    /* this will return the public EC_POINT as well as DOMAIN_PARAMTERS */
+    return p11prov_object_export_public_ec_key(obj, cb_fn, cb_arg);
 }
 
 static const OSSL_PARAM p11prov_ec_key_types[] = {
