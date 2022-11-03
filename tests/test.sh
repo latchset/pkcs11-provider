@@ -222,7 +222,7 @@ if [ $FAIL -eq 0 ]; then
 fi
 
 title PARA "Export EC Public key to a file"
-#ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${ECCRT}.pub'
+ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${ECCRT}.pub'
 
 title PARA "Raw Sign check error"
 dd if=/dev/urandom of=${TMPPDIR}/64Brandom.bin bs=64 count=1 >/dev/null 2>&1

@@ -168,6 +168,8 @@ P11PROV_OBJ *p11prov_obj_from_reference(const void *reference,
                                         size_t reference_sz);
 int p11prov_object_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
                                          void *cb_arg);
+int p11prov_object_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
+                                        void *cb_arg);
 P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj);
 
 /* dispatching */
