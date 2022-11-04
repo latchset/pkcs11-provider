@@ -273,6 +273,10 @@ extern const OSSL_DISPATCH p11prov_hkdf_kdf_functions[];
 extern const OSSL_DISPATCH p11prov_rsa_encoder_text_functions[];
 extern const OSSL_DISPATCH p11prov_rsa_encoder_pkcs1_der_functions[];
 extern const OSSL_DISPATCH p11prov_rsa_encoder_pkcs1_pem_functions[];
+extern const OSSL_DISPATCH p11prov_rsa_encoder_spki_der_functions[];
+extern const OSSL_DISPATCH p11prov_ec_encoder_pkcs1_der_functions[];
+extern const OSSL_DISPATCH p11prov_ec_encoder_pkcs1_pem_functions[];
+extern const OSSL_DISPATCH p11prov_ec_encoder_spki_der_functions[];
 
 /* Utilities to fetch objects from tokens */
 
