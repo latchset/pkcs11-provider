@@ -711,6 +711,16 @@ static int p11prov_operations_init(P11PROV_CTX *ctx)
                  p11prov_rsa_encoder_pkcs1_der_functions);
     ADD_ALGO_EXT(RSA, encoder, "provider=pkcs11,output=pem,structure=pkcs1",
                  p11prov_rsa_encoder_pkcs1_pem_functions);
+    ADD_ALGO_EXT(RSA, encoder,
+                 "provider=pkcs11,output=der,structure=SubjectPublicKeyInfo",
+                 p11prov_rsa_encoder_spki_der_functions);
+    ADD_ALGO_EXT(EC, encoder, "provider=pkcs11,output=der,structure=pkcs1",
+                 p11prov_ec_encoder_pkcs1_der_functions);
+    ADD_ALGO_EXT(EC, encoder, "provider=pkcs11,output=pem,structure=pkcs1",
+                 p11prov_ec_encoder_pkcs1_pem_functions);
+    ADD_ALGO_EXT(EC, encoder,
+                 "provider=pkcs11,output=der,structure=SubjectPublicKeyInfo",
+                 p11prov_ec_encoder_spki_der_functions);
     TERM_ALGO(encoder);
 
     return RET_OSSL_OK;
