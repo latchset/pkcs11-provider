@@ -5,6 +5,9 @@ This package requires the following:
 - autoconf-archives packages for some m4 macros
 - NSS softoken and development headers (for testing)
 - a C compiler that supports at least C11 semantics
+- automake
+- pkg-config
+- libtool
 
 The usual command to build are:
 - autoreconf -fi (if needed)
