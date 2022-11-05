@@ -147,6 +147,8 @@ P11PROV_KEY *p11prov_object_handle_to_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
 CK_RV find_keys(P11PROV_CTX *provctx, P11PROV_SESSION *session,
                 CK_SLOT_ID slotid, P11PROV_URI *uri, store_key_callback cb,
                 void *cb_ctx);
+P11PROV_KEY *find_associated_key(P11PROV_CTX *provctx, P11PROV_KEY *key,
+                                 CK_OBJECT_CLASS class);
 P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        P11PROV_SESSION *session,
                                        bool session_key, unsigned char *secret,

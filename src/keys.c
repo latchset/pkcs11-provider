@@ -425,6 +425,72 @@ CK_RV find_keys(P11PROV_CTX *provctx, P11PROV_SESSION *session,
     return result;
 }
 
+P11PROV_KEY *find_associated_key(P11PROV_CTX *provctx, P11PROV_KEY *key,
+                                 CK_OBJECT_CLASS class)
+{
+    CK_FUNCTION_LIST *f;
+    CK_ATTRIBUTE template[2] = { 0 };
+    CK_ATTRIBUTE *id;
+    CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
+    P11PROV_SESSION *session = NULL;
+    CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
+    CK_OBJECT_HANDLE object;
+    CK_ULONG objcount = 0;
+    P11PROV_KEY *akey = NULL;
+    CK_RV ret;
+
+    P11PROV_debug("Find associated key");
+
+    ret = p11prov_ctx_status(provctx, &f);
+    if (ret != CKR_OK) {
+        goto done;
+    }
+
+    if (class != CKO_PUBLIC_KEY && class != CKO_PRIVATE_KEY) {
+        P11PROV_raise(provctx, CKR_GENERAL_ERROR, "Invalid class");
+        goto done;
+    }
+
+    id = p11prov_key_attr(key, CKA_ID);
+    if (!id) {
+        P11PROV_raise(provctx, CKR_GENERAL_ERROR, "Source key missing CKA_ID");
+        goto done;
+    }
+
+    CKATTR_ASSIGN_ALL(template[0], CKA_CLASS, &class, sizeof(class));
+    template[1] = *id;
+
+    slotid = p11prov_key_slotid(key);
+
+    ret = p11prov_get_session(provctx, &slotid, NULL, NULL, NULL, NULL, false,
+                              false, &session);
+    if (ret != CKR_OK) {
+        goto done;
+    }
+
+    sess = p11prov_session_handle(session);
+
+    ret = f->C_FindObjectsInit(sess, template, 2);
+    if (ret != CKR_OK) {
+        P11PROV_raise(provctx, ret, "Error returned by C_FindObjectsInit");
+        goto done;
+    }
+
+    /* we expect a single entry */
+    ret = f->C_FindObjects(sess, &object, 1, &objcount);
+    if (ret != CKR_OK || objcount != 1) {
+        P11PROV_raise(provctx, ret, "Error in C_FindObjects (count=%ld)",
+                      objcount);
+        goto done;
+    }
+
+    akey = p11prov_object_handle_to_key(provctx, slotid, session, object);
+
+done:
+    p11prov_session_free(session);
+    return akey;
+}
+
 P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        P11PROV_SESSION *session,
                                        bool session_key, unsigned char *secret,
