@@ -177,16 +177,15 @@ DISPATCH_ENCODER_FN(rsa, pkcs1, der, does_selection);
 static int p11prov_rsa_encoder_pkcs1_der_does_selection(void *inctx,
                                                         int selection)
 {
-    switch (selection) {
-    case OSSL_KEYMGMT_SELECT_PRIVATE_KEY:
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
         return RET_OSSL_ERR;
-    case OSSL_KEYMGMT_SELECT_PUBLIC_KEY:
+    } else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return RET_OSSL_ERR;
-    case OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS:
+    } else if (selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) {
         return RET_OSSL_ERR;
     }
 
-    return RET_OSSL_ERR;
+    return RET_OSSL_OK;
 }
 
 static int p11prov_rsa_encoder_pkcs1_der_encode(
@@ -210,16 +209,15 @@ DISPATCH_ENCODER_FN(rsa, pkcs1, pem, does_selection);
 static int p11prov_rsa_encoder_pkcs1_pem_does_selection(void *inctx,
                                                         int selection)
 {
-    switch (selection) {
-    case OSSL_KEYMGMT_SELECT_PRIVATE_KEY:
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
         return RET_OSSL_ERR;
-    case OSSL_KEYMGMT_SELECT_PUBLIC_KEY:
+    } else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return RET_OSSL_ERR;
-    case OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS:
+    } else if (selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) {
         return RET_OSSL_ERR;
     }
 
-    return RET_OSSL_ERR;
+    return RET_OSSL_OK;
 }
 
 static int p11prov_rsa_encoder_pkcs1_pem_encode(
