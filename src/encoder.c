@@ -45,15 +45,15 @@ static void print_data_buffer(BIO *out, CK_BYTE *buf, int len, int justify,
     }
 }
 
-DISPATCH_BASE_ENCODER_FN(rsa, newctx);
-DISPATCH_BASE_ENCODER_FN(rsa, freectx);
+DISPATCH_BASE_ENCODER_FN(newctx);
+DISPATCH_BASE_ENCODER_FN(freectx);
 DISPATCH_TEXT_ENCODER_FN(rsa, encode);
 
 struct p11prov_encoder_ctx {
     P11PROV_CTX *provctx;
 };
 
-static void *p11prov_rsa_encoder_newctx(void *provctx)
+static void *p11prov_encoder_newctx(void *provctx)
 {
     struct p11prov_encoder_ctx *ctx;
 
@@ -66,7 +66,7 @@ static void *p11prov_rsa_encoder_newctx(void *provctx)
     return ctx;
 }
 
-static void p11prov_rsa_encoder_freectx(void *ctx)
+static void p11prov_encoder_freectx(void *ctx)
 {
     OPENSSL_free(ctx);
 }
@@ -166,9 +166,9 @@ static int p11prov_rsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
 }
 
 const OSSL_DISPATCH p11prov_rsa_encoder_text_functions[] = {
-    DISPATCH_BASE_ENCODER_ELEM(NEWCTX, rsa, newctx),
-    DISPATCH_BASE_ENCODER_ELEM(FREECTX, rsa, freectx),
-    DISPATCH_BASE_ENCODER_ELEM(ENCODE, rsa, encode_text),
+    DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
+    DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
+    DISPATCH_TEXT_ENCODER_ELEM(ENCODE, rsa, encode_text),
     { 0, NULL },
 };
 
@@ -197,8 +197,8 @@ static int p11prov_rsa_encoder_pkcs1_der_encode(
 }
 
 const OSSL_DISPATCH p11prov_rsa_encoder_pkcs1_der_functions[] = {
-    DISPATCH_BASE_ENCODER_ELEM(NEWCTX, rsa, newctx),
-    DISPATCH_BASE_ENCODER_ELEM(FREECTX, rsa, freectx),
+    DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
+    DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
     DISPATCH_ENCODER_ELEM(DOES_SELECTION, rsa, pkcs1, der, does_selection),
     DISPATCH_ENCODER_ELEM(ENCODE, rsa, pkcs1, der, encode),
     { 0, NULL },
@@ -229,8 +229,8 @@ static int p11prov_rsa_encoder_pkcs1_pem_encode(
 }
 
 const OSSL_DISPATCH p11prov_rsa_encoder_pkcs1_pem_functions[] = {
-    DISPATCH_BASE_ENCODER_ELEM(NEWCTX, rsa, newctx),
-    DISPATCH_BASE_ENCODER_ELEM(FREECTX, rsa, freectx),
+    DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
+    DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
     DISPATCH_ENCODER_ELEM(DOES_SELECTION, rsa, pkcs1, pem, does_selection),
     DISPATCH_ENCODER_ELEM(ENCODE, rsa, pkcs1, pem, encode),
     { 0, NULL },
