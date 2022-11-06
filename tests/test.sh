@@ -431,4 +431,10 @@ fi
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 rm -f ${OPENSSL_CONF}.noexport
 
+title PARA "Test CSR generation from private keys"
+ossl '
+req -new -batch -key "${PRIURI}" -out ${TMPPDIR}/rsa_csr.pem'
+ossl '
+req -new -batch -key "${ECPRIURI}" -out ${TMPPDIR}/ecdsa_csr.pem'
+
 exit 0
