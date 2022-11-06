@@ -171,13 +171,116 @@ static void p11prov_sig_freectx(void *ctx)
     OPENSSL_clear_free(sigctx, sizeof(P11PROV_SIG_CTX));
 }
 
+#define DER_SEQUENCE 0x30
+#define DER_OBJECT 0x06
+#define DER_NULL 0x05, 0x00
+
+#define DER_RSAID_SEQ_LEN 0x0D
+#define DER_RSAID_LEN 0x09
+/* 1.2.840.113549.1.1 */
+#define DER_RSADSI_PKCS1 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01
+
+#define DER_SEQ_RSA_SHA512 \
+    DER_SEQUENCE, DER_RSAID_SEQ_LEN, DER_OBJECT, DER_RSAID_LEN, \
+        DER_RSADSI_PKCS1, 0x0D, DER_NULL
+const unsigned char der_rsa_sha512[] = { DER_SEQ_RSA_SHA512 };
+#define DER_SEQ_RSA_SHA384 \
+    DER_SEQUENCE, DER_RSAID_SEQ_LEN, DER_OBJECT, DER_RSAID_LEN, \
+        DER_RSADSI_PKCS1, 0x0C, DER_NULL
+const unsigned char der_rsa_sha384[] = { DER_SEQ_RSA_SHA384 };
+#define DER_SEQ_RSA_SHA256 \
+    DER_SEQUENCE, DER_RSAID_SEQ_LEN, DER_OBJECT, DER_RSAID_LEN, \
+        DER_RSADSI_PKCS1, 0x0B, DER_NULL
+const unsigned char der_rsa_sha256[] = { DER_SEQ_RSA_SHA256 };
+#define DER_SEQ_RSA_SHA224 \
+    DER_SEQUENCE, DER_RSAID_SEQ_LEN, DER_OBJECT, DER_RSAID_LEN, \
+        DER_RSADSI_PKCS1, 0x0E, DER_NULL
+const unsigned char der_rsa_sha224[] = { DER_SEQ_RSA_SHA224 };
+#define DER_SEQ_RSA_SHA1 \
+    DER_SEQUENCE, DER_RSAID_SEQ_LEN, DER_OBJECT, DER_RSAID_LEN, \
+        DER_RSADSI_PKCS1, 0x05, DER_NULL
+const unsigned char der_rsa_sha1[] = { DER_SEQ_RSA_SHA1 };
+
+#define DER_ECSHA1_SEQ_LEN 0x09
+#define DER_ECSHA1_LEN 0x07
+/* 1.2.840.10045.4 */
+#define DER_ANSIX962_SIG 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x04
+
+#define DER_ECSHA2_SEQ_LEN 0x10
+#define DER_ECSHA2_LEN 0x08
+/* 1.2.840.10045.4.3 */
+#define DER_ANSIX962_SHA2_SIG DER_ANSIX962_SIG, 0x03
+
+#define DER_SEQ_ECDSA_SHA224 \
+    DER_SEQUENCE, DER_ECSHA1_SEQ_LEN, DER_OBJECT, DER_ECSHA1_LEN, \
+        DER_ANSIX962_SHA2_SIG, 0x01
+const unsigned char der_ecdsa_sha224[] = { DER_SEQ_ECDSA_SHA224 };
+#define DER_SEQ_ECDSA_SHA256 \
+    DER_SEQUENCE, DER_ECSHA1_SEQ_LEN, DER_OBJECT, DER_ECSHA1_LEN, \
+        DER_ANSIX962_SHA2_SIG, 0x02
+const unsigned char der_ecdsa_sha256[] = { DER_SEQ_ECDSA_SHA256 };
+#define DER_SEQ_ECDSA_SHA384 \
+    DER_SEQUENCE, DER_ECSHA1_SEQ_LEN, DER_OBJECT, DER_ECSHA1_LEN, \
+        DER_ANSIX962_SHA2_SIG, 0x03
+const unsigned char der_ecdsa_sha384[] = { DER_SEQ_ECDSA_SHA384 };
+#define DER_SEQ_ECDSA_SHA512 \
+    DER_SEQUENCE, DER_ECSHA1_SEQ_LEN, DER_OBJECT, DER_ECSHA1_LEN, \
+        DER_ANSIX962_SHA2_SIG, 0x04
+const unsigned char der_ecdsa_sha512[] = { DER_SEQ_ECDSA_SHA512 };
+#define DER_SEQ_ECDSA_SHA1 \
+    DER_SEQUENCE, DER_ECSHA1_SEQ_LEN, DER_OBJECT, DER_ECSHA1_LEN, \
+        DER_ANSIX962_SIG, 0x01
+const unsigned char der_ecdsa_sha1[] = { DER_SEQ_ECDSA_SHA1 };
+
+#define DER_NISTID_SEQ_LEN 0x0D
+#define DER_NISTID_LEN 0x09
+/* 2.16.840.1.101.3.4.3 */
+#define DER_NIST_SIGALGS 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03
+
+#define DER_SEQ_RSA_SHA3_512 \
+    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
+        DER_NIST_SIGALGS, 0x10, DER_NULL
+const unsigned char der_rsa_sha3_512[] = { DER_SEQ_RSA_SHA3_512 };
+#define DER_SEQ_RSA_SHA3_384 \
+    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
+        DER_NIST_SIGALGS, 0x0F, DER_NULL
+const unsigned char der_rsa_sha3_384[] = { DER_SEQ_RSA_SHA3_384 };
+#define DER_SEQ_RSA_SHA3_256 \
+    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
+        DER_NIST_SIGALGS, 0x0E, DER_NULL
+const unsigned char der_rsa_sha3_256[] = { DER_SEQ_RSA_SHA3_256 };
+#define DER_SEQ_RSA_SHA3_224 \
+    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
+        DER_NIST_SIGALGS, 0x0D, DER_NULL
+const unsigned char der_rsa_sha3_224[] = { DER_SEQ_RSA_SHA3_224 };
+
+#define DER_SEQ_ECDSA_SHA3_512 \
+    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
+        DER_NIST_SIGALGS, 0x0C, DER_NULL
+const unsigned char der_ecdsa_sha3_512[] = { DER_SEQ_ECDSA_SHA3_512 };
+#define DER_SEQ_ECDSA_SHA3_384 \
+    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
+        DER_NIST_SIGALGS, 0x0B, DER_NULL
+const unsigned char der_ecdsa_sha3_384[] = { DER_SEQ_ECDSA_SHA3_384 };
+#define DER_SEQ_ECDSA_SHA3_256 \
+    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
+        DER_NIST_SIGALGS, 0x0A, DER_NULL
+const unsigned char der_ecdsa_sha3_256[] = { DER_SEQ_ECDSA_SHA3_256 };
+#define DER_SEQ_ECDSA_SHA3_224 \
+    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
+        DER_NIST_SIGALGS, 0x09, DER_NULL
+const unsigned char der_ecdsa_sha3_224[] = { DER_SEQ_ECDSA_SHA3_224 };
+
 #define DM_ELEM_SHA(bits) \
     { \
         .name = "SHA" #bits, .digest = CKM_SHA##bits, \
         .pkcs_mech = CKM_SHA##bits##_RSA_PKCS, \
         .pkcs_pss = CKM_SHA##bits##_RSA_PKCS_PSS, \
         .ecdsa_mech = CKM_ECDSA_SHA##bits, .mgf = CKG_MGF1_SHA##bits, \
-        .digest_size = bits / 8 \
+        .digest_size = bits / 8, .der_rsa_algorithm_id = der_rsa_sha##bits, \
+        .der_rsa_algorithm_id_len = sizeof(der_rsa_sha##bits), \
+        .der_ecdsa_algorithm_id = der_ecdsa_sha##bits, \
+        .der_ecdsa_algorithm_id_len = sizeof(der_ecdsa_sha##bits), \
     }
 #define DM_ELEM_SHA3(bits) \
     { \
@@ -185,7 +288,10 @@ static void p11prov_sig_freectx(void *ctx)
         .pkcs_mech = CKM_SHA3_##bits##_RSA_PKCS, \
         .pkcs_pss = CKM_SHA3_##bits##_RSA_PKCS_PSS, \
         .ecdsa_mech = CKM_ECDSA_SHA3_##bits, .mgf = CKG_MGF1_SHA3_##bits, \
-        .digest_size = bits / 8 \
+        .digest_size = bits / 8, .der_rsa_algorithm_id = der_rsa_sha3_##bits, \
+        .der_rsa_algorithm_id_len = sizeof(der_rsa_sha3_##bits), \
+        .der_ecdsa_algorithm_id = der_ecdsa_sha3_##bits, \
+        .der_ecdsa_algorithm_id_len = sizeof(der_ecdsa_sha3_##bits), \
     }
 /* only the ones we can support */
 static struct {
@@ -196,6 +302,10 @@ static struct {
     CK_MECHANISM_TYPE ecdsa_mech;
     CK_RSA_PKCS_MGF_TYPE mgf;
     int digest_size;
+    const unsigned char *der_rsa_algorithm_id;
+    int der_rsa_algorithm_id_len;
+    const unsigned char *der_ecdsa_algorithm_id;
+    int der_ecdsa_algorithm_id_len;
 } digest_map[] = {
     DM_ELEM_SHA3(256),
     DM_ELEM_SHA3(512),
@@ -206,9 +316,46 @@ static struct {
     DM_ELEM_SHA(384),
     DM_ELEM_SHA(224),
     { "SHA1", CKM_SHA_1, CKM_SHA1_RSA_PKCS, CKM_SHA1_RSA_PKCS_PSS,
-      CKM_ECDSA_SHA1, CKG_MGF1_SHA1, 20 },
-    { NULL, 0, 0, 0, 0, 0, 0 },
+      CKM_ECDSA_SHA1, CKG_MGF1_SHA1, 20, der_rsa_sha1, sizeof(der_rsa_sha1),
+      der_ecdsa_sha1, sizeof(der_ecdsa_sha1) },
+    { NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
+
+static CK_RV p11prov_rsa_sig_algid(CK_MECHANISM_TYPE digest,
+                                   const unsigned char **algid, int *len)
+{
+    for (int i = 0; digest_map[i].name != NULL; i++) {
+        if (digest_map[i].digest == digest) {
+            *algid = digest_map[i].der_rsa_algorithm_id;
+            *len = digest_map[i].der_rsa_algorithm_id_len;
+            return CKR_OK;
+        }
+    }
+    return CKR_MECHANISM_INVALID;
+}
+
+static CK_RV p11prov_ecdsa_sig_algid(CK_MECHANISM_TYPE digest,
+                                     const unsigned char **algid, int *len)
+{
+    for (int i = 0; digest_map[i].name != NULL; i++) {
+        if (digest_map[i].digest == digest) {
+            *algid = digest_map[i].der_ecdsa_algorithm_id;
+            *len = digest_map[i].der_ecdsa_algorithm_id_len;
+            return CKR_OK;
+        }
+    }
+    return CKR_MECHANISM_INVALID;
+}
+
+static int p11prov_sig_digest_size(CK_MECHANISM_TYPE digest)
+{
+    for (int i = 0; digest_map[i].name != NULL; i++) {
+        if (digest_map[i].digest == digest) {
+            return digest_map[i].digest_size;
+        }
+    }
+    return 0;
+}
 
 static const char *p11prov_sig_digest_name(CK_MECHANISM_TYPE digest)
 {
@@ -891,6 +1038,36 @@ static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
         return RET_OSSL_OK;
     }
 
+    p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_ALGORITHM_ID);
+    if (p) {
+        const unsigned char *algid = NULL;
+        int len = 0;
+        CK_RV result;
+
+        switch (sigctx->mechtype) {
+        case CKM_RSA_PKCS:
+            result = p11prov_rsa_sig_algid(sigctx->digest, &algid, &len);
+            if (result != CKR_OK) {
+                return RET_OSSL_ERR;
+            }
+            break;
+        case CKM_RSA_X_509:
+            break;
+        case CKM_RSA_PKCS_PSS:
+            /* TODO */
+            break;
+        }
+
+        if (algid == NULL) {
+            return RET_OSSL_ERR;
+        }
+
+        ret = OSSL_PARAM_set_octet_string(p, algid, len);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+
     p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_DIGEST);
     if (p) {
         const char *digest = p11prov_sig_digest_name(sigctx->digest);
@@ -1064,6 +1241,7 @@ static const OSSL_PARAM *p11prov_rsasig_gettable_ctx_params(void *ctx,
                                                             void *prov)
 {
     static const OSSL_PARAM params[] = {
+        OSSL_PARAM_octet_string(OSSL_SIGNATURE_PARAM_ALGORITHM_ID, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_PAD_MODE, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_DIGEST, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_MGF1_DIGEST, NULL, 0),
@@ -1304,6 +1482,40 @@ static int p11prov_ecdsa_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     P11PROV_debug("ecdsa get ctx params (ctx=%p, params=%p)", ctx, params);
 
+    p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_ALGORITHM_ID);
+    if (p) {
+        const unsigned char *algid = NULL;
+        int len = 0;
+        CK_RV result;
+
+        switch (sigctx->mechtype) {
+        case CKM_ECDSA:
+            result = p11prov_ecdsa_sig_algid(sigctx->digest, &algid, &len);
+            if (result != CKR_OK) {
+                return RET_OSSL_ERR;
+            }
+            break;
+        }
+
+        if (algid == NULL) {
+            return RET_OSSL_ERR;
+        }
+
+        ret = OSSL_PARAM_set_octet_string(p, algid, len);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+
+    p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_DIGEST_SIZE);
+    if (p) {
+        size_t digest_size = p11prov_sig_digest_size(sigctx->digest);
+        ret = OSSL_PARAM_set_size_t(p, digest_size);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+
     p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_DIGEST);
     if (p) {
         const char *digest = p11prov_sig_digest_name(sigctx->digest);
@@ -1351,9 +1563,8 @@ static const OSSL_PARAM *p11prov_ecdsa_gettable_ctx_params(void *ctx,
                                                            void *prov)
 {
     static const OSSL_PARAM params[] = {
-        /*
         OSSL_PARAM_octet_string(OSSL_SIGNATURE_PARAM_ALGORITHM_ID, NULL, 0),
-         */
+        OSSL_PARAM_size_t(OSSL_SIGNATURE_PARAM_DIGEST_SIZE, NULL),
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_DIGEST, NULL, 0),
         OSSL_PARAM_END,
     };
