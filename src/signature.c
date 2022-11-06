@@ -630,17 +630,17 @@ static int p11prov_sig_digest_final(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
     int result = RET_OSSL_ERR;
     CK_RV ret;
 
-    if (!sigctx->session) {
-        return RET_OSSL_ERR;
-    }
-    sess = p11prov_session_handle(sigctx->session);
-
     if (sig == NULL) {
         if (sigctx->operation == CKF_VERIFY) {
             return RET_OSSL_ERR;
         }
         return p11prov_sig_get_sig_size(sigctx, siglen);
     }
+
+    if (!sigctx->session) {
+        return RET_OSSL_ERR;
+    }
+    sess = p11prov_session_handle(sigctx->session);
 
     ret = p11prov_ctx_status(sigctx->provctx, &f);
     if (ret != CKR_OK) {
