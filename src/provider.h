@@ -343,4 +343,8 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                           CK_SLOT_ID *next_slotid, P11PROV_URI *uri,
                           OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg,
                           bool reqlogin, bool rw, P11PROV_SESSION **session);
+
+/* TLS */
+int tls_group_capabilities(OSSL_CALLBACK *cb, void *arg);
+
 #endif /* _PROVIDER_H */

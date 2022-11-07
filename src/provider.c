@@ -763,9 +763,13 @@ p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
 static int p11prov_get_capabilities(void *provctx, const char *capability,
                                     OSSL_CALLBACK *cb, void *arg)
 {
-    /* TODO: deal with TLS-GROUP */
+    int ret = RET_OSSL_OK;
 
-    return RET_OSSL_ERR;
+    if (OPENSSL_strcasecmp(capability, "TLS-GROUP") == 0) {
+        ret = tls_group_capabilities(cb, arg);
+    }
+
+    return ret;
 }
 
 static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
