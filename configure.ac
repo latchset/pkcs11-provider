@@ -42,7 +42,7 @@ AC_SUBST([STD_CFLAGS])
 # Checks for libraries.
 PKG_CHECK_MODULES(
 	[OPENSSL],
-	[libcrypto >= 3.0.5],
+	[libcrypto >= 3.0.5, libssl],
 	,
 	[AC_MSG_ERROR([libcrypto >= 3.0.5 is required])]
 )
