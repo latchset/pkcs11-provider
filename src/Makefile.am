@@ -24,6 +24,7 @@ pkcs11_provider_la_SOURCES = \
 	session.c \
 	signature.c \
 	store.c \
+	tls.c \
 	util.c \
 	provider.exports \
 	$(NULL)
