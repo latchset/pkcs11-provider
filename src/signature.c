@@ -917,8 +917,8 @@ static int p11prov_rsasig_digest_sign_init(void *ctx, const char *digest,
 {
     int ret;
 
-    P11PROV_debug("rsa digest sign init (ctx=%p, key=%p, params=%p)", ctx,
-                  provkey, params);
+    P11PROV_debug("rsa digest sign init (ctx=%p, digest=%s, key=%p, params=%p)",
+                  ctx, digest ? digest : "<NULL>", provkey, params);
 
     ret = p11prov_sig_op_init(ctx, provkey, CKF_SIGN, digest, params);
     if (ret != RET_OSSL_OK) {
@@ -1130,6 +1130,7 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         if (ret != RET_OSSL_OK) {
             return ret;
         }
+        P11PROV_debug("Set OSSL_SIGNATURE_PARAM_DIGEST to %s", digest);
 
         sigctx->digest = p11prov_sig_map_digest(digest);
         if (sigctx->digest == CK_UNAVAILABLE_INFORMATION) {
@@ -1148,6 +1149,7 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
             if (ret != RET_OSSL_OK) {
                 return ret;
             }
+            P11PROV_debug("Set OSSL_SIGNATURE_PARAM_PAD_MODE to %d", pad_mode);
             for (int i = 0; padding_map[i].string != NULL; i++) {
                 if (padding_map[i].ossl_id == pad_mode) {
                     mechtype = padding_map[i].type;
@@ -1155,6 +1157,8 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
                 }
             }
         } else if (p->data_type == OSSL_PARAM_UTF8_STRING) {
+            P11PROV_debug("Set OSSL_SIGNATURE_PARAM_PAD_MODE to %s",
+                          p->data ? (const char *)p->data : "<NULL>");
             if (p->data) {
                 for (int i = 0; padding_map[i].string != NULL; i++) {
                     if (strcmp(p->data, padding_map[i].string) == 0) {
@@ -1191,8 +1195,12 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
             if (ret != RET_OSSL_OK) {
                 return ret;
             }
+            P11PROV_debug("Set OSSL_SIGNATURE_PARAM_PSS_SALTLEN to %d",
+                          saltlen);
             sigctx->pss_params.sLen = saltlen;
         } else if (p->data_type == OSSL_PARAM_UTF8_STRING) {
+            P11PROV_debug("Set OSSL_SIGNATURE_PARAM_PSS_SALTLEN to %s",
+                          p->data ? (const char *)p->data : "<NULL>");
             if (strcmp(p->data, OSSL_PKEY_RSA_PSS_SALT_LEN_DIGEST) == 0) {
                 ret = p11prov_rsasig_set_pss_saltlen_from_digest(sigctx);
                 if (ret != RET_OSSL_OK) {
@@ -1226,6 +1234,7 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         if (ret != RET_OSSL_OK) {
             return ret;
         }
+        P11PROV_debug("Set OSSL_SIGNATURE_PARAM_MGF1_DIGEST to %s", digest);
 
         sigctx->pss_params.mgf = p11prov_sig_map_mgf(digest);
         if (sigctx->pss_params.mgf == CK_UNAVAILABLE_INFORMATION) {
@@ -1377,8 +1386,9 @@ static int p11prov_ecdsa_digest_sign_init(void *ctx, const char *digest,
 {
     int ret;
 
-    P11PROV_debug("ecdsa digest sign init (ctx=%p, key=%p, params=%p)", ctx,
-                  provkey, params);
+    P11PROV_debug(
+        "ecdsa digest sign init (ctx=%p, digest=%s, key=%p, params=%p)", ctx,
+        digest ? digest : "<NULL>", provkey, params);
 
     ret = p11prov_sig_op_init(ctx, provkey, CKF_SIGN, digest, params);
     if (ret != RET_OSSL_OK) {
@@ -1548,6 +1558,7 @@ static int p11prov_ecdsa_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         if (ret != RET_OSSL_OK) {
             return ret;
         }
+        P11PROV_debug("Set OSSL_SIGNATURE_PARAM_DIGEST to %s", digest);
 
         sigctx->digest = p11prov_sig_map_digest(digest);
         if (sigctx->digest == CK_UNAVAILABLE_INFORMATION) {
