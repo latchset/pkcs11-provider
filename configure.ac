@@ -54,6 +54,11 @@ PKG_CHECK_EXISTS([p11-kit-1],
                                 [p11-kit-1],
                                 [proxy_module])],
                  [AC_MSG_WARN([The P11-kit proxy is not available. No fallback PKCS11 module used.])])
+if test "x$DEFAULT_PKCS11_MODULE" != "x"; then
+    AC_DEFINE_UNQUOTED([DEFAULT_PKCS11_MODULE], "$DEFAULT_PKCS11_MODULE",
+              [Default PKCS11 module])
+fi
+
 
 # Try nss-softoken first as used on Fedora,
 # fallback to "nss" as used on Debian
