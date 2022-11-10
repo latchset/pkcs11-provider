@@ -515,11 +515,9 @@ static int p11prov_rsa_has(const void *keydata, int selection)
         }
     }
 
-    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        if (p11prov_object_get_class(obj) != CKO_PUBLIC_KEY) {
-            return RET_OSSL_ERR;
-        }
-    }
+    /* We always return OK when asked for a PUBLIC KEY, even if we only have a
+     * private key, as we can try to fetch the associated public key as needed
+     * if asked for an export (main reason to do this), or other operations */
 
     return RET_OSSL_OK;
 }
@@ -530,6 +528,9 @@ static int p11prov_rsa_import(void *keydata, int selection,
     P11PROV_debug("rsa import %p", keydata);
     return RET_OSSL_ERR;
 }
+
+#define PUBLIC_PARAMS \
+    OSSL_KEYMGMT_SELECT_PUBLIC_KEY | OSSL_KEYMGMT_SELECT_ALL_PARAMETERS
 
 static int p11prov_rsa_export(void *keydata, int selection,
                               OSSL_CALLBACK *cb_fn, void *cb_arg)
@@ -543,7 +544,7 @@ static int p11prov_rsa_export(void *keydata, int selection,
     }
 
     /* if anything else is asked for we can't provide it, so be strict */
-    if (selection == OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+    if ((selection & ~(PUBLIC_PARAMS)) == 0) {
         return p11prov_object_export_public_rsa_key(obj, cb_fn, cb_arg);
     }
 
@@ -949,11 +950,9 @@ static int p11prov_ec_has(const void *keydata, int selection)
         }
     }
 
-    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        if (p11prov_object_get_class(obj) != CKO_PUBLIC_KEY) {
-            return RET_OSSL_ERR;
-        }
-    }
+    /* We always return OK when asked for a PUBLIC KEY, even if we only have a
+     * private key, as we can try to fetch the associated public key as needed
+     * if asked for an export (main reason to do this), or other operations */
 
     return RET_OSSL_OK;
 }
@@ -973,16 +972,14 @@ static int p11prov_ec_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
     P11PROV_debug("ec export %p", keydata);
 
     if (obj == NULL) {
-        return RET_OSSL_ERR;
-    }
-
-    /* if anything else is asked for we can't provide it, so be strict */
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        return RET_OSSL_ERR;
     }
 
     /* this will return the public EC_POINT as well as DOMAIN_PARAMTERS */
-    return p11prov_object_export_public_ec_key(obj, cb_fn, cb_arg);
+    if ((selection & ~(PUBLIC_PARAMS)) == 0) {
+        return p11prov_object_export_public_ec_key(obj, cb_fn, cb_arg);
+    }
+
+    return RET_OSSL_ERR;
 }
 
 static const OSSL_PARAM p11prov_ec_key_types[] = {
