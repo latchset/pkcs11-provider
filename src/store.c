@@ -98,7 +98,7 @@ P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj)
  * Src and Dest, can be the same area, but not partially
  * overlapping memory areas */
 
-#if BYTE_ORDER == LITTLE_ENDIAN
+#if __BYTE_ORDER == __LITTLE_ENDIAN
 #define WITH_FIXED_BUFFER(src, ptr) \
     unsigned char fix_##src[src->ulValueLen]; \
     byteswap_buf(src->pValue, fix_##src, src->ulValueLen); \
