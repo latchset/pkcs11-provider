@@ -972,6 +972,7 @@ static int p11prov_ec_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
     P11PROV_debug("ec export %p", keydata);
 
     if (obj == NULL) {
+        return RET_OSSL_ERR;
     }
 
     /* this will return the public EC_POINT as well as DOMAIN_PARAMTERS */
