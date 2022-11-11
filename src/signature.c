@@ -3,6 +3,7 @@
 
 #include "provider.h"
 #include <string.h>
+#include "openssl/evp.h"
 #include "openssl/rsa.h"
 #include "openssl/sha.h"
 
@@ -273,35 +274,34 @@ const unsigned char der_ecdsa_sha3_224[] = { DER_SEQ_ECDSA_SHA3_224 };
 
 #define DM_ELEM_SHA(bits) \
     { \
-        .name = "SHA" #bits, .digest = CKM_SHA##bits, \
+        .evp_md = EVP_sha##bits, .digest = CKM_SHA##bits, \
         .pkcs_mech = CKM_SHA##bits##_RSA_PKCS, \
         .pkcs_pss = CKM_SHA##bits##_RSA_PKCS_PSS, \
         .ecdsa_mech = CKM_ECDSA_SHA##bits, .mgf = CKG_MGF1_SHA##bits, \
-        .digest_size = bits / 8, .der_rsa_algorithm_id = der_rsa_sha##bits, \
+        .der_rsa_algorithm_id = der_rsa_sha##bits, \
         .der_rsa_algorithm_id_len = sizeof(der_rsa_sha##bits), \
         .der_ecdsa_algorithm_id = der_ecdsa_sha##bits, \
         .der_ecdsa_algorithm_id_len = sizeof(der_ecdsa_sha##bits), \
     }
 #define DM_ELEM_SHA3(bits) \
     { \
-        .name = "SHA3-" #bits, .digest = CKM_SHA3_##bits, \
+        .evp_md = EVP_sha3_##bits, .digest = CKM_SHA3_##bits, \
         .pkcs_mech = CKM_SHA3_##bits##_RSA_PKCS, \
         .pkcs_pss = CKM_SHA3_##bits##_RSA_PKCS_PSS, \
         .ecdsa_mech = CKM_ECDSA_SHA3_##bits, .mgf = CKG_MGF1_SHA3_##bits, \
-        .digest_size = bits / 8, .der_rsa_algorithm_id = der_rsa_sha3_##bits, \
+        .der_rsa_algorithm_id = der_rsa_sha3_##bits, \
         .der_rsa_algorithm_id_len = sizeof(der_rsa_sha3_##bits), \
         .der_ecdsa_algorithm_id = der_ecdsa_sha3_##bits, \
         .der_ecdsa_algorithm_id_len = sizeof(der_ecdsa_sha3_##bits), \
     }
 /* only the ones we can support */
-static struct {
-    const char *name;
+struct {
+    const EVP_MD *(*evp_md)(void);
     CK_MECHANISM_TYPE digest;
     CK_MECHANISM_TYPE pkcs_mech;
     CK_MECHANISM_TYPE pkcs_pss;
     CK_MECHANISM_TYPE ecdsa_mech;
     CK_RSA_PKCS_MGF_TYPE mgf;
-    int digest_size;
     const unsigned char *der_rsa_algorithm_id;
     int der_rsa_algorithm_id_len;
     const unsigned char *der_ecdsa_algorithm_id;
@@ -315,16 +315,16 @@ static struct {
     DM_ELEM_SHA(512),
     DM_ELEM_SHA(384),
     DM_ELEM_SHA(224),
-    { "SHA1", CKM_SHA_1, CKM_SHA1_RSA_PKCS, CKM_SHA1_RSA_PKCS_PSS,
-      CKM_ECDSA_SHA1, CKG_MGF1_SHA1, 20, der_rsa_sha1, sizeof(der_rsa_sha1),
+    { EVP_sha1, CKM_SHA_1, CKM_SHA1_RSA_PKCS, CKM_SHA1_RSA_PKCS_PSS,
+      CKM_ECDSA_SHA1, CKG_MGF1_SHA1, der_rsa_sha1, sizeof(der_rsa_sha1),
       der_ecdsa_sha1, sizeof(der_ecdsa_sha1) },
-    { NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
 static CK_RV p11prov_rsa_sig_algid(CK_MECHANISM_TYPE digest,
                                    const unsigned char **algid, int *len)
 {
-    for (int i = 0; digest_map[i].name != NULL; i++) {
+    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
         if (digest_map[i].digest == digest) {
             *algid = digest_map[i].der_rsa_algorithm_id;
             *len = digest_map[i].der_rsa_algorithm_id_len;
@@ -337,7 +337,7 @@ static CK_RV p11prov_rsa_sig_algid(CK_MECHANISM_TYPE digest,
 static CK_RV p11prov_ecdsa_sig_algid(CK_MECHANISM_TYPE digest,
                                      const unsigned char **algid, int *len)
 {
-    for (int i = 0; digest_map[i].name != NULL; i++) {
+    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
         if (digest_map[i].digest == digest) {
             *algid = digest_map[i].der_ecdsa_algorithm_id;
             *len = digest_map[i].der_ecdsa_algorithm_id_len;
@@ -349,9 +349,9 @@ static CK_RV p11prov_ecdsa_sig_algid(CK_MECHANISM_TYPE digest,
 
 static int p11prov_sig_digest_size(CK_MECHANISM_TYPE digest)
 {
-    for (int i = 0; digest_map[i].name != NULL; i++) {
+    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
         if (digest_map[i].digest == digest) {
-            return digest_map[i].digest_size;
+            return EVP_MD_get_size(digest_map[i].evp_md());
         }
     }
     return 0;
@@ -359,9 +359,9 @@ static int p11prov_sig_digest_size(CK_MECHANISM_TYPE digest)
 
 static const char *p11prov_sig_digest_name(CK_MECHANISM_TYPE digest)
 {
-    for (int i = 0; digest_map[i].name != NULL; i++) {
+    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
         if (digest_map[i].digest == digest) {
-            return digest_map[i].name;
+            return EVP_MD_get0_name(digest_map[i].evp_md());
         }
     }
     return "";
@@ -369,9 +369,9 @@ static const char *p11prov_sig_digest_name(CK_MECHANISM_TYPE digest)
 
 static const char *p11prov_sig_mgf_name(CK_RSA_PKCS_MGF_TYPE mgf)
 {
-    for (int i = 0; digest_map[i].name != NULL; i++) {
+    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
         if (digest_map[i].mgf == mgf) {
-            return digest_map[i].name;
+            return EVP_MD_get0_name(digest_map[i].evp_md());
         }
     }
     return "";
@@ -379,9 +379,8 @@ static const char *p11prov_sig_mgf_name(CK_RSA_PKCS_MGF_TYPE mgf)
 
 static CK_RSA_PKCS_MGF_TYPE p11prov_sig_map_mgf(const char *digest)
 {
-    for (int i = 0; digest_map[i].name != NULL; i++) {
-        /* hate to strcasecmp but openssl forces us to */
-        if (OPENSSL_strcasecmp(digest, digest_map[i].name) == 0) {
+    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
+        if (EVP_MD_is_a(digest_map[i].evp_md(), digest) == RET_OSSL_OK) {
             return digest_map[i].mgf;
         }
     }
@@ -390,9 +389,8 @@ static CK_RSA_PKCS_MGF_TYPE p11prov_sig_map_mgf(const char *digest)
 
 static CK_MECHANISM_TYPE p11prov_sig_map_digest(const char *digest)
 {
-    for (int i = 0; digest_map[i].name != NULL; i++) {
-        /* hate to strcasecmp but openssl forces us to */
-        if (OPENSSL_strcasecmp(digest, digest_map[i].name) == 0) {
+    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
+        if (EVP_MD_is_a(digest_map[i].evp_md(), digest) == RET_OSSL_OK) {
             return digest_map[i].digest;
         }
     }
@@ -454,7 +452,7 @@ static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
 
     switch (sigctx->mechtype) {
     case CKM_RSA_PKCS:
-        for (int i = 0; digest_map[i].name != NULL; i++) {
+        for (int i = 0; digest_map[i].evp_md != NULL; i++) {
             if (sigctx->digest == digest_map[i].digest) {
                 mechanism->mechanism = digest_map[i].pkcs_mech;
                 result = CKR_OK;
@@ -467,7 +465,7 @@ static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
     case CKM_RSA_PKCS_PSS:
         mechanism->pParameter = &sigctx->pss_params;
         mechanism->ulParameterLen = sizeof(sigctx->pss_params);
-        for (int i = 0; digest_map[i].name != NULL; i++) {
+        for (int i = 0; digest_map[i].evp_md != NULL; i++) {
             if (sigctx->digest == digest_map[i].digest) {
                 mechanism->mechanism = digest_map[i].pkcs_pss;
                 result = CKR_OK;
@@ -479,7 +477,7 @@ static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
         }
         break;
     case CKM_ECDSA:
-        for (int i = 0; digest_map[i].name != NULL; i++) {
+        for (int i = 0; digest_map[i].evp_md != NULL; i++) {
             if (sigctx->digest == digest_map[i].digest) {
                 mechanism->mechanism = digest_map[i].ecdsa_mech;
                 result = CKR_OK;
@@ -532,9 +530,9 @@ static int p11prov_rsasig_set_pss_saltlen_from_digest(void *ctx)
                        "Can only be set if Digest was set first.");
         return RET_OSSL_ERR;
     }
-    for (int i = 0; digest_map[i].name != NULL; i++) {
+    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
         if (sigctx->digest == digest_map[i].digest) {
-            sigctx->pss_params.sLen = digest_map[i].digest_size;
+            sigctx->pss_params.sLen = EVP_MD_get_size(digest_map[i].evp_md());
             return RET_OSSL_OK;
         }
     }
