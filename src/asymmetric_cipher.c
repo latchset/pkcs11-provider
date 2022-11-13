@@ -334,59 +334,46 @@ static struct {
 
 /* only the ones we can support */
 static struct {
-    const char *name;
     CK_MECHANISM_TYPE digest;
     CK_RSA_PKCS_MGF_TYPE mgf;
-} digest_map[] = {
-    { "SHA3-512", CKM_SHA3_512, CKG_MGF1_SHA3_512 },
-    { "SHA3-384", CKM_SHA3_384, CKG_MGF1_SHA3_384 },
-    { "SHA3-256", CKM_SHA3_256, CKG_MGF1_SHA3_256 },
-    { "SHA3-224", CKM_SHA3_224, CKG_MGF1_SHA3_224 },
-    { "SHA512", CKM_SHA512, CKG_MGF1_SHA512 },
-    { "SHA384", CKM_SHA384, CKG_MGF1_SHA384 },
-    { "SHA256", CKM_SHA256, CKG_MGF1_SHA256 },
-    { "SHA224", CKM_SHA224, CKG_MGF1_SHA224 },
-    { "SHA1", CKM_SHA_1, CKG_MGF1_SHA1 },
-    { NULL, 0, 0 },
+} mfg_map[] = {
+    { CKM_SHA3_512, CKG_MGF1_SHA3_512 }, { CKM_SHA3_384, CKG_MGF1_SHA3_384 },
+    { CKM_SHA3_256, CKG_MGF1_SHA3_256 }, { CKM_SHA3_224, CKG_MGF1_SHA3_224 },
+    { CKM_SHA512, CKG_MGF1_SHA512 },     { CKM_SHA384, CKG_MGF1_SHA384 },
+    { CKM_SHA256, CKG_MGF1_SHA256 },     { CKM_SHA224, CKG_MGF1_SHA224 },
+    { CKM_SHA_1, CKG_MGF1_SHA1 },        { CK_UNAVAILABLE_INFORMATION, 0 },
 };
-
-static const char *p11prov_rsaenc_digest_name(CK_MECHANISM_TYPE digest)
-{
-    for (int i = 0; digest_map[i].name != NULL; i++) {
-        if (digest_map[i].digest == digest) {
-            return digest_map[i].name;
-        }
-    }
-    return "";
-}
 
 static const char *p11prov_rsaenc_mgf_name(CK_RSA_PKCS_MGF_TYPE mgf)
 {
-    for (int i = 0; digest_map[i].name != NULL; i++) {
-        if (digest_map[i].mgf == mgf) {
-            return digest_map[i].name;
+    for (int i = 0; mfg_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
+        if (mfg_map[i].mgf == mgf) {
+            const char *name;
+            CK_RV rv;
+
+            rv = p11prov_digest_get_name(mfg_map[i].digest, &name);
+            if (rv != CKR_OK) {
+                return NULL;
+            }
+            return name;
         }
     }
-    return "";
+    return NULL;
 }
 
-static CK_MECHANISM_TYPE p11prov_rsaenc_map_digest(const char *digest)
+static CK_RSA_PKCS_MGF_TYPE p11prov_rsaenc_map_mgf(const char *digest_name)
 {
-    for (int i = 0; digest_map[i].name != NULL; i++) {
-        /* hate to strcasecmp but openssl forces us to */
-        if (OPENSSL_strcasecmp(digest, digest_map[i].name) == 0) {
-            return digest_map[i].digest;
-        }
+    CK_MECHANISM_TYPE digest;
+    CK_RV rv;
+
+    rv = p11prov_digest_get_by_name(digest_name, &digest);
+    if (rv != CKR_OK) {
+        return CK_UNAVAILABLE_INFORMATION;
     }
-    return CK_UNAVAILABLE_INFORMATION;
-}
 
-static CK_RSA_PKCS_MGF_TYPE p11prov_rsaenc_map_mgf(const char *digest)
-{
-    for (int i = 0; digest_map[i].name != NULL; i++) {
-        /* hate to strcasecmp but openssl forces us to */
-        if (OPENSSL_strcasecmp(digest, digest_map[i].name) == 0) {
-            return digest_map[i].mgf;
+    for (int i = 0; mfg_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
+        if (mfg_map[i].digest == digest) {
+            return mfg_map[i].mgf;
         }
     }
     return CK_UNAVAILABLE_INFORMATION;
@@ -427,8 +414,14 @@ static int p11prov_rsaenc_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p = OSSL_PARAM_locate(params, OSSL_ASYM_CIPHER_PARAM_OAEP_DIGEST);
     if (p) {
-        ret = OSSL_PARAM_set_utf8_string(
-            p, p11prov_rsaenc_digest_name(encctx->oaep_params.hashAlg));
+        const char *digest;
+        CK_RV rv;
+
+        rv = p11prov_digest_get_name(encctx->oaep_params.hashAlg, &digest);
+        if (rv != CKR_OK) {
+            return RET_OSSL_ERR;
+        }
+        ret = OSSL_PARAM_set_utf8_string(p, digest);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
@@ -436,8 +429,13 @@ static int p11prov_rsaenc_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p = OSSL_PARAM_locate(params, OSSL_ASYM_CIPHER_PARAM_MGF1_DIGEST);
     if (p) {
-        ret = OSSL_PARAM_set_utf8_string(
-            p, p11prov_rsaenc_mgf_name(encctx->oaep_params.mgf));
+        const char *name;
+
+        name = p11prov_rsaenc_mgf_name(encctx->oaep_params.mgf);
+        if (!name) {
+            return RET_OSSL_ERR;
+        }
+        ret = OSSL_PARAM_set_utf8_string(p, name);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
@@ -509,13 +507,15 @@ static int p11prov_rsaenc_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     if (p) {
         char digest[256];
         char *ptr = digest;
+        CK_RV rv;
+
         ret = OSSL_PARAM_get_utf8_string(p, &ptr, 256);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
 
-        encctx->oaep_params.hashAlg = p11prov_rsaenc_map_digest(digest);
-        if (encctx->oaep_params.hashAlg == CK_UNAVAILABLE_INFORMATION) {
+        rv = p11prov_digest_get_by_name(digest, &encctx->oaep_params.hashAlg);
+        if (rv != CKR_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
