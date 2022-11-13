@@ -255,4 +255,19 @@ if [ "$TEST_ECC_SHA2" = "1" ]; then
     req -new -batch -key "${ECPRIURI}" -out ${TMPPDIR}/ecdsa_csr.pem'
 fi
 
+title PARA "Test Digests"
+# Due to what seems a bug (https://github.com/openssl/openssl/issues/19662)
+# inOpenSSL 3.x, using openssl dgst is not very useful, so we just test one
+# common digest and defer to a custom test for digests until we have a fix.
+dgst="sha256"
+ossl 'dgst -${dgst} -out ${TMPPDIR}/dgst-${dgst}.ossl.txt ${TMPPDIR}/64krandom.bin'
+ossl 'dgst -${dgst} -provider=pkcs11 -propquery "provider=pkcs11" -out ${TMPPDIR}/dgst-${dgst}.prov.txt ${TMPPDIR}/64krandom.bin'
+OSSL_DGST=`cat ${TMPPDIR}/dgst-${dgst}.ossl.txt | cut -d= -f2`
+PROV_DGST=`cat ${TMPPDIR}/dgst-${dgst}.prov.txt | cut -d= -f2`
+if [ "${OSSL_DGST}" != "${PROV_DGST}" ]; then
+    echo "${dgst} digest produced with provider does not match openssl produced one"
+    echo "${PROV_DGST} != ${OSSL_DGST}"
+    exit 1
+fi
+
 exit 0
