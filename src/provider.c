@@ -37,6 +37,7 @@ struct p11prov_ctx {
     int nslots;
     struct p11prov_slot *slots;
 
+    OSSL_ALGORITHM *op_digest;
     OSSL_ALGORITHM *op_kdf;
     OSSL_ALGORITHM *op_keymgmt;
     OSSL_ALGORITHM *op_exchange;
@@ -481,7 +482,7 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
                  p11prov_##name##_##operation##_functions)
 
 #define TERM_ALGO(operation) \
-    do { \
+    if (operation##_idx > 0) { \
         CK_RV alg_ret; \
         OSSL_ALGORITHM alg = { NULL, NULL, NULL, NULL }; \
         alg_ret = alg_set_op(&ctx->op_##operation, operation##_idx, &alg); \
@@ -489,7 +490,12 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
             P11PROV_raise(ctx, alg_ret, "Failed to terminate mech algo"); \
             return RET_OSSL_ERR; \
         } \
-    } while (0);
+    } \
+    operation##_idx = 0
+
+#define DIGEST_MECHS \
+    CKM_SHA_1, CKM_SHA224, CKM_SHA256, CKM_SHA384, CKM_SHA512, CKM_SHA512_224, \
+        CKM_SHA512_256, CKM_SHA3_224, CKM_SHA3_256, CKM_SHA3_384, CKM_SHA3_512
 
 #define RSA_SIG_MECHS \
     CKM_RSA_PKCS, CKM_SHA1_RSA_PKCS, CKM_SHA224_RSA_PKCS, CKM_SHA256_RSA_PKCS, \
@@ -542,15 +548,13 @@ static void alg_rm_mechs(CK_ULONG *checklist, CK_ULONG *rmlist, int *clsize,
 
 static int p11prov_operations_init(P11PROV_CTX *ctx)
 {
-    CK_ULONG checklist[] = { CKM_RSA_PKCS_KEY_PAIR_GEN,
-                             RSA_SIG_MECHS,
-                             RSAPSS_SIG_MECHS,
-                             RSA_ENC_MECHS,
-                             CKM_EC_KEY_PAIR_GEN,
-                             ECDSA_SIG_MECHS,
-                             CKM_ECDH1_DERIVE,
-                             CKM_ECDH1_COFACTOR_DERIVE,
-                             CKM_HKDF_DERIVE };
+    CK_ULONG checklist[] = {
+        CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_SIG_MECHS,
+        RSAPSS_SIG_MECHS,          RSA_ENC_MECHS,
+        CKM_EC_KEY_PAIR_GEN,       ECDSA_SIG_MECHS,
+        CKM_ECDH1_DERIVE,          CKM_ECDH1_COFACTOR_DERIVE,
+        CKM_HKDF_DERIVE,           DIGEST_MECHS
+    };
     bool add_rsasig = false;
     bool add_rsaenc = false;
     bool keymgmt_rsa = false;
@@ -558,6 +562,7 @@ static int p11prov_operations_init(P11PROV_CTX *ctx)
     bool keymgmt_ec = false;
     bool keymgmt_hkdf = false;
     int cl_size = sizeof(checklist) / sizeof(CK_ULONG);
+    int digest_idx = 0;
     int kdf_idx = 0;
     int keymgmt_idx = 0;
     int exchange_idx = 0;
@@ -579,10 +584,9 @@ static int p11prov_operations_init(P11PROV_CTX *ctx)
                     break;
                 }
             }
-            if (mech == CK_UNAVAILABLE_INFORMATION) {
-                continue;
-            }
             switch (mech) {
+            case CK_UNAVAILABLE_INFORMATION:
+                continue;
             case CKM_RSA_PKCS_KEY_PAIR_GEN:
                 keymgmt_rsa = true;
                 UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN);
@@ -659,6 +663,50 @@ static int p11prov_operations_init(P11PROV_CTX *ctx)
                 ADD_ALGO(HKDF, hkdf, exchange);
                 UNCHECK_MECHS(CKM_HKDF_DERIVE);
                 break;
+            case CKM_SHA_1:
+                ADD_ALGO(SHA1, sha1, digest);
+                UNCHECK_MECHS(CKM_SHA_1);
+                break;
+            case CKM_SHA224:
+                ADD_ALGO(SHA2_224, sha224, digest);
+                UNCHECK_MECHS(CKM_SHA224);
+                break;
+            case CKM_SHA256:
+                ADD_ALGO(SHA2_256, sha256, digest);
+                UNCHECK_MECHS(CKM_SHA256);
+                break;
+            case CKM_SHA384:
+                ADD_ALGO(SHA2_384, sha384, digest);
+                UNCHECK_MECHS(CKM_SHA384);
+                break;
+            case CKM_SHA512:
+                ADD_ALGO(SHA2_512, sha512, digest);
+                UNCHECK_MECHS(CKM_SHA512);
+                break;
+            case CKM_SHA512_224:
+                ADD_ALGO(SHA2_512_224, sha512_224, digest);
+                UNCHECK_MECHS(CKM_SHA512_224);
+                break;
+            case CKM_SHA512_256:
+                ADD_ALGO(SHA2_512_256, sha512_256, digest);
+                UNCHECK_MECHS(CKM_SHA512_256);
+                break;
+            case CKM_SHA3_224:
+                ADD_ALGO(SHA3_224, sha3_224, digest);
+                UNCHECK_MECHS(CKM_SHA3_224);
+                break;
+            case CKM_SHA3_256:
+                ADD_ALGO(SHA3_256, sha3_256, digest);
+                UNCHECK_MECHS(CKM_SHA3_256);
+                break;
+            case CKM_SHA3_384:
+                ADD_ALGO(SHA3_384, sha3_384, digest);
+                UNCHECK_MECHS(CKM_SHA3_384);
+                break;
+            case CKM_SHA3_512:
+                ADD_ALGO(SHA3_512, sha3_512, digest);
+                UNCHECK_MECHS(CKM_SHA3_512);
+                break;
             default:
                 P11PROV_raise(ctx, CKR_GENERAL_ERROR,
                               "Unhandled mechianism %lu", mech);
@@ -688,21 +736,12 @@ static int p11prov_operations_init(P11PROV_CTX *ctx)
         ADD_ALGO(RSA, rsa, asym_cipher);
     }
     /* terminations */
-    if (kdf_idx > 0) {
-        TERM_ALGO(kdf);
-    }
-    if (keymgmt_idx > 0) {
-        TERM_ALGO(keymgmt);
-    }
-    if (exchange_idx > 0) {
-        TERM_ALGO(exchange);
-    }
-    if (signature_idx > 0) {
-        TERM_ALGO(signature);
-    }
-    if (asym_cipher_idx > 0) {
-        TERM_ALGO(asym_cipher);
-    }
+    TERM_ALGO(digest);
+    TERM_ALGO(kdf);
+    TERM_ALGO(keymgmt);
+    TERM_ALGO(exchange);
+    TERM_ALGO(signature);
+    TERM_ALGO(asym_cipher);
 
     /* encoder/decoder */
     ADD_ALGO_EXT(RSA, encoder, "provider=pkcs11,output=text",
@@ -742,6 +781,8 @@ p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
     P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
     *no_cache = 0;
     switch (operation_id) {
+    case OSSL_OP_DIGEST:
+        return ctx->op_digest;
     case OSSL_OP_KDF:
         return ctx->op_kdf;
     case OSSL_OP_KEYMGMT:

@@ -10,6 +10,7 @@ pkcs11_provider_la_SOURCES = \
 	asymmetric_cipher.c \
 	debug.c \
 	encoder.c \
+	digests.c \
 	exchange.c \
 	kdf.c \
 	keymgmt.c \
