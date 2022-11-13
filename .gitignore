@@ -3,6 +3,7 @@ tests/openssl.cnf
 tests/openssl.cnf.softhsm
 tests/tmp.softhsm
 tests/tmp.softokn
+tests/tdigests
 tests/tsession
 tests/tgenkey
 tests/ttls

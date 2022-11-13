@@ -4,7 +4,7 @@ noinst_DATA = openssl.cnf
 libtoollibs=@abs_top_builddir@/src/.libs
 testsdir=@abs_top_builddir@/tests
 
-check_PROGRAMS = tsession tgenkey ttls
+check_PROGRAMS = tsession tgenkey ttls tdigests
 
 tsession_SOURCES = tsession.c
 tsession_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
@@ -18,9 +18,15 @@ ttls_SOURCES = ttls.c
 ttls_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
 ttls_LDADD = $(OPENSSL_LIBS)
 
+tdigests_SOURCES = tdigests.c
+tdigests_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
+tdigests_LDADD = $(OPENSSL_LIBS)
+
 dist_check_SCRIPTS = \
 	test-genkey-softhsm.sh \
 	test-genkey-softokn.sh \
+	test-digests-softhsm.sh \
+	test-digests-softokn.sh \
 	test-softhsm.sh \
 	test-softokn.sh
 
