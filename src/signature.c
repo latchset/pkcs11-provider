@@ -274,8 +274,7 @@ const unsigned char der_ecdsa_sha3_224[] = { DER_SEQ_ECDSA_SHA3_224 };
 
 #define DM_ELEM_SHA(bits) \
     { \
-        .evp_md = EVP_sha##bits, .digest = CKM_SHA##bits, \
-        .pkcs_mech = CKM_SHA##bits##_RSA_PKCS, \
+        .digest = CKM_SHA##bits, .pkcs_mech = CKM_SHA##bits##_RSA_PKCS, \
         .pkcs_pss = CKM_SHA##bits##_RSA_PKCS_PSS, \
         .ecdsa_mech = CKM_ECDSA_SHA##bits, .mgf = CKG_MGF1_SHA##bits, \
         .der_rsa_algorithm_id = der_rsa_sha##bits, \
@@ -285,8 +284,7 @@ const unsigned char der_ecdsa_sha3_224[] = { DER_SEQ_ECDSA_SHA3_224 };
     }
 #define DM_ELEM_SHA3(bits) \
     { \
-        .evp_md = EVP_sha3_##bits, .digest = CKM_SHA3_##bits, \
-        .pkcs_mech = CKM_SHA3_##bits##_RSA_PKCS, \
+        .digest = CKM_SHA3_##bits, .pkcs_mech = CKM_SHA3_##bits##_RSA_PKCS, \
         .pkcs_pss = CKM_SHA3_##bits##_RSA_PKCS_PSS, \
         .ecdsa_mech = CKM_ECDSA_SHA3_##bits, .mgf = CKG_MGF1_SHA3_##bits, \
         .der_rsa_algorithm_id = der_rsa_sha3_##bits, \
@@ -296,7 +294,6 @@ const unsigned char der_ecdsa_sha3_224[] = { DER_SEQ_ECDSA_SHA3_224 };
     }
 /* only the ones we can support */
 struct {
-    const EVP_MD *(*evp_md)(void);
     CK_MECHANISM_TYPE digest;
     CK_MECHANISM_TYPE pkcs_mech;
     CK_MECHANISM_TYPE pkcs_pss;
@@ -306,7 +303,7 @@ struct {
     int der_rsa_algorithm_id_len;
     const unsigned char *der_ecdsa_algorithm_id;
     int der_ecdsa_algorithm_id_len;
-} digest_map[] = {
+} mech_map[] = {
     DM_ELEM_SHA3(256),
     DM_ELEM_SHA3(512),
     DM_ELEM_SHA3(384),
@@ -315,19 +312,19 @@ struct {
     DM_ELEM_SHA(512),
     DM_ELEM_SHA(384),
     DM_ELEM_SHA(224),
-    { EVP_sha1, CKM_SHA_1, CKM_SHA1_RSA_PKCS, CKM_SHA1_RSA_PKCS_PSS,
-      CKM_ECDSA_SHA1, CKG_MGF1_SHA1, der_rsa_sha1, sizeof(der_rsa_sha1),
-      der_ecdsa_sha1, sizeof(der_ecdsa_sha1) },
-    { NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { CKM_SHA_1, CKM_SHA1_RSA_PKCS, CKM_SHA1_RSA_PKCS_PSS, CKM_ECDSA_SHA1,
+      CKG_MGF1_SHA1, der_rsa_sha1, sizeof(der_rsa_sha1), der_ecdsa_sha1,
+      sizeof(der_ecdsa_sha1) },
+    { CK_UNAVAILABLE_INFORMATION, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
 static CK_RV p11prov_rsa_sig_algid(CK_MECHANISM_TYPE digest,
                                    const unsigned char **algid, int *len)
 {
-    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
-        if (digest_map[i].digest == digest) {
-            *algid = digest_map[i].der_rsa_algorithm_id;
-            *len = digest_map[i].der_rsa_algorithm_id_len;
+    for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
+        if (mech_map[i].digest == digest) {
+            *algid = mech_map[i].der_rsa_algorithm_id;
+            *len = mech_map[i].der_rsa_algorithm_id_len;
             return CKR_OK;
         }
     }
@@ -337,61 +334,46 @@ static CK_RV p11prov_rsa_sig_algid(CK_MECHANISM_TYPE digest,
 static CK_RV p11prov_ecdsa_sig_algid(CK_MECHANISM_TYPE digest,
                                      const unsigned char **algid, int *len)
 {
-    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
-        if (digest_map[i].digest == digest) {
-            *algid = digest_map[i].der_ecdsa_algorithm_id;
-            *len = digest_map[i].der_ecdsa_algorithm_id_len;
+    for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
+        if (mech_map[i].digest == digest) {
+            *algid = mech_map[i].der_ecdsa_algorithm_id;
+            *len = mech_map[i].der_ecdsa_algorithm_id_len;
             return CKR_OK;
         }
     }
     return CKR_MECHANISM_INVALID;
 }
 
-static int p11prov_sig_digest_size(CK_MECHANISM_TYPE digest)
-{
-    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
-        if (digest_map[i].digest == digest) {
-            return EVP_MD_get_size(digest_map[i].evp_md());
-        }
-    }
-    return 0;
-}
-
-static const char *p11prov_sig_digest_name(CK_MECHANISM_TYPE digest)
-{
-    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
-        if (digest_map[i].digest == digest) {
-            return EVP_MD_get0_name(digest_map[i].evp_md());
-        }
-    }
-    return "";
-}
-
 static const char *p11prov_sig_mgf_name(CK_RSA_PKCS_MGF_TYPE mgf)
 {
-    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
-        if (digest_map[i].mgf == mgf) {
-            return EVP_MD_get0_name(digest_map[i].evp_md());
+    for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
+        if (mech_map[i].mgf == mgf) {
+            const char *digest;
+            CK_RV rv;
+
+            rv = p11prov_digest_get_name(mech_map[i].digest, &digest);
+            if (rv != CKR_OK) {
+                return NULL;
+            }
+            return digest;
         }
     }
-    return "";
+    return NULL;
 }
 
-static CK_RSA_PKCS_MGF_TYPE p11prov_sig_map_mgf(const char *digest)
+static CK_RSA_PKCS_MGF_TYPE p11prov_sig_map_mgf(const char *digest_name)
 {
-    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
-        if (EVP_MD_is_a(digest_map[i].evp_md(), digest) == RET_OSSL_OK) {
-            return digest_map[i].mgf;
-        }
+    CK_MECHANISM_TYPE digest;
+    CK_RV rv;
+
+    rv = p11prov_digest_get_by_name(digest_name, &digest);
+    if (rv != CKR_OK) {
+        return CK_UNAVAILABLE_INFORMATION;
     }
-    return CK_UNAVAILABLE_INFORMATION;
-}
 
-static CK_MECHANISM_TYPE p11prov_sig_map_digest(const char *digest)
-{
-    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
-        if (EVP_MD_is_a(digest_map[i].evp_md(), digest) == RET_OSSL_OK) {
-            return digest_map[i].digest;
+    for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
+        if (mech_map[i].digest == digest) {
+            return mech_map[i].mgf;
         }
     }
     return CK_UNAVAILABLE_INFORMATION;
@@ -452,9 +434,9 @@ static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
 
     switch (sigctx->mechtype) {
     case CKM_RSA_PKCS:
-        for (int i = 0; digest_map[i].evp_md != NULL; i++) {
-            if (sigctx->digest == digest_map[i].digest) {
-                mechanism->mechanism = digest_map[i].pkcs_mech;
+        for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
+            if (sigctx->digest == mech_map[i].digest) {
+                mechanism->mechanism = mech_map[i].pkcs_mech;
                 result = CKR_OK;
                 break;
             }
@@ -465,9 +447,9 @@ static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
     case CKM_RSA_PKCS_PSS:
         mechanism->pParameter = &sigctx->pss_params;
         mechanism->ulParameterLen = sizeof(sigctx->pss_params);
-        for (int i = 0; digest_map[i].evp_md != NULL; i++) {
-            if (sigctx->digest == digest_map[i].digest) {
-                mechanism->mechanism = digest_map[i].pkcs_pss;
+        for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
+            if (sigctx->digest == mech_map[i].digest) {
+                mechanism->mechanism = mech_map[i].pkcs_pss;
                 result = CKR_OK;
                 break;
             }
@@ -477,9 +459,9 @@ static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
         }
         break;
     case CKM_ECDSA:
-        for (int i = 0; digest_map[i].evp_md != NULL; i++) {
-            if (sigctx->digest == digest_map[i].digest) {
-                mechanism->mechanism = digest_map[i].ecdsa_mech;
+        for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
+            if (sigctx->digest == mech_map[i].digest) {
+                mechanism->mechanism = mech_map[i].ecdsa_mech;
                 result = CKR_OK;
                 break;
             }
@@ -524,19 +506,23 @@ static int p11prov_sig_get_sig_size(void *ctx, size_t *siglen)
 static int p11prov_rsasig_set_pss_saltlen_from_digest(void *ctx)
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
+    size_t digest_size;
+    CK_RV rv;
 
     if (sigctx->digest == 0) {
         ERR_raise_data(ERR_LIB_PROV, PROV_R_NOT_SUPPORTED,
                        "Can only be set if Digest was set first.");
         return RET_OSSL_ERR;
     }
-    for (int i = 0; digest_map[i].evp_md != NULL; i++) {
-        if (sigctx->digest == digest_map[i].digest) {
-            sigctx->pss_params.sLen = EVP_MD_get_size(digest_map[i].evp_md());
-            return RET_OSSL_OK;
-        }
+
+    rv = p11prov_digest_get_digest_size(sigctx->digest, &digest_size);
+    if (rv != CKR_OK) {
+        P11PROV_raise(sigctx->provctx, rv, "Unavailable digest");
+        return RET_OSSL_ERR;
     }
-    return RET_OSSL_ERR;
+
+    sigctx->pss_params.sLen = digest_size;
+    return RET_OSSL_OK;
 }
 
 static int p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
@@ -574,8 +560,10 @@ static int p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
     sigctx->operation = operation;
 
     if (digest) {
-        sigctx->digest = p11prov_sig_map_digest(digest);
-        if (sigctx->digest == CK_UNAVAILABLE_INFORMATION) {
+        CK_RV rv;
+
+        rv = p11prov_digest_get_by_name(digest, &sigctx->digest);
+        if (rv != CKR_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
@@ -1068,7 +1056,14 @@ static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_DIGEST);
     if (p) {
-        const char *digest = p11prov_sig_digest_name(sigctx->digest);
+        const char *digest;
+        CK_RV rv;
+
+        rv = p11prov_digest_get_name(sigctx->digest, &digest);
+        if (rv != CKR_OK) {
+            P11PROV_raise(sigctx->provctx, rv, "Unavailable digest name");
+            return RET_OSSL_ERR;
+        }
         ret = OSSL_PARAM_set_utf8_string(p, digest);
         if (ret != RET_OSSL_OK) {
             return ret;
@@ -1099,6 +1094,9 @@ static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
     p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_MGF1_DIGEST);
     if (p) {
         const char *digest = p11prov_sig_mgf_name(sigctx->pss_params.mgf);
+        if (!digest) {
+            return RET_OSSL_ERR;
+        }
         ret = OSSL_PARAM_set_utf8_string(p, digest);
         if (ret != RET_OSSL_OK) {
             return ret;
@@ -1124,14 +1122,16 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     if (p) {
         char digest[256];
         char *ptr = digest;
+        CK_RV rv;
+
         ret = OSSL_PARAM_get_utf8_string(p, &ptr, 256);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
         P11PROV_debug("Set OSSL_SIGNATURE_PARAM_DIGEST to %s", digest);
 
-        sigctx->digest = p11prov_sig_map_digest(digest);
-        if (sigctx->digest == CK_UNAVAILABLE_INFORMATION) {
+        rv = p11prov_digest_get_by_name(digest, &sigctx->digest);
+        if (rv != CKR_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
@@ -1517,7 +1517,14 @@ static int p11prov_ecdsa_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_DIGEST_SIZE);
     if (p) {
-        size_t digest_size = p11prov_sig_digest_size(sigctx->digest);
+        size_t digest_size;
+        CK_RV rv;
+
+        rv = p11prov_digest_get_digest_size(sigctx->digest, &digest_size);
+        if (rv != CKR_OK) {
+            P11PROV_raise(sigctx->provctx, rv, "Unavailable digest size");
+            return RET_OSSL_ERR;
+        }
         ret = OSSL_PARAM_set_size_t(p, digest_size);
         if (ret != RET_OSSL_OK) {
             return ret;
@@ -1526,7 +1533,14 @@ static int p11prov_ecdsa_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_DIGEST);
     if (p) {
-        const char *digest = p11prov_sig_digest_name(sigctx->digest);
+        const char *digest;
+        CK_RV rv;
+
+        rv = p11prov_digest_get_name(sigctx->digest, &digest);
+        if (rv != CKR_OK) {
+            P11PROV_raise(sigctx->provctx, rv, "Unavailable digest name");
+            return RET_OSSL_ERR;
+        }
         ret = OSSL_PARAM_set_utf8_string(p, digest);
         if (ret != RET_OSSL_OK) {
             return ret;
@@ -1552,14 +1566,16 @@ static int p11prov_ecdsa_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     if (p) {
         char digest[256];
         char *ptr = digest;
+        CK_RV rv;
+
         ret = OSSL_PARAM_get_utf8_string(p, &ptr, 256);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
         P11PROV_debug("Set OSSL_SIGNATURE_PARAM_DIGEST to %s", digest);
 
-        sigctx->digest = p11prov_sig_map_digest(digest);
-        if (sigctx->digest == CK_UNAVAILABLE_INFORMATION) {
+        rv = p11prov_digest_get_by_name(digest, &sigctx->digest);
+        if (rv != CKR_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
