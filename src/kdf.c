@@ -18,48 +18,6 @@ struct p11prov_kdf_ctx {
 };
 typedef struct p11prov_kdf_ctx P11PROV_KDF_CTX;
 
-#define DM_ELEM_SHA(bits) \
-    { \
-        .name = "SHA" #bits, .digest = CKM_SHA##bits, .digest_size = bits / 8 \
-    }
-#define DM_ELEM_SHA3(bits) \
-    { \
-        .name = "SHA3-" #bits, .digest = CKM_SHA3_##bits, \
-        .digest_size = bits / 8 \
-    }
-/* only the ones we can support */
-static struct {
-    const char *name;
-    CK_MECHANISM_TYPE digest;
-    int digest_size;
-} digest_map[] = {
-    DM_ELEM_SHA3(256), DM_ELEM_SHA3(512), DM_ELEM_SHA3(384),
-    DM_ELEM_SHA3(224), DM_ELEM_SHA(256),  DM_ELEM_SHA(512),
-    DM_ELEM_SHA(384),  DM_ELEM_SHA(224),  { "SHA1", CKM_SHA_1, 20 },
-    { NULL, 0, 0 },
-};
-
-static CK_MECHANISM_TYPE p11prov_hkdf_map_digest(const char *digest)
-{
-    for (int i = 0; digest_map[i].name != NULL; i++) {
-        /* hate to strcasecmp but openssl forces us to */
-        if (OPENSSL_strcasecmp(digest, digest_map[i].name) == 0) {
-            return digest_map[i].digest;
-        }
-    }
-    return CK_UNAVAILABLE_INFORMATION;
-}
-
-static int p11prov_hkdf_map_digest_size(CK_MECHANISM_TYPE digest)
-{
-    for (int i = 0; digest_map[i].name != NULL; i++) {
-        if (digest == digest_map[i].digest) {
-            return digest_map[i].digest_size;
-        }
-    }
-    return 0;
-}
-
 DISPATCH_HKDF_FN(newctx);
 DISPATCH_HKDF_FN(freectx);
 DISPATCH_HKDF_FN(reset);
@@ -223,13 +181,16 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     if (p) {
         char digest[256];
         char *ptr = digest;
+        CK_RV rv;
+
         ret = OSSL_PARAM_get_utf8_string(p, &ptr, 256);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
 
-        hkdfctx->params.prfHashMechanism = p11prov_hkdf_map_digest(digest);
-        if (hkdfctx->params.prfHashMechanism == CK_UNAVAILABLE_INFORMATION) {
+        rv = p11prov_digest_get_by_name(digest,
+                                        &hkdfctx->params.prfHashMechanism);
+        if (rv != CKR_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
@@ -382,8 +343,14 @@ static int p11prov_hkdf_get_ctx_params(void *ctx, OSSL_PARAM *params)
         if (hkdfctx->params.bExpand != CK_FALSE) {
             ret_size = SIZE_MAX;
         } else {
-            ret_size =
-                p11prov_hkdf_map_digest_size(hkdfctx->params.prfHashMechanism);
+            CK_RV rv;
+
+            rv = p11prov_digest_get_digest_size(
+                hkdfctx->params.prfHashMechanism, &ret_size);
+            if (rv != CKR_OK) {
+                ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
+                return RET_OSSL_ERR;
+            }
         }
         if (ret_size != 0) {
             return OSSL_PARAM_set_size_t(p, ret_size);
