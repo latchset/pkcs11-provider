@@ -23,21 +23,17 @@ typedef struct p11prov_exch_ctx P11PROV_EXCH_CTX;
 
 #define DM_ELEM_SHA(bits) \
     { \
-        .name = "SHA" #bits, .digest = CKM_SHA##bits, \
-        .kdf = CKD_SHA##bits##_KDF, .digest_size = bits / 8 \
+        .digest = CKM_SHA##bits, .kdf = CKD_SHA##bits##_KDF \
     }
 #define DM_ELEM_SHA3(bits) \
     { \
-        .name = "SHA3-" #bits, .digest = CKM_SHA3_##bits, \
-        .kdf = CKD_SHA3_##bits##_KDF, .digest_size = bits / 8 \
+        .digest = CKM_SHA3_##bits, .kdf = CKD_SHA3_##bits##_KDF \
     }
 /* only the ones we can support */
 static struct {
-    const char *name;
     CK_MECHANISM_TYPE digest;
     CK_RSA_PKCS_MGF_TYPE kdf;
-    int digest_size;
-} digest_map[] = {
+} kdf_map[] = {
     DM_ELEM_SHA3(256),
     DM_ELEM_SHA3(512),
     DM_ELEM_SHA3(384),
@@ -46,39 +42,18 @@ static struct {
     DM_ELEM_SHA(512),
     DM_ELEM_SHA(384),
     DM_ELEM_SHA(224),
-    { "SHA1", CKM_SHA_1, CKD_SHA1_KDF, 20 },
-    { NULL, 0, 0, 0 },
+    { CKM_SHA_1, CKD_SHA1_KDF },
+    { CK_UNAVAILABLE_INFORMATION, 0 },
 };
 
 static CK_ULONG p11prov_ecdh_digest_to_kdf(CK_MECHANISM_TYPE digest)
 {
-    for (int i = 0; digest_map[i].name != NULL; i++) {
-        if (digest == digest_map[i].digest) {
-            return digest_map[i].kdf;
+    for (int i = 0; kdf_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
+        if (digest == kdf_map[i].digest) {
+            return kdf_map[i].kdf;
         }
     }
     return CK_UNAVAILABLE_INFORMATION;
-}
-
-static CK_MECHANISM_TYPE p11prov_ecdh_map_digest(const char *digest)
-{
-    for (int i = 0; digest_map[i].name != NULL; i++) {
-        /* hate to strcasecmp but openssl forces us to */
-        if (OPENSSL_strcasecmp(digest, digest_map[i].name) == 0) {
-            return digest_map[i].digest;
-        }
-    }
-    return CK_UNAVAILABLE_INFORMATION;
-}
-
-static const char *p11prov_ecdh_digest_name(CK_MECHANISM_TYPE digest)
-{
-    for (int i = 0; digest_map[i].name != NULL; i++) {
-        if (digest_map[i].digest == digest) {
-            return digest_map[i].name;
-        }
-    }
-    return "";
 }
 
 DISPATCH_ECDH_FN(newctx);
@@ -395,13 +370,15 @@ static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     if (p) {
         char digest[256];
         char *ptr = digest;
+        CK_RV rv;
+
         ret = OSSL_PARAM_get_utf8_string(p, &ptr, 256);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
 
-        ecdhctx->digest = p11prov_ecdh_map_digest(digest);
-        if (ecdhctx->digest == CK_UNAVAILABLE_INFORMATION) {
+        rv = p11prov_digest_get_by_name(digest, &ecdhctx->digest);
+        if (rv != CKR_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
@@ -481,7 +458,13 @@ static int p11prov_ecdh_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p = OSSL_PARAM_locate(params, OSSL_EXCHANGE_PARAM_KDF_DIGEST);
     if (p) {
-        const char *digest = p11prov_ecdh_digest_name(ecdhctx->digest);
+        const char *digest;
+        CK_RV rv;
+
+        rv = p11prov_digest_get_name(ecdhctx->digest, &digest);
+        if (rv != CKR_OK) {
+            return RET_OSSL_ERR;
+        }
         ret = OSSL_PARAM_set_utf8_string(p, digest);
         if (ret != RET_OSSL_OK) {
             return ret;
