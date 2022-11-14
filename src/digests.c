@@ -166,7 +166,7 @@ static void *p11prov_digest_dupctx(void *ctx)
     }
 
     newctx = OPENSSL_zalloc(sizeof(P11PROV_DIGEST_CTX));
-    if (dctx == NULL) {
+    if (newctx == NULL) {
         return NULL;
     }
     newctx->provctx = dctx->provctx;
