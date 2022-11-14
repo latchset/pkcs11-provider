@@ -173,7 +173,7 @@ static void *p11prov_digest_dupctx(void *ctx)
     newctx->mechtype = dctx->mechtype;
 
     if (dctx->session == NULL) {
-        goto done;
+        return newctx;
     }
 
     /* This is not really funny. OpenSSL by default assumes contexts with
@@ -186,6 +186,7 @@ static void *p11prov_digest_dupctx(void *ctx)
 
     ret = p11prov_ctx_status(dctx->provctx, &f);
     if (ret != CKR_OK) {
+        OPENSSL_free(newctx);
         return NULL;
     }
 
