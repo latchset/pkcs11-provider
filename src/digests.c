@@ -260,7 +260,7 @@ static int p11prov_digest_init(void *ctx, const OSSL_PARAM params[])
     P11PROV_DIGEST_CTX *dctx = (P11PROV_DIGEST_CTX *)ctx;
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
-    CK_MECHANISM mechanism = { dctx->mechtype, NULL, 0 };
+    CK_MECHANISM mechanism = { 0 };
     CK_FUNCTION_LIST *f;
     CK_RV ret;
 
@@ -284,6 +284,8 @@ static int p11prov_digest_init(void *ctx, const OSSL_PARAM params[])
         return RET_OSSL_ERR;
     }
     sess = p11prov_session_handle(dctx->session);
+
+    mechanism.mechanism = dctx->mechtype;
 
     ret = f->C_DigestInit(sess, &mechanism);
     if (ret != CKR_OK) {
