@@ -1,8 +1,6 @@
 name: Coverity Scan
 
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
     types: [ labeled ]
   schedule:
