@@ -3,11 +3,14 @@ name: Coverity Scan
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    types: [ labeled ]
   schedule:
     - cron:  '41 3 * * 0'
 
 jobs:
   coverity:
+    if: ${{ github.event_name != 'pull_request' }} || ${{ github.event.label.name == 'covscan' }}
     name: Coverity Scan
     runs-on: ubuntu-22.04
     container: fedora:latest
