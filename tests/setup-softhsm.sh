@@ -7,12 +7,12 @@ source helpers.sh
 if ! command -v softhsm2-util &> /dev/null
 then
     echo "SoftHSM is is required"
-    exit 77 # skip
+    exit 0
 fi
 
 if [ "$P11KITCLIENTPATH" = "" ]; then
     echo "Missing P11KITCLIENTPATH env variable"
-    exit 77 # skip
+    exit 0
 fi
 
 find_softhsm() {
@@ -24,7 +24,7 @@ find_softhsm() {
         fi
     done
     echo "skipped: Unable to find softhsm PKCS#11 library"
-    exit 77 # skip
+    exit 0
 }
 
 title SECTION "Searching for SoftHSM PKCS#11 library"
