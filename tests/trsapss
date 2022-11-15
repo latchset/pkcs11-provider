@@ -1,0 +1,37 @@
+#!/bin/bash -e
+# Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source helpers.sh
+
+title PARA "DigestSign and DigestVerify with RSA PSS"
+ossl '
+pkeyutl -sign -inkey "${BASEURI}"
+              -digest sha256
+              -pkeyopt pad-mode:pss
+              -pkeyopt mgf1-digest:sha256
+              -pkeyopt saltlen:digest
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha256-dgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${BASEURI}" -pubin
+                -digest sha256
+                -pkeyopt pad-mode:pss
+                -pkeyopt mgf1-digest:sha256
+                -pkeyopt saltlen:digest
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
+title LINE "Re-verify using OpenSSL default provider"
+#(-pubin causes us to export a public key and OpenSSL to import it in the default provider)
+ossl '
+pkeyutl -verify -inkey "${PUBURI}"
+                -pubin
+                -digest sha256
+                -pkeyopt pad-mode:pss
+                -pkeyopt mgf1-digest:sha256
+                -pkeyopt saltlen:digest
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha256-dgstsig.bin'

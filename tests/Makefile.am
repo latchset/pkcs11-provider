@@ -28,25 +28,26 @@ tmp.softhsm:
 	P11KITCLIENTPATH="$(P11KITCLIENTPATH)" ./setup-softhsm.sh > setup-softhsm.log
 
 dist_check_SCRIPTS = \
-	test-softhsm.sh \
-	test-softokn.sh
-
-check_SCRIPTS = $(softokenpath)
+	tbasic trsapss toaepsha2 thkdf teccsha2
 
 test_LIST = \
+	basic-softokn basic-softhsm-proxy \
+	eccsha2-softokn \
+	oaepsha2-softokn \
+	hkdf-softokn \
+	rsapss-softokn \
 	digests-softokn digests-softhsm-proxy \
 	genkey-softokn genkey-softhsm \
+	session-softokn session-softhsm-proxy \
 	tls-softokn tls-softhsm-proxy
 .PHONY: $(test_LIST)
 
-TESTS = $(dist_check_SCRIPTS) $(test_LIST)
+TESTS = $(test_LIST)
 
 $(TESTS): tmp.softokn tmp.softhsm
 
-TEST_EXTENSIONS = .sh
 TESTS_ENVIRONMENT =     \
 	LC_ALL="C"
-
 LOG_COMPILER = ./test-wrapper
 
 CLEANFILES = \
