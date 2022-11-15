@@ -71,5 +71,5 @@ jobs:
           tests/*.log
           tests/openssl.cnf
           tests/tmp.${{ matrix.token }}/p11prov-debug.log
-          tests/tmp.${{ matrix.token }}/debugvars
+          tests/tmp.${{ matrix.token }}/testvars
           config.log
