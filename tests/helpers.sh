@@ -40,6 +40,7 @@ cleanup_server()
 
 ossl()
 {
+    echo "# r "$* >> ${TMPPDIR}/gdb-commands.txt
     echo openssl $*
     eval openssl $1
 }
