@@ -1,0 +1,121 @@
+#!/bin/bash -e
+# Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source helpers.sh
+
+TSTOUT="${TMPPDIR}/testout"
+
+title PARA "Export Public key to a file"
+ossl 'pkey -in $BASEURI -pubin -pubout -out ${TSTOUT}.pub'
+title LINE "Export Public key to a file (pub-uri)"
+ossl 'pkey -in $PUBURI -pubin -pubout -out ${TSTOUT}.pub'
+title LINE "Export Public key to a file (with pin)"
+ossl 'pkey -in $BASEURIWITHPIN -pubin -pubout -out ${TSTOUT}.pub'
+
+title PARA "Export Public check error"
+FAIL=0
+ossl 'pkey -in pkcs11:id=%de%ad -pubin
+           -pubout -out ${TSTOUT}-invlid.pub' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Invalid pkcs11 uri resulted in no error exporting key"
+    exit 1
+fi
+
+title PARA "Export EC Public key to a file"
+ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${TMPPDIR}/ecout.pub'
+
+title PARA "Raw Sign check error"
+dd if=/dev/urandom of=${TMPPDIR}/64Brandom.bin bs=64 count=1 >/dev/null 2>&1
+FAIL=0
+ossl '
+pkeyutl -sign -inkey "${BASEURI}"
+              -pkeyopt pad-mode:none
+              -in ${TMPPDIR}/64Brandom.bin
+              -out ${TMPPDIR}/raw-sig.bin' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Raw signature should not allow data != modulus size"
+    exit 1
+fi
+# unfortunately pkeyutl simply does not make it possible to sign anything
+# that is bigger than a hash, which means we'd need a very small RSA key
+# to really check a raw signature through pkeyutl
+
+title PARA "Sign and Verify with provided Hash and RSA"
+ossl 'dgst -sha256 -binary -out ${TMPPDIR}/sha256.bin ${SEEDFILE}'
+ossl '
+pkeyutl -sign -inkey "${PRIURI}"
+              -in ${TMPPDIR}/sha256.bin
+              -out ${TMPPDIR}/sha256-sig.bin'
+
+ossl '
+pkeyutl -verify -inkey "${PUBURI}"
+                -pubin
+                -in ${TMPPDIR}/sha256.bin
+                -sigfile ${TMPPDIR}/sha256-sig.bin'
+
+title PARA "Sign and Verify with provided Hash and EC"
+ossl '
+pkeyutl -sign -inkey "${ECBASEURI}"
+              -in ${TMPPDIR}/sha256.bin
+              -out ${TMPPDIR}/sha256-ecsig.bin'
+
+ossl '
+pkeyutl -verify -inkey "${ECBASEURI}" -pubin
+                -in ${TMPPDIR}/sha256.bin
+                -sigfile ${TMPPDIR}/sha256-ecsig.bin'
+
+title PARA "DigestSign and DigestVerify with RSA"
+ossl '
+pkeyutl -sign -inkey "${BASEURI}"
+              -digest sha256
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha256-dgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${BASEURI}" -pubin
+                -digest sha256
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${PUBURI}"
+                -pubin
+                -digest sha256
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
+
+
+SECRETFILE=${TMPPDIR}/rsasecret.txt
+echo "Super Secret" > ${SECRETFILE}
+
+title LINE "RSA basic encrypt and decrypt"
+ossl '
+pkeyutl -encrypt -inkey "${PUBURI}" -pubin
+                 -in ${SECRETFILE}
+                 -out ${SECRETFILE}.enc'
+ossl '
+pkeyutl -decrypt -inkey "${PRIURI}"
+                 -in ${SECRETFILE}.enc
+                 -out ${SECRETFILE}.dec'
+diff ${SECRETFILE} ${SECRETFILE}.dec
+
+title PARA "Test Disallow Public Export"
+FAIL=0
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed "s/#pkcs11-module-allow-export/pkcs11-module-allow-export = 1/" ${OPENSSL_CONF} > ${OPENSSL_CONF}.noexport
+OPENSSL_CONF=${OPENSSL_CONF}.noexport
+ossl 'pkey -in $BASEURI -pubin -pubout -out ${TSTOUT}.pub.fail' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "pkcs11 export should have failed, but actually succeeded"
+    exit 1
+fi
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+rm -f ${OPENSSL_CONF}.noexport
+
+title PARA "Test CSR generation from private keys"
+ossl '
+req -new -batch -key "${PRIURI}" -out ${TMPPDIR}/rsa_csr.pem'
+
+exit 0

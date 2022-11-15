@@ -159,11 +159,6 @@ export ECPEERPRIURI="${ECPEERPRIURI}"
 # for listing the separate pkcs11 calls
 #export PKCS11SPY="${PKCS11_PROVIDER_MODULE}"
 #export PKCS11_PROVIDER_MODULE=/usr/lib64/pkcs11-spy.so
-
-export TEST_RSAPSS="0"
-export TEST_ECC_SHA2="0"
-export TEST_OAEP_SHA2="0"
-export TEST_HKDF="0"
 DBGSCRIPT
 
 title ENDSECTION
