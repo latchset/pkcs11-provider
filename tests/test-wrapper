@@ -1,0 +1,27 @@
+#!/bin/bash -e
+# Copyright (C) 2022 Simo sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+TEST_PARAMS=(${1//-/ })
+
+TEST_NAME=$(basename ${TEST_PARAMS[0]})
+TOKEN_DRIVER=${TEST_PARAMS[1]}
+
+echo $@
+echo $TEST_PARAMS
+echo $TEST_NAME
+echo $TOKEN_DRIVER
+
+USE_PROXY=1
+
+for option in "${TEST_PARAMS[@]}"; do
+    if [[ "$option" == "noproxy" ]]; then
+        USE_PROXY=0
+    fi
+done
+
+TESTS_PATH=${TESTS_PATH:-..}
+TEST_SETUP_SKIP_KEYS=1
+TEST_SETUP_USE_PROXY=${USE_PROXY}
+source $TESTS_PATH/setup-${TOKEN_DRIVER}.sh
+./t${TEST_NAME}
