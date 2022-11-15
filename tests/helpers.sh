@@ -2,23 +2,6 @@
 # Copyright (C) 2022 Simo Sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-# requires defined $TMPPDIR
-TOKDIR="$TMPPDIR/tokens"
-PINVALUE="12345678"
-PINFILE="${PWD}/pinfile.txt"
-
-TSTCRT="${TMPPDIR}/testcert.crt"
-ECCRT="${TMPPDIR}/eccert.crt"
-ECPEERCRT="${TMPPDIR}/ecpeercert.crt"
-SEEDFILE="${TMPPDIR}/noisefile.bin"
-SERIAL=0
-
-# by default enable all tests
-TEST_RSAPSS="1"
-TEST_ECC_SHA2="1"
-TEST_OAEP_SHA2="1"
-TEST_HKDF="1"
-
 title()
 {
     case "$1" in
@@ -47,4 +30,16 @@ title()
         echo "$*"
         ;;
     esac
+}
+
+cleanup_server()
+{
+    echo "killing $1 server"
+    kill -9 -- $2
+}
+
+ossl()
+{
+    echo openssl $*
+    eval openssl $1
 }

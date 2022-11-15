@@ -2,7 +2,7 @@ EXTRA_DIST = openssl.cnf.in test.sh common.sh setup-softhsm.sh setup-softokn.sh
 noinst_DATA = openssl.cnf
 
 libtoollibs=@abs_top_builddir@/src/.libs
-testsdir=@abs_top_builddir@/tests
+testsdir=@abs_builddir@
 
 check_PROGRAMS = tsession tgenkey ttls tdigests
 
@@ -22,6 +22,11 @@ tdigests_SOURCES = tdigests.c
 tdigests_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
 tdigests_LDADD = $(OPENSSL_LIBS)
 
+tmp.softokn:
+	SOFTOKNPATH="$(SOFTOKENDIR)/$(SOFTOKEN_SUBDIR)" ./setup-softokn.sh > setup-softokn.log
+tmp.softhsm:
+	P11KITCLIENTPATH="$(P11KITCLIENTPATH)" ./setup-softhsm.sh > setup-softhsm.log
+
 dist_check_SCRIPTS = \
 	test-softhsm.sh \
 	test-softokn.sh
@@ -29,24 +34,20 @@ dist_check_SCRIPTS = \
 check_SCRIPTS = $(softokenpath)
 
 test_LIST = \
-	digests-softokn digests-softhsm \
-	genkey-softokn genkey-softhsm-noproxy \
-	tls-softokn tls-softhsm
+	digests-softokn digests-softhsm-proxy \
+	genkey-softokn genkey-softhsm \
+	tls-softokn tls-softhsm-proxy
 .PHONY: $(test_LIST)
 
 TESTS = $(dist_check_SCRIPTS) $(test_LIST)
 
+$(TESTS): tmp.softokn tmp.softhsm
+
 TEST_EXTENSIONS = .sh
 TESTS_ENVIRONMENT =     \
-	OPENSSL_CONF="openssl.cnf" \
-	P11KITCLIENTPATH="$(P11KITCLIENTPATH)" \
-	PKCS11_PROVIDER_MODULE="$(SOFTOKENDIR)/$(SOFTOKEN_SUBDIR)libsoftokn3.so" \
-	PKCS11_PROVIDER_DEBUG="file:tmp.softokn/p11prov-debug.log" \
-	SOURCE_PATH='$(top_srcdir)' \
-	TESTS_PATH='$(testsdir)' \
 	LC_ALL="C"
 
-LOG_COMPILER = $(testsdir)/test-wrapper
+LOG_COMPILER = ./test-wrapper
 
 CLEANFILES = \
 	openssl.cnf \

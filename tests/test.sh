@@ -2,33 +2,29 @@
 # Copyright (C) 2022 Simo Sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-ossl()
-{
-    echo openssl $*
-
-    eval openssl $1
-}
+source helpers.sh
 
 ############################## MAIN ##############################
+TSTOUT="${TMPPDIR}/testout"
 
 title PARA "Export Public key to a file"
-ossl 'pkey -in $BASEURI -pubin -pubout -out ${TSTCRT}.pub'
+ossl 'pkey -in $BASEURI -pubin -pubout -out ${TSTOUT}.pub'
 title LINE "Export Public key to a file (pub-uri)"
-ossl 'pkey -in $PUBURI -pubin -pubout -out ${TSTCRT}.pub'
+ossl 'pkey -in $PUBURI -pubin -pubout -out ${TSTOUT}.pub'
 title LINE "Export Public key to a file (with pin)"
-ossl 'pkey -in $BASEURIWITHPIN -pubin -pubout -out ${TSTCRT}.pub'
+ossl 'pkey -in $BASEURIWITHPIN -pubin -pubout -out ${TSTOUT}.pub'
 
 title PARA "Export Public check error"
 FAIL=0
 ossl 'pkey -in pkcs11:id=%de%ad -pubin
-           -pubout -out ${TSTCRT}-invlid.pub' || FAIL=1
+           -pubout -out ${TSTOUT}-invlid.pub' || FAIL=1
 if [ $FAIL -eq 0 ]; then
     echo "Invalid pkcs11 uri resulted in no error exporting key"
     exit 1
 fi
 
 title PARA "Export EC Public key to a file"
-ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${ECCRT}.pub'
+ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${TMPPDIR}/ecout.pub'
 
 title PARA "Raw Sign check error"
 dd if=/dev/urandom of=${TMPPDIR}/64Brandom.bin bs=64 count=1 >/dev/null 2>&1
@@ -76,20 +72,20 @@ title PARA "DigestSign and DigestVerify with RSA"
 ossl '
 pkeyutl -sign -inkey "${BASEURI}"
               -digest sha256
-              -in ${TMPPDIR}/64krandom.bin
+              -in ${RAND64FILE}
               -rawin
               -out ${TMPPDIR}/sha256-dgstsig.bin'
 ossl '
 pkeyutl -verify -inkey "${BASEURI}" -pubin
                 -digest sha256
-                -in ${TMPPDIR}/64krandom.bin
+                -in ${RAND64FILE}
                 -rawin
                 -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
 ossl '
 pkeyutl -verify -inkey "${PUBURI}"
                 -pubin
                 -digest sha256
-                -in ${TMPPDIR}/64krandom.bin
+                -in ${RAND64FILE}
                 -rawin
                 -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
 
@@ -101,7 +97,7 @@ if [ "$TEST_RSAPSS" = "1" ]; then
                   -pkeyopt pad-mode:pss
                   -pkeyopt mgf1-digest:sha256
                   -pkeyopt saltlen:digest
-                  -in ${TMPPDIR}/64krandom.bin
+                  -in ${RAND64FILE}
                   -rawin
                   -out ${TMPPDIR}/sha256-dgstsig.bin'
     ossl '
@@ -110,7 +106,7 @@ if [ "$TEST_RSAPSS" = "1" ]; then
                     -pkeyopt pad-mode:pss
                     -pkeyopt mgf1-digest:sha256
                     -pkeyopt saltlen:digest
-                    -in ${TMPPDIR}/64krandom.bin
+                    -in ${RAND64FILE}
                     -rawin
                     -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
     title LINE "Re-verify using OpenSSL default provider"
@@ -122,7 +118,7 @@ if [ "$TEST_RSAPSS" = "1" ]; then
                     -pkeyopt pad-mode:pss
                     -pkeyopt mgf1-digest:sha256
                     -pkeyopt saltlen:digest
-                    -in ${TMPPDIR}/64krandom.bin
+                    -in ${RAND64FILE}
                     -rawin
                     -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
 fi
@@ -132,13 +128,13 @@ if [ "$TEST_ECC_SHA2" = "1" ]; then
     ossl '
     pkeyutl -sign -inkey "${ECBASEURI}"
                   -digest sha256
-                  -in ${TMPPDIR}/64krandom.bin
+                  -in ${RAND64FILE}
                   -rawin
                   -out ${TMPPDIR}/sha256-ecdgstsig.bin'
     ossl '
     pkeyutl -verify -inkey "${ECBASEURI}" -pubin
                     -digest sha256
-                    -in ${TMPPDIR}/64krandom.bin
+                    -in ${RAND64FILE}
                     -rawin
                     -sigfile ${TMPPDIR}/sha256-ecdgstsig.bin'
 fi
@@ -239,7 +235,7 @@ FAIL=0
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
 sed "s/#pkcs11-module-allow-export/pkcs11-module-allow-export = 1/" ${OPENSSL_CONF} > ${OPENSSL_CONF}.noexport
 OPENSSL_CONF=${OPENSSL_CONF}.noexport
-ossl 'pkey -in $BASEURI -pubin -pubout -out ${TSTCRT}.pub.fail' || FAIL=1
+ossl 'pkey -in $BASEURI -pubin -pubout -out ${TSTOUT}.pub.fail' || FAIL=1
 if [ $FAIL -eq 0 ]; then
     echo "pkcs11 export should have failed, but actually succeeded"
     exit 1
@@ -260,8 +256,8 @@ title PARA "Test Digests"
 # inOpenSSL 3.x, using openssl dgst is not very useful, so we just test one
 # common digest and defer to a custom test for digests until we have a fix.
 dgst="sha256"
-ossl 'dgst -${dgst} -out ${TMPPDIR}/dgst-${dgst}.ossl.txt ${TMPPDIR}/64krandom.bin'
-ossl 'dgst -${dgst} -provider=pkcs11 -propquery "provider=pkcs11" -out ${TMPPDIR}/dgst-${dgst}.prov.txt ${TMPPDIR}/64krandom.bin'
+ossl 'dgst -${dgst} -out ${TMPPDIR}/dgst-${dgst}.ossl.txt ${RAND64FILE}'
+ossl 'dgst -${dgst} -provider=pkcs11 -propquery "provider=pkcs11" -out ${TMPPDIR}/dgst-${dgst}.prov.txt ${RAND64FILE}'
 OSSL_DGST=`cat ${TMPPDIR}/dgst-${dgst}.ossl.txt | cut -d= -f2`
 PROV_DGST=`cat ${TMPPDIR}/dgst-${dgst}.prov.txt | cut -d= -f2`
 if [ "${OSSL_DGST}" != "${PROV_DGST}" ]; then
