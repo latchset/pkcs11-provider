@@ -7,7 +7,7 @@ source helpers.sh
 if ! command -v certutil &> /dev/null
 then
     echo "NSS's certutil command is required"
-    exit 77
+    exit 0
 fi
 
 title SECTION "Set up testing system"

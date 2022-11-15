@@ -15,7 +15,11 @@ for option in "${TEST_PARAMS[@]}"; do
     fi
 done
 
-source ./tmp.${TOKEN_DRIVER}/testvars
+if [ -f "./tmp.${TOKEN_DRIVER}/testvars" ];  then
+    source ./tmp.${TOKEN_DRIVER}/testvars
 
-echo "Executing ${COMMAND}"
-${COMMAND}
+    echo "Executing ${COMMAND}"
+    ${COMMAND}
+else
+    exit 77 # token not configured, skip
+fi
