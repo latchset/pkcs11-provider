@@ -1,7 +1,6 @@
 EXTRA_DIST = openssl.cnf.in test.sh common.sh setup-softhsm.sh setup-softokn.sh
-noinst_DATA = openssl.cnf
 
-libtoollibs=@abs_top_builddir@/src/.libs
+libspath=@abs_top_builddir@/src/.libs
 testsdir=@abs_builddir@
 
 check_PROGRAMS = tsession tgenkey ttls tdigests
@@ -23,9 +22,13 @@ tdigests_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
 tdigests_LDADD = $(OPENSSL_LIBS)
 
 tmp.softokn:
-	SOFTOKNPATH="$(SOFTOKENDIR)/$(SOFTOKEN_SUBDIR)" ./setup-softokn.sh > setup-softokn.log
+	LIBSPATH=$(libspath) \
+	SOFTOKNPATH="$(SOFTOKENDIR)/$(SOFTOKEN_SUBDIR)" \
+	./setup-softokn.sh > setup-softokn.log
 tmp.softhsm:
-	P11KITCLIENTPATH="$(P11KITCLIENTPATH)" ./setup-softhsm.sh > setup-softhsm.log
+	LIBSPATH=$(libspath) \
+	P11KITCLIENTPATH="$(P11KITCLIENTPATH)" \
+	./setup-softhsm.sh > setup-softhsm.log
 
 dist_check_SCRIPTS = \
 	tbasic trsapss toaepsha2 thkdf teccsha2
@@ -51,8 +54,6 @@ TESTS_ENVIRONMENT =     \
 LOG_COMPILER = ./test-wrapper
 
 CLEANFILES = \
-	openssl.cnf \
-	openssl.cnf.softhsm \
 	pinfile.txt
 
 clean-local:
@@ -64,17 +65,3 @@ DISTCLEANFILES = \
 
 MAINTAINERCLEANFILES = \
 	Makefile.in
-
-edit_cmd = $(SED) \
-    -e 's|@libtoollibs[@]|$(libtoollibs)|g' \
-    -e 's|@testsdir[@]|$(testsdir)|g'
-
-replace_script = \
-    @rm -f $@ $@.tmp; \
-    srcdir=''; \
-        test -f ./$@.in || srcdir=$(srcdir)/; \
-        $(edit_cmd) $${srcdir}$@.in >$@.tmp; \
-    mv $@.tmp $@
-
-openssl.cnf: openssl.cnf.in Makefile
-	$(replace_script)

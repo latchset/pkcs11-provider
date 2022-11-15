@@ -140,12 +140,20 @@ certutil -L -d ${TOKDIR}
 certutil -K -d ${TOKDIR} -f ${PINFILE}
 echo " ----------------------------------------------------------------------------------------------------"
 
-title LINE "Export tests variables to ${TMPPDIR}/testvars"
+title PARA "Output configurations"
 BASEDIR=$(pwd)
+OPENSSL_CONF=${BASEDIR}/${TMPPDIR}/openssl.cnf
+
+title LINE "Generate openssl config file"
+sed -e "s|@libtoollibs[@]|${LIBSPATH}|g" \
+    -e "s|@testsdir[@]|${BASEDIR}|g" \
+    openssl.cnf.in > ${OPENSSL_CONF}
+
+title LINE "Export tests variables to ${TMPPDIR}/testvars"
 cat > ${TMPPDIR}/testvars <<DBGSCRIPT
 export PKCS11_PROVIDER_DEBUG="file:${BASEDIR}/${TMPPDIR}/p11prov-debug.log"
 export PKCS11_PROVIDER_MODULE="${SOFTOKNPATH}/libsoftokn3.so"
-export OPENSSL_CONF="${BASEDIR}/openssl.cnf"
+export OPENSSL_CONF="${OPENSSL_CONF}"
 
 export TOKDIR="${BASEDIR}/${TOKDIR}"
 export TMPPDIR="${BASEDIR}/${TMPPDIR}"

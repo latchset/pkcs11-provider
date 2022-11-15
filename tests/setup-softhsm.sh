@@ -124,12 +124,17 @@ echo " -------------------------------------------------------------------------
 pkcs11-tool -O --login --pin=$PINVALUE --module="$P11LIB"
 echo " ----------------------------------------------------------------------------------------------------"
 
-# SoftHSM does not like bogus arguments to C_Initialize()
-sed "/pkcs11-module-init-args/d" openssl.cnf > ${TMPPDIR}/openssl.cnf.softhsm
-OPENSSL_CONF=${TMPPDIR}/openssl.cnf.softhsm
+title PARA "Output configurations"
+BASEDIR=$(pwd)
+OPENSSL_CONF=${BASEDIR}/${TMPPDIR}/openssl.cnf
+
+title LINE "Generate openssl config file"
+sed -e "s|@libtoollibs[@]|${LIBSPATH}|g" \
+    -e "s|@testsdir[@]|${BASEDIR}|g" \
+    -e "/pkcs11-module-init-args/d" \
+    openssl.cnf.in > ${OPENSSL_CONF}
 
 title LINE "Export test variables to ${TMPPDIR}/testvars"
-BASEDIR=$(pwd)
 cat >> ${TMPPDIR}/testvars <<DBGSCRIPT
 export P11LIB=${P11LIB}
 export P11KITCLIENTPATH=${P11KITCLIENTPATH}
