@@ -2,7 +2,7 @@
 # Copyright (C) 2022 Jakub Jelen <jjelen@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-source helpers.sh
+source ${TESTSDIR}/helpers.sh
 
 if ! command -v softhsm2-util &> /dev/null
 then
@@ -132,7 +132,7 @@ title LINE "Generate openssl config file"
 sed -e "s|@libtoollibs[@]|${LIBSPATH}|g" \
     -e "s|@testsdir[@]|${BASEDIR}|g" \
     -e "/pkcs11-module-init-args/d" \
-    openssl.cnf.in > ${OPENSSL_CONF}
+    ${TESTSDIR}/openssl.cnf.in > ${OPENSSL_CONF}
 
 title LINE "Export test variables to ${TMPPDIR}/testvars"
 cat >> ${TMPPDIR}/testvars <<DBGSCRIPT
@@ -142,6 +142,7 @@ export PKCS11_PROVIDER_MODULE=${P11LIB}
 export PKCS11_PROVIDER_DEBUG="file:${BASEDIR}/${TMPPDIR}/p11prov-debug.log"
 export OPENSSL_CONF="${OPENSSL_CONF}"
 export SOFTHSM2_CONF=${BASEDIR}/${TMPPDIR}/softhsm.conf
+export TESTSDIR="${TESTSDIR}"
 
 export TOKDIR="${BASEDIR}/${TOKDIR}"
 export TMPPDIR="${BASEDIR}/${TMPPDIR}"

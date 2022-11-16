@@ -2,7 +2,7 @@
 # Copyright (C) 2022 Simo Sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-source helpers.sh
+source ${TESTSDIR}/helpers.sh
 
 TSTOUT="${TMPPDIR}/testout"
 
