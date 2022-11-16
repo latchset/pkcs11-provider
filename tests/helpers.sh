@@ -43,3 +43,9 @@ ossl()
     echo openssl $*
     eval openssl $1
 }
+
+gen_unsetvars() {
+    grep "^export" ${TMPPDIR}/testvars \
+    | sed -e 's/export/unset/' -e 's/=.*$//' \
+    >> ${TMPPDIR}/unsetvars
+}

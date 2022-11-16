@@ -166,5 +166,6 @@ export ECPEERPRIURI="${ECPEERPRIURI}"
 #export PKCS11SPY="${PKCS11_PROVIDER_MODULE}"
 #export PKCS11_PROVIDER_MODULE=/usr/lib64/pkcs11-spy.so
 DBGSCRIPT
+gen_unsetvars
 
 title ENDSECTION
