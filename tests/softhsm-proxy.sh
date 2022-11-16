@@ -2,7 +2,7 @@
 # Copyright (C) 2022 Jakub Jelen <jjelen@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-source helpers.sh
+source ${TESTSDIR}/helpers.sh
 
 # p11-kit complains if there is not runtime directory
 if [ -z "$XDG_RUNTIME_DIR" ]; then

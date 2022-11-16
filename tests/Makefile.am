@@ -1,7 +1,7 @@
-EXTRA_DIST = openssl.cnf.in test.sh common.sh setup-softhsm.sh setup-softokn.sh
+EXTRA_DIST = openssl.cnf.in
 
 libspath=@abs_top_builddir@/src/.libs
-testsdir=@abs_builddir@
+testsdir=@abs_srcdir@
 
 check_PROGRAMS = tsession tgenkey ttls tdigests
 
@@ -23,15 +23,18 @@ tdigests_LDADD = $(OPENSSL_LIBS)
 
 tmp.softokn:
 	LIBSPATH=$(libspath) \
+	TESTSDIR=$(testsdir) \
 	SOFTOKNPATH="$(SOFTOKENDIR)/$(SOFTOKEN_SUBDIR)" \
-	./setup-softokn.sh > setup-softokn.log
+	$(testsdir)/setup-softokn.sh > setup-softokn.log
 tmp.softhsm:
 	LIBSPATH=$(libspath) \
+	TESTSDIR=$(testsdir) \
 	P11KITCLIENTPATH="$(P11KITCLIENTPATH)" \
-	./setup-softhsm.sh > setup-softhsm.log
+	$(testsdir)/setup-softhsm.sh > setup-softhsm.log
 
 dist_check_SCRIPTS = \
-	tbasic trsapss toaepsha2 thkdf teccsha2
+	helpers.sh setup-softhsm.sh setup-softokn.sh softhsm-proxy.sh \
+	test-wrapper tbasic teccsha2 thkdf toaepsha2 trsapss
 
 test_LIST = \
 	basic-softokn basic-softhsm-proxy \
@@ -51,9 +54,10 @@ $(TESTS): tmp.softokn tmp.softhsm
 
 TESTS_ENVIRONMENT =     \
 	LC_ALL="C"
-LOG_COMPILER = ./test-wrapper
+LOG_COMPILER = $(testsdir)/test-wrapper
 
 CLEANFILES = \
+	setup-*.log \
 	pinfile.txt
 
 clean-local:
