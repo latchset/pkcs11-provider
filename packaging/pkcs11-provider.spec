@@ -41,8 +41,6 @@ autoreconf -fi
 
 %install
 %make_install
-mkdir %{buildroot}%{_libdir}/ossl-modules/
-ln -s ../pkcs11_provider.so %{buildroot}%{_libdir}/ossl-modules/pkcs11.so
 
 
 %check
@@ -53,7 +51,6 @@ make check || if [ $? -ne 0 ]; then cat tests/*.log; exit 1; fi;
 %files
 %license COPYING
 %doc README
-%{_libdir}/pkcs11_provider.so
 %{_libdir}/ossl-modules/pkcs11.so
 
 
