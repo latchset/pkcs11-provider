@@ -13,32 +13,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [fedora-gcc, fedora-clang, debian-clang, fedora-distcheck]
+        name: [fedora, debian]
+        compiler: [gcc, clang]
         token: [softokn, softhsm]
         include:
-          - name: fedora-gcc
+          - name: fedora
             container: fedora:latest
-            compiler: gcc
-            action: check
-          - name: fedora-clang
-            container: fedora:latest
-            compiler: clang
-            action: check
-          - name: debian-clang
+          - name: debian
             container: debian:sid
-            compiler: clang
-            action: check
-          - name: fedora-distcheck
-            container: fedora:latest
-            compiler: gcc
-            action: distcheck
     container: ${{ matrix.container }}
     steps:
     - name: Install Dependencies
       run: |
           if [ -f /etc/fedora-release ]; then
             dnf -y install git ${{ matrix.compiler }} automake libtool \
-              pkgconf-pkg-config autoconf-archive openssl-devel openssl xz
+              pkgconf-pkg-config autoconf-archive openssl-devel openssl
             if [ "${{ matrix.token }}" = "softokn" ]; then
               dnf -y install nss-softokn nss-tools nss-softokn-devel
             elif [ "${{ matrix.token }}" = "softhsm" ]; then
@@ -62,7 +51,7 @@ jobs:
         autoreconf -fiv
         CC=${{ matrix.compiler }} ./configure
     - name: Build and Test
-      run: make ${{ matrix.action }}
+      run: make check
     - uses: actions/upload-artifact@v3
       if: failure()
       with:
