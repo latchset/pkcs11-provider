@@ -2,11 +2,13 @@
 AM_CFLAGS = $(STD_CFLAGS)
 
 noinst_HEADERS = pkcs11.h provider.h
-lib_LTLIBRARIES = pkcs11_provider.la
+pkcs11_LTLIBRARIES = pkcs11.la
 
 SHARED_EXT=@SHARED_EXT@
 
-pkcs11_provider_la_SOURCES = \
+pkcs11dir = $(libdir)/ossl-modules
+
+pkcs11_la_SOURCES = \
 	asymmetric_cipher.c \
 	debug.c \
 	encoder.c \
@@ -30,10 +32,10 @@ pkcs11_provider_la_SOURCES = \
 	provider.exports \
 	$(NULL)
 
-pkcs11_provider_la_CFLAGS = $(AM_CFLAGS) $(OPENSSL_CFLAGS) -Wall -Werror
-pkcs11_provider_la_LIBADD = $(OPENSSL_LIBS)
+pkcs11_la_CFLAGS = $(AM_CFLAGS) $(OPENSSL_CFLAGS) -Wall -Werror
+pkcs11_la_LIBADD = $(OPENSSL_LIBS)
 
-pkcs11_provider_la_LDFLAGS = \
+pkcs11_la_LDFLAGS = \
 	$(AM_LDFLAGS) -module \
 	-shared -shrext $(SHARED_EXT) \
 	-avoid-version \
