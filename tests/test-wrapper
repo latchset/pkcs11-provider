@@ -2,10 +2,12 @@
 # Copyright (C) 2022 Simo sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-TEST_PARAMS=(${1//-/ })
+TEST_PATH=$(dirname ${1})
+BNAME=$(basename ${1})
 
-TEST_NAME=$(basename ${TEST_PARAMS[0]})
-TEST_PATH=$(dirname ${TEST_PARAMS[0]})
+TEST_PARAMS=(${BNAME//-/ })
+
+TEST_NAME=${TEST_PARAMS[0]}
 TOKEN_DRIVER=${TEST_PARAMS[1]}
 
 if [ -f "./tmp.${TOKEN_DRIVER}/testvars" ];  then
@@ -26,7 +28,7 @@ fi
 
 for option in "${TEST_PARAMS[@]}"; do
     if [[ "$option" == "proxy" ]]; then
-        COMMAND="${TESTSDIR}/softhsm-proxy.sh $COMMAND"
+        COMMAND="${TESTSSRCDIR}/softhsm-proxy.sh $COMMAND"
     fi
 done
 
