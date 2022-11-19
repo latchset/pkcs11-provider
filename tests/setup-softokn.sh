@@ -2,7 +2,7 @@
 # Copyright (C) 2022 Simo Sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-source ${TESTSDIR}/helpers.sh
+source ${TESTSSRCDIR}/helpers.sh
 
 if ! command -v certutil &> /dev/null
 then
@@ -146,20 +146,21 @@ OPENSSL_CONF=${BASEDIR}/${TMPPDIR}/openssl.cnf
 
 title LINE "Generate openssl config file"
 sed -e "s|@libtoollibs[@]|${LIBSPATH}|g" \
-    -e "s|@testsdir[@]|${BASEDIR}|g" \
-    ${TESTSDIR}/openssl.cnf.in > ${OPENSSL_CONF}
+    -e "s|@testssrcdir[@]|${BASEDIR}|g" \
+    -e "s|@testsblddir@|${TESTBLDDIR}|g" \
+    ${TESTSSRCDIR}/openssl.cnf.in > ${OPENSSL_CONF}
 
 title LINE "Export tests variables to ${TMPPDIR}/testvars"
 cat > ${TMPPDIR}/testvars <<DBGSCRIPT
 export PKCS11_PROVIDER_DEBUG="file:${BASEDIR}/${TMPPDIR}/p11prov-debug.log"
 export PKCS11_PROVIDER_MODULE="${SOFTOKNPATH}/libsoftokn3.so"
 export OPENSSL_CONF="${OPENSSL_CONF}"
-export TESTSDIR="${TESTSDIR}"
+export TESTSSRCDIR="${TESTSSRCDIR}"
+export TESTBLDDIR="${TESTBLDDIR}"
 
 export TOKDIR="${BASEDIR}/${TOKDIR}"
 export TMPPDIR="${BASEDIR}/${TMPPDIR}"
 export PINVALUE="${PINVALUE}"
-export PINFILE="${BASEDIR}/${PINFILE}"
 export SEEDFILE="${BASEDIR}/${TMPPDIR}/noisefile.bin"
 export RAND64FILE="${BASEDIR}/${TMPPDIR}/64krandom.bin"
 

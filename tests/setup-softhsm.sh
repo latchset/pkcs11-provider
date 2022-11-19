@@ -2,7 +2,7 @@
 # Copyright (C) 2022 Jakub Jelen <jjelen@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-source ${TESTSDIR}/helpers.sh
+source ${TESTSSRCDIR}/helpers.sh
 
 if ! command -v softhsm2-util &> /dev/null
 then
@@ -130,9 +130,10 @@ OPENSSL_CONF=${BASEDIR}/${TMPPDIR}/openssl.cnf
 
 title LINE "Generate openssl config file"
 sed -e "s|@libtoollibs[@]|${LIBSPATH}|g" \
-    -e "s|@testsdir[@]|${BASEDIR}|g" \
+    -e "s|@testssrcdir[@]|${BASEDIR}|g" \
+    -e "s|@testsblddir@|${TESTBLDDIR}|g" \
     -e "/pkcs11-module-init-args/d" \
-    ${TESTSDIR}/openssl.cnf.in > ${OPENSSL_CONF}
+    ${TESTSSRCDIR}/openssl.cnf.in > ${OPENSSL_CONF}
 
 title LINE "Export test variables to ${TMPPDIR}/testvars"
 cat >> ${TMPPDIR}/testvars <<DBGSCRIPT
@@ -142,12 +143,11 @@ export PKCS11_PROVIDER_MODULE=${P11LIB}
 export PKCS11_PROVIDER_DEBUG="file:${BASEDIR}/${TMPPDIR}/p11prov-debug.log"
 export OPENSSL_CONF="${OPENSSL_CONF}"
 export SOFTHSM2_CONF=${BASEDIR}/${TMPPDIR}/softhsm.conf
-export TESTSDIR="${TESTSDIR}"
+export TESTSSRCDIR="${TESTSSRCDIR}"
 
 export TOKDIR="${BASEDIR}/${TOKDIR}"
 export TMPPDIR="${BASEDIR}/${TMPPDIR}"
 export PINVALUE="${PINVALUE}"
-export PINFILE="${BASEDIR}/${PINFILE}"
 export SEEDFILE="${BASEDIR}/${TMPPDIR}/noisefile.bin"
 export RAND64FILE="${BASEDIR}/${TMPPDIR}/64krandom.bin"
 
