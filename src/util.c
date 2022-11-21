@@ -296,7 +296,7 @@ P11PROV_URI *p11prov_parse_uri(const char *uri)
         } else if (strncmp(p, "serial=", 7) == 0) {
             p += 7;
             len -= 7;
-            ptr = (unsigned char **)&u->object;
+            ptr = (unsigned char **)&u->serial;
         } else if (strncmp(p, "id=", 3) == 0) {
             p += 3;
             len -= 3;
@@ -386,7 +386,6 @@ void p11prov_uri_free(P11PROV_URI *uri)
     OPENSSL_free(uri->manufacturer);
     OPENSSL_free(uri->token);
     OPENSSL_free(uri->serial);
-    OPENSSL_free(uri->object);
     OPENSSL_free(uri->id.pValue);
     if (uri->pin) {
         OPENSSL_clear_free(uri->pin, strlen(uri->pin));
@@ -409,9 +408,9 @@ CK_ATTRIBUTE p11prov_uri_get_label(P11PROV_URI *uri)
     return uri->label;
 }
 
-char *p11prov_uri_get_object(P11PROV_URI *uri)
+char *p11prov_uri_get_serial(P11PROV_URI *uri)
 {
-    return uri->object;
+    return uri->serial;
 }
 
 char *p11prov_uri_get_pin(P11PROV_URI *uri)
