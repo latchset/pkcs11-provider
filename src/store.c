@@ -113,8 +113,8 @@ static void store_fetch(struct p11prov_store_ctx *ctx,
             return;
         }
 
-        ret = find_keys(ctx->provctx, ctx->session, slotid, ctx->parsed_uri,
-                        p11prov_store_ctx_add_obj, ctx);
+        ret = p11prov_obj_find(ctx->provctx, ctx->session, slotid,
+                               ctx->parsed_uri, p11prov_store_ctx_add_obj, ctx);
         if (ret != CKR_OK) {
             P11PROV_raise(ctx->provctx, ret,
                           "Failed to load keys from slot (%ld)", slotid);

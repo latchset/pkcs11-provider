@@ -13,6 +13,12 @@ struct p11prov_key {
     CK_ULONG size;
 };
 
+struct p11prov_crt {
+    CK_CERTIFICATE_TYPE type;
+    CK_CERTIFICATE_CATEGORY category;
+    CK_BBOOL trusted;
+};
+
 struct p11prov_obj {
     P11PROV_CTX *ctx;
 
@@ -22,6 +28,7 @@ struct p11prov_obj {
 
     union {
         struct p11prov_key key;
+        struct p11prov_crt crt;
     } data;
 
     CK_ATTRIBUTE *attrs;
@@ -299,6 +306,93 @@ static int fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     return CKR_OK;
 }
 
+#define CERT_ATTRS_NUM 9
+static int fetch_certificate(P11PROV_CTX *ctx, P11PROV_SESSION *session,
+                             CK_OBJECT_HANDLE object, P11PROV_OBJ *crt)
+{
+    struct fetch_attrs attrs[CERT_ATTRS_NUM];
+    CK_ULONG crt_type_len = sizeof(CK_CERTIFICATE_TYPE);
+    CK_CERTIFICATE_TYPE *crt_type;
+    CK_ULONG subject_len = 0, id_len = 0, issuer_len = 0, serial_len = 0;
+    CK_BYTE *subject = NULL, *id = NULL, *issuer = NULL, *serial = NULL;
+    CK_ULONG value_len = 0, pubkey_len = 0;
+    CK_BYTE *value = NULL, *pubkey = NULL;
+    CK_BBOOL *trusted;
+    CK_ULONG trusted_len = sizeof(CK_BBOOL);
+    CK_CERTIFICATE_CATEGORY *category;
+    CK_ULONG category_len = sizeof(CK_CERTIFICATE_CATEGORY);
+    CK_RV ret;
+    int n;
+
+    crt->attrs = OPENSSL_zalloc(CERT_ATTRS_NUM * sizeof(CK_ATTRIBUTE));
+    if (crt->attrs == NULL) {
+        P11PROV_raise(ctx, CKR_HOST_MEMORY, "failed to allocate cert attrs");
+        return CKR_HOST_MEMORY;
+    }
+
+    n = 0;
+
+    crt_type = &crt->data.crt.type;
+    FA_ASSIGN_ALL(attrs[n], CKA_CERTIFICATE_TYPE, &crt_type, &crt_type_len,
+                  false, true);
+    n++;
+    trusted = &crt->data.crt.trusted;
+    FA_ASSIGN_ALL(attrs[n], CKA_TRUSTED, &trusted, &trusted_len, false, false);
+    n++;
+    category = &crt->data.crt.category;
+    FA_ASSIGN_ALL(attrs[n], CKA_CERTIFICATE_CATEGORY, &category, &category_len,
+                  false, false);
+    n++;
+    FA_ASSIGN_ALL(attrs[n], CKA_SUBJECT, &subject, &subject_len, true, true);
+    n++;
+    FA_ASSIGN_ALL(attrs[n], CKA_ID, &id, &id_len, true, false);
+    n++;
+    FA_ASSIGN_ALL(attrs[n], CKA_ISSUER, &issuer, &issuer_len, true, false);
+    n++;
+    FA_ASSIGN_ALL(attrs[n], CKA_SERIAL_NUMBER, &serial, &serial_len, true,
+                  false);
+    n++;
+    FA_ASSIGN_ALL(attrs[n], CKA_VALUE, &value, &value_len, true, false);
+    n++;
+    FA_ASSIGN_ALL(attrs[n], CKA_PUBLIC_KEY_INFO, &pubkey, &pubkey_len, true,
+                  false);
+    n++;
+
+    ret = p11prov_fetch_attributes(ctx, session, object, attrs, n);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Failed to query certificate attributes (%lu)", ret);
+        return ret;
+    }
+
+    CKATTR_ASSIGN_ALL(crt->attrs[0], CKA_SUBJECT, subject, subject_len);
+    crt->numattrs = 1;
+    if (id_len > 0) {
+        CKATTR_ASSIGN_ALL(crt->attrs[crt->numattrs], CKA_ID, id, id_len);
+        crt->numattrs++;
+    }
+    if (issuer_len > 0) {
+        CKATTR_ASSIGN_ALL(crt->attrs[crt->numattrs], CKA_ISSUER, issuer,
+                          issuer_len);
+        crt->numattrs++;
+    }
+    if (serial_len > 0) {
+        CKATTR_ASSIGN_ALL(crt->attrs[crt->numattrs], CKA_SERIAL_NUMBER, serial,
+                          serial_len);
+        crt->numattrs++;
+    }
+    if (value_len > 0) {
+        CKATTR_ASSIGN_ALL(crt->attrs[crt->numattrs], CKA_VALUE, value,
+                          value_len);
+        crt->numattrs++;
+    }
+    if (pubkey_len > 0) {
+        CKATTR_ASSIGN_ALL(crt->attrs[crt->numattrs], CKA_PUBLIC_KEY_INFO,
+                          pubkey, pubkey_len);
+        crt->numattrs++;
+    }
+    return CKR_OK;
+}
+
 /* TODO: may want to have a hashmap with cached objects */
 CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                               CK_OBJECT_HANDLE handle, P11PROV_OBJ **object)
@@ -312,6 +406,12 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     CK_BBOOL token_supports_allowed_mechs = CK_TRUE;
     CK_RV ret;
 
+    if (object) {
+        *object = NULL;
+    } else {
+        return CKR_ARGUMENTS_BAD;
+    }
+
     obj = p11prov_obj_new(ctx, p11prov_session_slotid(session), handle,
                           CK_UNAVAILABLE_INFORMATION);
     if (obj == NULL) {
@@ -322,9 +422,11 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
 
     class = &obj->class;
     FA_ASSIGN_ALL(attrs[0], CKA_CLASS, &class, &class_len, false, true);
+
+    obj->data.key.type = CK_UNAVAILABLE_INFORMATION;
     key_type = &obj->data.key.type;
     FA_ASSIGN_ALL(attrs[1], CKA_KEY_TYPE, &key_type, &key_type_len, false,
-                  true);
+                  false);
 
     ret = p11prov_fetch_attributes(ctx, session, handle, attrs, 2);
     if (ret != CKR_OK) {
@@ -333,61 +435,83 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         return ret;
     }
 
-    switch (obj->data.key.type) {
-    case CKK_RSA:
-        ret = fetch_rsa_key(ctx, session, handle, obj);
+    switch (obj->class) {
+    case CKO_CERTIFICATE:
+        ret = fetch_certificate(ctx, session, handle, obj);
         if (ret != CKR_OK) {
             p11prov_obj_free(obj);
             return ret;
         }
         break;
-    case CKK_EC:
-        ret = fetch_ec_key(ctx, session, handle, obj);
-        if (ret != CKR_OK) {
-            p11prov_obj_free(obj);
-            return ret;
-        }
-        break;
-    default:
-        /* unknown key type, we can't handle it */
-        P11PROV_debug("Unsupported key type (%lu)", obj->data.key.type);
-        p11prov_obj_free(obj);
-        return CKR_ARGUMENTS_BAD;
-    }
 
-    /* do this at the end as it often won't be a supported attributed */
-    ret = p11prov_token_sup_attr(ctx, obj->slotid, GET_ATTR,
-                                 CKA_ALLOWED_MECHANISMS,
-                                 &token_supports_allowed_mechs);
-    if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret, "Failed to probe quirk");
-    } else if (token_supports_allowed_mechs == CK_TRUE) {
-        CK_BYTE *value;
-        CK_ULONG value_len;
-        FA_ASSIGN_ALL(attrs[0], CKA_ALLOWED_MECHANISMS, &value, &value_len,
-                      true, false);
-        ret = p11prov_fetch_attributes(ctx, session, handle, attrs, 1);
-        if (ret == CKR_OK) {
-            CKATTR_ASSIGN_ALL(obj->attrs[obj->numattrs], CKA_ALLOWED_MECHANISMS,
-                              value, value_len);
-            obj->numattrs++;
-        } else if (ret == CKR_ATTRIBUTE_TYPE_INVALID) {
-            token_supports_allowed_mechs = CK_FALSE;
-            (void)p11prov_token_sup_attr(ctx, obj->slotid, SET_ATTR,
-                                         CKA_ALLOWED_MECHANISMS,
-                                         &token_supports_allowed_mechs);
+    case CKO_PUBLIC_KEY:
+    case CKO_PRIVATE_KEY:
+        switch (obj->data.key.type) {
+        case CKK_RSA:
+            ret = fetch_rsa_key(ctx, session, handle, obj);
+            if (ret != CKR_OK) {
+                p11prov_obj_free(obj);
+                return ret;
+            }
+            break;
+        case CKK_EC:
+            ret = fetch_ec_key(ctx, session, handle, obj);
+            if (ret != CKR_OK) {
+                p11prov_obj_free(obj);
+                return ret;
+            }
+            break;
+        default:
+            /* unknown key type, we can't handle it */
+            P11PROV_debug("Unsupported key type (%lu)", obj->data.key.type);
+            p11prov_obj_free(obj);
+            return CKR_ARGUMENTS_BAD;
         }
+
+        /* do this at the end as it often won't be a supported attributed */
+        ret = p11prov_token_sup_attr(ctx, obj->slotid, GET_ATTR,
+                                     CKA_ALLOWED_MECHANISMS,
+                                     &token_supports_allowed_mechs);
+        if (ret != CKR_OK) {
+            P11PROV_raise(ctx, ret, "Failed to probe quirk");
+        } else if (token_supports_allowed_mechs == CK_TRUE) {
+            CK_BYTE *value;
+            CK_ULONG value_len;
+            FA_ASSIGN_ALL(attrs[0], CKA_ALLOWED_MECHANISMS, &value, &value_len,
+                          true, false);
+            ret = p11prov_fetch_attributes(ctx, session, handle, attrs, 1);
+            if (ret == CKR_OK) {
+                CKATTR_ASSIGN_ALL(obj->attrs[obj->numattrs],
+                                  CKA_ALLOWED_MECHANISMS, value, value_len);
+                obj->numattrs++;
+            } else if (ret == CKR_ATTRIBUTE_TYPE_INVALID) {
+                token_supports_allowed_mechs = CK_FALSE;
+                (void)p11prov_token_sup_attr(ctx, obj->slotid, SET_ATTR,
+                                             CKA_ALLOWED_MECHANISMS,
+                                             &token_supports_allowed_mechs);
+            }
+        }
+        break;
+
+    default:
+        if (obj->class & CKO_VENDOR_DEFINED) {
+            P11PROV_debug("Vendor defined object %ld", obj->class);
+        } else {
+            P11PROV_debug("Unknown object class %ld", obj->class);
+        }
+        p11prov_obj_free(obj);
+        return CKR_CANCEL;
     }
 
     *object = obj;
     return CKR_OK;
 }
 
-#define MAX_OBJS_IN_STORE 1024
-
-CK_RV find_keys(P11PROV_CTX *provctx, P11PROV_SESSION *session,
-                CK_SLOT_ID slotid, P11PROV_URI *uri, store_key_callback cb,
-                void *cb_ctx)
+#define OBJS_IN_SEARCH 64
+#define MAX_OBJS_IN_STORE OBJS_IN_SEARCH * 16 /* 1024 */
+CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
+                       CK_SLOT_ID slotid, P11PROV_URI *uri,
+                       store_obj_callback cb, void *cb_ctx)
 {
     CK_FUNCTION_LIST *f;
     CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
@@ -397,23 +521,31 @@ CK_RV find_keys(P11PROV_CTX *provctx, P11PROV_SESSION *session,
     CK_ATTRIBUTE template[3] = { 0 };
     CK_ULONG tsize = 0;
     CK_ULONG objcount = 0;
+    CK_ULONG total = 0;
     CK_RV result = CKR_GENERAL_ERROR;
     CK_RV ret;
 
-    P11PROV_debug("Find keys");
+    P11PROV_debug("Find objects [class=%lu, id-len=%lu, label=%s]", class,
+                  id.ulValueLen,
+                  label.type == CKA_LABEL ? label.pValue : "None");
 
     ret = p11prov_ctx_status(provctx, &f);
     if (ret != CKR_OK) {
         return ret;
     }
 
-    if (class != CK_UNAVAILABLE_INFORMATION) {
-        if (class != CKO_PUBLIC_KEY && class != CKO_PRIVATE_KEY) {
-            /* nothing to find for us */
-            return CKR_OK;
-        }
+    switch (class) {
+    case CKO_CERTIFICATE:
+    case CKO_PUBLIC_KEY:
+    case CKO_PRIVATE_KEY:
         CKATTR_ASSIGN_ALL(template[tsize], CKA_CLASS, &class, sizeof(class));
         tsize++;
+        break;
+    case CK_UNAVAILABLE_INFORMATION:
+        break;
+    default:
+        /* nothing to find for us */
+        return CKR_OK;
     }
     if (id.type == CKA_ID) {
         template[tsize] = id;
@@ -431,23 +563,29 @@ CK_RV find_keys(P11PROV_CTX *provctx, P11PROV_SESSION *session,
         P11PROV_raise(provctx, ret, "Error returned by C_FindObjectsInit");
         return ret;
     }
-    for (int idx = 0; idx < MAX_OBJS_IN_STORE; idx += objcount) {
-        CK_OBJECT_HANDLE object[64];
-        ret = f->C_FindObjects(sess, object, 64, &objcount);
+    while (total < MAX_OBJS_IN_STORE) {
+        CK_OBJECT_HANDLE object[OBJS_IN_SEARCH];
+        ret = f->C_FindObjects(sess, object, OBJS_IN_SEARCH, &objcount);
         if (ret != CKR_OK || objcount == 0) {
             result = ret;
             break;
         }
+        total += objcount;
 
         for (CK_ULONG k = 0; k < objcount; k++) {
             P11PROV_OBJ *obj = NULL;
             ret = p11prov_obj_from_handle(provctx, session, object[k], &obj);
+            if (ret == CKR_CANCEL) {
+                /* unknown object or other recoverable error to ignore */
+                continue;
+            }
             if (ret == CKR_OK) {
                 ret = cb(cb_ctx, obj);
-                if (ret != CKR_OK) {
-                    result = ret;
-                    break;
-                }
+            }
+            if (ret != CKR_OK) {
+                P11PROV_raise(provctx, ret, "Failed to store object");
+                result = ret;
+                break;
             }
         }
     }
@@ -458,6 +596,7 @@ CK_RV find_keys(P11PROV_CTX *provctx, P11PROV_SESSION *session,
         P11PROV_raise(provctx, ret, "Failed to terminate object search");
     }
 
+    P11PROV_debug("Find objects: found %d objects", total);
     return result;
 }
 

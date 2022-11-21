@@ -145,12 +145,12 @@ void p11prov_obj_to_reference(P11PROV_OBJ *obj, void **reference,
 P11PROV_OBJ *p11prov_obj_from_reference(const void *reference,
                                         size_t reference_sz);
 
-typedef CK_RV (*store_key_callback)(void *, P11PROV_OBJ *);
+typedef CK_RV (*store_obj_callback)(void *, P11PROV_OBJ *);
 CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                               CK_OBJECT_HANDLE handle, P11PROV_OBJ **object);
-CK_RV find_keys(P11PROV_CTX *provctx, P11PROV_SESSION *session,
-                CK_SLOT_ID slotid, P11PROV_URI *uri, store_key_callback cb,
-                void *cb_ctx);
+CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
+                       CK_SLOT_ID slotid, P11PROV_URI *uri,
+                       store_obj_callback cb, void *cb_ctx);
 P11PROV_OBJ *find_associated_key(P11PROV_CTX *provctx, P11PROV_OBJ *key,
                                  CK_OBJECT_CLASS class);
 P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
