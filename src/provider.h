@@ -379,7 +379,7 @@ void p11prov_uri_free(P11PROV_URI *parsed_uri);
 CK_OBJECT_CLASS p11prov_uri_get_class(P11PROV_URI *uri);
 CK_ATTRIBUTE p11prov_uri_get_id(P11PROV_URI *uri);
 CK_ATTRIBUTE p11prov_uri_get_label(P11PROV_URI *uri);
-char *p11prov_uri_get_object(P11PROV_URI *uri);
+char *p11prov_uri_get_serial(P11PROV_URI *uri);
 char *p11prov_uri_get_pin(P11PROV_URI *uri);
 CK_RV p11prov_uri_match_token(P11PROV_URI *uri, CK_TOKEN_INFO *token);
 int p11prov_get_pin(const char *in, char **out);
