@@ -292,8 +292,9 @@ const unsigned char der_ecdsa_sha3_224[] = { DER_SEQ_ECDSA_SHA3_224 };
         .der_ecdsa_algorithm_id = der_ecdsa_sha3_##bits, \
         .der_ecdsa_algorithm_id_len = sizeof(der_ecdsa_sha3_##bits), \
     }
+
 /* only the ones we can support */
-struct {
+struct p11prov_mech {
     CK_MECHANISM_TYPE digest;
     CK_MECHANISM_TYPE pkcs_mech;
     CK_MECHANISM_TYPE pkcs_pss;
@@ -303,7 +304,10 @@ struct {
     int der_rsa_algorithm_id_len;
     const unsigned char *der_ecdsa_algorithm_id;
     int der_ecdsa_algorithm_id_len;
-} mech_map[] = {
+};
+typedef struct p11prov_mech P11PROV_MECH;
+
+static const P11PROV_MECH mech_map[] = {
     DM_ELEM_SHA3(256),
     DM_ELEM_SHA3(512),
     DM_ELEM_SHA3(384),
@@ -318,26 +322,24 @@ struct {
     { CK_UNAVAILABLE_INFORMATION, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
-static CK_RV p11prov_rsa_sig_algid(CK_MECHANISM_TYPE digest,
-                                   const unsigned char **algid, int *len)
+static CK_RV p11prov_mech_by_mechanism(CK_MECHANISM_TYPE mechanism,
+                                       const P11PROV_MECH **mech)
 {
     for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
-        if (mech_map[i].digest == digest) {
-            *algid = mech_map[i].der_rsa_algorithm_id;
-            *len = mech_map[i].der_rsa_algorithm_id_len;
+        if (mech_map[i].digest == mechanism) {
+            *mech = &mech_map[i];
             return CKR_OK;
         }
     }
     return CKR_MECHANISM_INVALID;
 }
 
-static CK_RV p11prov_ecdsa_sig_algid(CK_MECHANISM_TYPE digest,
-                                     const unsigned char **algid, int *len)
+static CK_RV p11prov_mech_by_mgf(CK_RSA_PKCS_MGF_TYPE mgf,
+                                 const P11PROV_MECH **mech)
 {
     for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
-        if (mech_map[i].digest == digest) {
-            *algid = mech_map[i].der_ecdsa_algorithm_id;
-            *len = mech_map[i].der_ecdsa_algorithm_id_len;
+        if (mech_map[i].mgf == mgf) {
+            *mech = &mech_map[i];
             return CKR_OK;
         }
     }
@@ -346,24 +348,27 @@ static CK_RV p11prov_ecdsa_sig_algid(CK_MECHANISM_TYPE digest,
 
 static const char *p11prov_sig_mgf_name(CK_RSA_PKCS_MGF_TYPE mgf)
 {
-    for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
-        if (mech_map[i].mgf == mgf) {
-            const char *digest;
-            CK_RV rv;
+    const P11PROV_MECH *mech = NULL;
+    const char *digest_name;
+    CK_RV rv;
 
-            rv = p11prov_digest_get_name(mech_map[i].digest, &digest);
-            if (rv != CKR_OK) {
-                return NULL;
-            }
-            return digest;
-        }
+    rv = p11prov_mech_by_mgf(mgf, &mech);
+    if (rv != CKR_OK) {
+        return NULL;
     }
-    return NULL;
+
+    rv = p11prov_digest_get_name(mech->digest, &digest_name);
+    if (rv != CKR_OK) {
+        return NULL;
+    }
+
+    return digest_name;
 }
 
 static CK_RSA_PKCS_MGF_TYPE p11prov_sig_map_mgf(const char *digest_name)
 {
     CK_MECHANISM_TYPE digest;
+    const P11PROV_MECH *mech = NULL;
     CK_RV rv;
 
     rv = p11prov_digest_get_by_name(digest_name, &digest);
@@ -371,12 +376,12 @@ static CK_RSA_PKCS_MGF_TYPE p11prov_sig_map_mgf(const char *digest_name)
         return CK_UNAVAILABLE_INFORMATION;
     }
 
-    for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
-        if (mech_map[i].digest == digest) {
-            return mech_map[i].mgf;
-        }
+    rv = p11prov_mech_by_mechanism(digest, &mech);
+    if (rv != CKR_OK) {
+        return CK_UNAVAILABLE_INFORMATION;
     }
-    return CK_UNAVAILABLE_INFORMATION;
+
+    return mech->mgf;
 }
 
 static CK_RV p11prov_sig_pss_restrictions(P11PROV_SIG_CTX *sigctx,
@@ -414,6 +419,7 @@ static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
                                      CK_MECHANISM *mechanism)
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
+    const P11PROV_MECH *mech;
     int result = CKR_DATA_INVALID;
 
     mechanism->mechanism = sigctx->mechtype;
@@ -434,12 +440,9 @@ static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
 
     switch (sigctx->mechtype) {
     case CKM_RSA_PKCS:
-        for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
-            if (sigctx->digest == mech_map[i].digest) {
-                mechanism->mechanism = mech_map[i].pkcs_mech;
-                result = CKR_OK;
-                break;
-            }
+        result = p11prov_mech_by_mechanism(sigctx->digest, &mech);
+        if (result == CKR_OK) {
+            mechanism->mechanism = mech->pkcs_mech;
         }
         break;
     case CKM_RSA_X_509:
@@ -447,24 +450,17 @@ static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
     case CKM_RSA_PKCS_PSS:
         mechanism->pParameter = &sigctx->pss_params;
         mechanism->ulParameterLen = sizeof(sigctx->pss_params);
-        for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
-            if (sigctx->digest == mech_map[i].digest) {
-                mechanism->mechanism = mech_map[i].pkcs_pss;
-                result = CKR_OK;
-                break;
-            }
-        }
+
+        result = p11prov_mech_by_mechanism(sigctx->digest, &mech);
         if (result == CKR_OK) {
+            mechanism->mechanism = mech->pkcs_pss;
             result = p11prov_sig_pss_restrictions(ctx, mechanism);
         }
         break;
     case CKM_ECDSA:
-        for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
-            if (sigctx->digest == mech_map[i].digest) {
-                mechanism->mechanism = mech_map[i].ecdsa_mech;
-                result = CKR_OK;
-                break;
-            }
+        result = p11prov_mech_by_mechanism(sigctx->digest, &mech);
+        if (result == CKR_OK) {
+            mechanism->mechanism = mech->ecdsa_mech;
         }
         break;
     }
@@ -1026,31 +1022,26 @@ static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_ALGORITHM_ID);
     if (p) {
-        const unsigned char *algid = NULL;
-        int len = 0;
+        const P11PROV_MECH *mech = NULL;
         CK_RV result;
 
         switch (sigctx->mechtype) {
         case CKM_RSA_PKCS:
-            result = p11prov_rsa_sig_algid(sigctx->digest, &algid, &len);
+            result = p11prov_mech_by_mechanism(sigctx->digest, &mech);
             if (result != CKR_OK) {
                 return RET_OSSL_ERR;
             }
+            ret = OSSL_PARAM_set_octet_string(p, mech->der_rsa_algorithm_id,
+                                              mech->der_rsa_algorithm_id_len);
+            if (ret != RET_OSSL_OK) {
+                return ret;
+            }
             break;
         case CKM_RSA_X_509:
-            break;
+            return RET_OSSL_ERR;
         case CKM_RSA_PKCS_PSS:
             /* TODO */
-            break;
-        }
-
-        if (algid == NULL) {
             return RET_OSSL_ERR;
-        }
-
-        ret = OSSL_PARAM_set_octet_string(p, algid, len);
-        if (ret != RET_OSSL_OK) {
-            return ret;
         }
     }
 
@@ -1490,26 +1481,23 @@ static int p11prov_ecdsa_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_ALGORITHM_ID);
     if (p) {
-        const unsigned char *algid = NULL;
-        int len = 0;
+        const P11PROV_MECH *mech = NULL;
         CK_RV result;
 
         switch (sigctx->mechtype) {
         case CKM_ECDSA:
-            result = p11prov_ecdsa_sig_algid(sigctx->digest, &algid, &len);
+            result = p11prov_mech_by_mechanism(sigctx->digest, &mech);
             if (result != CKR_OK) {
                 return RET_OSSL_ERR;
             }
+            ret = OSSL_PARAM_set_octet_string(p, mech->der_ecdsa_algorithm_id,
+                                              mech->der_ecdsa_algorithm_id_len);
+            if (ret != RET_OSSL_OK) {
+                return ret;
+            }
             break;
-        }
-
-        if (algid == NULL) {
+        default:
             return RET_OSSL_ERR;
-        }
-
-        ret = OSSL_PARAM_set_octet_string(p, algid, len);
-        if (ret != RET_OSSL_OK) {
-            return ret;
         }
     }
 
