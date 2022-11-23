@@ -338,10 +338,9 @@ static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate_const(params, OSSL_EXCHANGE_PARAM_KDF_TYPE);
     if (p) {
-        char name[128] = { 0 };
-        char *str = name;
+        const char *name = NULL;
 
-        ret = OSSL_PARAM_get_utf8_string(p, &str, sizeof(name));
+        ret = OSSL_PARAM_get_utf8_string_ptr(p, &name);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
@@ -368,11 +367,10 @@ static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate_const(params, OSSL_EXCHANGE_PARAM_KDF_DIGEST);
     if (p) {
-        char digest[256];
-        char *ptr = digest;
+        const char *digest = NULL;
         CK_RV rv;
 
-        ret = OSSL_PARAM_get_utf8_string(p, &ptr, 256);
+        ret = OSSL_PARAM_get_utf8_string_ptr(p, &digest);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
