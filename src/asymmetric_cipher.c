@@ -20,7 +20,7 @@ DISPATCH_RSAENC_FN(settable_ctx_params);
 struct p11prov_rsaenc_ctx {
     P11PROV_CTX *provctx;
 
-    P11PROV_KEY *key;
+    P11PROV_OBJ *key;
 
     CK_MECHANISM_TYPE mechtype;
     CK_RSA_PKCS_OAEP_PARAMS oaep_params;
@@ -52,7 +52,7 @@ static void p11prov_rsaenc_freectx(void *ctx)
         return;
     }
 
-    p11prov_key_free(encctx->key);
+    p11prov_obj_free(encctx->key);
     OPENSSL_free(encctx->oaep_params.pSourceData);
     OPENSSL_clear_free(encctx, sizeof(struct p11prov_rsaenc_ctx));
 }
@@ -71,7 +71,7 @@ static void *p11prov_rsaenc_dupctx(void *ctx)
         return NULL;
     }
 
-    newctx->key = p11prov_key_ref(encctx->key);
+    newctx->key = p11prov_obj_ref(encctx->key);
     newctx->mechtype = encctx->mechtype;
     newctx->oaep_params = encctx->oaep_params;
     if (encctx->oaep_params.pSourceData) {
@@ -110,7 +110,7 @@ static int p11prov_rsaenc_encrypt_init(void *ctx, void *provkey,
                                        const OSSL_PARAM params[])
 {
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
-    P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)provkey;
     CK_RV ret;
 
     P11PROV_debug("encrypt init (ctx=%p, key=%p, params=%p)", ctx, provkey,
@@ -121,7 +121,7 @@ static int p11prov_rsaenc_encrypt_init(void *ctx, void *provkey,
         return RET_OSSL_ERR;
     }
 
-    encctx->key = p11prov_object_get_key(obj);
+    encctx->key = p11prov_obj_ref(key);
     if (encctx->key == NULL) {
         return RET_OSSL_ERR;
     }
@@ -147,7 +147,7 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
     P11PROV_debug("encrypt (ctx=%p)", ctx);
 
     if (out == NULL) {
-        CK_ULONG size = p11prov_key_size(encctx->key);
+        CK_ULONG size = p11prov_obj_get_key_size(encctx->key);
         if (size == CK_UNAVAILABLE_INFORMATION) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_KEY);
             return RET_OSSL_ERR;
@@ -160,13 +160,13 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
     if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }
-    slotid = p11prov_key_slotid(encctx->key);
+    slotid = p11prov_obj_get_slotid(encctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
         P11PROV_raise(encctx->provctx, CKR_SLOT_ID_INVALID,
                       "Provided key has invalid slot");
         return RET_OSSL_ERR;
     }
-    handle = p11prov_key_handle(encctx->key);
+    handle = p11prov_obj_get_handle(encctx->key);
     if (handle == CK_INVALID_HANDLE) {
         P11PROV_raise(encctx->provctx, CKR_KEY_HANDLE_INVALID,
                       "Provided key has invalid handle");
@@ -215,7 +215,7 @@ static int p11prov_rsaenc_decrypt_init(void *ctx, void *provkey,
                                        const OSSL_PARAM params[])
 {
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
-    P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)provkey;
     CK_RV ret;
 
     P11PROV_debug("encrypt init (ctx=%p, key=%p, params=%p)", ctx, provkey,
@@ -226,11 +226,11 @@ static int p11prov_rsaenc_decrypt_init(void *ctx, void *provkey,
         return RET_OSSL_ERR;
     }
 
-    encctx->key = p11prov_object_get_key(obj);
+    encctx->key = p11prov_obj_ref(key);
     if (encctx->key == NULL) {
         return RET_OSSL_ERR;
     }
-    if (p11prov_key_class(encctx->key) != CKO_PRIVATE_KEY) {
+    if (p11prov_obj_get_class(encctx->key) != CKO_PRIVATE_KEY) {
         P11PROV_raise(encctx->provctx, CKR_ARGUMENTS_BAD, "Invalid key class");
         return RET_OSSL_ERR;
     }
@@ -256,7 +256,7 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     P11PROV_debug("decrypt (ctx=%p)", ctx);
 
     if (out == NULL) {
-        CK_ULONG size = p11prov_key_size(encctx->key);
+        CK_ULONG size = p11prov_obj_get_key_size(encctx->key);
         if (size == CK_UNAVAILABLE_INFORMATION) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_KEY);
             return RET_OSSL_ERR;
@@ -269,13 +269,13 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }
-    slotid = p11prov_key_slotid(encctx->key);
+    slotid = p11prov_obj_get_slotid(encctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
         P11PROV_raise(encctx->provctx, CKR_SLOT_ID_INVALID,
                       "Provided key has invalid slot");
         return RET_OSSL_ERR;
     }
-    handle = p11prov_key_handle(encctx->key);
+    handle = p11prov_obj_get_handle(encctx->key);
     if (handle == CK_INVALID_HANDLE) {
         P11PROV_raise(encctx->provctx, CKR_KEY_HANDLE_INVALID,
                       "Provided key has invalid handle");
@@ -499,8 +499,9 @@ static int p11prov_rsaenc_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         }
         encctx->mechtype = mechtype;
 
-        P11PROV_debug_mechanism(
-            encctx->provctx, p11prov_key_slotid(encctx->key), encctx->mechtype);
+        P11PROV_debug_mechanism(encctx->provctx,
+                                p11prov_obj_get_slotid(encctx->key),
+                                encctx->mechtype);
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_ASYM_CIPHER_PARAM_OAEP_DIGEST);

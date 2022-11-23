@@ -8,8 +8,8 @@
 struct p11prov_exch_ctx {
     P11PROV_CTX *provctx;
 
-    P11PROV_KEY *key;
-    P11PROV_KEY *peer_key;
+    P11PROV_OBJ *key;
+    P11PROV_OBJ *peer_key;
 
     CK_MECHANISM_TYPE mechtype;
     CK_MECHANISM_TYPE digest;
@@ -102,8 +102,8 @@ static void *p11prov_ecdh_dupctx(void *ctx)
         return NULL;
     }
 
-    newctx->key = p11prov_key_ref(ecdhctx->key);
-    newctx->peer_key = p11prov_key_ref(ecdhctx->peer_key);
+    newctx->key = p11prov_obj_ref(ecdhctx->key);
+    newctx->peer_key = p11prov_obj_ref(ecdhctx->peer_key);
 
     newctx->mechtype = ecdhctx->mechtype;
 
@@ -143,8 +143,8 @@ static void p11prov_ecdh_freectx(void *ctx)
         return;
     }
 
-    p11prov_key_free(ecdhctx->key);
-    p11prov_key_free(ecdhctx->peer_key);
+    p11prov_obj_free(ecdhctx->key);
+    p11prov_obj_free(ecdhctx->peer_key);
     OPENSSL_clear_free(ecdhctx->ecdh_params.pSharedData,
                        ecdhctx->ecdh_params.ulSharedDataLen);
     OPENSSL_clear_free(ecdhctx, sizeof(P11PROV_EXCH_CTX));
@@ -154,7 +154,7 @@ static int p11prov_ecdh_init(void *ctx, void *provkey,
                              const OSSL_PARAM params[])
 {
     P11PROV_EXCH_CTX *ecdhctx = (P11PROV_EXCH_CTX *)ctx;
-    P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)provkey;
     CK_RV ret;
 
     if (ctx == NULL || provkey == NULL) {
@@ -166,13 +166,13 @@ static int p11prov_ecdh_init(void *ctx, void *provkey,
         return RET_OSSL_ERR;
     }
 
-    p11prov_key_free(ecdhctx->key);
-    ecdhctx->key = p11prov_object_get_key(obj);
+    p11prov_obj_free(ecdhctx->key);
+    ecdhctx->key = p11prov_obj_ref(key);
     if (ecdhctx->key == NULL) {
         P11PROV_raise(ecdhctx->provctx, CKR_ARGUMENTS_BAD, "Invalid object");
         return RET_OSSL_ERR;
     }
-    if (p11prov_key_class(ecdhctx->key) != CKO_PRIVATE_KEY) {
+    if (p11prov_obj_get_class(ecdhctx->key) != CKO_PRIVATE_KEY) {
         P11PROV_raise(ecdhctx->provctx, CKR_ARGUMENTS_BAD, "Invalid key class");
         return RET_OSSL_ERR;
     }
@@ -183,19 +183,19 @@ static int p11prov_ecdh_init(void *ctx, void *provkey,
 static int p11prov_ecdh_set_peer(void *ctx, void *provkey)
 {
     P11PROV_EXCH_CTX *ecdhctx = (P11PROV_EXCH_CTX *)ctx;
-    P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)provkey;
 
     if (ctx == NULL || provkey == NULL) {
         return RET_OSSL_ERR;
     }
 
-    p11prov_key_free(ecdhctx->peer_key);
-    ecdhctx->peer_key = p11prov_object_get_key(obj);
+    p11prov_obj_free(ecdhctx->peer_key);
+    ecdhctx->peer_key = p11prov_obj_ref(key);
     if (ecdhctx->peer_key == NULL) {
         P11PROV_raise(ecdhctx->provctx, CKR_ARGUMENTS_BAD, "Invalid object");
         return RET_OSSL_ERR;
     }
-    if (p11prov_key_class(ecdhctx->peer_key) != CKO_PUBLIC_KEY) {
+    if (p11prov_obj_get_class(ecdhctx->peer_key) != CKO_PUBLIC_KEY) {
         P11PROV_raise(ecdhctx->provctx, CKR_ARGUMENTS_BAD, "Invalid key class");
         return RET_OSSL_ERR;
     }
@@ -235,7 +235,7 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     }
 
     if (secret == NULL) {
-        *psecretlen = p11prov_key_size(ecdhctx->key);
+        *psecretlen = p11prov_obj_get_key_size(ecdhctx->key);
         return RET_OSSL_OK;
     }
 
@@ -252,7 +252,7 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
         }
     }
 
-    ec_point = p11prov_key_attr(ecdhctx->peer_key, CKA_EC_POINT);
+    ec_point = p11prov_obj_get_attr(ecdhctx->peer_key, CKA_EC_POINT);
     if (ec_point == NULL) {
         return RET_OSSL_ERR;
     }
@@ -267,17 +267,17 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     if (ecdhctx->kdf_outlen) {
         key_size = ecdhctx->kdf_outlen;
     } else {
-        key_size = p11prov_key_size(ecdhctx->key);
+        key_size = p11prov_obj_get_key_size(ecdhctx->key);
     }
 
-    handle = p11prov_key_handle(ecdhctx->key);
+    handle = p11prov_obj_get_handle(ecdhctx->key);
     if (handle == CK_INVALID_HANDLE) {
         P11PROV_raise(ecdhctx->provctx, CKR_KEY_HANDLE_INVALID,
                       "Provided key has invalid handle");
         return RET_OSSL_ERR;
     }
 
-    slotid = p11prov_key_slotid(ecdhctx->key);
+    slotid = p11prov_obj_get_slotid(ecdhctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
         P11PROV_raise(ecdhctx->provctx, CKR_SLOT_ID_INVALID,
                       "Provided key has invalid slot");
@@ -573,21 +573,21 @@ static void p11prov_exch_hkdf_freectx(void *ctx)
     }
 
     EVP_KDF_CTX_free(hkdfctx->kdfctx);
-    p11prov_key_free(hkdfctx->key);
+    p11prov_obj_free(hkdfctx->key);
     OPENSSL_clear_free(hkdfctx, sizeof(P11PROV_EXCH_CTX));
 }
 
-static int p11prov_exch_hkdf_init(void *ctx, void *provobj,
+static int p11prov_exch_hkdf_init(void *ctx, void *provkey,
                                   const OSSL_PARAM params[])
 {
     P11PROV_EXCH_CTX *hkdfctx = (P11PROV_EXCH_CTX *)ctx;
-    P11PROV_OBJ *obj = (P11PROV_OBJ *)provobj;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)provkey;
     CK_RV ret;
 
-    P11PROV_debug("hkdf exchange init (ctx:%p obj:%p params:%p)", ctx, obj,
+    P11PROV_debug("hkdf exchange init (ctx:%p key:%p params:%p)", ctx, key,
                   params);
 
-    if (ctx == NULL || provobj == NULL) {
+    if (ctx == NULL || provkey == NULL) {
         return RET_OSSL_ERR;
     }
 
@@ -596,15 +596,15 @@ static int p11prov_exch_hkdf_init(void *ctx, void *provobj,
         return RET_OSSL_ERR;
     }
 
-    if (provobj != &p11prov_hkdf_static_ctx) {
-        p11prov_key_free(hkdfctx->key);
-        hkdfctx->key = p11prov_object_get_key(obj);
+    if (provkey != &p11prov_hkdf_static_ctx) {
+        p11prov_obj_free(hkdfctx->key);
+        hkdfctx->key = p11prov_obj_ref(key);
         if (hkdfctx->key == NULL) {
             P11PROV_raise(hkdfctx->provctx, CKR_ARGUMENTS_BAD,
                           "Invalid object");
             return RET_OSSL_ERR;
         }
-        if (p11prov_key_class(hkdfctx->key) != CKO_PRIVATE_KEY) {
+        if (p11prov_obj_get_class(hkdfctx->key) != CKO_PRIVATE_KEY) {
             P11PROV_raise(hkdfctx->provctx, CKR_ARGUMENTS_BAD,
                           "Invalid key class");
             return RET_OSSL_ERR;
