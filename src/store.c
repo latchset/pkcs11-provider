@@ -3,249 +3,6 @@
 
 #include "provider.h"
 #include <openssl/store.h>
-#include <openssl/ec.h>
-#include "platform/endian.h"
-#include <string.h>
-
-struct p11prov_obj {
-    P11PROV_CTX *ctx;
-    CK_OBJECT_CLASS class;
-    union {
-        struct p11prov_key *key;
-    } data;
-
-    int refcnt;
-};
-
-CK_RV p11prov_object_new(P11PROV_CTX *ctx, P11PROV_KEY *key,
-                         P11PROV_OBJ **object)
-{
-    P11PROV_OBJ *obj;
-
-    obj = OPENSSL_zalloc(sizeof(P11PROV_OBJ));
-    if (obj == NULL) {
-        return CKR_HOST_MEMORY;
-    }
-    obj->ctx = ctx;
-
-    if (key != NULL) {
-        obj->class = p11prov_key_class(key);
-        obj->data.key = p11prov_key_ref(key);
-    } else {
-        obj->class = CK_UNAVAILABLE_INFORMATION;
-    }
-
-    obj->refcnt = 1;
-
-    *object = obj;
-    return CKR_OK;
-}
-
-static P11PROV_OBJ *p11prov_object_ref(P11PROV_OBJ *obj)
-{
-    if (obj && __atomic_fetch_add(&obj->refcnt, 1, __ATOMIC_SEQ_CST) > 0) {
-        return obj;
-    }
-
-    return NULL;
-}
-
-void p11prov_object_free(P11PROV_OBJ *obj)
-{
-    P11PROV_debug("object free (%p)", obj);
-
-    if (obj == NULL) {
-        return;
-    }
-    if (__atomic_sub_fetch(&obj->refcnt, 1, __ATOMIC_SEQ_CST) != 0) {
-        P11PROV_debug("object free: reference held");
-        return;
-    }
-
-    switch (obj->class) {
-    case CKO_PUBLIC_KEY:
-    case CKO_PRIVATE_KEY:
-        p11prov_key_free(obj->data.key);
-        break;
-    default:
-        P11PROV_debug("object_free: invalid class: %lu", obj->class);
-    }
-
-    OPENSSL_clear_free(obj, sizeof(P11PROV_OBJ));
-}
-
-CK_OBJECT_CLASS p11prov_object_get_class(P11PROV_OBJ *obj)
-{
-    return obj->class;
-}
-
-P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj)
-{
-    switch (obj->class) {
-    case CKO_PRIVATE_KEY:
-    case CKO_PUBLIC_KEY:
-        if (obj->data.key) {
-            return p11prov_key_ref(obj->data.key);
-        }
-        break;
-    }
-    return NULL;
-}
-
-/* Tokens return data in bigendian order, while openssl
- * wants it in host order, so we may need to fix the
- * endianness of the buffer.
- * Src and Dest, can be the same area, but not partially
- * overlapping memory areas */
-
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-#define WITH_FIXED_BUFFER(src, ptr) \
-    unsigned char fix_##src[src->ulValueLen]; \
-    byteswap_buf(src->pValue, fix_##src, src->ulValueLen); \
-    ptr = fix_##src;
-#else
-#define WITH_FIXED_BUFFER(src, ptr) ptr = src->pValue;
-#endif
-int p11prov_object_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
-                                         void *cb_arg)
-{
-    P11PROV_KEY *pubkey = NULL;
-    OSSL_PARAM params[3];
-    CK_ATTRIBUTE *n, *e;
-    unsigned char *val;
-    int ret;
-
-    if (p11prov_key_type(obj->data.key) != CKK_RSA) {
-        return RET_OSSL_ERR;
-    }
-
-    if (p11prov_ctx_allow_export(obj->ctx) & DISALLOW_EXPORT_PUBLIC) {
-        return RET_OSSL_ERR;
-    }
-
-    n = p11prov_key_attr(obj->data.key, CKA_MODULUS);
-    e = p11prov_key_attr(obj->data.key, CKA_PUBLIC_EXPONENT);
-    if (!n || !e) {
-        if (obj->class == CKO_PRIVATE_KEY) {
-            /* try to find the associated public key */
-            pubkey =
-                find_associated_key(obj->ctx, obj->data.key, CKO_PUBLIC_KEY);
-            if (!pubkey) {
-                return RET_OSSL_ERR;
-            }
-            n = p11prov_key_attr(pubkey, CKA_MODULUS);
-            e = p11prov_key_attr(pubkey, CKA_PUBLIC_EXPONENT);
-            if (!n || !e) {
-                p11prov_key_free(pubkey);
-                return RET_OSSL_ERR;
-            }
-        } else {
-            return RET_OSSL_ERR;
-        }
-    }
-
-    WITH_FIXED_BUFFER(n, val);
-    params[0] =
-        OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N, val, n->ulValueLen);
-
-    WITH_FIXED_BUFFER(e, val);
-    params[1] =
-        OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_E, val, e->ulValueLen);
-
-    params[2] = OSSL_PARAM_construct_end();
-
-    ret = cb_fn(params, cb_arg);
-
-    p11prov_key_free(pubkey);
-    return ret;
-}
-
-int p11prov_object_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
-                                        void *cb_arg)
-{
-    P11PROV_KEY *pubkey = NULL;
-    OSSL_PARAM params[3];
-    CK_ATTRIBUTE *ec_params, *ec_point;
-    ASN1_OCTET_STRING *octet = NULL;
-    EC_GROUP *group = NULL;
-    const unsigned char *val;
-    const char *curve_name;
-    int curve_nid;
-    int ret;
-
-    if (p11prov_key_type(obj->data.key) != CKK_EC) {
-        return RET_OSSL_ERR;
-    }
-
-    if (p11prov_ctx_allow_export(obj->ctx) & DISALLOW_EXPORT_PUBLIC) {
-        return RET_OSSL_ERR;
-    }
-
-    ec_params = p11prov_key_attr(obj->data.key, CKA_EC_PARAMS);
-    ec_point = p11prov_key_attr(obj->data.key, CKA_EC_POINT);
-    if (!ec_params || !ec_point) {
-        if (obj->class == CKO_PRIVATE_KEY) {
-            /* try to find the associated public key */
-            pubkey =
-                find_associated_key(obj->ctx, obj->data.key, CKO_PUBLIC_KEY);
-            if (!pubkey) {
-                return RET_OSSL_ERR;
-            }
-            ec_params = p11prov_key_attr(pubkey, CKA_EC_PARAMS);
-            ec_point = p11prov_key_attr(pubkey, CKA_EC_POINT);
-            if (!ec_params || !ec_point) {
-                p11prov_key_free(pubkey);
-                return RET_OSSL_ERR;
-            }
-        } else {
-            return RET_OSSL_ERR;
-        }
-    }
-
-    /* in d2i functions 'in' is overwritten to return the remainder of the
-     * buffer after parsing, so we always need to avoid passing in our pointer
-     * folders, to avoid having them clobbered */
-    val = ec_params->pValue;
-    group = d2i_ECPKParameters(NULL, (const unsigned char **)&val,
-                               ec_params->ulValueLen);
-    if (group == NULL) {
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-
-    curve_nid = EC_GROUP_get_curve_name(group);
-    if (curve_nid == NID_undef) {
-        EC_GROUP_free(group);
-        return RET_OSSL_ERR;
-    }
-    curve_name = OSSL_EC_curve_nid2name(curve_nid);
-    if (curve_name == NULL) {
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-    params[0] = OSSL_PARAM_construct_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME,
-                                                 (char *)curve_name, 0);
-
-    val = ec_point->pValue;
-    octet = d2i_ASN1_OCTET_STRING(NULL, (const unsigned char **)&val,
-                                  ec_point->ulValueLen);
-    if (octet == NULL) {
-        return RET_OSSL_ERR;
-    }
-    params[1] = OSSL_PARAM_construct_octet_string(OSSL_PKEY_PARAM_PUB_KEY,
-                                                  octet->data, octet->length);
-
-    params[2] = OSSL_PARAM_construct_end();
-
-    ret = cb_fn(params, cb_arg);
-
-done:
-    /* must be freed after callback */
-    ASN1_OCTET_STRING_free(octet);
-    p11prov_key_free(pubkey);
-    EC_GROUP_free(group);
-    return ret;
-}
 
 struct p11prov_store_ctx {
     P11PROV_CTX *provctx;
@@ -294,7 +51,7 @@ static void p11prov_store_ctx_free(struct p11prov_store_ctx *ctx)
     OPENSSL_free(ctx->input_type);
 
     for (int i = 0; i < ctx->num_objs; i++) {
-        p11prov_object_free(ctx->objects[i]);
+        p11prov_obj_free(ctx->objects[i]);
     }
     OPENSSL_free(ctx->objects);
 
@@ -302,16 +59,9 @@ static void p11prov_store_ctx_free(struct p11prov_store_ctx *ctx)
 }
 
 #define OBJS_ALLOC_SIZE 8
-static CK_RV p11prov_store_ctx_add_key(void *pctx, P11PROV_KEY *key)
+static CK_RV p11prov_store_ctx_add_obj(void *pctx, P11PROV_OBJ *obj)
 {
     struct p11prov_store_ctx *ctx = (struct p11prov_store_ctx *)pctx;
-    P11PROV_OBJ *obj;
-    CK_RV ret;
-
-    ret = p11prov_object_new(ctx->provctx, key, &obj);
-    if (ret != CKR_OK) {
-        return ret;
-    }
 
     if ((ctx->num_objs % OBJS_ALLOC_SIZE) == 0) {
         P11PROV_OBJ **tmp =
@@ -320,7 +70,7 @@ static CK_RV p11prov_store_ctx_add_key(void *pctx, P11PROV_KEY *key)
         if (tmp == NULL) {
             P11PROV_raise(ctx->provctx, CKR_HOST_MEMORY,
                           "Failed to allocate store objects");
-            p11prov_object_free(obj);
+            p11prov_obj_free(obj);
             return CKR_HOST_MEMORY;
         }
         ctx->objects = tmp;
@@ -364,7 +114,7 @@ static void store_fetch(struct p11prov_store_ctx *ctx,
         }
 
         ret = find_keys(ctx->provctx, ctx->session, slotid, ctx->parsed_uri,
-                        p11prov_store_ctx_add_key, ctx);
+                        p11prov_store_ctx_add_obj, ctx);
         if (ret != CKR_OK) {
             P11PROV_raise(ctx->provctx, ret,
                           "Failed to load keys from slot (%ld)", slotid);
@@ -430,6 +180,8 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
                               OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
 {
     struct p11prov_store_ctx *ctx = (struct p11prov_store_ctx *)pctx;
+    void *reference;
+    size_t reference_sz;
     P11PROV_OBJ *obj = NULL;
     OSSL_PARAM params[4];
     int object_type;
@@ -452,7 +204,7 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
         ctx->fetched++;
 
         /* Supported search types in OSSL_STORE_SEARCH(3) */
-        switch (obj->class) {
+        switch (p11prov_obj_get_class(obj)) {
         case CKO_CERTIFICATE:
             /* ctx->subject */
             /* ctx->issuer */
@@ -464,7 +216,7 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
             /* ctx->fingerprint */
             if (ctx->alias) {
                 CK_ATTRIBUTE *label;
-                label = p11prov_key_attr(obj->data.key, CKA_LABEL);
+                label = p11prov_obj_get_attr(obj, CKA_LABEL);
                 if (label && strcmp(ctx->alias, label->pValue) == 0) {
                     found = true;
                 }
@@ -479,11 +231,11 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
         return RET_OSSL_ERR;
     }
 
-    switch (obj->class) {
+    switch (p11prov_obj_get_class(obj)) {
     case CKO_PUBLIC_KEY:
     case CKO_PRIVATE_KEY:
         object_type = OSSL_OBJECT_PKEY;
-        type = p11prov_key_type(obj->data.key);
+        type = p11prov_obj_get_key_type(obj);
         switch (type) {
         case CKK_RSA:
             data_type = (char *)P11PROV_NAMES_RSA;
@@ -504,9 +256,9 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
                                                  data_type, 0);
 
     /* giving away the object by reference */
+    p11prov_obj_to_reference(obj, &reference, &reference_sz);
     params[2] = OSSL_PARAM_construct_octet_string(OSSL_OBJECT_PARAM_REFERENCE,
-                                                  p11prov_object_ref(obj),
-                                                  sizeof(P11PROV_OBJ));
+                                                  reference, reference_sz);
     params[3] = OSSL_PARAM_construct_end();
 
     return object_cb(params, object_cbarg);
@@ -541,16 +293,6 @@ static int p11prov_store_close(void *pctx)
     return 1;
 }
 
-P11PROV_OBJ *p11prov_obj_from_reference(const void *reference,
-                                        size_t reference_sz)
-{
-    if (!reference || reference_sz != sizeof(P11PROV_OBJ)) {
-        return NULL;
-    }
-
-    return (P11PROV_OBJ *)reference;
-}
-
 static int p11prov_store_export_object(void *loaderctx, const void *reference,
                                        size_t reference_sz,
                                        OSSL_CALLBACK *cb_fn, void *cb_arg)
@@ -567,11 +309,11 @@ static int p11prov_store_export_object(void *loaderctx, const void *reference,
     }
 
     /* we can only export public bits, so that's all we do */
-    if (obj->class != CKO_PUBLIC_KEY) {
+    if (p11prov_obj_get_class(obj) != CKO_PUBLIC_KEY) {
         return RET_OSSL_ERR;
     }
 
-    return p11prov_object_export_public_rsa_key(obj, cb_fn, cb_arg);
+    return p11prov_obj_export_public_rsa_key(obj, cb_fn, cb_arg);
 }
 
 static const OSSL_PARAM *p11prov_store_settable_ctx_params(void *provctx)

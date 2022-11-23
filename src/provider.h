@@ -48,7 +48,6 @@
 #define P11PROV_PARAM_KEY_ID "pkcs11_key_id"
 
 typedef struct p11prov_ctx P11PROV_CTX;
-typedef struct p11prov_key P11PROV_KEY;
 typedef struct p11prov_uri P11PROV_URI;
 typedef struct p11prov_obj P11PROV_OBJ;
 typedef struct p11prov_session P11PROV_SESSION;
@@ -130,26 +129,31 @@ void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                              CK_MECHANISM_TYPE type);
 void p11prov_debug_slot(P11PROV_CTX *ctx, struct p11prov_slot *slot);
 
-/* Keys */
-P11PROV_KEY *p11prov_key_ref(P11PROV_KEY *key);
-void p11prov_key_free(P11PROV_KEY *key);
-CK_ATTRIBUTE *p11prov_key_attr(P11PROV_KEY *key, CK_ATTRIBUTE_TYPE type);
-CK_OBJECT_CLASS p11prov_key_class(P11PROV_KEY *key);
-CK_KEY_TYPE p11prov_key_type(P11PROV_KEY *key);
-CK_SLOT_ID p11prov_key_slotid(P11PROV_KEY *key);
-CK_OBJECT_HANDLE p11prov_key_handle(P11PROV_KEY *key);
-CK_ULONG p11prov_key_size(P11PROV_KEY *key);
+/* Objects */
+P11PROV_OBJ *p11prov_obj_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
+                             CK_OBJECT_HANDLE handle, CK_OBJECT_CLASS class);
+P11PROV_OBJ *p11prov_obj_ref(P11PROV_OBJ *obj);
+void p11prov_obj_free(P11PROV_OBJ *obj);
+CK_SLOT_ID p11prov_obj_get_slotid(P11PROV_OBJ *obj);
+CK_OBJECT_HANDLE p11prov_obj_get_handle(P11PROV_OBJ *obj);
+CK_OBJECT_CLASS p11prov_obj_get_class(P11PROV_OBJ *obj);
+CK_ATTRIBUTE *p11prov_obj_get_attr(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type);
+CK_KEY_TYPE p11prov_obj_get_key_type(P11PROV_OBJ *obj);
+CK_ULONG p11prov_obj_get_key_size(P11PROV_OBJ *obj);
+void p11prov_obj_to_reference(P11PROV_OBJ *obj, void **reference,
+                              size_t *reference_sz);
+P11PROV_OBJ *p11prov_obj_from_reference(const void *reference,
+                                        size_t reference_sz);
 
-typedef CK_RV (*store_key_callback)(void *, P11PROV_KEY *);
-P11PROV_KEY *p11prov_object_handle_to_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
-                                          P11PROV_SESSION *session,
-                                          CK_OBJECT_HANDLE object);
+typedef CK_RV (*store_key_callback)(void *, P11PROV_OBJ *);
+CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
+                              CK_OBJECT_HANDLE handle, P11PROV_OBJ **object);
 CK_RV find_keys(P11PROV_CTX *provctx, P11PROV_SESSION *session,
                 CK_SLOT_ID slotid, P11PROV_URI *uri, store_key_callback cb,
                 void *cb_ctx);
-P11PROV_KEY *find_associated_key(P11PROV_CTX *provctx, P11PROV_KEY *key,
+P11PROV_OBJ *find_associated_key(P11PROV_CTX *provctx, P11PROV_OBJ *key,
                                  CK_OBJECT_CLASS class);
-P11PROV_KEY *p11prov_create_secret_key(P11PROV_CTX *provctx,
+P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        P11PROV_SESSION *session,
                                        bool session_key, unsigned char *secret,
                                        size_t secretlen);
@@ -157,22 +161,13 @@ CK_RV p11prov_derive_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                          CK_MECHANISM *mechanism, CK_OBJECT_HANDLE handle,
                          CK_ATTRIBUTE *template, CK_ULONG nattrs,
                          P11PROV_SESSION **session, CK_OBJECT_HANDLE *key);
-CK_RV p11prov_key_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
-                                 P11PROV_KEY *key, CK_ATTRIBUTE *template,
+CK_RV p11prov_obj_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
+                                 P11PROV_OBJ *obj, CK_ATTRIBUTE *template,
                                  CK_ULONG tsize);
-
-/* Object Store */
-CK_RV p11prov_object_new(P11PROV_CTX *ctx, P11PROV_KEY *key,
-                         P11PROV_OBJ **object);
-void p11prov_object_free(P11PROV_OBJ *obj);
-CK_OBJECT_CLASS p11prov_object_get_class(P11PROV_OBJ *obj);
-P11PROV_OBJ *p11prov_obj_from_reference(const void *reference,
-                                        size_t reference_sz);
-int p11prov_object_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
-                                         void *cb_arg);
-int p11prov_object_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
-                                        void *cb_arg);
-P11PROV_KEY *p11prov_object_get_key(P11PROV_OBJ *obj);
+int p11prov_obj_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
+                                      void *cb_arg);
+int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
+                                     void *cb_arg);
 
 /* dispatching */
 #define DECL_DISPATCH_FUNC(type, prefix, name) \
@@ -396,6 +391,7 @@ CK_RV p11prov_session_pool_init(P11PROV_CTX *ctx, CK_TOKEN_INFO *token,
 CK_RV p11prov_session_pool_free(P11PROV_SESSION_POOL *pool);
 void p11prov_session_free(P11PROV_SESSION *session);
 CK_SESSION_HANDLE p11prov_session_handle(P11PROV_SESSION *session);
+CK_SLOT_ID p11prov_session_slotid(P11PROV_SESSION *session);
 CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                           CK_SLOT_ID *next_slotid, P11PROV_URI *uri,
                           OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg,

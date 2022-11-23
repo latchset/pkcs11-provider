@@ -11,7 +11,7 @@ struct p11prov_sig_ctx {
     P11PROV_CTX *provctx;
     char *properties;
 
-    P11PROV_KEY *key;
+    P11PROV_OBJ *key;
 
     CK_MECHANISM_TYPE mechtype;
     CK_MECHANISM_TYPE digest;
@@ -80,7 +80,7 @@ static void *p11prov_sig_dupctx(void *ctx)
         return NULL;
     }
 
-    newctx->key = p11prov_key_ref(sigctx->key);
+    newctx->key = p11prov_obj_ref(sigctx->key);
     newctx->mechtype = sigctx->mechtype;
     newctx->digest = sigctx->digest;
     newctx->pss_params = sigctx->pss_params;
@@ -103,8 +103,8 @@ static void *p11prov_sig_dupctx(void *ctx)
         reqlogin = true;
         /* fallthrough */
     case CKF_VERIFY:
-        slotid = p11prov_key_slotid(sigctx->key);
-        handle = p11prov_key_handle(newctx->key);
+        slotid = p11prov_obj_get_slotid(sigctx->key);
+        handle = p11prov_obj_get_handle(newctx->key);
         break;
     default:
         p11prov_sig_freectx(newctx);
@@ -167,7 +167,7 @@ static void p11prov_sig_freectx(void *ctx)
     }
 
     p11prov_session_free(sigctx->session);
-    p11prov_key_free(sigctx->key);
+    p11prov_obj_free(sigctx->key);
     OPENSSL_free(sigctx->properties);
     OPENSSL_clear_free(sigctx, sizeof(P11PROV_SIG_CTX));
 }
@@ -383,7 +383,7 @@ static CK_RV p11prov_sig_pss_restrictions(P11PROV_SIG_CTX *sigctx,
                                           CK_MECHANISM *mechanism)
 {
     CK_ATTRIBUTE *allowed_mechs =
-        p11prov_key_attr(sigctx->key, CKA_ALLOWED_MECHANISMS);
+        p11prov_obj_get_attr(sigctx->key, CKA_ALLOWED_MECHANISMS);
 
     if (allowed_mechs) {
         CK_ATTRIBUTE_TYPE *mechs = (CK_ATTRIBUTE_TYPE *)allowed_mechs->pValue;
@@ -471,7 +471,7 @@ static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
 
     if (result == CKR_OK) {
         P11PROV_debug_mechanism(sigctx->provctx,
-                                p11prov_key_slotid(sigctx->key),
+                                p11prov_obj_get_slotid(sigctx->key),
                                 mechanism->mechanism);
     }
     return result;
@@ -480,8 +480,8 @@ static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
 static int p11prov_sig_get_sig_size(void *ctx, size_t *siglen)
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
-    CK_KEY_TYPE type = p11prov_key_type(sigctx->key);
-    CK_ULONG size = p11prov_key_size(sigctx->key);
+    CK_KEY_TYPE type = p11prov_obj_get_key_type(sigctx->key);
+    CK_ULONG size = p11prov_obj_get_key_size(sigctx->key);
 
     if (type == CK_UNAVAILABLE_INFORMATION) {
         return RET_OSSL_ERR;
@@ -529,7 +529,7 @@ static int p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
                                const char *digest, const OSSL_PARAM params[])
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
-    P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)provkey;
     CK_OBJECT_CLASS class;
     CK_RV ret;
 
@@ -538,11 +538,11 @@ static int p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
         return RET_OSSL_ERR;
     }
 
-    sigctx->key = p11prov_object_get_key(obj);
+    sigctx->key = p11prov_obj_ref(key);
     if (sigctx->key == NULL) {
         return RET_OSSL_ERR;
     }
-    class = p11prov_key_class(sigctx->key);
+    class = p11prov_obj_get_class(sigctx->key);
     switch (operation) {
     case CKF_SIGN:
         if (class != CKO_PRIVATE_KEY) {
@@ -589,13 +589,13 @@ static int p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
         return ret;
     }
 
-    handle = p11prov_key_handle(sigctx->key);
+    handle = p11prov_obj_get_handle(sigctx->key);
     if (handle == CK_INVALID_HANDLE) {
         P11PROV_raise(sigctx->provctx, CKR_KEY_HANDLE_INVALID,
                       "Provided key has invalid handle");
         return CKR_KEY_HANDLE_INVALID;
     }
-    slotid = p11prov_key_slotid(sigctx->key);
+    slotid = p11prov_obj_get_slotid(sigctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
         P11PROV_raise(sigctx->provctx, CKR_SLOT_ID_INVALID,
                       "Provided key has invalid slot");
@@ -1173,8 +1173,9 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         }
         sigctx->mechtype = mechtype;
 
-        P11PROV_debug_mechanism(
-            sigctx->provctx, p11prov_key_slotid(sigctx->key), sigctx->mechtype);
+        P11PROV_debug_mechanism(sigctx->provctx,
+                                p11prov_obj_get_slotid(sigctx->key),
+                                sigctx->mechtype);
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_PSS_SALTLEN);

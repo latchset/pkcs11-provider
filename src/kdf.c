@@ -8,7 +8,7 @@
 struct p11prov_kdf_ctx {
     P11PROV_CTX *provctx;
 
-    P11PROV_KEY *key;
+    P11PROV_OBJ *key;
 
     CK_MECHANISM_TYPE mechtype;
 
@@ -70,7 +70,7 @@ static void p11prov_hkdf_reset(void *ctx)
     P11PROV_debug("hkdf reset (ctx:%p)", ctx);
 
     /* free all allocated resources */
-    p11prov_key_free(hkdfctx->key);
+    p11prov_obj_free(hkdfctx->key);
     if (hkdfctx->session) {
         p11prov_session_free(hkdfctx->session);
         hkdfctx->session = NULL;
@@ -128,7 +128,7 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
     mechanism.pParameter = &hkdfctx->params;
     mechanism.ulParameterLen = sizeof(hkdfctx->params);
 
-    pkey_handle = p11prov_key_handle(hkdfctx->key);
+    pkey_handle = p11prov_obj_get_handle(hkdfctx->key);
     if (pkey_handle == CK_INVALID_HANDLE) {
         P11PROV_raise(hkdfctx->provctx, CKR_KEY_HANDLE_INVALID,
                       "Provided key has invalid handle");
@@ -140,7 +140,7 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
         hkdfctx->params.ulSaltType = CKF_HKDF_SALT_NULL;
     }
 
-    slotid = p11prov_key_slotid(hkdfctx->key);
+    slotid = p11prov_obj_get_slotid(hkdfctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
         P11PROV_raise(hkdfctx->provctx, CKR_SLOT_ID_INVALID,
                       "Provided key has invalid slot");

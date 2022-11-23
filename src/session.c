@@ -353,6 +353,11 @@ CK_SESSION_HANDLE p11prov_session_handle(P11PROV_SESSION *session)
     return session->session;
 }
 
+CK_SLOT_ID p11prov_session_slotid(P11PROV_SESSION *session)
+{
+    return session->slotid;
+}
+
 static CK_RV token_login(P11PROV_CTX *provctx, struct p11prov_slot *slot,
                          P11PROV_URI *uri, OSSL_PASSPHRASE_CALLBACK *pw_cb,
                          void *pw_cbarg)
