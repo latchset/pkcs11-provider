@@ -348,14 +348,14 @@ static const char *p11prov_rsaenc_mgf_name(CK_RSA_PKCS_MGF_TYPE mgf)
 {
     for (int i = 0; mfg_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
         if (mfg_map[i].mgf == mgf) {
-            const char *name;
+            const struct p11prov_digest *digest;
             CK_RV rv;
 
-            rv = p11prov_digest_get_name(mfg_map[i].digest, &name);
+            rv = p11prov_digest_get_by_mechanism(mfg_map[i].digest, &digest);
             if (rv != CKR_OK) {
                 return NULL;
             }
-            return name;
+            return digest->names[0];
         }
     }
     return NULL;
@@ -363,7 +363,7 @@ static const char *p11prov_rsaenc_mgf_name(CK_RSA_PKCS_MGF_TYPE mgf)
 
 static CK_RSA_PKCS_MGF_TYPE p11prov_rsaenc_map_mgf(const char *digest_name)
 {
-    CK_MECHANISM_TYPE digest;
+    const struct p11prov_digest *digest;
     CK_RV rv;
 
     rv = p11prov_digest_get_by_name(digest_name, &digest);
@@ -372,7 +372,7 @@ static CK_RSA_PKCS_MGF_TYPE p11prov_rsaenc_map_mgf(const char *digest_name)
     }
 
     for (int i = 0; mfg_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
-        if (mfg_map[i].digest == digest) {
+        if (mfg_map[i].digest == digest->digest) {
             return mfg_map[i].mgf;
         }
     }
@@ -414,14 +414,15 @@ static int p11prov_rsaenc_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p = OSSL_PARAM_locate(params, OSSL_ASYM_CIPHER_PARAM_OAEP_DIGEST);
     if (p) {
-        const char *digest;
+        const struct p11prov_digest *digest;
         CK_RV rv;
 
-        rv = p11prov_digest_get_name(encctx->oaep_params.hashAlg, &digest);
+        rv = p11prov_digest_get_by_mechanism(encctx->oaep_params.hashAlg,
+                                             &digest);
         if (rv != CKR_OK) {
             return RET_OSSL_ERR;
         }
-        ret = OSSL_PARAM_set_utf8_string(p, digest);
+        ret = OSSL_PARAM_set_utf8_string(p, digest->names[0]);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
@@ -505,30 +506,27 @@ static int p11prov_rsaenc_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate_const(params, OSSL_ASYM_CIPHER_PARAM_OAEP_DIGEST);
     if (p) {
-        const char *digest = NULL;
+        const struct p11prov_digest *digest = NULL;
         CK_RV rv;
 
-        ret = OSSL_PARAM_get_utf8_string_ptr(p, &digest);
-        if (ret != RET_OSSL_OK) {
-            return ret;
-        }
-
-        rv = p11prov_digest_get_by_name(digest, &encctx->oaep_params.hashAlg);
+        rv = p11prov_digest_get_by_param(p, &digest);
         if (rv != CKR_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
+        encctx->oaep_params.hashAlg = digest->digest;
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_ASYM_CIPHER_PARAM_MGF1_DIGEST);
     if (p) {
-        const char *digest = NULL;
-        ret = OSSL_PARAM_get_utf8_string_ptr(p, &digest);
+        const char *digest_name = NULL;
+
+        ret = OSSL_PARAM_get_utf8_string_ptr(p, &digest_name);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
 
-        encctx->oaep_params.mgf = p11prov_rsaenc_map_mgf(digest);
+        encctx->oaep_params.mgf = p11prov_rsaenc_map_mgf(digest_name);
         if (encctx->oaep_params.mgf == CK_UNAVAILABLE_INFORMATION) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_MGF1_MD);
             return RET_OSSL_ERR;

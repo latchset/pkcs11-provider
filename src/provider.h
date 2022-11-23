@@ -328,12 +328,19 @@ extern const OSSL_DISPATCH p11prov_sha3_512_digest_functions[];
 #define P11PROV_NAMES_SHA3_512 "SHA3-512:2.16.840.1.101.3.4.2.10"
 #define P11PROV_DESCS_SHA3_512 "PKCS11 SHA3-512 Implementation"
 
-CK_RV p11prov_digest_get_block_size(CK_MECHANISM_TYPE digest,
-                                    size_t *block_size);
-CK_RV p11prov_digest_get_digest_size(CK_MECHANISM_TYPE digest,
-                                     size_t *digest_size);
-CK_RV p11prov_digest_get_name(CK_MECHANISM_TYPE digest, const char **name);
-CK_RV p11prov_digest_get_by_name(const char *name, CK_MECHANISM_TYPE *digest);
+struct p11prov_digest {
+    CK_MECHANISM_TYPE digest;
+    size_t block_size;
+    size_t digest_size;
+    const char *names[5]; /* must give a size for initialization ... */
+};
+
+CK_RV p11prov_digest_get_by_mechanism(CK_MECHANISM_TYPE mech,
+                                      const struct p11prov_digest **digest);
+CK_RV p11prov_digest_get_by_name(const char *name,
+                                 const struct p11prov_digest **digest);
+CK_RV p11prov_digest_get_by_param(const OSSL_PARAM *p,
+                                  const struct p11prov_digest **digest);
 
 /* Utilities to fetch objects from tokens */
 

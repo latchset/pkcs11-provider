@@ -367,19 +367,15 @@ static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate_const(params, OSSL_EXCHANGE_PARAM_KDF_DIGEST);
     if (p) {
-        const char *digest = NULL;
+        const struct p11prov_digest *digest = NULL;
         CK_RV rv;
 
-        ret = OSSL_PARAM_get_utf8_string_ptr(p, &digest);
-        if (ret != RET_OSSL_OK) {
-            return ret;
-        }
-
-        rv = p11prov_digest_get_by_name(digest, &ecdhctx->digest);
+        rv = p11prov_digest_get_by_param(p, &digest);
         if (rv != CKR_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
+        ecdhctx->digest = digest->digest;
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_EXCHANGE_PARAM_KDF_OUTLEN);
@@ -456,14 +452,14 @@ static int p11prov_ecdh_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p = OSSL_PARAM_locate(params, OSSL_EXCHANGE_PARAM_KDF_DIGEST);
     if (p) {
-        const char *digest;
+        const struct p11prov_digest *digest;
         CK_RV rv;
 
-        rv = p11prov_digest_get_name(ecdhctx->digest, &digest);
+        rv = p11prov_digest_get_by_mechanism(ecdhctx->digest, &digest);
         if (rv != CKR_OK) {
             return RET_OSSL_ERR;
         }
-        ret = OSSL_PARAM_set_utf8_string(p, digest);
+        ret = OSSL_PARAM_set_utf8_string(p, digest->names[0]);
         if (ret != RET_OSSL_OK) {
             return ret;
         }

@@ -5,12 +5,7 @@
 #include <string.h>
 
 /* General Digest Mapping functions */
-static struct {
-    CK_MECHANISM_TYPE digest;
-    size_t block_size;
-    size_t digest_size;
-    const char *names[5]; /* must give a size for initialization ... */
-} digest_map[] = {
+static struct p11prov_digest digest_map[] = {
     { CKM_SHA_1,
       64,
       20,
@@ -60,52 +55,43 @@ static struct {
     { CK_UNAVAILABLE_INFORMATION, 0, 0, { NULL } },
 };
 
-CK_RV p11prov_digest_get_block_size(CK_MECHANISM_TYPE digest,
-                                    size_t *block_size)
+CK_RV p11prov_digest_get_by_mechanism(CK_MECHANISM_TYPE mech,
+                                      const struct p11prov_digest **digest)
 {
     for (int i = 0; digest_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
-        if (digest_map[i].digest == digest) {
-            *block_size = digest_map[i].block_size;
+        if (digest_map[i].digest == mech) {
+            *digest = &digest_map[i];
             return CKR_OK;
         }
     }
     return CKR_MECHANISM_INVALID;
 }
 
-CK_RV p11prov_digest_get_digest_size(CK_MECHANISM_TYPE digest,
-                                     size_t *digest_size)
-{
-    for (int i = 0; digest_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
-        if (digest_map[i].digest == digest) {
-            *digest_size = digest_map[i].digest_size;
-            return CKR_OK;
-        }
-    }
-    return CKR_MECHANISM_INVALID;
-}
-
-CK_RV p11prov_digest_get_name(CK_MECHANISM_TYPE digest, const char **name)
-{
-    for (int i = 0; digest_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
-        if (digest_map[i].digest == digest) {
-            *name = digest_map[i].names[0];
-            return CKR_OK;
-        }
-    }
-    return CKR_MECHANISM_INVALID;
-}
-
-CK_RV p11prov_digest_get_by_name(const char *name, CK_MECHANISM_TYPE *digest)
+CK_RV p11prov_digest_get_by_name(const char *name,
+                                 const struct p11prov_digest **digest)
 {
     for (int i = 0; digest_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
         for (int j = 0; digest_map[i].names[j] != NULL; j++) {
             if (OPENSSL_strcasecmp(name, digest_map[i].names[j]) == 0) {
-                *digest = digest_map[i].digest;
+                *digest = &digest_map[i];
                 return CKR_OK;
             }
         }
     }
     return CKR_MECHANISM_INVALID;
+}
+
+CK_RV p11prov_digest_get_by_param(const OSSL_PARAM *p,
+                                  const struct p11prov_digest **digest)
+{
+    const char *name;
+    int ret;
+
+    ret = OSSL_PARAM_get_utf8_string_ptr(p, &name);
+    if (ret != RET_OSSL_OK) {
+        return CKR_MECHANISM_INVALID;
+    }
+    return p11prov_digest_get_by_name(name, digest);
 }
 
 struct p11prov_digest_ctx {
@@ -337,7 +323,7 @@ static int p11prov_digest_final(void *ctx, unsigned char *out, size_t *size,
     P11PROV_DIGEST_CTX *dctx = (P11PROV_DIGEST_CTX *)ctx;
     CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
     CK_FUNCTION_LIST *f;
-    size_t digest_size;
+    const struct p11prov_digest *digest;
     CK_ULONG digest_len;
     CK_RV ret;
 
@@ -347,7 +333,7 @@ static int p11prov_digest_final(void *ctx, unsigned char *out, size_t *size,
         return RET_OSSL_ERR;
     }
 
-    ret = p11prov_digest_get_digest_size(dctx->mechtype, &digest_size);
+    ret = p11prov_digest_get_by_mechanism(dctx->mechtype, &digest);
     if (ret != CKR_OK) {
         P11PROV_raise(dctx->provctx, ret, "Unexpected get_digest_size error");
         return RET_OSSL_ERR;
@@ -355,12 +341,12 @@ static int p11prov_digest_final(void *ctx, unsigned char *out, size_t *size,
 
     /* probing for buffer size to alloc */
     if (buf_size == 0) {
-        *size = digest_size;
+        *size = digest->digest_size;
         return RET_OSSL_OK;
-    } else if (buf_size < digest_size) {
+    } else if (buf_size < digest->digest_size) {
         P11PROV_raise(dctx->provctx, CKR_ARGUMENTS_BAD,
                       "Digest output buffer too small %zd < %zd", buf_size,
-                      digest_size);
+                      digest->digest_size);
         return RET_OSSL_OK;
     }
 
@@ -382,43 +368,40 @@ static int p11prov_digest_final(void *ctx, unsigned char *out, size_t *size,
     return RET_OSSL_OK;
 }
 
-static int p11prov_digest_get_params(CK_MECHANISM_TYPE digest,
+static int p11prov_digest_get_params(CK_MECHANISM_TYPE mech,
                                      OSSL_PARAM params[])
 {
-    OSSL_PARAM *p = NULL;
+    OSSL_PARAM *p = NULL, *pbs = NULL, *pps = NULL;
+    const struct p11prov_digest *digest = NULL;
     CK_RV ret;
 
     P11PROV_debug("digest get params: digest=%ld, params=%p", digest, params);
 
-    p = OSSL_PARAM_locate(params, OSSL_DIGEST_PARAM_BLOCK_SIZE);
-    if (p) {
-        size_t block_size;
-        ret = p11prov_digest_get_block_size(digest, &block_size);
+    pbs = OSSL_PARAM_locate(params, OSSL_DIGEST_PARAM_BLOCK_SIZE);
+    pps = OSSL_PARAM_locate(params, OSSL_DIGEST_PARAM_SIZE);
+    if (pbs != NULL || pps != NULL) {
+        ret = p11prov_digest_get_by_mechanism(mech, &digest);
         if (ret != CKR_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
-        ret = OSSL_PARAM_set_size_t(p, block_size);
-        if (ret != RET_OSSL_OK) {
-            ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
-            return RET_OSSL_ERR;
-        }
-        P11PROV_debug("digest=%ld, block_size = %zd", digest, block_size);
     }
-    p = OSSL_PARAM_locate(params, OSSL_DIGEST_PARAM_SIZE);
-    if (p) {
-        size_t digest_size;
-        ret = p11prov_digest_get_digest_size(digest, &digest_size);
-        if (ret != CKR_OK) {
-            ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
-            return RET_OSSL_ERR;
-        }
-        ret = OSSL_PARAM_set_size_t(p, digest_size);
+    if (pbs) {
+        ret = OSSL_PARAM_set_size_t(p, digest->block_size);
         if (ret != RET_OSSL_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
             return RET_OSSL_ERR;
         }
-        P11PROV_debug("digest=%ld, digest_size = %zd", digest, digest_size);
+        P11PROV_debug("digest=%ld, block_size = %zd", mech, digest->block_size);
+    }
+    if (pps) {
+        ret = OSSL_PARAM_set_size_t(p, digest->digest_size);
+        if (ret != RET_OSSL_OK) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+            return RET_OSSL_ERR;
+        }
+        P11PROV_debug("digest=%ld, digest_size = %zd", mech,
+                      digest->digest_size);
     }
     p = OSSL_PARAM_locate(params, OSSL_DIGEST_PARAM_XOF);
     if (p) {

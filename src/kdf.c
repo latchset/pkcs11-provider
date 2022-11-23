@@ -179,20 +179,15 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_DIGEST);
     if (p) {
-        const char *digest = NULL;
+        const struct p11prov_digest *digest = NULL;
         CK_RV rv;
 
-        ret = OSSL_PARAM_get_utf8_string_ptr(p, &digest);
-        if (ret != RET_OSSL_OK) {
-            return ret;
-        }
-
-        rv = p11prov_digest_get_by_name(digest,
-                                        &hkdfctx->params.prfHashMechanism);
+        rv = p11prov_digest_get_by_param(p, &digest);
         if (rv != CKR_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
+        hkdfctx->params.prfHashMechanism = digest->digest;
         P11PROV_debug("set digest to %lu", hkdfctx->params.prfHashMechanism);
     }
 
@@ -338,24 +333,19 @@ static int p11prov_hkdf_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p = OSSL_PARAM_locate(params, OSSL_KDF_PARAM_SIZE);
     if (p) {
-        size_t ret_size = 0;
-        if (hkdfctx->params.bExpand != CK_FALSE) {
-            ret_size = SIZE_MAX;
-        } else {
-            CK_RV rv;
+        const struct p11prov_digest *digest = NULL;
+        CK_RV rv;
 
-            rv = p11prov_digest_get_digest_size(
-                hkdfctx->params.prfHashMechanism, &ret_size);
-            if (rv != CKR_OK) {
-                ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
-                return RET_OSSL_ERR;
-            }
+        if (hkdfctx->params.bExpand != CK_FALSE) {
+            return OSSL_PARAM_set_size_t(p, SIZE_MAX);
         }
-        if (ret_size != 0) {
-            return OSSL_PARAM_set_size_t(p, ret_size);
+        rv = p11prov_digest_get_by_mechanism(hkdfctx->params.prfHashMechanism,
+                                             &digest);
+        if (rv != CKR_OK) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
+            return RET_OSSL_ERR;
         }
-        ERR_raise(ERR_LIB_PROV, PROV_R_MISSING_MESSAGE_DIGEST);
-        return RET_OSSL_ERR;
+        return OSSL_PARAM_set_size_t(p, digest->digest_size);
     }
 
     return RET_OSSL_OK;

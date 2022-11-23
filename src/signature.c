@@ -348,14 +348,14 @@ static const char *p11prov_sig_mgf_name(CK_RSA_PKCS_MGF_TYPE mgf)
 {
     for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
         if (mech_map[i].mgf == mgf) {
-            const char *digest;
+            const struct p11prov_digest *digest = NULL;
             CK_RV rv;
 
-            rv = p11prov_digest_get_name(mech_map[i].digest, &digest);
+            rv = p11prov_digest_get_by_mechanism(mech_map[i].digest, &digest);
             if (rv != CKR_OK) {
                 return NULL;
             }
-            return digest;
+            return digest->names[0];
         }
     }
     return NULL;
@@ -363,7 +363,7 @@ static const char *p11prov_sig_mgf_name(CK_RSA_PKCS_MGF_TYPE mgf)
 
 static CK_RSA_PKCS_MGF_TYPE p11prov_sig_map_mgf(const char *digest_name)
 {
-    CK_MECHANISM_TYPE digest;
+    const struct p11prov_digest *digest = NULL;
     CK_RV rv;
 
     rv = p11prov_digest_get_by_name(digest_name, &digest);
@@ -372,7 +372,7 @@ static CK_RSA_PKCS_MGF_TYPE p11prov_sig_map_mgf(const char *digest_name)
     }
 
     for (int i = 0; mech_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
-        if (mech_map[i].digest == digest) {
+        if (mech_map[i].digest == digest->digest) {
             return mech_map[i].mgf;
         }
     }
@@ -506,7 +506,7 @@ static int p11prov_sig_get_sig_size(void *ctx, size_t *siglen)
 static int p11prov_rsasig_set_pss_saltlen_from_digest(void *ctx)
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
-    size_t digest_size;
+    const struct p11prov_digest *digest = NULL;
     CK_RV rv;
 
     if (sigctx->digest == 0) {
@@ -515,18 +515,19 @@ static int p11prov_rsasig_set_pss_saltlen_from_digest(void *ctx)
         return RET_OSSL_ERR;
     }
 
-    rv = p11prov_digest_get_digest_size(sigctx->digest, &digest_size);
+    rv = p11prov_digest_get_by_mechanism(sigctx->digest, &digest);
     if (rv != CKR_OK) {
         P11PROV_raise(sigctx->provctx, rv, "Unavailable digest");
         return RET_OSSL_ERR;
     }
 
-    sigctx->pss_params.sLen = digest_size;
+    sigctx->pss_params.sLen = digest->digest_size;
     return RET_OSSL_OK;
 }
 
 static int p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
-                               const char *digest, const OSSL_PARAM params[])
+                               const char *digest_name,
+                               const OSSL_PARAM params[])
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
     P11PROV_OBJ *obj = (P11PROV_OBJ *)provkey;
@@ -559,14 +560,16 @@ static int p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
     }
     sigctx->operation = operation;
 
-    if (digest) {
+    if (digest_name) {
+        const struct p11prov_digest *digest = NULL;
         CK_RV rv;
 
-        rv = p11prov_digest_get_by_name(digest, &sigctx->digest);
+        rv = p11prov_digest_get_by_name(digest_name, &digest);
         if (rv != CKR_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
+        sigctx->digest = digest->digest;
     }
 
     return RET_OSSL_OK;
@@ -1056,15 +1059,15 @@ static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_DIGEST);
     if (p) {
-        const char *digest;
+        const struct p11prov_digest *digest;
         CK_RV rv;
 
-        rv = p11prov_digest_get_name(sigctx->digest, &digest);
+        rv = p11prov_digest_get_by_mechanism(sigctx->digest, &digest);
         if (rv != CKR_OK) {
             P11PROV_raise(sigctx->provctx, rv, "Unavailable digest name");
             return RET_OSSL_ERR;
         }
-        ret = OSSL_PARAM_set_utf8_string(p, digest);
+        ret = OSSL_PARAM_set_utf8_string(p, digest->names[0]);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
@@ -1120,20 +1123,17 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_DIGEST);
     if (p) {
-        const char *digest = NULL;
+        const struct p11prov_digest *digest = NULL;
         CK_RV rv;
 
-        ret = OSSL_PARAM_get_utf8_string_ptr(p, &digest);
-        if (ret != RET_OSSL_OK) {
-            return ret;
-        }
-        P11PROV_debug("Set OSSL_SIGNATURE_PARAM_DIGEST to %s", digest);
-
-        rv = p11prov_digest_get_by_name(digest, &sigctx->digest);
+        rv = p11prov_digest_get_by_param(p, &digest);
         if (rv != CKR_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
+        sigctx->digest = digest->digest;
+        P11PROV_debug("Set OSSL_SIGNATURE_PARAM_DIGEST to %s",
+                      digest->names[0]);
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_PAD_MODE);
@@ -1479,7 +1479,8 @@ static int p11prov_ecdsa_digest_verify_final(void *ctx,
 static int p11prov_ecdsa_get_ctx_params(void *ctx, OSSL_PARAM *params)
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
-    OSSL_PARAM *p;
+    OSSL_PARAM *p, *pds;
+    const struct p11prov_digest *digest = NULL;
     int ret;
 
     /* todo sig params:
@@ -1513,33 +1514,25 @@ static int p11prov_ecdsa_get_ctx_params(void *ctx, OSSL_PARAM *params)
         }
     }
 
-    p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_DIGEST_SIZE);
-    if (p) {
-        size_t digest_size;
+    p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_DIGEST);
+    pds = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_DIGEST_SIZE);
+    if (p != NULL || pds != NULL) {
         CK_RV rv;
 
-        rv = p11prov_digest_get_digest_size(sigctx->digest, &digest_size);
+        rv = p11prov_digest_get_by_mechanism(sigctx->digest, &digest);
         if (rv != CKR_OK) {
             P11PROV_raise(sigctx->provctx, rv, "Unavailable digest size");
             return RET_OSSL_ERR;
         }
-        ret = OSSL_PARAM_set_size_t(p, digest_size);
+    }
+    if (p) {
+        ret = OSSL_PARAM_set_utf8_string(p, digest->names[0]);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
     }
-
-    p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_DIGEST);
-    if (p) {
-        const char *digest;
-        CK_RV rv;
-
-        rv = p11prov_digest_get_name(sigctx->digest, &digest);
-        if (rv != CKR_OK) {
-            P11PROV_raise(sigctx->provctx, rv, "Unavailable digest name");
-            return RET_OSSL_ERR;
-        }
-        ret = OSSL_PARAM_set_utf8_string(p, digest);
+    if (pds) {
+        ret = OSSL_PARAM_set_size_t(p, digest->digest_size);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
@@ -1552,7 +1545,6 @@ static int p11prov_ecdsa_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
     const OSSL_PARAM *p;
-    int ret;
 
     P11PROV_debug("ecdsa set ctx params (ctx=%p, params=%p)", sigctx, params);
 
@@ -1562,20 +1554,17 @@ static int p11prov_ecdsa_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_DIGEST);
     if (p) {
-        const char *digest = NULL;
+        const struct p11prov_digest *digest = NULL;
         CK_RV rv;
 
-        ret = OSSL_PARAM_get_utf8_string_ptr(p, &digest);
-        if (ret != RET_OSSL_OK) {
-            return ret;
-        }
-        P11PROV_debug("Set OSSL_SIGNATURE_PARAM_DIGEST to %s", digest);
-
-        rv = p11prov_digest_get_by_name(digest, &sigctx->digest);
+        rv = p11prov_digest_get_by_param(p, &digest);
         if (rv != CKR_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
+        P11PROV_debug("Set OSSL_SIGNATURE_PARAM_DIGEST to %s",
+                      digest->names[0]);
+        sigctx->digest = digest->digest;
     }
 
     return RET_OSSL_ERR;
