@@ -505,11 +505,10 @@ static int p11prov_rsaenc_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate_const(params, OSSL_ASYM_CIPHER_PARAM_OAEP_DIGEST);
     if (p) {
-        char digest[256];
-        char *ptr = digest;
+        const char *digest = NULL;
         CK_RV rv;
 
-        ret = OSSL_PARAM_get_utf8_string(p, &ptr, 256);
+        ret = OSSL_PARAM_get_utf8_string_ptr(p, &digest);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
@@ -523,9 +522,8 @@ static int p11prov_rsaenc_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate_const(params, OSSL_ASYM_CIPHER_PARAM_MGF1_DIGEST);
     if (p) {
-        char digest[256];
-        char *ptr = digest;
-        ret = OSSL_PARAM_get_utf8_string(p, &ptr, 256);
+        const char *digest = NULL;
+        ret = OSSL_PARAM_get_utf8_string_ptr(p, &digest);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
