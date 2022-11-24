@@ -27,5 +27,7 @@ pkeyutl -derive -inkey ${ECBASEURI}
 title PARA "Test CSR generation from private ECC keys"
 ossl '
 req -new -batch -key "${ECPRIURI}" -out ${TMPPDIR}/ecdsa_csr.pem'
+ossl '
+req -in ${TMPPDIR}/ecdsa_csr.pem -verify -noout'
 
 exit 0
