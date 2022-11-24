@@ -596,7 +596,7 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
         P11PROV_raise(provctx, ret, "Failed to terminate object search");
     }
 
-    P11PROV_debug("Find objects: found %d objects", total);
+    P11PROV_debug("Find objects: found %lu objects", total);
     return result;
 }
 
