@@ -54,6 +54,19 @@ pkeyutl -verify -inkey "${PUBURI}"
                 -in ${TMPPDIR}/sha256.bin
                 -sigfile ${TMPPDIR}/sha256-sig.bin'
 
+title PARA "Sign and Verify with provided Hash and RSA with DigestInfo struct"
+ossl 'dgst -sha256 -binary -out ${TMPPDIR}/sha256.bin ${SEEDFILE}'
+ossl '
+pkeyutl -sign -inkey "${PRIURI}" -pkeyopt digest:sha256
+              -in ${TMPPDIR}/sha256.bin
+              -out ${TMPPDIR}/sha256-sig.bin'
+
+ossl '
+pkeyutl -verify -inkey "${PUBURI}" -pkeyopt digest:sha256
+                -pubin
+                -in ${TMPPDIR}/sha256.bin
+                -sigfile ${TMPPDIR}/sha256-sig.bin'
+
 title PARA "Sign and Verify with provided Hash and EC"
 ossl '
 pkeyutl -sign -inkey "${ECBASEURI}"
