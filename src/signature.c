@@ -174,103 +174,68 @@ static void p11prov_sig_freectx(void *ctx)
 
 #define DER_SEQUENCE 0x30
 #define DER_OBJECT 0x06
-#define DER_NULL 0x05, 0x00
+#define DER_NULL 0x05
 
-#define DER_RSAID_SEQ_LEN 0x0D
-#define DER_RSAID_LEN 0x09
-/* 1.2.840.113549.1.1 */
+/* iso(1) member-body(2) us(840) rsadsi(113549) pkcs(1) pkcs-1(1) */
 #define DER_RSADSI_PKCS1 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01
+#define DER_RSADSI_PKCS1_LEN 0x08
 
-#define DER_SEQ_RSA_SHA512 \
-    DER_SEQUENCE, DER_RSAID_SEQ_LEN, DER_OBJECT, DER_RSAID_LEN, \
-        DER_RSADSI_PKCS1, 0x0D, DER_NULL
-const unsigned char der_rsa_sha512[] = { DER_SEQ_RSA_SHA512 };
-#define DER_SEQ_RSA_SHA384 \
-    DER_SEQUENCE, DER_RSAID_SEQ_LEN, DER_OBJECT, DER_RSAID_LEN, \
-        DER_RSADSI_PKCS1, 0x0C, DER_NULL
-const unsigned char der_rsa_sha384[] = { DER_SEQ_RSA_SHA384 };
-#define DER_SEQ_RSA_SHA256 \
-    DER_SEQUENCE, DER_RSAID_SEQ_LEN, DER_OBJECT, DER_RSAID_LEN, \
-        DER_RSADSI_PKCS1, 0x0B, DER_NULL
-const unsigned char der_rsa_sha256[] = { DER_SEQ_RSA_SHA256 };
-#define DER_SEQ_RSA_SHA224 \
-    DER_SEQUENCE, DER_RSAID_SEQ_LEN, DER_OBJECT, DER_RSAID_LEN, \
-        DER_RSADSI_PKCS1, 0x0E, DER_NULL
-const unsigned char der_rsa_sha224[] = { DER_SEQ_RSA_SHA224 };
-#define DER_SEQ_RSA_SHA1 \
-    DER_SEQUENCE, DER_RSAID_SEQ_LEN, DER_OBJECT, DER_RSAID_LEN, \
-        DER_RSADSI_PKCS1, 0x05, DER_NULL
-const unsigned char der_rsa_sha1[] = { DER_SEQ_RSA_SHA1 };
-
-#define DER_ECSHA1_SEQ_LEN 0x09
-#define DER_ECSHA1_LEN 0x07
-/* 1.2.840.10045.4 */
+/* iso(1) member-body(2) us(840) ansi-x962(10045) signatures(4) */
 #define DER_ANSIX962_SIG 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x04
+#define DER_ANSIX962_SIG_LEN 0x06
 
-#define DER_ECSHA2_SEQ_LEN 0x10
-#define DER_ECSHA2_LEN 0x08
-/* 1.2.840.10045.4.3 */
+/* ... ansi-x962(10045) signatures(4) ecdsa-with-SHA2(3) */
 #define DER_ANSIX962_SHA2_SIG DER_ANSIX962_SIG, 0x03
+#define DER_ANSIX962_SHA2_SIG_LEN (DER_ANSIX962_SIG_LEN + 1)
 
-#define DER_SEQ_ECDSA_SHA224 \
-    DER_SEQUENCE, DER_ECSHA1_SEQ_LEN, DER_OBJECT, DER_ECSHA1_LEN, \
-        DER_ANSIX962_SHA2_SIG, 0x01
-const unsigned char der_ecdsa_sha224[] = { DER_SEQ_ECDSA_SHA224 };
-#define DER_SEQ_ECDSA_SHA256 \
-    DER_SEQUENCE, DER_ECSHA1_SEQ_LEN, DER_OBJECT, DER_ECSHA1_LEN, \
-        DER_ANSIX962_SHA2_SIG, 0x02
-const unsigned char der_ecdsa_sha256[] = { DER_SEQ_ECDSA_SHA256 };
-#define DER_SEQ_ECDSA_SHA384 \
-    DER_SEQUENCE, DER_ECSHA1_SEQ_LEN, DER_OBJECT, DER_ECSHA1_LEN, \
-        DER_ANSIX962_SHA2_SIG, 0x03
-const unsigned char der_ecdsa_sha384[] = { DER_SEQ_ECDSA_SHA384 };
-#define DER_SEQ_ECDSA_SHA512 \
-    DER_SEQUENCE, DER_ECSHA1_SEQ_LEN, DER_OBJECT, DER_ECSHA1_LEN, \
-        DER_ANSIX962_SHA2_SIG, 0x04
-const unsigned char der_ecdsa_sha512[] = { DER_SEQ_ECDSA_SHA512 };
-#define DER_SEQ_ECDSA_SHA1 \
-    DER_SEQUENCE, DER_ECSHA1_SEQ_LEN, DER_OBJECT, DER_ECSHA1_LEN, \
-        DER_ANSIX962_SIG, 0x01
-const unsigned char der_ecdsa_sha1[] = { DER_SEQ_ECDSA_SHA1 };
-
-#define DER_NISTID_SEQ_LEN 0x0D
-#define DER_NISTID_LEN 0x09
-/* 2.16.840.1.101.3.4.3 */
+/* joint-iso-itu-t(2) country(16) us(840) organization(1) gov(101) csor(3)
+ * nistAlgorithms(4) sigAlgs(3) */
 #define DER_NIST_SIGALGS 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03
+#define DER_NIST_SIGALGS_LEN 0x08
 
-#define DER_SEQ_RSA_SHA3_512 \
-    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
-        DER_NIST_SIGALGS, 0x10, DER_NULL
-const unsigned char der_rsa_sha3_512[] = { DER_SEQ_RSA_SHA3_512 };
-#define DER_SEQ_RSA_SHA3_384 \
-    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
-        DER_NIST_SIGALGS, 0x0F, DER_NULL
-const unsigned char der_rsa_sha3_384[] = { DER_SEQ_RSA_SHA3_384 };
-#define DER_SEQ_RSA_SHA3_256 \
-    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
-        DER_NIST_SIGALGS, 0x0E, DER_NULL
-const unsigned char der_rsa_sha3_256[] = { DER_SEQ_RSA_SHA3_256 };
-#define DER_SEQ_RSA_SHA3_224 \
-    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
-        DER_NIST_SIGALGS, 0x0D, DER_NULL
-const unsigned char der_rsa_sha3_224[] = { DER_SEQ_RSA_SHA3_224 };
+/* clang-format off */
+#define DEFINE_DER_SEQ_SHA(bits, rsa_algid, ecdsa_algid) \
+    static const unsigned char der_rsa_sha##bits[] = { \
+        DER_SEQUENCE, DER_RSADSI_PKCS1_LEN+5, \
+            DER_OBJECT, DER_RSADSI_PKCS1_LEN+1, DER_RSADSI_PKCS1, rsa_algid, \
+            DER_NULL, 0, \
+    }; \
+    static const unsigned char der_ecdsa_sha##bits[] = { \
+        DER_SEQUENCE, DER_ANSIX962_SHA2_SIG_LEN+3, \
+            DER_OBJECT, DER_ANSIX962_SHA2_SIG_LEN+1, DER_ANSIX962_SHA2_SIG, ecdsa_algid, \
+    };
 
-#define DER_SEQ_ECDSA_SHA3_512 \
-    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
-        DER_NIST_SIGALGS, 0x0C, DER_NULL
-const unsigned char der_ecdsa_sha3_512[] = { DER_SEQ_ECDSA_SHA3_512 };
-#define DER_SEQ_ECDSA_SHA3_384 \
-    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
-        DER_NIST_SIGALGS, 0x0B, DER_NULL
-const unsigned char der_ecdsa_sha3_384[] = { DER_SEQ_ECDSA_SHA3_384 };
-#define DER_SEQ_ECDSA_SHA3_256 \
-    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
-        DER_NIST_SIGALGS, 0x0A, DER_NULL
-const unsigned char der_ecdsa_sha3_256[] = { DER_SEQ_ECDSA_SHA3_256 };
-#define DER_SEQ_ECDSA_SHA3_224 \
-    DER_SEQUENCE, DER_NISTID_SEQ_LEN, DER_OBJECT, DER_NISTID_LEN, \
-        DER_NIST_SIGALGS, 0x09, DER_NULL
-const unsigned char der_ecdsa_sha3_224[] = { DER_SEQ_ECDSA_SHA3_224 };
+#define DEFINE_DER_SEQ_SHA3(bits, rsa_algid, ecdsa_algid) \
+    static const unsigned char der_rsa_sha3_##bits[] = { \
+        DER_SEQUENCE, DER_NIST_SIGALGS_LEN+5, \
+            DER_OBJECT, DER_NIST_SIGALGS_LEN+1, DER_NIST_SIGALGS, rsa_algid, \
+            DER_NULL, 0 \
+    }; \
+    static const unsigned char der_ecdsa_sha3_##bits[] = { \
+        DER_SEQUENCE, DER_NIST_SIGALGS_LEN+3, \
+            DER_OBJECT, DER_NIST_SIGALGS_LEN+1, DER_NIST_SIGALGS, ecdsa_algid \
+    };
+
+static const unsigned char der_rsa_sha1[] = {
+    DER_SEQUENCE, DER_RSADSI_PKCS1_LEN+5,
+        DER_OBJECT, DER_RSADSI_PKCS1_LEN+1, DER_RSADSI_PKCS1, 0x05,
+        DER_NULL, 0
+};
+static const unsigned char der_ecdsa_sha1[] = {
+    DER_SEQUENCE, DER_ANSIX962_SIG_LEN+3,
+        DER_OBJECT, DER_ANSIX962_SIG_LEN+1, DER_ANSIX962_SIG, 0x01
+};
+/* clang-format on */
+
+DEFINE_DER_SEQ_SHA(512, 0x0D, 0x04);
+DEFINE_DER_SEQ_SHA(384, 0x0C, 0x03);
+DEFINE_DER_SEQ_SHA(256, 0x0B, 0x02);
+DEFINE_DER_SEQ_SHA(224, 0x0E, 0x01);
+
+DEFINE_DER_SEQ_SHA3(512, 0x10, 0x0C);
+DEFINE_DER_SEQ_SHA3(384, 0x0F, 0x0B);
+DEFINE_DER_SEQ_SHA3(256, 0x0E, 0x0A);
+DEFINE_DER_SEQ_SHA3(224, 0x0D, 0x09);
 
 #define DM_ELEM_SHA(bits) \
     { \
