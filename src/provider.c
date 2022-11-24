@@ -1031,6 +1031,15 @@ static void get_slot_mechanisms(P11PROV_CTX *ctx, struct p11prov_slot *slot)
     P11PROV_debug("Slot(%lu) mechs found: %lu", slot->id, slot->mechs_num);
 }
 
+static void trim_padded_field(CK_UTF8CHAR *field, ssize_t n)
+{
+    for (; n > 0 && field[n - 1] == ' '; n--) {
+        field[n - 1] = 0;
+    }
+}
+
+#define trim(x) trim_padded_field(x, sizeof(x))
+
 static CK_RV get_slots(P11PROV_CTX *ctx)
 {
     CK_ULONG nslots;
@@ -1074,6 +1083,13 @@ static CK_RV get_slots(P11PROV_CTX *ctx)
         if (ret) {
             goto done;
         }
+
+        trim(slots[i].slot.slotDescription);
+        trim(slots[i].slot.manufacturerID);
+        trim(slots[i].token.label);
+        trim(slots[i].token.manufacturerID);
+        trim(slots[i].token.model);
+        trim(slots[i].token.serialNumber);
 
         ret = p11prov_session_pool_init(ctx, &slots[i].token, &(slots[i].pool));
         if (ret) {
