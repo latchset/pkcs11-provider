@@ -65,6 +65,11 @@ pkeyutl -verify -inkey "${ECBASEURI}" -pubin
                 -in ${TMPPDIR}/sha256.bin
                 -sigfile ${TMPPDIR}/sha256-ecsig.bin'
 
+ossl '
+pkeyutl -verify -inkey "${TMPPDIR}/ecout.pub" -pubin
+                -in ${TMPPDIR}/sha256.bin
+                -sigfile ${TMPPDIR}/sha256-ecsig.bin'
+
 title PARA "DigestSign and DigestVerify with RSA"
 ossl '
 pkeyutl -sign -inkey "${BASEURI}"
@@ -114,8 +119,10 @@ fi
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 rm -f ${OPENSSL_CONF}.noexport
 
-title PARA "Test CSR generation from private keys"
+title PARA "Test CSR generation from RSA private keys"
 ossl '
 req -new -batch -key "${PRIURI}" -out ${TMPPDIR}/rsa_csr.pem'
+ossl '
+req -in ${TMPPDIR}/rsa_csr.pem -verify -noout'
 
 exit 0

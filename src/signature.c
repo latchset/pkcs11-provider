@@ -5,6 +5,7 @@
 #include <string.h>
 #include "openssl/evp.h"
 #include "openssl/rsa.h"
+#include "openssl/ec.h"
 #include "openssl/sha.h"
 
 struct p11prov_sig_ctx {
@@ -456,7 +457,8 @@ static int p11prov_sig_get_sig_size(void *ctx, size_t *siglen)
         *siglen = size;
         break;
     case CKK_EC:
-        *siglen = size * 2;
+        /* add room for ECDSA Signature DER overhead */
+        *siglen = 3 + (size + 4) * 2;
         break;
     default:
         return RET_OSSL_ERR;
@@ -1282,7 +1284,7 @@ static int p11prov_ecdsa_sign_init(void *ctx, void *provkey,
 {
     int ret;
 
-    P11PROV_debug("rsa sign init (ctx=%p, key=%p, params=%p)", ctx, provkey,
+    P11PROV_debug("ecdsa sign init (ctx=%p, key=%p, params=%p)", ctx, provkey,
                   params);
 
     ret = p11prov_sig_op_init(ctx, provkey, CKF_SIGN, NULL, params);
@@ -1293,16 +1295,90 @@ static int p11prov_ecdsa_sign_init(void *ctx, void *provkey,
     return p11prov_ecdsa_set_ctx_params(ctx, params);
 }
 
+/* The raw signature is concatenated r | s padded to the field sizes */
+#define P11PROV_MAX_RAW_ECC_SIG_SIZE (2 * (OPENSSL_ECC_MAX_FIELD_BITS + 7) / 8)
+
+static int convert_ecdsa_raw_to_der(const unsigned char *raw, size_t rawlen,
+                                    unsigned char *der, size_t *derlen,
+                                    size_t dersize)
+{
+    const CK_ULONG fieldlen = rawlen / 2;
+    ECDSA_SIG *ecdsasig;
+    BIGNUM *r, *s;
+    int ret = RET_OSSL_ERR;
+
+    ecdsasig = ECDSA_SIG_new();
+    if (ecdsasig == NULL) {
+        return RET_OSSL_ERR;
+    }
+
+    r = BN_bin2bn(&raw[0], fieldlen, NULL);
+    s = BN_bin2bn(&raw[fieldlen], fieldlen, NULL);
+    ret = ECDSA_SIG_set0(ecdsasig, r, s);
+    if (ret == RET_OSSL_OK) {
+        *derlen = i2d_ECDSA_SIG(ecdsasig, NULL);
+        if (*derlen <= dersize) {
+            i2d_ECDSA_SIG(ecdsasig, &der);
+            ret = RET_OSSL_OK;
+        }
+    } else {
+        BN_clear_free(r);
+        BN_clear_free(s);
+    }
+
+    ECDSA_SIG_free(ecdsasig);
+    return ret;
+}
+
+static int convert_ecdsa_der_to_raw(const unsigned char *der, size_t derlen,
+                                    unsigned char *raw, size_t rawlen,
+                                    CK_ULONG fieldlen)
+{
+    ECDSA_SIG *ecdsasig;
+    const BIGNUM *r, *s;
+
+    if (fieldlen == CK_UNAVAILABLE_INFORMATION) {
+        return RET_OSSL_ERR;
+    }
+    if (rawlen < 2 * fieldlen) {
+        return RET_OSSL_ERR;
+    }
+
+    ecdsasig = d2i_ECDSA_SIG(NULL, &der, derlen);
+    if (ecdsasig == NULL) {
+        return RET_OSSL_ERR;
+    }
+
+    ECDSA_SIG_get0(ecdsasig, &r, &s);
+    BN_bn2binpad(r, &raw[0], fieldlen);
+    BN_bn2binpad(s, &raw[fieldlen], fieldlen);
+    ECDSA_SIG_free(ecdsasig);
+    return RET_OSSL_OK;
+}
+
 static int p11prov_ecdsa_sign(void *ctx, unsigned char *sig, size_t *siglen,
                               size_t sigsize, const unsigned char *tbs,
                               size_t tbslen)
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
+    unsigned char raw[P11PROV_MAX_RAW_ECC_SIG_SIZE];
+    size_t rawlen;
+    int ret;
 
     P11PROV_debug("ecdsa sign (ctx=%p)", ctx);
+    if (sig == NULL || sigsize == 0) {
+        return p11prov_sig_operate(sigctx, 0, siglen, 0, (void *)tbs, tbslen);
+    }
 
-    return p11prov_sig_operate(sigctx, sig, siglen, sigsize, (void *)tbs,
-                               tbslen);
+    ret = p11prov_sig_operate(sigctx, raw, &rawlen, sizeof(raw), (void *)tbs,
+                              tbslen);
+    if (ret != RET_OSSL_OK) {
+        return ret;
+    }
+
+    ret = convert_ecdsa_raw_to_der(raw, rawlen, sig, siglen, sigsize);
+    OPENSSL_cleanse(raw, rawlen);
+    return ret;
 }
 
 static int p11prov_ecdsa_verify_init(void *ctx, void *provkey,
@@ -1326,11 +1402,21 @@ static int p11prov_ecdsa_verify(void *ctx, const unsigned char *sig,
                                 size_t tbslen)
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
+    unsigned char raw[P11PROV_MAX_RAW_ECC_SIG_SIZE];
+    CK_ULONG flen = p11prov_obj_get_key_size(sigctx->key);
+    int ret;
 
-    P11PROV_debug("rsa verify (ctx=%p)", ctx);
+    P11PROV_debug("ecdsa verify (ctx=%p)", ctx);
 
-    return p11prov_sig_operate(sigctx, (void *)sig, NULL, siglen, (void *)tbs,
-                               tbslen);
+    ret = convert_ecdsa_der_to_raw(sig, siglen, raw, sizeof(raw), flen);
+    if (ret != RET_OSSL_OK) {
+        return ret;
+    }
+
+    ret = p11prov_sig_operate(sigctx, (void *)raw, NULL, 2 * flen, (void *)tbs,
+                              tbslen);
+    OPENSSL_cleanse(raw, 2 * flen);
+    return ret;
 }
 
 static int p11prov_ecdsa_digest_sign_init(void *ctx, const char *digest,
@@ -1371,6 +1457,9 @@ static int p11prov_ecdsa_digest_sign_final(void *ctx, unsigned char *sig,
                                            size_t *siglen, size_t sigsize)
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
+    unsigned char raw[P11PROV_MAX_RAW_ECC_SIG_SIZE];
+    size_t rawlen;
+    int ret;
 
     P11PROV_debug(
         "ecdsa digest sign final (ctx=%p, sig=%p, siglen=%zu, "
@@ -1380,8 +1469,18 @@ static int p11prov_ecdsa_digest_sign_final(void *ctx, unsigned char *sig,
     if (sigctx == NULL) {
         return RET_OSSL_ERR;
     }
+    if (sig == NULL || sigsize == 0) {
+        return p11prov_sig_digest_final(sigctx, 0, siglen, 0);
+    }
 
-    return p11prov_sig_digest_final(sigctx, sig, siglen, sigsize);
+    ret = p11prov_sig_digest_final(sigctx, raw, &rawlen, sizeof(raw));
+    if (ret != RET_OSSL_OK) {
+        return ret;
+    }
+
+    ret = convert_ecdsa_raw_to_der(raw, rawlen, sig, siglen, sigsize);
+    OPENSSL_cleanse(raw, rawlen);
+    return ret;
 }
 
 static int p11prov_ecdsa_digest_verify_init(void *ctx, const char *digest,
@@ -1422,6 +1521,9 @@ static int p11prov_ecdsa_digest_verify_final(void *ctx,
                                              size_t siglen)
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
+    unsigned char raw[P11PROV_MAX_RAW_ECC_SIG_SIZE];
+    CK_ULONG flen = p11prov_obj_get_key_size(sigctx->key);
+    int ret;
 
     P11PROV_debug("ecdsa digest verify final (ctx=%p, sig=%p, siglen=%zu)", ctx,
                   sig, siglen);
@@ -1430,7 +1532,14 @@ static int p11prov_ecdsa_digest_verify_final(void *ctx,
         return RET_OSSL_ERR;
     }
 
-    return p11prov_sig_digest_final(sigctx, (void *)sig, NULL, siglen);
+    ret = convert_ecdsa_der_to_raw(sig, siglen, raw, sizeof(raw), flen);
+    if (ret != RET_OSSL_OK) {
+        return ret;
+    }
+
+    ret = p11prov_sig_digest_final(sigctx, (void *)raw, NULL, 2 * flen);
+    OPENSSL_cleanse(raw, 2 * flen);
+    return ret;
 }
 
 static int p11prov_ecdsa_get_ctx_params(void *ctx, OSSL_PARAM *params)
