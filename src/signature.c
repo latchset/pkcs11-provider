@@ -176,6 +176,7 @@ static void p11prov_sig_freectx(void *ctx)
 #define DER_SEQUENCE 0x30
 #define DER_OBJECT 0x06
 #define DER_NULL 0x05
+#define DER_OCTET_STRING 0x04
 
 /* iso(1) member-body(2) us(840) rsadsi(113549) pkcs(1) pkcs-1(1) */
 #define DER_RSADSI_PKCS1 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01
@@ -190,12 +191,29 @@ static void p11prov_sig_freectx(void *ctx)
 #define DER_ANSIX962_SHA2_SIG_LEN (DER_ANSIX962_SIG_LEN + 1)
 
 /* joint-iso-itu-t(2) country(16) us(840) organization(1) gov(101) csor(3)
- * nistAlgorithms(4) sigAlgs(3) */
-#define DER_NIST_SIGALGS 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x03
-#define DER_NIST_SIGALGS_LEN 0x08
+ * nistAlgorithms(4) */
+#define DER_NIST_ALGS 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04
+#define DER_NIST_ALGS_LEN 0x07
+
+/* ... csor(3) nistAlgorithms(4) hashalgs(2) */
+#define DER_NIST_HASHALGS DER_NIST_ALGS, 0x02
+#define DER_NIST_HASHALGS_LEN (DER_NIST_ALGS_LEN + 1)
+
+/* ... csor(3) nistAlgorithms(4) sigAlgs(3) */
+#define DER_NIST_SIGALGS DER_NIST_ALGS, 0x03
+#define DER_NIST_SIGALGS_LEN (DER_NIST_ALGS_LEN + 1)
 
 /* clang-format off */
-#define DEFINE_DER_SEQ_SHA(bits, rsa_algid, ecdsa_algid) \
+#define DEFINE_DER_DIGESTINFO(name, alg_id, digest_size) \
+    static const unsigned char der_digestinfo_##name[] = { \
+        DER_SEQUENCE, DER_NIST_HASHALGS_LEN+9+digest_size, \
+          DER_SEQUENCE, DER_NIST_HASHALGS_LEN+5, \
+            DER_OBJECT, DER_NIST_HASHALGS_LEN+1, DER_NIST_HASHALGS, alg_id, \
+            DER_NULL, 0, \
+          DER_OCTET_STRING, digest_size \
+    };
+
+#define DEFINE_DER_SEQ_SHA(bits, rsa_algid, ecdsa_algid, digestinfo_algid) \
     static const unsigned char der_rsa_sha##bits[] = { \
         DER_SEQUENCE, DER_RSADSI_PKCS1_LEN+5, \
             DER_OBJECT, DER_RSADSI_PKCS1_LEN+1, DER_RSADSI_PKCS1, rsa_algid, \
@@ -204,9 +222,10 @@ static void p11prov_sig_freectx(void *ctx)
     static const unsigned char der_ecdsa_sha##bits[] = { \
         DER_SEQUENCE, DER_ANSIX962_SHA2_SIG_LEN+3, \
             DER_OBJECT, DER_ANSIX962_SHA2_SIG_LEN+1, DER_ANSIX962_SHA2_SIG, ecdsa_algid, \
-    };
+    }; \
+    DEFINE_DER_DIGESTINFO(sha##bits, digestinfo_algid, bits/8)
 
-#define DEFINE_DER_SEQ_SHA3(bits, rsa_algid, ecdsa_algid) \
+#define DEFINE_DER_SEQ_SHA3(bits, rsa_algid, ecdsa_algid, digestinfo_algid) \
     static const unsigned char der_rsa_sha3_##bits[] = { \
         DER_SEQUENCE, DER_NIST_SIGALGS_LEN+5, \
             DER_OBJECT, DER_NIST_SIGALGS_LEN+1, DER_NIST_SIGALGS, rsa_algid, \
@@ -215,7 +234,8 @@ static void p11prov_sig_freectx(void *ctx)
     static const unsigned char der_ecdsa_sha3_##bits[] = { \
         DER_SEQUENCE, DER_NIST_SIGALGS_LEN+3, \
             DER_OBJECT, DER_NIST_SIGALGS_LEN+1, DER_NIST_SIGALGS, ecdsa_algid \
-    };
+    }; \
+    DEFINE_DER_DIGESTINFO(sha3_##bits, digestinfo_algid, bits/8)
 
 static const unsigned char der_rsa_sha1[] = {
     DER_SEQUENCE, DER_RSADSI_PKCS1_LEN+5,
@@ -226,17 +246,25 @@ static const unsigned char der_ecdsa_sha1[] = {
     DER_SEQUENCE, DER_ANSIX962_SIG_LEN+3,
         DER_OBJECT, DER_ANSIX962_SIG_LEN+1, DER_ANSIX962_SIG, 0x01
 };
+/* iso(1) org(3) oiw(14) secsig(3) algorithms(2) hashAlgorithmIdentifier(26) */
+static const unsigned char der_digestinfo_sha1[] = {
+    DER_SEQUENCE, 0x0d + SHA_DIGEST_LENGTH,
+        DER_SEQUENCE, 0x09,
+        DER_OBJECT, 0x05, 1 * 40 + 3, 14, 3, 2, 26,
+        DER_NULL, 0x00,
+    DER_OCTET_STRING, SHA_DIGEST_LENGTH
+};
 /* clang-format on */
 
-DEFINE_DER_SEQ_SHA(512, 0x0D, 0x04);
-DEFINE_DER_SEQ_SHA(384, 0x0C, 0x03);
-DEFINE_DER_SEQ_SHA(256, 0x0B, 0x02);
-DEFINE_DER_SEQ_SHA(224, 0x0E, 0x01);
+DEFINE_DER_SEQ_SHA(512, 0x0D, 0x04, 0x03);
+DEFINE_DER_SEQ_SHA(384, 0x0C, 0x03, 0x02);
+DEFINE_DER_SEQ_SHA(256, 0x0B, 0x02, 0x01);
+DEFINE_DER_SEQ_SHA(224, 0x0E, 0x01, 0x04);
 
-DEFINE_DER_SEQ_SHA3(512, 0x10, 0x0C);
-DEFINE_DER_SEQ_SHA3(384, 0x0F, 0x0B);
-DEFINE_DER_SEQ_SHA3(256, 0x0E, 0x0A);
-DEFINE_DER_SEQ_SHA3(224, 0x0D, 0x09);
+DEFINE_DER_SEQ_SHA3(512, 0x10, 0x0C, 0x0A);
+DEFINE_DER_SEQ_SHA3(384, 0x0F, 0x0B, 0x09);
+DEFINE_DER_SEQ_SHA3(256, 0x0E, 0x0A, 0x08);
+DEFINE_DER_SEQ_SHA3(224, 0x0D, 0x09, 0x07);
 
 #define DM_ELEM_SHA(bits) \
     { \
@@ -247,6 +275,8 @@ DEFINE_DER_SEQ_SHA3(224, 0x0D, 0x09);
         .der_rsa_algorithm_id_len = sizeof(der_rsa_sha##bits), \
         .der_ecdsa_algorithm_id = der_ecdsa_sha##bits, \
         .der_ecdsa_algorithm_id_len = sizeof(der_ecdsa_sha##bits), \
+        .der_digestinfo = der_digestinfo_sha##bits, \
+        .der_digestinfo_len = sizeof(der_digestinfo_sha##bits), \
     }
 #define DM_ELEM_SHA3(bits) \
     { \
@@ -257,6 +287,8 @@ DEFINE_DER_SEQ_SHA3(224, 0x0D, 0x09);
         .der_rsa_algorithm_id_len = sizeof(der_rsa_sha3_##bits), \
         .der_ecdsa_algorithm_id = der_ecdsa_sha3_##bits, \
         .der_ecdsa_algorithm_id_len = sizeof(der_ecdsa_sha3_##bits), \
+        .der_digestinfo = der_digestinfo_sha3_##bits, \
+        .der_digestinfo_len = sizeof(der_digestinfo_sha3_##bits), \
     }
 
 /* only the ones we can support */
@@ -270,6 +302,8 @@ struct p11prov_mech {
     int der_rsa_algorithm_id_len;
     const unsigned char *der_ecdsa_algorithm_id;
     int der_ecdsa_algorithm_id_len;
+    const unsigned char *der_digestinfo;
+    int der_digestinfo_len;
 };
 typedef struct p11prov_mech P11PROV_MECH;
 
@@ -284,7 +318,8 @@ static const P11PROV_MECH mech_map[] = {
     DM_ELEM_SHA(224),
     { CKM_SHA_1, CKM_SHA1_RSA_PKCS, CKM_SHA1_RSA_PKCS_PSS, CKM_ECDSA_SHA1,
       CKG_MGF1_SHA1, der_rsa_sha1, sizeof(der_rsa_sha1), der_ecdsa_sha1,
-      sizeof(der_ecdsa_sha1) },
+      sizeof(der_ecdsa_sha1), der_digestinfo_sha1,
+      sizeof(der_digestinfo_sha1) },
     { CK_UNAVAILABLE_INFORMATION, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
@@ -619,6 +654,8 @@ static int p11prov_sig_operate(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
     CK_ULONG sig_size = sigsize;
     int result = RET_OSSL_ERR;
     CK_RV ret;
+    /* The 64 is to accommodate largest possible der_digestinfo prefix encoding */
+    unsigned char data[EVP_MAX_MD_SIZE + 64];
 
     if (sig == NULL) {
         if (sigctx->operation == CKF_VERIFY) {
@@ -636,6 +673,31 @@ static int p11prov_sig_operate(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
             ERR_raise(ERR_LIB_RSA, RSA_R_DATA_TOO_SMALL_FOR_KEY_SIZE);
             return RET_OSSL_ERR;
         }
+    }
+
+    if (sigctx->mechtype == CKM_RSA_PKCS && sigctx->digest != 0) {
+        const P11PROV_MECH *mech = NULL;
+        size_t digest_size = 0;
+
+        ret = p11prov_mech_by_mechanism(sigctx->digest, &mech);
+        if (ret != CKR_OK) {
+            ERR_raise(ERR_LIB_RSA, PROV_R_INVALID_DIGEST);
+            return RET_OSSL_ERR;
+        }
+        ret = p11prov_digest_get_digest_size(sigctx->digest, &digest_size);
+        if (ret != CKR_OK) {
+            ERR_raise(ERR_LIB_RSA, PROV_R_INVALID_DIGEST);
+            return RET_OSSL_ERR;
+        }
+        if (tbslen != digest_size
+            || tbslen + mech->der_digestinfo_len >= sizeof(data)) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_INPUT_LENGTH);
+            return RET_OSSL_ERR;
+        }
+        memcpy(data, mech->der_digestinfo, mech->der_digestinfo_len);
+        memcpy(data + mech->der_digestinfo_len, tbs, tbslen);
+        tbs = data;
+        tbslen += mech->der_digestinfo_len;
     }
 
     ret = p11prov_sig_operate_init(sigctx, false, &session);
@@ -671,6 +733,9 @@ static int p11prov_sig_operate(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
 
 endsess:
     p11prov_session_free(session);
+    if (tbs == data) {
+        OPENSSL_cleanse(data, sizeof(data));
+    }
     return result;
 }
 
