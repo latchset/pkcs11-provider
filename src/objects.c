@@ -527,7 +527,7 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
 
     P11PROV_debug("Find objects [class=%lu, id-len=%lu, label=%s]", class,
                   id.ulValueLen,
-                  label.type == CKA_LABEL ? label.pValue : "None");
+                  label.type == CKA_LABEL ? (char *)label.pValue : "None");
 
     ret = p11prov_ctx_status(provctx, &f);
     if (ret != CKR_OK) {
