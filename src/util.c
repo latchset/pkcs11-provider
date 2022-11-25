@@ -109,7 +109,7 @@ struct p11prov_uri {
     char *token;
     char *serial;
     CK_ATTRIBUTE id;
-    CK_ATTRIBUTE label;
+    CK_ATTRIBUTE label; /* object= part of URI */
     char *pin;
     CK_OBJECT_CLASS class;
 };
@@ -419,21 +419,27 @@ char *p11prov_uri_get_pin(P11PROV_URI *uri)
 
 CK_RV p11prov_uri_match_token(P11PROV_URI *uri, CK_TOKEN_INFO *token)
 {
+    /* The tokenifo fields have already trailing spacess trimmed and replaced
+     * with NULL byte */
     if (uri->model
-        && strncmp(uri->model, (const char *)token->model, 16) != 0) {
+        && strlen(uri->model) == strlen((const char *)token->model)
+        && strcmp(uri->model, (const char *)token->model) != 0) {
         return CKR_CANCEL;
     }
     if (uri->manufacturer
-        && strncmp(uri->manufacturer, (const char *)token->manufacturerID, 32)
+        && strlen(uri->manufacturer) == strlen((const char *)token->manufacturerID)
+        && strcmp(uri->manufacturer, (const char *)token->manufacturerID)
                != 0) {
         return CKR_CANCEL;
     }
     if (uri->token
-        && strncmp(uri->token, (const char *)token->label, 32) != 0) {
+        && strlen(uri->token) == strlen((const char *)token->label)
+        && strcmp(uri->token, (const char *)token->label) != 0) {
         return CKR_CANCEL;
     }
     if (uri->serial
-        && strncmp(uri->serial, (const char *)token->serialNumber, 16) != 0) {
+        && strlen(uri->serial) == strlen((const char *)token->serialNumber)
+        && strcmp(uri->serial, (const char *)token->serialNumber) != 0) {
         return CKR_CANCEL;
     }
 
