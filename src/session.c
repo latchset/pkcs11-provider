@@ -362,7 +362,7 @@ static CK_RV token_login(P11PROV_CTX *provctx, struct p11prov_slot *slot,
                          P11PROV_URI *uri, OSSL_PASSPHRASE_CALLBACK *pw_cb,
                          void *pw_cbarg)
 {
-    P11PROV_SESSION *session;
+    P11PROV_SESSION *session = NULL;
     char cb_pin[MAX_PIN_LENGTH + 1] = { 0 };
     size_t cb_pin_len = 0;
     CK_UTF8CHAR_PTR pin = NULL_PTR;
@@ -372,21 +372,6 @@ static CK_RV token_login(P11PROV_CTX *provctx, struct p11prov_slot *slot,
     if (slot->pool->login_session) {
         /* we already have a login_session */
         return CKR_OK;
-    }
-
-    session = p11prov_session_new(provctx, slot);
-    if (session == NULL) {
-        return CKR_GENERAL_ERROR;
-    }
-
-    /* ref now, so we can simply p11prov_ession_free() later on errors */
-    session = p11prov_session_ref(session);
-    if (session == NULL) {
-        P11PROV_raise(provctx, CKR_GENERAL_ERROR,
-                      "Failed to ref count session");
-        /* intentionally leave this broken session busy so it won't be
-         * used anymore */
-        return CKR_GENERAL_ERROR;
     }
 
     if (uri) {
@@ -415,6 +400,20 @@ static CK_RV token_login(P11PROV_CTX *provctx, struct p11prov_slot *slot,
     } else {
         ret = CKR_GENERAL_ERROR;
         goto done;
+    }
+
+    session = p11prov_session_new(provctx, slot);
+    if (session == NULL) {
+        return CKR_GENERAL_ERROR;
+    }
+
+    session = p11prov_session_ref(session);
+    if (session == NULL) {
+        P11PROV_raise(provctx, CKR_GENERAL_ERROR,
+                      "Failed to ref count session");
+        /* intentionally leave this broken session busy so it won't be
+         * used anymore */
+        return CKR_GENERAL_ERROR;
     }
 
     ret = p11prov_session_open(session, true, pin, pinlen);
