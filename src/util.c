@@ -333,7 +333,7 @@ P11PROV_URI *p11prov_parse_uri(const char *uri)
                 u->class = CKO_PUBLIC_KEY;
             } else if (len == 7 && strncmp(p, "private", 7) == 0) {
                 u->class = CKO_PRIVATE_KEY;
-            } else if (len == 7 && strncmp(p, "secret", 7) == 0) {
+            } else if (len == 6 && strncmp(p, "secret", 6) == 0) {
                 u->class = CKO_SECRET_KEY;
             } else {
                 P11PROV_debug("Unknown object type");
