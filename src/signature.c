@@ -1587,7 +1587,7 @@ static int p11prov_ecdsa_digest_verify_final(void *ctx,
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
     unsigned char raw[P11PROV_MAX_RAW_ECC_SIG_SIZE];
-    CK_ULONG flen = p11prov_obj_get_key_size(sigctx->key);
+    CK_ULONG flen;
     int ret;
 
     P11PROV_debug("ecdsa digest verify final (ctx=%p, sig=%p, siglen=%zu)", ctx,
@@ -1596,6 +1596,8 @@ static int p11prov_ecdsa_digest_verify_final(void *ctx,
     if (sigctx == NULL) {
         return RET_OSSL_ERR;
     }
+
+    flen = p11prov_obj_get_key_size(sigctx->key);
 
     ret = convert_ecdsa_der_to_raw(sig, siglen, raw, sizeof(raw), flen);
     if (ret != RET_OSSL_OK) {
