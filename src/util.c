@@ -108,7 +108,6 @@ struct p11prov_uri {
     char *manufacturer;
     char *token;
     char *serial;
-    char *object;
     CK_ATTRIBUTE id;
     CK_ATTRIBUTE label;
     char *pin;
