@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 #include "platform/endian.h"
+#include <openssl/bn.h>
 
 CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                                CK_OBJECT_HANDLE object,
@@ -548,4 +549,19 @@ CK_RV p11prov_token_sup_attr(P11PROV_CTX *ctx, CK_SLOT_ID id, int action,
     default:
         return CKR_ARGUMENTS_BAD;
     }
+}
+
+CK_RV p11prov_copy_attr(CK_ATTRIBUTE *dst, CK_ATTRIBUTE *src)
+{
+    if (src->ulValueLen) {
+        dst->pValue = OPENSSL_malloc(src->ulValueLen);
+        if (!dst->pValue) {
+            return CKR_HOST_MEMORY;
+        }
+        memcpy(dst->pValue, src->pValue, src->ulValueLen);
+        dst->ulValueLen = src->ulValueLen;
+    }
+    dst->type = src->type;
+
+    return CKR_OK;
 }
