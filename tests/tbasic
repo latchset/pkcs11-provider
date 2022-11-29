@@ -138,4 +138,13 @@ req -new -batch -key "${PRIURI}" -out ${TMPPDIR}/rsa_csr.pem'
 ossl '
 req -in ${TMPPDIR}/rsa_csr.pem -verify -noout'
 
+title PARA "Test fetching public keys without PIN"
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed "s/^pkcs11-module-token-pin.*$/##nopin/" ${OPENSSL_CONF} > ${OPENSSL_CONF}.nopin
+OPENSSL_CONF=${OPENSSL_CONF}.nopin
+ossl 'pkey -in $PUBURI -pubin -pubout -out ${TMPPDIR}/rsa.pub.nopin.pem'
+ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${TMPPDIR}/ec.pub.nopin.pem'
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+rm -f ${OPENSSL_CONF}.nopin
+
 exit 0
