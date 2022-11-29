@@ -360,7 +360,7 @@ CK_SLOT_ID p11prov_session_slotid(P11PROV_SESSION *session)
 
 static CK_RV token_login(P11PROV_CTX *provctx, struct p11prov_slot *slot,
                          P11PROV_URI *uri, OSSL_PASSPHRASE_CALLBACK *pw_cb,
-                         void *pw_cbarg)
+                         void *pw_cbarg, bool reqlogin)
 {
     P11PROV_SESSION *session = NULL;
     char cb_pin[MAX_PIN_LENGTH + 1] = { 0 };
@@ -394,17 +394,22 @@ static CK_RV token_login(P11PROV_CTX *provctx, struct p11prov_slot *slot,
             ret = CKR_GENERAL_ERROR;
             goto done;
         }
+        if (cb_pin_len == 0) {
+            ret = reqlogin ? CKR_CANCEL : CKR_OK;
+            goto done;
+        }
 
         pin = (CK_UTF8CHAR_PTR)cb_pin;
         pinlen = cb_pin_len;
     } else {
-        ret = CKR_GENERAL_ERROR;
+        ret = reqlogin ? CKR_CANCEL : CKR_OK;
         goto done;
     }
 
     session = p11prov_session_new(provctx, slot);
     if (session == NULL) {
-        return CKR_GENERAL_ERROR;
+        ret = CKR_GENERAL_ERROR;
+        goto done;
     }
 
     session = p11prov_session_ref(session);
@@ -413,17 +418,18 @@ static CK_RV token_login(P11PROV_CTX *provctx, struct p11prov_slot *slot,
                       "Failed to ref count session");
         /* intentionally leave this broken session busy so it won't be
          * used anymore */
-        return CKR_GENERAL_ERROR;
+        ret = CKR_GENERAL_ERROR;
+        goto done;
     }
 
     ret = p11prov_session_open(session, true, pin, pinlen);
-
-done:
     if (ret == CKR_OK) {
         session->pool->login_session = session;
     } else {
         p11prov_session_free(session);
     }
+
+done:
     OPENSSL_cleanse(cb_pin, cb_pin_len);
     return ret;
 }
@@ -443,17 +449,16 @@ static CK_RV check_slot(P11PROV_CTX *provctx, struct p11prov_slot *provslot,
     if (uri) {
         /* skip slots that do not match */
         ret = p11prov_uri_match_token(uri, &provslot->token);
-    }
-    if (ret == CKR_OK
-        && ((provslot->token.flags & CKF_LOGIN_REQUIRED) || reqlogin)) {
-        ret = token_login(provctx, provslot, uri, pw_cb, pw_cbarg);
-    }
-
-    if (ret == CKR_OK && reqlogin && !provslot->pool->login_session) {
-        ret = CKR_USER_NOT_LOGGED_IN;
+        if (ret != CKR_OK) {
+            return ret;
+        }
     }
 
-    return ret;
+    if (!(provslot->token.flags & CKF_LOGIN_REQUIRED) && !reqlogin) {
+        return CKR_OK;
+    }
+
+    return token_login(provctx, provslot, uri, pw_cb, pw_cbarg, reqlogin);
 }
 
 /* There are three possible ways to call this function.
