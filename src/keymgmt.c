@@ -398,11 +398,12 @@ static void *p11prov_rsa_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
     /* CK_BBOOL val_false = CK_FALSE; */
 
     /* always leave space for CKA_ID and CKA_LABEL */
-#define RSA_PUBKEY_TMPL_SIZE 5
+#define RSA_PUBKEY_TMPL_SIZE 6
     CK_ATTRIBUTE pubkey_template[RSA_PUBKEY_TMPL_SIZE + 2] = {
         { CKA_ENCRYPT, &val_true, sizeof(val_true) },
         { CKA_VERIFY, &val_true, sizeof(val_true) },
         { CKA_WRAP, &val_true, sizeof(val_true) },
+        { CKA_TOKEN, &val_true, sizeof(CK_BBOOL) },
         { CKA_MODULUS_BITS, &ctx->data.rsa.modulus_bits,
           sizeof(ctx->data.rsa.modulus_bits) },
         { CKA_PUBLIC_EXPONENT, &ctx->data.rsa.exponent,
@@ -843,8 +844,9 @@ static void *p11prov_ec_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
     /* CK_BBOOL val_false = CK_FALSE; */
 
     /* always leave space for CKA_ID and CKA_LABEL */
-#define EC_PUBKEY_TMPL_SIZE 4
+#define EC_PUBKEY_TMPL_SIZE 5
     CK_ATTRIBUTE pubkey_template[EC_PUBKEY_TMPL_SIZE + 2] = {
+        { CKA_TOKEN, &val_true, sizeof(CK_BBOOL) },
         { CKA_DERIVE, &val_true, sizeof(val_true) },
         { CKA_VERIFY, &val_true, sizeof(val_true) },
         { CKA_WRAP, &val_true, sizeof(val_true) },
