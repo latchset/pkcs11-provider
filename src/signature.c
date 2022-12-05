@@ -134,8 +134,9 @@ static void *p11prov_sig_dupctx(void *ctx)
             goto done;
         }
 
-        ret = p11prov_get_session(sigctx->provctx, &slotid, NULL, NULL, NULL,
-                                  NULL, reqlogin, false, &sigctx->session);
+        ret = p11prov_get_session(sigctx->provctx, &slotid, NULL, NULL,
+                                  sigctx->mechtype, NULL, NULL, reqlogin, false,
+                                  &sigctx->session);
         if (ret != CKR_OK) {
             P11PROV_raise(sigctx->provctx, ret,
                           "Failed to open session on slot %lu", slotid);
@@ -609,8 +610,9 @@ static int p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
         reqlogin = true;
     }
 
-    ret = p11prov_get_session(sigctx->provctx, &slotid, NULL, NULL, NULL, NULL,
-                              reqlogin, false, &session);
+    ret = p11prov_get_session(sigctx->provctx, &slotid, NULL, NULL,
+                              mechanism.mechanism, NULL, NULL, reqlogin, false,
+                              &session);
     if (ret != CKR_OK) {
         P11PROV_raise(sigctx->provctx, ret,
                       "Failed to open session on slot %lu", slotid);

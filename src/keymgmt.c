@@ -303,8 +303,9 @@ static void *p11prov_common_gen(struct key_generator *ctx,
     }
 
     /* FIXME: how do we get a URI to select the right slot ? */
-    ret = p11prov_get_session(ctx->provctx, &slotid, NULL, NULL, NULL, NULL,
-                              true, true, &session);
+    ret = p11prov_get_session(ctx->provctx, &slotid, NULL, NULL,
+                              ctx->mechanism.mechanism, NULL, NULL, true, true,
+                              &session);
     if (ret != CKR_OK) {
         return NULL;
     }

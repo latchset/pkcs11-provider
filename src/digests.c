@@ -218,10 +218,9 @@ static void *p11prov_digest_dupctx(void *ctx)
         goto done;
     }
 
-    /* FIXME: should probably cycle through slots and check if the slot,
-     * supports the mechtype via mechanism info requests */
-    ret = p11prov_get_session(dctx->provctx, &slotid, NULL, NULL, NULL, NULL,
-                              false, false, &dctx->session);
+    ret =
+        p11prov_get_session(dctx->provctx, &slotid, NULL, NULL, dctx->mechtype,
+                            NULL, NULL, false, false, &dctx->session);
     if (ret != CKR_OK) {
         P11PROV_raise(dctx->provctx, ret, "Failed to open new session");
         goto done;
@@ -275,10 +274,9 @@ static int p11prov_digest_init(void *ctx, const OSSL_PARAM params[])
         return RET_OSSL_ERR;
     }
 
-    /* FIXME: should probably cycle through slots and check if the slot,
-     * supports the mechtype via mechanism info requests */
-    ret = p11prov_get_session(dctx->provctx, &slotid, NULL, NULL, NULL, NULL,
-                              false, false, &dctx->session);
+    ret =
+        p11prov_get_session(dctx->provctx, &slotid, NULL, NULL, dctx->mechtype,
+                            NULL, NULL, false, false, &dctx->session);
     if (ret != CKR_OK) {
         P11PROV_raise(dctx->provctx, ret, "Failed to open new session");
         return RET_OSSL_ERR;

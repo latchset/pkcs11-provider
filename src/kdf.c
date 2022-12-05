@@ -251,9 +251,9 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
         /* Create Session  and key from key material */
         if (hkdfctx->session == NULL) {
-            ret =
-                p11prov_get_session(hkdfctx->provctx, &slotid, NULL, NULL, NULL,
-                                    NULL, false, false, &hkdfctx->session);
+            ret = p11prov_get_session(hkdfctx->provctx, &slotid, NULL, NULL,
+                                      hkdfctx->mechtype, NULL, NULL, false,
+                                      false, &hkdfctx->session);
             if (ret != CKR_OK) {
                 return RET_OSSL_ERR;
             }

@@ -98,9 +98,9 @@ static void store_fetch(struct p11prov_store_ctx *ctx,
             ctx->session = CK_INVALID_HANDLE;
         }
 
-        ret =
-            p11prov_get_session(ctx->provctx, &slotid, &nextid, ctx->parsed_uri,
-                                pw_cb, pw_cbarg, false, false, &ctx->session);
+        ret = p11prov_get_session(ctx->provctx, &slotid, &nextid,
+                                  ctx->parsed_uri, CK_UNAVAILABLE_INFORMATION,
+                                  pw_cb, pw_cbarg, false, false, &ctx->session);
         if (ret != CKR_OK || ctx->session == CK_INVALID_HANDLE) {
             P11PROV_raise(ctx->provctx, ret,
                           "Failed to get session to load keys");
