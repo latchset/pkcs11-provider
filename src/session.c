@@ -436,7 +436,8 @@ done:
 
 static CK_RV check_slot(P11PROV_CTX *provctx, struct p11prov_slot *provslot,
                         bool reqlogin, P11PROV_URI *uri,
-                        OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
+                        OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg,
+                        CK_MECHANISM_TYPE mechtype)
 {
     CK_RV ret = CKR_OK;
 
@@ -451,6 +452,19 @@ static CK_RV check_slot(P11PROV_CTX *provctx, struct p11prov_slot *provslot,
         ret = p11prov_uri_match_token(uri, &provslot->token);
         if (ret != CKR_OK) {
             return ret;
+        }
+    }
+    if (mechtype != CK_UNAVAILABLE_INFORMATION) {
+        bool found = false;
+        for (CK_ULONG i = 0; i < provslot->mechs_num; i++) {
+            if (provslot->mechs[i] == mechtype) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            /* slot not suitable */
+            return CKR_CANCEL;
         }
     }
 
@@ -478,6 +492,7 @@ static CK_RV check_slot(P11PROV_CTX *provctx, struct p11prov_slot *provslot,
  */
 CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                           CK_SLOT_ID *next_slotid, P11PROV_URI *uri,
+                          CK_MECHANISM_TYPE mechtype,
                           OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg,
                           bool reqlogin, bool rw, P11PROV_SESSION **_session)
 {
@@ -504,7 +519,8 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
         if (slot == NULL) {
             return CKR_SLOT_ID_INVALID;
         }
-        ret = check_slot(provctx, slot, reqlogin, uri, pw_cb, pw_cbarg);
+        ret =
+            check_slot(provctx, slot, reqlogin, uri, pw_cb, pw_cbarg, mechtype);
         if (ret != CKR_OK) {
             return ret;
         }
@@ -519,8 +535,8 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                 id = CK_UNAVAILABLE_INFORMATION;
             }
 
-            ret =
-                check_slot(provctx, &slots[i], reqlogin, uri, pw_cb, pw_cbarg);
+            ret = check_slot(provctx, &slots[i], reqlogin, uri, pw_cb, pw_cbarg,
+                             mechtype);
             if (ret != CKR_OK) {
                 /* keep going */
                 continue;

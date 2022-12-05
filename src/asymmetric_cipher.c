@@ -178,8 +178,9 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
         return RET_OSSL_ERR;
     }
 
-    ret = p11prov_get_session(encctx->provctx, &slotid, NULL, NULL, NULL, NULL,
-                              false, false, &session);
+    ret = p11prov_get_session(encctx->provctx, &slotid, NULL, NULL,
+                              mechanism.mechanism, NULL, NULL, false, false,
+                              &session);
     if (ret != CKR_OK) {
         P11PROV_raise(encctx->provctx, ret,
                       "Failed to open session on slot %lu", slotid);
@@ -287,8 +288,9 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
         return RET_OSSL_ERR;
     }
 
-    ret = p11prov_get_session(encctx->provctx, &slotid, NULL, NULL, NULL, NULL,
-                              true, false, &session);
+    ret = p11prov_get_session(encctx->provctx, &slotid, NULL, NULL,
+                              mechanism.mechanism, NULL, NULL, true, false,
+                              &session);
     if (ret != CKR_OK) {
         P11PROV_raise(encctx->provctx, ret,
                       "Failed to open session on slot %lu", slotid);

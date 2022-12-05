@@ -633,7 +633,8 @@ static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
 
     slotid = p11prov_obj_get_slotid(obj);
 
-    ret = p11prov_get_session(provctx, &slotid, NULL, NULL, NULL, NULL, false,
+    ret = p11prov_get_session(provctx, &slotid, NULL, NULL,
+                              CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
                               false, &session);
     if (ret != CKR_OK) {
         goto done;
@@ -774,8 +775,9 @@ CK_RV p11prov_derive_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
 
 again:
     if (!s) {
-        ret = p11prov_get_session(ctx, &slotid, NULL, NULL, NULL, NULL, false,
-                                  false, &s);
+        ret =
+            p11prov_get_session(ctx, &slotid, NULL, NULL, mechanism->mechanism,
+                                NULL, NULL, false, false, &s);
         if (ret != CKR_OK) {
             P11PROV_raise(ctx, ret, "Failed to open session on slot %lu",
                           slotid);
@@ -818,7 +820,8 @@ CK_RV p11prov_obj_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     CK_RV ret;
 
     if (!s) {
-        ret = p11prov_get_session(ctx, &slotid, NULL, NULL, NULL, NULL, false,
+        ret = p11prov_get_session(ctx, &slotid, NULL, NULL,
+                                  CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
                                   true, &s);
         if (ret != CKR_OK) {
             P11PROV_raise(ctx, ret, "Failed to open session on slot %lu",

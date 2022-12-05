@@ -393,6 +393,7 @@ CK_SESSION_HANDLE p11prov_session_handle(P11PROV_SESSION *session);
 CK_SLOT_ID p11prov_session_slotid(P11PROV_SESSION *session);
 CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                           CK_SLOT_ID *next_slotid, P11PROV_URI *uri,
+                          CK_MECHANISM_TYPE mechtype,
                           OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg,
                           bool reqlogin, bool rw, P11PROV_SESSION **session);
 
