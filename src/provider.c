@@ -1042,75 +1042,91 @@ static void trim_padded_field(CK_UTF8CHAR *field, ssize_t n)
 
 static CK_RV get_slots(P11PROV_CTX *ctx)
 {
-    CK_ULONG nslots;
+    CK_ULONG ns;
+    CK_ULONG ts;
     CK_SLOT_ID *slotid;
     struct p11prov_slot *slots;
     int ret;
 
-    ret = ctx->fns->C_GetSlotList(CK_FALSE, NULL, &nslots);
+    ret = ctx->fns->C_GetSlotList(CK_FALSE, NULL, &ns);
     if (ret) {
         return ret;
     }
 
     /* arbitrary number from libp11 */
-    if (nslots > 0x10000) {
+    if (ns > 0x10000) {
         return CKR_GENERAL_ERROR;
     }
 
-    slotid = OPENSSL_malloc(nslots * sizeof(CK_SLOT_ID));
+    slotid = OPENSSL_malloc(ns * sizeof(CK_SLOT_ID));
     if (slotid == NULL) {
         return CKR_HOST_MEMORY;
     }
 
-    ret = ctx->fns->C_GetSlotList(CK_FALSE, slotid, &nslots);
+    ret = ctx->fns->C_GetSlotList(CK_FALSE, slotid, &ns);
     if (ret) {
         OPENSSL_free(slotid);
         return ret;
     }
 
-    slots = OPENSSL_zalloc(nslots * sizeof(struct p11prov_slot));
+    slots = OPENSSL_zalloc(ns * sizeof(struct p11prov_slot));
     if (slots == NULL) {
         OPENSSL_free(slotid);
         return CKR_HOST_MEMORY;
     }
 
-    for (size_t i = 0; i < nslots; i++) {
-        slots[i].id = slotid[i];
-        ret = ctx->fns->C_GetSlotInfo(slotid[i], &slots[i].slot);
-        if (ret == CKR_OK && slots[i].slot.flags & CKF_TOKEN_PRESENT) {
-            ret = ctx->fns->C_GetTokenInfo(slotid[i], &slots[i].token);
+    /* keep separate counter for slots we'll actually have at the end,
+     * because we will skip slots that do not have any token present */
+    ts = 0;
+    for (size_t i = 0; i < ns; i++) {
+        CK_SLOT_INFO slot;
+        CK_TOKEN_INFO token;
+
+        ret = ctx->fns->C_GetSlotInfo(slotid[i], &slot);
+        if (ret != CKR_OK || (slot.flags & CKF_TOKEN_PRESENT) == 0) {
+            /* skip slot */
+            continue;
         }
+        ret = ctx->fns->C_GetTokenInfo(slotid[i], &token);
+        if (ret) {
+            /* skip slot */
+            continue;
+        }
+
+        trim(slot.slotDescription);
+        trim(slot.manufacturerID);
+        trim(token.label);
+        trim(token.manufacturerID);
+        trim(token.model);
+        trim(token.serialNumber);
+
+        slots[ts].id = slotid[i];
+        slots[ts].slot = slot;
+        slots[ts].token = token;
+
+        ret = p11prov_session_pool_init(ctx, &token, &slots[ts].pool);
         if (ret) {
             goto done;
         }
 
-        trim(slots[i].slot.slotDescription);
-        trim(slots[i].slot.manufacturerID);
-        trim(slots[i].token.label);
-        trim(slots[i].token.manufacturerID);
-        trim(slots[i].token.model);
-        trim(slots[i].token.serialNumber);
+        (void)get_slot_profiles(ctx, &slots[ts]);
+        get_slot_mechanisms(ctx, &slots[ts]);
 
-        ret = p11prov_session_pool_init(ctx, &slots[i].token, &(slots[i].pool));
-        if (ret) {
-            goto done;
-        }
+        P11PROV_debug_slot(ctx, &slots[ts]);
 
-        (void)get_slot_profiles(ctx, &slots[i]);
-        get_slot_mechanisms(ctx, &slots[i]);
-
-        P11PROV_debug_slot(ctx, &slots[i]);
+        ts++;
     }
 
 done:
+
     if (ret != CKR_OK) {
-        for (size_t i = 0; i < nslots; i++) {
+        for (size_t i = 0; i < ts; i++) {
             p11prov_session_pool_free(slots[i].pool);
         }
         OPENSSL_free(slots);
     } else {
         ctx->slots = slots;
-        ctx->nslots = nslots;
+        ctx->nslots = ts;
     }
     OPENSSL_free(slotid);
     return ret;
