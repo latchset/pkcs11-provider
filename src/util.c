@@ -12,16 +12,10 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                                struct fetch_attrs *attrs,
                                unsigned long attrnums)
 {
-    CK_FUNCTION_LIST *f;
     CK_SESSION_HANDLE sess = p11prov_session_handle(session);
     CK_ATTRIBUTE q[attrnums];
     CK_ATTRIBUTE r[attrnums];
     CK_RV ret;
-
-    ret = p11prov_ctx_status(ctx, &f);
-    if (ret != CKR_OK) {
-        return ret;
-    }
 
     for (size_t i = 0; i < attrnums; i++) {
         if (attrs[i].allocate) {
@@ -33,7 +27,7 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     }
 
     /* try one shot, then fallback to individual calls if that fails */
-    ret = f->C_GetAttributeValue(sess, object, q, attrnums);
+    ret = p11prov_GetAttributeValue(ctx, sess, object, q, attrnums);
     if (ret == CKR_OK) {
         unsigned long retrnums = 0;
         for (size_t i = 0; i < attrnums; i++) {
@@ -61,7 +55,7 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
             }
         }
         if (retrnums > 0) {
-            ret = f->C_GetAttributeValue(sess, object, r, retrnums);
+            ret = p11prov_GetAttributeValue(ctx, sess, object, r, retrnums);
         }
     } else if (attrnums > 1
                && (ret == CKR_ATTRIBUTE_SENSITIVE
@@ -72,7 +66,7 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         for (size_t i = 0; i < attrnums; i++) {
             if (attrs[i].allocate) {
                 CKATTR_ASSIGN_ALL(q[0], attrs[i].type, NULL, 0);
-                ret = f->C_GetAttributeValue(sess, object, q, 1);
+                ret = p11prov_GetAttributeValue(ctx, sess, object, q, 1);
                 if (ret != CKR_OK) {
                     if (attrs[i].required) {
                         return ret;
@@ -87,7 +81,7 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
             }
             CKATTR_ASSIGN_ALL(r[0], attrs[i].type, *attrs[i].value,
                               *attrs[i].value_len);
-            ret = f->C_GetAttributeValue(sess, object, r, 1);
+            ret = p11prov_GetAttributeValue(ctx, sess, object, r, 1);
             if (ret != CKR_OK) {
                 if (r[0].ulValueLen == CK_UNAVAILABLE_INFORMATION) {
                     FA_RETURN_LEN(attrs[i], 0);

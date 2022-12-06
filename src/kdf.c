@@ -35,7 +35,7 @@ static void *p11prov_hkdf_newctx(void *provctx)
 
     P11PROV_debug("hkdf newctx");
 
-    ret = p11prov_ctx_status(ctx, NULL);
+    ret = p11prov_ctx_status(ctx);
     if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }

@@ -40,16 +40,10 @@ struct p11prov_session_pool {
 static CK_RV internal_session_open(P11PROV_SESSION_POOL *p, CK_SLOT_ID slot,
                                    CK_FLAGS flags, CK_SESSION_HANDLE *session)
 {
-    CK_FUNCTION_LIST *f;
     bool wait_ok = true;
     CK_ULONG cs = 0;
     uint64_t startime = 0;
     CK_RV ret;
-
-    ret = p11prov_ctx_status(p->provctx, &f);
-    if (ret != CKR_OK) {
-        return ret;
-    }
 
     while (wait_ok) {
         if (cs == 0) {
@@ -65,7 +59,7 @@ static CK_RV internal_session_open(P11PROV_SESSION_POOL *p, CK_SLOT_ID slot,
         }
 
         wait_ok = false;
-        ret = f->C_OpenSession(slot, flags, NULL, NULL, session);
+        ret = p11prov_OpenSession(p->provctx, slot, flags, NULL, NULL, session);
         P11PROV_debug("C_OpenSession ret:%lu (session: %lu)", ret, *session);
         if (ret == CKR_SESSION_COUNT) {
             wait_ok = cyclewait_with_timeout(MAX_WAIT, SLEEP, &startime);
@@ -81,17 +75,9 @@ static CK_RV internal_session_open(P11PROV_SESSION_POOL *p, CK_SLOT_ID slot,
 static void internal_session_close(P11PROV_SESSION *session)
 {
     if (session->session != CK_INVALID_HANDLE) {
-        CK_FUNCTION_LIST *f;
-        CK_RV ret;
 
-        ret = p11prov_ctx_status(session->provctx, &f);
-        if (ret == CKR_OK) {
-            ret = f->C_CloseSession(session->session);
-            if (ret != CKR_OK) {
-                P11PROV_raise(session->provctx, ret,
-                              "Failed to close session %lu", session->session);
-            }
-        }
+        P11PROV_debug("Closing session %lu", session->session);
+        (void)p11prov_CloseSession(session->provctx, session->session);
         /* regardless of the result the session is gone */
         if (session->pool) {
             (void)__atomic_fetch_sub(&session->pool->cur_sessions, 1,
@@ -264,19 +250,14 @@ static CK_RV p11prov_session_open(P11PROV_SESSION *session, bool login,
     }
 
     if (login) {
-        CK_FUNCTION_LIST *f;
-        ret = p11prov_ctx_status(session->provctx, &f);
-        if (ret == CKR_OK) {
-            /* Supports only USER login sessions for now */
-            ret = f->C_Login(session->session, CKU_USER, pin, pinlen);
-        }
-        P11PROV_debug("Login session; ret:%lu, session:%lu", ret,
-                      session->session);
+        P11PROV_debug("Attempt Login on session %lu", session->session);
+        /* Supports only USER login sessions for now */
+        ret = p11prov_Login(session->provctx, session->session, CKU_USER, pin,
+                            pinlen);
         if (ret == CKR_USER_ALREADY_LOGGED_IN) {
             ret = CKR_OK;
         }
         if (ret != CKR_OK) {
-            P11PROV_raise(session->provctx, ret, "Error returned by C_Login");
             internal_session_close(session);
         }
     }
@@ -629,15 +610,10 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
 
     if (session->session != CK_INVALID_HANDLE) {
         /* check that the pkcs11 session is still ok */
-        CK_FUNCTION_LIST *f;
         CK_SESSION_INFO session_info;
 
-        ret = p11prov_ctx_status(provctx, &f);
-        if (ret != CKR_OK) {
-            goto done;
-        }
-
-        ret = f->C_GetSessionInfo(session->session, &session_info);
+        ret = p11prov_GetSessionInfo(session->provctx, session->session,
+                                     &session_info);
         switch (ret) {
         case CKR_OK:
             if (session->flags != session_info.flags) {
@@ -653,7 +629,6 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
             session->session = CK_INVALID_HANDLE;
             break;
         default:
-            P11PROV_raise(provctx, ret, "Error returned by C_GetSessionInfo");
             ret = CKR_GENERAL_ERROR;
             goto done;
         }

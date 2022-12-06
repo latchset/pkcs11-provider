@@ -154,7 +154,6 @@ static void *p11prov_digest_dupctx(void *ctx)
     P11PROV_DIGEST_CTX *newctx;
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
-    CK_FUNCTION_LIST *f;
     CK_BYTE_PTR state = NULL;
     CK_ULONG state_len;
     CK_RV ret;
@@ -184,12 +183,6 @@ static void *p11prov_digest_dupctx(void *ctx)
      * need for the old context which will have no session and just return
      * errors if an update is attempted. */
 
-    ret = p11prov_ctx_status(dctx->provctx, &f);
-    if (ret != CKR_OK) {
-        OPENSSL_free(newctx);
-        return NULL;
-    }
-
     sess = p11prov_session_handle(dctx->session);
 
     /* move old session to new context, we swap because often openssl continues
@@ -200,10 +193,8 @@ static void *p11prov_digest_dupctx(void *ctx)
     /* NOTE: most tokens will probably return errors trying to do this on digest
      * sessions */
 
-    ret = f->C_GetOperationState(sess, NULL_PTR, &state_len);
+    ret = p11prov_GetOperationState(dctx->provctx, sess, NULL_PTR, &state_len);
     if (ret != CKR_OK) {
-        P11PROV_raise(dctx->provctx, ret,
-                      "Error returned by C_GetOperationState");
         goto done;
     }
     state = OPENSSL_malloc(state_len);
@@ -211,10 +202,8 @@ static void *p11prov_digest_dupctx(void *ctx)
         goto done;
     }
 
-    ret = f->C_GetOperationState(sess, state, &state_len);
+    ret = p11prov_GetOperationState(dctx->provctx, sess, state, &state_len);
     if (ret != CKR_OK) {
-        P11PROV_raise(dctx->provctx, ret,
-                      "Error returned by C_GetOperationState");
         goto done;
     }
 
@@ -227,11 +216,9 @@ static void *p11prov_digest_dupctx(void *ctx)
     }
     sess = p11prov_session_handle(dctx->session);
 
-    ret = f->C_SetOperationState(sess, state, state_len, CK_INVALID_HANDLE,
-                                 CK_INVALID_HANDLE);
+    ret = p11prov_SetOperationState(dctx->provctx, sess, state, state_len,
+                                    CK_INVALID_HANDLE, CK_INVALID_HANDLE);
     if (ret != CKR_OK) {
-        P11PROV_raise(dctx->provctx, ret,
-                      "Error returned by C_SetOperationState");
         p11prov_session_free(dctx->session);
         dctx->session = NULL;
     }
@@ -260,7 +247,6 @@ static int p11prov_digest_init(void *ctx, const OSSL_PARAM params[])
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
     CK_MECHANISM mechanism = { 0 };
-    CK_FUNCTION_LIST *f;
     CK_RV ret;
 
     P11PROV_debug("digest init, ctx=%p", ctx);
@@ -269,7 +255,7 @@ static int p11prov_digest_init(void *ctx, const OSSL_PARAM params[])
         return RET_OSSL_ERR;
     }
 
-    ret = p11prov_ctx_status(dctx->provctx, &f);
+    ret = p11prov_ctx_status(dctx->provctx);
     if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }
@@ -285,9 +271,8 @@ static int p11prov_digest_init(void *ctx, const OSSL_PARAM params[])
 
     mechanism.mechanism = dctx->mechtype;
 
-    ret = f->C_DigestInit(sess, &mechanism);
+    ret = p11prov_DigestInit(dctx->provctx, sess, &mechanism);
     if (ret != CKR_OK) {
-        P11PROV_raise(dctx->provctx, ret, "Failed to initialize digest");
         p11prov_session_free(dctx->session);
         dctx->session = NULL;
         return RET_OSSL_ERR;
@@ -301,7 +286,6 @@ static int p11prov_digest_update(void *ctx, const unsigned char *data,
 {
     P11PROV_DIGEST_CTX *dctx = (P11PROV_DIGEST_CTX *)ctx;
     CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
-    CK_FUNCTION_LIST *f;
     CK_RV ret;
 
     P11PROV_debug("digest update, ctx=%p", ctx);
@@ -314,15 +298,10 @@ static int p11prov_digest_update(void *ctx, const unsigned char *data,
         return RET_OSSL_OK;
     }
 
-    ret = p11prov_ctx_status(dctx->provctx, &f);
-    if (ret != CKR_OK) {
-        return RET_OSSL_ERR;
-    }
     sess = p11prov_session_handle(dctx->session);
 
-    f->C_DigestUpdate(sess, (void *)data, len);
+    ret = p11prov_DigestUpdate(dctx->provctx, sess, (void *)data, len);
     if (ret != CKR_OK) {
-        P11PROV_raise(dctx->provctx, ret, "Failed to update digest");
         return RET_OSSL_ERR;
     }
 
@@ -334,7 +313,6 @@ static int p11prov_digest_final(void *ctx, unsigned char *out, size_t *size,
 {
     P11PROV_DIGEST_CTX *dctx = (P11PROV_DIGEST_CTX *)ctx;
     CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
-    CK_FUNCTION_LIST *f;
     size_t digest_size;
     CK_ULONG digest_len;
     CK_RV ret;
@@ -364,15 +342,10 @@ static int p11prov_digest_final(void *ctx, unsigned char *out, size_t *size,
 
     digest_len = buf_size;
 
-    ret = p11prov_ctx_status(dctx->provctx, &f);
-    if (ret != CKR_OK) {
-        return RET_OSSL_ERR;
-    }
     sess = p11prov_session_handle(dctx->session);
 
-    f->C_DigestFinal(sess, out, &digest_len);
+    ret = p11prov_DigestFinal(dctx->provctx, sess, out, &digest_len);
     if (ret != CKR_OK) {
-        P11PROV_raise(dctx->provctx, ret, "Failed to finalize digest");
         return RET_OSSL_ERR;
     }
 

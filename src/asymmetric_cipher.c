@@ -116,7 +116,7 @@ static int p11prov_rsaenc_encrypt_init(void *ctx, void *provkey,
     P11PROV_debug("encrypt init (ctx=%p, key=%p, params=%p)", ctx, provkey,
                   params);
 
-    ret = p11prov_ctx_status(encctx->provctx, NULL);
+    ret = p11prov_ctx_status(encctx->provctx);
     if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }
@@ -134,7 +134,6 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
                                   size_t inlen)
 {
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
-    CK_FUNCTION_LIST *f;
     CK_MECHANISM mechanism;
     P11PROV_SESSION *session;
     CK_SESSION_HANDLE sess;
@@ -156,10 +155,6 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
         return RET_OSSL_OK;
     }
 
-    ret = p11prov_ctx_status(encctx->provctx, &f);
-    if (ret != CKR_OK) {
-        return RET_OSSL_ERR;
-    }
     slotid = p11prov_obj_get_slotid(encctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
         P11PROV_raise(encctx->provctx, CKR_SLOT_ID_INVALID,
@@ -188,9 +183,8 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
     }
     sess = p11prov_session_handle(session);
 
-    ret = f->C_EncryptInit(sess, &mechanism, handle);
+    ret = p11prov_EncryptInit(encctx->provctx, sess, &mechanism, handle);
     if (ret != CKR_OK) {
-        P11PROV_raise(encctx->provctx, ret, "Error returned by C_EncryptInit");
         if (ret == CKR_MECHANISM_INVALID
             || ret == CKR_MECHANISM_PARAM_INVALID) {
             ERR_raise(ERR_LIB_PROV, PROV_R_ILLEGAL_OR_UNSUPPORTED_PADDING_MODE);
@@ -198,9 +192,9 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
         goto endsess;
     }
 
-    ret = f->C_Encrypt(sess, (void *)in, inlen, out, &out_size);
+    ret = p11prov_Encrypt(encctx->provctx, sess, (void *)in, inlen, out,
+                          &out_size);
     if (ret != CKR_OK) {
-        P11PROV_raise(encctx->provctx, ret, "Error returned by C_Encrypt");
         goto endsess;
     }
 
@@ -222,7 +216,7 @@ static int p11prov_rsaenc_decrypt_init(void *ctx, void *provkey,
     P11PROV_debug("encrypt init (ctx=%p, key=%p, params=%p)", ctx, provkey,
                   params);
 
-    ret = p11prov_ctx_status(encctx->provctx, NULL);
+    ret = p11prov_ctx_status(encctx->provctx);
     if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }
@@ -244,7 +238,6 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
                                   size_t inlen)
 {
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
-    CK_FUNCTION_LIST *f;
     CK_MECHANISM mechanism;
     P11PROV_SESSION *session;
     CK_SESSION_HANDLE sess;
@@ -266,10 +259,6 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
         return RET_OSSL_OK;
     }
 
-    ret = p11prov_ctx_status(encctx->provctx, &f);
-    if (ret != CKR_OK) {
-        return RET_OSSL_ERR;
-    }
     slotid = p11prov_obj_get_slotid(encctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
         P11PROV_raise(encctx->provctx, CKR_SLOT_ID_INVALID,
@@ -298,9 +287,8 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     }
     sess = p11prov_session_handle(session);
 
-    ret = f->C_DecryptInit(sess, &mechanism, handle);
+    ret = p11prov_DecryptInit(encctx->provctx, sess, &mechanism, handle);
     if (ret != CKR_OK) {
-        P11PROV_raise(encctx->provctx, ret, "Error returned by C_DecryptInit");
         if (ret == CKR_MECHANISM_INVALID
             || ret == CKR_MECHANISM_PARAM_INVALID) {
             ERR_raise(ERR_LIB_PROV, PROV_R_ILLEGAL_OR_UNSUPPORTED_PADDING_MODE);
@@ -308,9 +296,9 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
         goto endsess;
     }
 
-    ret = f->C_Decrypt(sess, (void *)in, inlen, out, &out_size);
+    ret = p11prov_Decrypt(encctx->provctx, sess, (void *)in, inlen, out,
+                          &out_size);
     if (ret != CKR_OK) {
-        P11PROV_raise(encctx->provctx, ret, "Error returned by C_Decrypt");
         goto endsess;
     }
 

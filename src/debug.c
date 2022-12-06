@@ -87,16 +87,10 @@ void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                              CK_MECHANISM_TYPE type)
 {
     CK_MECHANISM_INFO info = { 0 };
-    CK_FUNCTION_LIST *f;
     const char *mechname = "UNKNOWN";
     CK_RV ret;
 
     if (debug_lazy_init < 1) {
-        return;
-    }
-
-    ret = p11prov_ctx_status(ctx, &f);
-    if (ret != CKR_OK) {
         return;
     }
 
@@ -106,7 +100,7 @@ void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
         }
     }
 
-    ret = f->C_GetMechanismInfo(slotid, type, &info);
+    ret = p11prov_GetMechanismInfo(ctx, slotid, type, &info);
     if (ret != CKR_OK) {
         p11prov_debug("C_GetMechanismInfo for %s(%lu) failed %lu\n", mechname,
                       type, ret);
