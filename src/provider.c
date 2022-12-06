@@ -6,6 +6,7 @@
 #include <dlfcn.h>
 #include <string.h>
 
+struct p11prov_interface;
 struct quirk;
 
 struct p11prov_ctx {
@@ -32,7 +33,8 @@ struct p11prov_ctx {
 
     /* module handles and data */
     void *dlhandle;
-    CK_FUNCTION_LIST *fns;
+    struct p11prov_interface *interface;
+    CK_FLAGS intf_flags;
 
     int nslots;
     struct p11prov_slot *slots;
@@ -219,6 +221,11 @@ failed:
     return ret;
 }
 
+struct p11prov_interface *p11prov_ctx_get_interface(P11PROV_CTX *ctx)
+{
+    return ctx->interface;
+}
+
 int p11prov_ctx_get_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
 {
     if (ctx->status != P11PROV_INITIALIZED) {
@@ -237,7 +244,7 @@ OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx)
     return ctx->libctx;
 }
 
-CK_RV p11prov_ctx_status(P11PROV_CTX *ctx, CK_FUNCTION_LIST **fns)
+CK_RV p11prov_ctx_status(P11PROV_CTX *ctx)
 {
     switch (ctx->status) {
     case P11PROV_UNINITIALIZED:
@@ -248,15 +255,6 @@ CK_RV p11prov_ctx_status(P11PROV_CTX *ctx, CK_FUNCTION_LIST **fns)
     case P11PROV_IN_ERROR:
         P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Module in error state!");
         return CKR_GENERAL_ERROR;
-    }
-    if (ctx->fns == NULL) {
-        P11PROV_raise(ctx, CKR_GENERAL_ERROR,
-                      "Failed to fetch PKCS#11 Function List");
-        ctx->status = P11PROV_IN_ERROR;
-        return CKR_GENERAL_ERROR;
-    }
-    if (fns) {
-        *fns = ctx->fns;
     }
     return CKR_OK;
 }
@@ -295,7 +293,8 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
             ctx->nslots = 0;
         }
 
-        ctx->fns->C_Finalize(NULL);
+        p11prov_Finalize(ctx, NULL);
+        p11prov_interface_free(ctx->interface);
         dlclose(ctx->dlhandle);
     }
 
@@ -956,24 +955,21 @@ static int get_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
     int index = 0;
     int ret;
 
-    ret = ctx->fns->C_OpenSession(slot->id, CKF_SERIAL_SESSION, NULL, NULL,
-                                  &session);
+    ret = p11prov_OpenSession(ctx, slot->id, CKF_SERIAL_SESSION, NULL, NULL,
+                              &session);
     if (ret != CKR_OK) {
-        P11PROV_debug("OpenSession failed %d", ret);
         return ret;
     }
 
-    ret = ctx->fns->C_FindObjectsInit(session, template, 2);
+    ret = p11prov_FindObjectsInit(ctx, session, template, 2);
     if (ret != CKR_OK) {
-        P11PROV_debug("C_FindObjectsInit failed %d", ret);
-        (void)ctx->fns->C_CloseSession(session);
+        (void)p11prov_CloseSession(ctx, session);
         return ret;
     }
 
     /* at most 5 objects as there are 5 profiles for now */
-    ret = ctx->fns->C_FindObjects(session, object, 5, &objcount);
+    ret = p11prov_FindObjects(ctx, session, object, 5, &objcount);
     if (ret != CKR_OK) {
-        P11PROV_debug("C_FindObjects failed %d", ret);
         goto done;
     }
 
@@ -986,9 +982,8 @@ static int get_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
         CK_ULONG value = CK_UNAVAILABLE_INFORMATION;
         CK_ATTRIBUTE profileid = { CKA_PROFILE_ID, &value, sizeof(value) };
 
-        ret = ctx->fns->C_GetAttributeValue(session, object[i], &profileid, 1);
+        ret = p11prov_GetAttributeValue(ctx, session, object[i], &profileid, 1);
         if (ret != CKR_OK || value == CK_UNAVAILABLE_INFORMATION) {
-            P11PROV_debug("C_GetAttributeValue failed %d", ret);
             continue;
         }
 
@@ -997,8 +992,8 @@ static int get_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
     }
 
 done:
-    (void)ctx->fns->C_FindObjectsFinal(session);
-    (void)ctx->fns->C_CloseSession(session);
+    (void)p11prov_FindObjectsFinal(ctx, session);
+    (void)p11prov_CloseSession(ctx, session);
     return ret;
 }
 
@@ -1006,11 +1001,12 @@ static void get_slot_mechanisms(P11PROV_CTX *ctx, struct p11prov_slot *slot)
 {
     int ret;
 
-    ret = ctx->fns->C_GetMechanismList(slot->id, NULL, &slot->mechs_num);
+    ret = p11prov_GetMechanismList(ctx, slot->id, NULL, &slot->mechs_num);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret, "GetMechanismList(NULL) failed");
         return;
     }
+
+    P11PROV_debug("Slot(%lu) mechs found: %lu", slot->id, slot->mechs_num);
 
     slot->mechs = OPENSSL_malloc(slot->mechs_num * sizeof(CK_MECHANISM_TYPE));
     if (!slot->mechs) {
@@ -1019,16 +1015,13 @@ static void get_slot_mechanisms(P11PROV_CTX *ctx, struct p11prov_slot *slot)
         return;
     }
 
-    ret = ctx->fns->C_GetMechanismList(slot->id, slot->mechs, &slot->mechs_num);
+    ret =
+        p11prov_GetMechanismList(ctx, slot->id, slot->mechs, &slot->mechs_num);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret, "GetMechanismList(%lu) failed",
-                      slot->mechs_num);
         OPENSSL_free(slot->mechs);
         slot->mechs_num = 0;
         return;
     }
-
-    P11PROV_debug("Slot(%lu) mechs found: %lu", slot->id, slot->mechs_num);
 }
 
 static void trim_padded_field(CK_UTF8CHAR *field, ssize_t n)
@@ -1048,7 +1041,7 @@ static CK_RV get_slots(P11PROV_CTX *ctx)
     struct p11prov_slot *slots;
     int ret;
 
-    ret = ctx->fns->C_GetSlotList(CK_FALSE, NULL, &ns);
+    ret = p11prov_GetSlotList(ctx, CK_FALSE, NULL, &ns);
     if (ret) {
         return ret;
     }
@@ -1063,7 +1056,7 @@ static CK_RV get_slots(P11PROV_CTX *ctx)
         return CKR_HOST_MEMORY;
     }
 
-    ret = ctx->fns->C_GetSlotList(CK_FALSE, slotid, &ns);
+    ret = p11prov_GetSlotList(ctx, CK_FALSE, slotid, &ns);
     if (ret) {
         OPENSSL_free(slotid);
         return ret;
@@ -1082,12 +1075,12 @@ static CK_RV get_slots(P11PROV_CTX *ctx)
         CK_SLOT_INFO slot;
         CK_TOKEN_INFO token;
 
-        ret = ctx->fns->C_GetSlotInfo(slotid[i], &slot);
+        ret = p11prov_GetSlotInfo(ctx, slotid[i], &slot);
         if (ret != CKR_OK || (slot.flags & CKF_TOKEN_PRESENT) == 0) {
             /* skip slot */
             continue;
         }
-        ret = ctx->fns->C_GetTokenInfo(slotid[i], &token);
+        ret = p11prov_GetTokenInfo(ctx, slotid[i], &token);
         if (ret) {
             /* skip slot */
             continue;
@@ -1138,7 +1131,6 @@ done:
 
 static int p11prov_module_init(P11PROV_CTX *ctx)
 {
-    CK_RV (*c_get_function_list)(CK_FUNCTION_LIST_PTR_PTR);
     CK_C_INITIALIZE_ARGS args = {
         .flags = CKF_OS_LOCKING_OK,
         .pReserved = (void *)ctx->init_args,
@@ -1158,7 +1150,8 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
         ctx->module = OPENSSL_strdup(env_module);
     }
 
-    /* If the module is not specified in the configuration file, use the p11-kit proxy  */
+    /* If the module is not specified in the configuration file, use the
+     * p11-kit proxy  */
     if (ctx->module == NULL) {
 #ifdef DEFAULT_PKCS11_MODULE
         ctx->module = OPENSSL_strdup(DEFAULT_PKCS11_MODULE);
@@ -1178,21 +1171,16 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
         return -ENOENT;
     }
 
-    c_get_function_list = dlsym(ctx->dlhandle, "C_GetFunctionList");
-    if (c_get_function_list) {
-        ret = c_get_function_list(&ctx->fns);
-    } else {
-        ret = CKR_GENERAL_ERROR;
-    }
+    ret = p11prov_interface_init(ctx->dlhandle, &ctx->interface,
+                                 &ctx->intf_flags);
     if (ret != CKR_OK) {
-        char *err = dlerror();
-        P11PROV_debug("dlsym() failed: %s", err);
+        P11PROV_debug("interface failed: %d (%s:%d)", ret, __FILE__, __LINE__);
         dlclose(ctx->dlhandle);
         ctx->dlhandle = NULL;
-        return -ENOENT;
+        return -EFAULT;
     }
 
-    ret = ctx->fns->C_Initialize(&args);
+    ret = p11prov_Initialize(ctx, &args);
     if (ret && ret != CKR_CRYPTOKI_ALREADY_INITIALIZED) {
         P11PROV_debug("init failed: %d (%s:%d)", ret, __FILE__, __LINE__);
         return -EFAULT;
@@ -1207,7 +1195,7 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
         return -ret;
     }
 
-    ret = ctx->fns->C_GetInfo(&ck_info);
+    ret = p11prov_GetInfo(ctx, &ck_info);
     if (ret) {
         return -EFAULT;
     }

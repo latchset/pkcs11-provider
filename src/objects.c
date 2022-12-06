@@ -514,7 +514,6 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
                        CK_SLOT_ID slotid, P11PROV_URI *uri,
                        store_obj_callback cb, void *cb_ctx)
 {
-    CK_FUNCTION_LIST *f;
     CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
     CK_OBJECT_CLASS class = p11prov_uri_get_class(uri);
     CK_ATTRIBUTE id = p11prov_uri_get_id(uri);
@@ -529,11 +528,6 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
     P11PROV_debug("Find objects [class=%lu, id-len=%lu, label=%s]", class,
                   id.ulValueLen,
                   label.type == CKA_LABEL ? (char *)label.pValue : "None");
-
-    ret = p11prov_ctx_status(provctx, &f);
-    if (ret != CKR_OK) {
-        return ret;
-    }
 
     switch (class) {
     case CKO_CERTIFICATE:
@@ -559,14 +553,14 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
 
     sess = p11prov_session_handle(session);
 
-    ret = f->C_FindObjectsInit(sess, template, tsize);
+    ret = p11prov_FindObjectsInit(provctx, sess, template, tsize);
     if (ret != CKR_OK) {
-        P11PROV_raise(provctx, ret, "Error returned by C_FindObjectsInit");
         return ret;
     }
     while (total < MAX_OBJS_IN_STORE) {
         CK_OBJECT_HANDLE object[OBJS_IN_SEARCH];
-        ret = f->C_FindObjects(sess, object, OBJS_IN_SEARCH, &objcount);
+        ret = p11prov_FindObjects(provctx, sess, object, OBJS_IN_SEARCH,
+                                  &objcount);
         if (ret != CKR_OK || objcount == 0) {
             result = ret;
             break;
@@ -591,7 +585,7 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
         }
     }
 
-    ret = f->C_FindObjectsFinal(sess);
+    ret = p11prov_FindObjectsFinal(provctx, sess);
     if (ret != CKR_OK) {
         /* this is not fatal */
         P11PROV_raise(provctx, ret, "Failed to terminate object search");
@@ -604,7 +598,6 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
 static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
                                         CK_OBJECT_CLASS class)
 {
-    CK_FUNCTION_LIST *f;
     CK_ATTRIBUTE template[2] = { 0 };
     CK_ATTRIBUTE *id;
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
@@ -616,11 +609,6 @@ static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
     CK_RV ret;
 
     P11PROV_debug("Find associated object");
-
-    ret = p11prov_ctx_status(provctx, &f);
-    if (ret != CKR_OK) {
-        goto done;
-    }
 
     id = p11prov_obj_get_attr(obj, CKA_ID);
     if (!id) {
@@ -642,15 +630,17 @@ static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
 
     sess = p11prov_session_handle(session);
 
-    ret = f->C_FindObjectsInit(sess, template, 2);
+    ret = p11prov_FindObjectsInit(provctx, sess, template, 2);
     if (ret != CKR_OK) {
-        P11PROV_raise(provctx, ret, "Error returned by C_FindObjectsInit");
         goto done;
     }
 
     /* we expect a single entry */
-    ret = f->C_FindObjects(sess, &handle, 1, &objcount);
-    if (ret != CKR_OK || objcount != 1) {
+    ret = p11prov_FindObjects(provctx, sess, &handle, 1, &objcount);
+    if (ret != CKR_OK) {
+        goto done;
+    }
+    if (objcount != 1) {
         P11PROV_raise(provctx, ret, "Error in C_FindObjects (count=%ld)",
                       objcount);
         goto done;
@@ -671,7 +661,6 @@ P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        bool session_key, unsigned char *secret,
                                        size_t secretlen)
 {
-    CK_FUNCTION_LIST *f;
     CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
     CK_SESSION_INFO session_info;
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
@@ -698,14 +687,8 @@ P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
     P11PROV_debug("keys: create secret key (session:%lu secret:%p[%zu])", sess,
                   secret, secretlen);
 
-    ret = p11prov_ctx_status(provctx, &f);
+    ret = p11prov_GetSessionInfo(provctx, sess, &session_info);
     if (ret != CKR_OK) {
-        return NULL;
-    }
-
-    ret = f->C_GetSessionInfo(sess, &session_info);
-    if (ret != CKR_OK) {
-        P11PROV_raise(provctx, ret, "Error returned by C_GetSessionInfo");
         return NULL;
     }
     if (((session_info.flags & CKF_RW_SESSION) == 0) && val_token == CK_TRUE) {
@@ -713,10 +696,8 @@ P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
         return NULL;
     }
 
-    ret = f->C_CreateObject(sess, key_template, 5, &key_handle);
+    ret = p11prov_CreateObject(provctx, sess, key_template, 5, &key_handle);
     if (ret != CKR_OK) {
-        P11PROV_raise(provctx, ret,
-                      "Error returned by C_CreateObject while creating key");
         return NULL;
     }
 
@@ -765,13 +746,7 @@ CK_RV p11prov_derive_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
 {
     bool first_pass = true;
     P11PROV_SESSION *s = *session;
-    CK_FUNCTION_LIST *f;
     CK_RV ret;
-
-    ret = p11prov_ctx_status(ctx, &f);
-    if (ret != CKR_OK) {
-        return ret;
-    }
 
 again:
     if (!s) {
@@ -785,8 +760,8 @@ again:
         }
     }
 
-    ret = f->C_DeriveKey(p11prov_session_handle(s), mechanism, handle, template,
-                         nattrs, key);
+    ret = p11prov_DeriveKey(ctx, p11prov_session_handle(s), mechanism, handle,
+                            template, nattrs, key);
     switch (ret) {
     case CKR_OK:
         *session = s;
@@ -805,7 +780,6 @@ again:
         if (*session == NULL) {
             p11prov_session_free(s);
         }
-        P11PROV_raise(ctx, ret, "Error returned by C_DeriveKey");
         return ret;
     }
 }
@@ -816,7 +790,6 @@ CK_RV p11prov_obj_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
 {
     P11PROV_SESSION *s = session;
     CK_SLOT_ID slotid = obj->slotid;
-    CK_FUNCTION_LIST *f;
     CK_RV ret;
 
     if (!s) {
@@ -830,19 +803,13 @@ CK_RV p11prov_obj_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         }
     }
 
-    ret = p11prov_ctx_status(ctx, &f);
-    if (ret != CKR_OK) {
-        goto done;
-    }
-
-    ret = f->C_SetAttributeValue(p11prov_session_handle(s), obj->handle,
-                                 template, tsize);
+    ret = p11prov_SetAttributeValue(ctx, p11prov_session_handle(s), obj->handle,
+                                    template, tsize);
 
     /* TODO: should we retry iterating value by value on each element of
      * template to be able to set as much as we can and return which attribute
      * exactly the token is refusing ? */
 
-done:
     if (s != session) {
         p11prov_session_free(s);
     }

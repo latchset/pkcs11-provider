@@ -136,7 +136,7 @@ static void *p11prov_common_gen_init(void *provctx, int selection,
 
     P11PROV_debug("rsa gen_init %p", provctx);
 
-    ret = p11prov_ctx_status(provctx, NULL);
+    ret = p11prov_ctx_status(provctx);
     if (ret != CKR_OK) {
         return NULL;
     }
@@ -294,13 +294,7 @@ static void *p11prov_common_gen(struct key_generator *ctx,
     P11PROV_SESSION *session = NULL;
     CK_SESSION_HANDLE sh;
     P11PROV_OBJ *key = NULL;
-    CK_FUNCTION_LIST *f;
     CK_RV ret;
-
-    ret = p11prov_ctx_status(ctx->provctx, &f);
-    if (ret != CKR_OK) {
-        return NULL;
-    }
 
     /* FIXME: how do we get a URI to select the right slot ? */
     ret = p11prov_get_session(ctx->provctx, &slotid, NULL, NULL,
@@ -317,7 +311,7 @@ static void *p11prov_common_gen(struct key_generator *ctx,
         id_len = ctx->id_len;
     } else {
         /* generate unique id for the key */
-        ret = f->C_GenerateRandom(sh, id, sizeof(id));
+        ret = p11prov_GenerateRandom(ctx->provctx, sh, id, sizeof(id));
         if (ret != CKR_OK) {
             p11prov_session_free(session);
             return NULL;
@@ -345,8 +339,9 @@ static void *p11prov_common_gen(struct key_generator *ctx,
         privtsize++;
     }
 
-    ret = f->C_GenerateKeyPair(sh, &ctx->mechanism, pubkey_template, pubtsize,
-                               privkey_template, privtsize, &pubkey, &privkey);
+    ret = p11prov_GenerateKeyPair(ctx->provctx, sh, &ctx->mechanism,
+                                  pubkey_template, pubtsize, privkey_template,
+                                  privtsize, &pubkey, &privkey);
     if (ret != CKR_OK) {
         p11prov_session_free(session);
         return NULL;

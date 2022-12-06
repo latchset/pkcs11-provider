@@ -161,7 +161,7 @@ static int p11prov_ecdh_init(void *ctx, void *provkey,
         return RET_OSSL_ERR;
     }
 
-    ret = p11prov_ctx_status(ecdhctx->provctx, NULL);
+    ret = p11prov_ctx_status(ecdhctx->provctx);
     if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }
@@ -591,7 +591,7 @@ static int p11prov_exch_hkdf_init(void *ctx, void *provkey,
         return RET_OSSL_ERR;
     }
 
-    ret = p11prov_ctx_status(hkdfctx->provctx, NULL);
+    ret = p11prov_ctx_status(hkdfctx->provctx);
     if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }

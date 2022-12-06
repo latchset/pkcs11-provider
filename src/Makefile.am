@@ -16,6 +16,7 @@ pkcs11_la_SOURCES = \
 	exchange.c \
 	kdf.c \
 	keymgmt.c \
+	interface.c \
 	oasis/pkcs11.h \
 	oasis/pkcs11f.h \
 	oasis/pkcs11t.h \
