@@ -180,8 +180,9 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
                               OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
 {
     struct p11prov_store_ctx *ctx = (struct p11prov_store_ctx *)pctx;
-    void *reference;
+    void *reference = NULL;
     size_t reference_sz;
+    CK_ATTRIBUTE *cert = NULL;
     P11PROV_OBJ *obj = NULL;
     OSSL_PARAM params[4];
     int object_type;
@@ -199,7 +200,7 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
         return RET_OSSL_ERR;
     }
 
-    while (!found && ctx->fetched < ctx->num_objs) {
+    while (ctx->fetched < ctx->num_objs) {
         obj = ctx->objects[ctx->fetched];
         ctx->fetched++;
 
@@ -217,14 +218,17 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
             if (ctx->alias) {
                 CK_ATTRIBUTE *label;
                 label = p11prov_obj_get_attr(obj, CKA_LABEL);
-                if (label && strcmp(ctx->alias, label->pValue) == 0) {
-                    found = true;
+                if (!label || strcmp(ctx->alias, label->pValue) != 0) {
+                    /* no match, try next */
+                    continue;
                 }
-            } else {
-                found = true;
             }
             break;
         }
+
+        /* if we get here it means the object matched */
+        found = true;
+        break;
     }
 
     if (!found) {
@@ -246,6 +250,15 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
         default:
             return RET_OSSL_ERR;
         }
+        p11prov_obj_to_reference(obj, &reference, &reference_sz);
+        break;
+    case CKO_CERTIFICATE:
+        object_type = OSSL_OBJECT_CERT;
+        data_type = (char *)"CERTIFICATE";
+        cert = p11prov_obj_get_attr(obj, CKA_VALUE);
+        if (cert == NULL) {
+            return RET_OSSL_ERR;
+        }
         break;
     default:
         return RET_OSSL_ERR;
@@ -254,11 +267,16 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
     params[0] = OSSL_PARAM_construct_int(OSSL_OBJECT_PARAM_TYPE, &object_type);
     params[1] = OSSL_PARAM_construct_utf8_string(OSSL_OBJECT_PARAM_DATA_TYPE,
                                                  data_type, 0);
-
-    /* giving away the object by reference */
-    p11prov_obj_to_reference(obj, &reference, &reference_sz);
-    params[2] = OSSL_PARAM_construct_octet_string(OSSL_OBJECT_PARAM_REFERENCE,
-                                                  reference, reference_sz);
+    if (reference) {
+        /* giving away the object by reference */
+        params[2] = OSSL_PARAM_construct_octet_string(
+            OSSL_OBJECT_PARAM_REFERENCE, reference, reference_sz);
+    } else if (cert) {
+        params[2] = OSSL_PARAM_construct_octet_string(
+            OSSL_OBJECT_PARAM_DATA, cert->pValue, cert->ulValueLen);
+    } else {
+        return RET_OSSL_ERR;
+    }
     params[3] = OSSL_PARAM_construct_end();
 
     return object_cb(params, object_cbarg);
