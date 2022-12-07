@@ -229,6 +229,20 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
                     continue;
                 }
             }
+            if (ctx->issuer.type == CKA_ISSUER) {
+                CK_ATTRIBUTE *issuer;
+
+                issuer = p11prov_obj_get_attr(obj, CKA_ISSUER);
+                if (!issuer) {
+                    /* no match, try next */
+                    continue;
+                }
+                /* TODO: X509_NAME caching for ctx->issuer ? */
+                if (!p11prov_x509_names_are_equal(&ctx->issuer, issuer)) {
+                    /* no match, try next */
+                    continue;
+                }
+            }
             break;
         case CKO_PUBLIC_KEY:
         case CKO_PRIVATE_KEY:
