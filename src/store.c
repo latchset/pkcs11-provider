@@ -149,7 +149,7 @@ static void *p11prov_store_open(void *pctx, const char *uri)
     }
     ctx->provctx = (P11PROV_CTX *)pctx;
 
-    ctx->parsed_uri = p11prov_parse_uri(uri);
+    ctx->parsed_uri = p11prov_parse_uri(ctx->provctx, uri);
     if (ctx->parsed_uri == NULL) {
         goto done;
     }

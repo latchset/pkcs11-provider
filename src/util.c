@@ -240,7 +240,7 @@ done:
     return ret;
 }
 
-P11PROV_URI *p11prov_parse_uri(const char *uri)
+P11PROV_URI *p11prov_parse_uri(P11PROV_CTX *ctx, const char *uri)
 {
     struct p11prov_uri *u;
     const char *p, *end;
@@ -331,7 +331,8 @@ P11PROV_URI *p11prov_parse_uri(const char *uri)
             } else if (len == 6 && strncmp(p, "secret", 6) == 0) {
                 u->class = CKO_SECRET_KEY;
             } else {
-                P11PROV_debug("Unknown object type");
+                P11PROV_raise(ctx, CKR_ARGUMENTS_BAD,
+                              "Unknown object type [%#s]", p, len);
                 ret = EINVAL;
                 goto done;
             }
