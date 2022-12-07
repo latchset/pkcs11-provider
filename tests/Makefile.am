@@ -4,7 +4,7 @@ libspath=@abs_top_builddir@/src/.libs
 testsblddir=@abs_top_builddir@/tests
 testssrcdir=@abs_srcdir@
 
-check_PROGRAMS = tsession tgenkey ttls tdigests
+check_PROGRAMS = tsession tgenkey ttls tdigests tfork
 
 tsession_SOURCES = tsession.c
 tsession_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
@@ -22,6 +22,10 @@ tdigests_SOURCES = tdigests.c
 tdigests_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
 tdigests_LDADD = $(OPENSSL_LIBS)
 
+tfork_SOURCES = tfork.c
+tfork_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
+tfork_LDADD = $(OPENSSL_LIBS)
+
 tmp.softokn:
 	LIBSPATH=$(libspath) \
 	TESTSSRCDIR=$(testssrcdir) \
@@ -37,7 +41,7 @@ tmp.softhsm:
 
 dist_check_SCRIPTS = \
 	helpers.sh setup-softhsm.sh setup-softokn.sh softhsm-proxy.sh \
-	test-wrapper tbasic teccsha2 thkdf toaepsha2 trsapss
+	test-wrapper tbasic teccsha2 thkdf toaepsha2 trsapss tfork
 
 test_LIST = \
 	basic-softokn basic-softhsm-proxy \
@@ -46,9 +50,11 @@ test_LIST = \
 	hkdf-softokn \
 	rsapss-softokn \
 	digests-softokn digests-softhsm-proxy \
+	fork-softokn fork-softhsm-proxy \
 	genkey-softokn genkey-softhsm \
 	session-softokn session-softhsm-proxy \
 	tls-softokn tls-softhsm-proxy
+
 .PHONY: $(test_LIST)
 
 TESTS = $(test_LIST)
