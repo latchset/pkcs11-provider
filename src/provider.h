@@ -490,6 +490,7 @@ bool cyclewait_with_timeout(uint64_t max_wait, uint64_t interval,
 CK_RV p11prov_token_sup_attr(P11PROV_CTX *ctx, CK_SLOT_ID id, int action,
                              CK_ATTRIBUTE_TYPE attr, CK_BBOOL *data);
 CK_RV p11prov_copy_attr(CK_ATTRIBUTE *dst, CK_ATTRIBUTE *src);
+bool p11prov_x509_names_are_equal(CK_ATTRIBUTE *a, CK_ATTRIBUTE *b);
 
 /* Sessions */
 CK_RV p11prov_session_pool_init(P11PROV_CTX *ctx, CK_TOKEN_INFO *token,

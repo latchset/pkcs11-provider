@@ -6,6 +6,7 @@
 #include <time.h>
 #include "platform/endian.h"
 #include <openssl/bn.h>
+#include <openssl/x509.h>
 
 CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                                CK_OBJECT_HANDLE object,
@@ -558,4 +559,31 @@ CK_RV p11prov_copy_attr(CK_ATTRIBUTE *dst, CK_ATTRIBUTE *src)
     dst->type = src->type;
 
     return CKR_OK;
+}
+
+bool p11prov_x509_names_are_equal(CK_ATTRIBUTE *a, CK_ATTRIBUTE *b)
+{
+    const unsigned char *val;
+    X509_NAME *xa;
+    X509_NAME *xb;
+    int cmp;
+
+    /* d2i function modify the val pointer */
+    val = a->pValue;
+    xa = d2i_X509_NAME(NULL, &val, a->ulValueLen);
+    if (!xa) {
+        return false;
+    }
+    val = b->pValue;
+    xb = d2i_X509_NAME(NULL, &val, b->ulValueLen);
+    if (!xb) {
+        X509_NAME_free(xa);
+        return false;
+    }
+
+    cmp = X509_NAME_cmp(xa, xb);
+
+    X509_NAME_free(xa);
+    X509_NAME_free(xb);
+    return cmp == 0;
 }

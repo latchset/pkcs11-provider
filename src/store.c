@@ -207,9 +207,28 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
         /* Supported search types in OSSL_STORE_SEARCH(3) */
         switch (p11prov_obj_get_class(obj)) {
         case CKO_CERTIFICATE:
-            /* ctx->subject */
             /* ctx->issuer */
             /* ctx->serial */
+            if (ctx->subject.type == CKA_SUBJECT) {
+                CK_ATTRIBUTE *subject;
+                /* unfortunately different but equivalent encodings may be
+                 * used for the same attributes by different certificate
+                 * generation tools, so a simple memcmp is not possible
+                 * for the DER encoding of a DN, for example NSs tools use
+                 * PRINTABLESTRING for CN while moder openssl use UTF8STRING
+                 * ANS1 tags for the encoding of the same attribute */
+
+                subject = p11prov_obj_get_attr(obj, CKA_SUBJECT);
+                if (!subject) {
+                    /* no match, try next */
+                    continue;
+                }
+                /* TODO: X509_NAME caching for ctx->subject ? */
+                if (!p11prov_x509_names_are_equal(&ctx->subject, subject)) {
+                    /* no match, try next */
+                    continue;
+                }
+            }
             break;
         case CKO_PUBLIC_KEY:
         case CKO_PRIVATE_KEY:
