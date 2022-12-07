@@ -53,16 +53,17 @@ CERTSCRIPT
 
 # RSA
 TSTCRT="${TMPPDIR}/testcert"
+TSTCRTN="testCert"
 title LINE  "Creating Certificate request for 'My Test Cert'"
 certutil -R -s "CN=My Test Cert, O=PKCS11 Provider" -o ${TSTCRT}.req \
             -d ${TOKDIR} -f ${PINFILE} -z ${SEEDFILE} >/dev/null 2>&1
 let "SERIAL+=1"
 certutil -C -m ${SERIAL} -i ${TSTCRT}.req -o ${TSTCRT}.crt -c selfCA \
             -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
-certutil -A -n testCert -i ${TSTCRT}.crt -t "u,u,u" -d ${TOKDIR} \
+certutil -A -n ${TSTCRTN} -i ${TSTCRT}.crt -t "u,u,u" -d ${TOKDIR} \
             -f ${PINFILE} >/dev/null 2>&1
 
-KEYID=`certutil -K -d ${TOKDIR} -f ${PINFILE} |grep 'testCert'| cut -b 15-54`
+KEYID=`certutil -K -d ${TOKDIR} -f ${PINFILE} |grep "${TSTCRTN}"| cut -b 15-54`
 URIKEYID=""
 for (( i=0; i<${#KEYID}; i+=2 )); do
     line=`echo "${KEYID:$i:2}"`
@@ -73,26 +74,29 @@ BASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
 BASEURI="pkcs11:id=${URIKEYID}"
 PUBURI="pkcs11:type=public;id=${URIKEYID}"
 PRIURI="pkcs11:type=private;id=${URIKEYID}"
+CRTURI="pkcs11:type=cert;object=${TSTCRTN}"
 
 title LINE "RSA PKCS11 URIS"
 echo "${BASEURIWITHPIN}"
 echo "${BASEURI}"
 echo "${PUBURI}"
 echo "${PRIURI}"
+echo "${CRTURI}"
 echo ""
 
 # ECC
 ECCRT="${TMPPDIR}/eccert"
+ECCRTN="ecCert"
 title LINE  "Creating Certificate request for 'My EC Cert'"
 certutil -R -s "CN=My EC Cert, O=PKCS11 Provider" -k ec -q nistp256 \
             -o ${ECCRT}.req -d ${TOKDIR} -f ${PINFILE} -z ${SEEDFILE} >/dev/null 2>&1
 let "SERIAL+=1"
 certutil -C -m ${SERIAL} -i ${ECCRT}.req -o ${ECCRT}.crt -c selfCA \
             -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
-certutil -A -n ecCert -i ${ECCRT}.crt -t "u,u,u" \
+certutil -A -n ${ECCRTN} -i ${ECCRT}.crt -t "u,u,u" \
             -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
 
-KEYID=`certutil -K -d ${TOKDIR} -f ${PINFILE} |grep 'ecCert'| cut -b 15-54`
+KEYID=`certutil -K -d ${TOKDIR} -f ${PINFILE} |grep "${ECCRTN}"| cut -b 15-54`
 URIKEYID=""
 for (( i=0; i<${#KEYID}; i+=2 )); do
     line=`echo "${KEYID:$i:2}"`
@@ -102,19 +106,21 @@ done
 ECBASEURI="pkcs11:id=${URIKEYID}"
 ECPUBURI="pkcs11:type=public;id=${URIKEYID}"
 ECPRIURI="pkcs11:type=private;id=${URIKEYID}"
+ECCRTURI="pkcs11:type=cert;object=${ECCRTN}"
 
 title LINE  "Creating Certificate request for 'My Peer EC Cert'"
 ECPEERCRT="${TMPPDIR}/ecpeercert"
+ECPEERCRTN="ecPeerCert"
 certutil -R -s "CN=My Peer EC Cert, O=PKCS11 Provider" \
             -k ec -q nistp256 -o ${ECPEERCRT}.req \
             -d ${TOKDIR} -f ${PINFILE} -z ${SEEDFILE} >/dev/null 2>&1
 let "SERIAL+=1"
 certutil -C -m ${SERIAL} -i ${ECPEERCRT}.req -o ${ECPEERCRT}.crt \
             -c selfCA -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
-certutil -A -n ecPeerCert -i ${ECPEERCRT}.crt -t "u,u,u" \
+certutil -A -n ${ECPEERCRTN} -i ${ECPEERCRT}.crt -t "u,u,u" \
             -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
 
-KEYID=`certutil -K -d ${TOKDIR} -f ${PINFILE} |grep 'ecPeerCert'| cut -b 15-54`
+KEYID=`certutil -K -d ${TOKDIR} -f ${PINFILE} |grep "${ECPEERCRTN}"| cut -b 15-54`
 URIKEYID=""
 for (( i=0; i<${#KEYID}; i+=2 )); do
     line=`echo "${KEYID:$i:2}"`
@@ -124,14 +130,17 @@ done
 ECPEERBASEURI="pkcs11:id=${URIKEYID}"
 ECPEERPUBURI="pkcs11:type=public;id=${URIKEYID}"
 ECPEERPRIURI="pkcs11:type=private;id=${URIKEYID}"
+ECPEERCRTURI="pkcs11:type=cert;object=${ECPEERCRTN}"
 
 title LINE "EC PKCS11 URIS"
 echo "${ECBASEURI}"
 echo "${ECPUBURI}"
 echo "${ECPRIURI}"
+echo "${ECCRTURI}"
 echo "${ECPEERBASEURI}"
 echo "${ECPEERPUBURI}"
 echo "${ECPEERPRIURI}"
+echo "${ECPEERCRTURI}"
 echo ""
 
 title PARA "Show contents of softoken"
@@ -168,12 +177,15 @@ export BASEURIWITHPIN="${BASEURIWITHPIN}"
 export BASEURI="${BASEURI}"
 export PUBURI="${PUBURI}"
 export PRIURI="${PRIURI}"
+export CRTURI="${CRTURI}"
 export ECBASEURI="${ECBASEURI}"
 export ECPUBURI="${ECPUBURI}"
 export ECPRIURI="${ECPRIURI}"
+export ECCRTURI="${ECCRTURI}"
 export ECPEERBASEURI="${ECPEERBASEURI}"
 export ECPEERPUBURI="${ECPEERPUBURI}"
 export ECPEERPRIURI="${ECPEERPRIURI}"
+export ECPEERCRTURI="${ECPEERCRTURI}"
 DBGSCRIPT
 gen_unsetvars
 
