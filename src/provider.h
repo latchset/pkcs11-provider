@@ -474,7 +474,7 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                                unsigned long attrnums);
 
 #define MAX_PIN_LENGTH 32
-P11PROV_URI *p11prov_parse_uri(const char *uri);
+P11PROV_URI *p11prov_parse_uri(P11PROV_CTX *ctx, const char *uri);
 void p11prov_uri_free(P11PROV_URI *parsed_uri);
 CK_OBJECT_CLASS p11prov_uri_get_class(P11PROV_URI *uri);
 CK_ATTRIBUTE p11prov_uri_get_id(P11PROV_URI *uri);
