@@ -41,7 +41,7 @@ dist_check_SCRIPTS = \
 
 test_LIST = \
 	basic-softokn basic-softhsm-proxy \
-	certs-softokn \
+	certs-softokn certs-softhsm-proxy \
 	eccsha2-softokn \
 	oaepsha2-softokn \
 	hkdf-softokn \

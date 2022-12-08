@@ -69,54 +69,126 @@ EOF
 
 export SOFTHSM2_CONF=$TMPPDIR/softhsm.conf
 
+# prepare certtool configuration
+cat >> ${TMPPDIR}/cert.cfg <<HEREDOC
+ca
+cn = "Issuer"
+serial = 1
+expiration_days = 365
+email = "testcert@example.org"
+signing_key
+encryption_key
+HEREDOC
+export GNUTLS_PIN=$PINVALUE
+SERIAL=1
+
 # init
 softhsm2-util --init-token --label "token_name" --free --pin $PINVALUE --so-pin $PINVALUE
 
-# generate RSA key pair
+title LINE "Creating new Self Sign CA"
+KEYID='0000'
+URIKEYID="%00%00"
+CACRT="${TMPPDIR}/CAcert"
+CACRTN="caCert"
+let "SERIAL+=1"
+pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE --module="$P11LIB" \
+	--label="${CACRTN}" --id="$KEYID"
+certtool --generate-self-signed --outfile="${CACRT}.crt" --template=${TMPPDIR}/cert.cfg \
+        --provider="$P11LIB" --load-privkey "pkcs11:object=$CACRTN;type=private" \
+        --load-pubkey "pkcs11:object=$CACRTN;type=public" --outder
+pkcs11-tool --write-object "${CACRT}.crt" --type=cert --id=$KEYID \
+        --label="$CACRTN" --module="$P11LIB"
+
+# the organization identification is not in the CA
+echo 'organization = "PKCS11 Provider"' >> ${TMPPDIR}/cert.cfg
+
+ca_sign() {
+    CRT=$1
+    LABEL=$2
+    CN=$3
+    KEYID=$4
+    let "SERIAL+=1"
+    sed -e "s|cn = .*|cn = $CN|g" \
+        -e "s|serial = .*|serial = $SERIAL|g" \
+        -e "/^ca$/d" \
+        -i ${TMPPDIR}/cert.cfg
+    certtool --generate-certificate --outfile="${CRT}.crt" --template=${TMPPDIR}/cert.cfg \
+        --provider="$P11LIB" --load-privkey "pkcs11:object=$LABEL;type=private" \
+        --load-pubkey "pkcs11:object=$LABEL;type=public" --outder \
+        --load-ca-certificate "${CACRT}.crt" --inder \
+        --load-ca-privkey="pkcs11:object=$CACRTN;type=private"
+    pkcs11-tool --write-object "${CRT}.crt" --type=cert --id=$KEYID \
+        --label="$LABEL" --module="$P11LIB"
+
+}
+
+
+# generate RSA key pair and self-signed certificate
 KEYID='0001'
 URIKEYID="%00%01"
-pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE --module="$P11LIB" --label="RSA" --id="$KEYID"
+TSTCRT="${TMPPDIR}/testcert"
+TSTCRTN="testCert"
+
+pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE --module="$P11LIB" \
+	--label="${TSTCRTN}" --id="$KEYID"
+ca_sign $TSTCRT $TSTCRTN "My Test Cert" $KEYID
 
 BASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
 BASEURI="pkcs11:id=${URIKEYID}"
 PUBURI="pkcs11:type=public;id=${URIKEYID}"
 PRIURI="pkcs11:type=private;id=${URIKEYID}"
+CRTURI="pkcs11:type=cert;object=${TSTCRTN}"
 
 title LINE "RSA PKCS11 URIS"
 echo "${BASEURIWITHPIN}"
 echo "${BASEURI}"
 echo "${PUBURI}"
 echo "${PRIURI}"
+echo "${CRTURI}"
 echo ""
 
 # generate ECC key pair
 KEYID='0002'
 URIKEYID="%00%02"
-pkcs11-tool --keypairgen --key-type="EC:secp256r1" --login --pin=$PINVALUE --module="$P11LIB" --label="ECC" --id="$KEYID"
+ECCRT="${TMPPDIR}/eccert"
+ECCRTN="ecCert"
+
+pkcs11-tool --keypairgen --key-type="EC:secp256r1" --login --pin=$PINVALUE --module="$P11LIB" \
+	--label="${ECCRTN}" --id="$KEYID"
+ca_sign $ECCRT $ECCRTN "My EC Cert" $KEYID
 
 ECBASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
 ECBASEURI="pkcs11:id=${URIKEYID}"
 ECPUBURI="pkcs11:type=public;id=${URIKEYID}"
 ECPRIURI="pkcs11:type=private;id=${URIKEYID}"
+ECCRTURI="pkcs11:type=cert;object=${ECCRTN}"
 
 KEYID='0003'
 URIKEYID="%00%03"
-pkcs11-tool --keypairgen --key-type="EC:secp256r1" --login --pin=$PINVALUE --module="$P11LIB" --label="PeerECC" --id="$KEYID"
+ECPEERCRT="${TMPPDIR}/ecpeercert"
+ECPEERCRTN="ecPeerCert"
+
+pkcs11-tool --keypairgen --key-type="EC:secp256r1" --login --pin=$PINVALUE --module="$P11LIB" \
+	--label="$ECPEERCRTN" --id="$KEYID"
+ca_sign $ECPEERCRT $ECPEERCRTN "My Peer EC Cert" $KEYID
 
 ECPEERBASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
 ECPEERBASEURI="pkcs11:id=${URIKEYID}"
 ECPEERPUBURI="pkcs11:type=public;id=${URIKEYID}"
 ECPEERPRIURI="pkcs11:type=private;id=${URIKEYID}"
+ECPEERCRTURI="pkcs11:type=cert;object=${ECPEERCRTN}"
 
 title LINE "EC PKCS11 URIS"
 echo "${ECBASEURIWITHPIN}"
 echo "${ECBASEURI}"
 echo "${ECPUBURI}"
 echo "${ECPRIURI}"
+echo "${ECCRTURI}"
 echo "${ECPEERBASEURIWITHPIN}"
 echo "${ECPEERBASEURI}"
 echo "${ECPEERPUBURI}"
 echo "${ECPEERPRIURI}"
+echo "${ECPEERCRTURI}"
 echo ""
 
 title PARA "Show contents of softhsm token"
@@ -155,12 +227,15 @@ export BASEURIWITHPIN="${BASEURIWITHPIN}"
 export BASEURI="${BASEURI}"
 export PUBURI="${PUBURI}"
 export PRIURI="${PRIURI}"
+export CRTURI="${CRTURI}"
 export ECBASEURI="${ECBASEURI}"
 export ECPUBURI="${ECPUBURI}"
 export ECPRIURI="${ECPRIURI}"
+export ECCRTURI="${ECCRTURI}"
 export ECPEERBASEURI="${ECPEERBASEURI}"
 export ECPEERPUBURI="${ECPEERPUBURI}"
 export ECPEERPRIURI="${ECPEERPRIURI}"
+export ECPEERCRTURI="${ECPEERCRTURI}"
 
 # for listing the separate pkcs11 calls
 #export PKCS11SPY="${PKCS11_PROVIDER_MODULE}"

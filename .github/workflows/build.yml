@@ -31,7 +31,8 @@ jobs:
             if [ "${{ matrix.token }}" = "softokn" ]; then
               dnf -y install nss-softokn nss-tools nss-softokn-devel
             elif [ "${{ matrix.token }}" = "softhsm" ]; then
-              dnf -y install softhsm opensc  p11-kit-devel p11-kit-server
+              dnf -y install softhsm opensc p11-kit-devel p11-kit-server \
+                gnutls-utils
             fi
           elif [ -f /etc/debian_version ]; then
             apt-get -q update
@@ -41,7 +42,7 @@ jobs:
               apt-get -yq install libnss3 libnss3-tools libnss3-dev
             elif [ "${{ matrix.token }}" = "softhsm" ]; then
               apt-get -yq install softhsm opensc p11-kit libp11-kit-dev \
-                p11-kit-modules
+                p11-kit-modules gnutls-bin
             fi
           fi
     - name: Checkout Repository
