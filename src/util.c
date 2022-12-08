@@ -333,7 +333,7 @@ P11PROV_URI *p11prov_parse_uri(P11PROV_CTX *ctx, const char *uri)
                 u->class = CKO_SECRET_KEY;
             } else {
                 P11PROV_raise(ctx, CKR_ARGUMENTS_BAD,
-                              "Unknown object type [%.*s]", len, p);
+                              "Unknown object type [%.*s]", (int)len, p);
                 ret = EINVAL;
                 goto done;
             }
