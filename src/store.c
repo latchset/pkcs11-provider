@@ -49,6 +49,7 @@ static void p11prov_store_ctx_free(struct p11prov_store_ctx *ctx)
     OPENSSL_free(ctx->alias);
     OPENSSL_free(ctx->properties);
     OPENSSL_free(ctx->input_type);
+    BN_free(ctx->serial);
 
     for (int i = 0; i < ctx->num_objs; i++) {
         p11prov_obj_free(ctx->objects[i]);
@@ -207,8 +208,6 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
         /* Supported search types in OSSL_STORE_SEARCH(3) */
         switch (p11prov_obj_get_class(obj)) {
         case CKO_CERTIFICATE:
-            /* ctx->issuer */
-            /* ctx->serial */
             if (ctx->subject.type == CKA_SUBJECT) {
                 CK_ATTRIBUTE *subject;
                 /* unfortunately different but equivalent encodings may be
@@ -239,6 +238,35 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
                 }
                 /* TODO: X509_NAME caching for ctx->issuer ? */
                 if (!p11prov_x509_names_are_equal(&ctx->issuer, issuer)) {
+                    /* no match, try next */
+                    continue;
+                }
+            }
+            if (ctx->serial) {
+                const unsigned char *val;
+                CK_ATTRIBUTE *serial;
+                ASN1_INTEGER *asn1_serial;
+                BIGNUM *bn_serial;
+                int cmp;
+
+                serial = p11prov_obj_get_attr(obj, CKA_SERIAL_NUMBER);
+                if (!serial) {
+                    continue;
+                }
+                val = serial->pValue;
+                asn1_serial = d2i_ASN1_INTEGER(NULL, &val, serial->ulValueLen);
+                if (!asn1_serial) {
+                    continue;
+                }
+                bn_serial = ASN1_INTEGER_to_BN(asn1_serial, NULL);
+                if (!bn_serial) {
+                    ASN1_INTEGER_free(asn1_serial);
+                    continue;
+                }
+                cmp = BN_ucmp(ctx->serial, bn_serial);
+                ASN1_INTEGER_free(asn1_serial);
+                BN_free(bn_serial);
+                if (cmp != 0) {
                     /* no match, try next */
                     continue;
                 }
@@ -471,6 +499,15 @@ static int p11prov_store_set_ctx_params(void *pctx, const OSSL_PARAM params[])
         OPENSSL_free(ctx->input_type);
         ctx->input_type = NULL;
         ret = OSSL_PARAM_get_utf8_string(p, &ctx->input_type, 0);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+    p = OSSL_PARAM_locate_const(params, OSSL_STORE_PARAM_SERIAL);
+    if (p) {
+        BN_free(ctx->serial);
+        ctx->serial = NULL;
+        ret = OSSL_PARAM_get_BN(p, &ctx->serial);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
