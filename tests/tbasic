@@ -4,36 +4,6 @@
 
 source ${TESTSSRCDIR}/helpers.sh
 
-TSTOUT="${TMPPDIR}/testout"
-
-title PARA "Export Public key to a file"
-ossl 'pkey -in $BASEURI -pubin -pubout -out ${TSTOUT}.pub'
-title LINE "Export Public key to a file (pub-uri)"
-ossl 'pkey -in $PUBURI -pubin -pubout -out ${TSTOUT}.pub'
-title LINE "Export Public key to a file (with pin)"
-ossl 'pkey -in $BASEURIWITHPIN -pubin -pubout -out ${TSTOUT}.pub'
-title LINE "Print Public key from private"
-ossl 'pkey -in $PRIURI -pubout -text' output
-FAIL=0
-echo $output | grep "PKCS11 RSA Public Key (2048 bits)" > /dev/null 2>&1 || FAIL=1
-if [ $FAIL -eq 1 ]; then
-    echo "Pkcs11 encoder function failed"
-    echo
-    echo "Original command output:"
-    echo "$output"
-    echo
-    exit 1
-fi
-
-title PARA "Export Public check error"
-FAIL=0
-ossl 'pkey -in pkcs11:id=%de%ad -pubin
-           -pubout -out ${TSTOUT}-invlid.pub' || FAIL=1
-if [ $FAIL -eq 0 ]; then
-    echo "Invalid pkcs11 uri resulted in no error exporting key"
-    exit 1
-fi
-
 title PARA "Raw Sign check error"
 dd if=/dev/urandom of=${TMPPDIR}/64Brandom.bin bs=64 count=1 >/dev/null 2>&1
 FAIL=0

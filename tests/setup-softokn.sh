@@ -103,6 +103,7 @@ for (( i=0; i<${#KEYID}; i+=2 )); do
     URIKEYID="$URIKEYID%$line"
 done
 
+ECBASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
 ECBASEURI="pkcs11:id=${URIKEYID}"
 ECPUBURI="pkcs11:type=public;id=${URIKEYID}"
 ECPRIURI="pkcs11:type=private;id=${URIKEYID}"
@@ -133,6 +134,7 @@ ECPEERPRIURI="pkcs11:type=private;id=${URIKEYID}"
 ECPEERCRTURI="pkcs11:type=cert;object=${ECPEERCRTN}"
 
 title LINE "EC PKCS11 URIS"
+echo "${ECBASEURIWITHPIN}"
 echo "${ECBASEURI}"
 echo "${ECPUBURI}"
 echo "${ECPRIURI}"
@@ -179,14 +181,18 @@ export BASEURI="${BASEURI}"
 export PUBURI="${PUBURI}"
 export PRIURI="${PRIURI}"
 export CRTURI="${CRTURI}"
+
+export ECBASEURIWITHPIN="${ECBASEURIWITHPIN}"
 export ECBASEURI="${ECBASEURI}"
 export ECPUBURI="${ECPUBURI}"
 export ECPRIURI="${ECPRIURI}"
 export ECCRTURI="${ECCRTURI}"
+
 export ECPEERBASEURI="${ECPEERBASEURI}"
 export ECPEERPUBURI="${ECPEERPUBURI}"
 export ECPEERPRIURI="${ECPEERPRIURI}"
 export ECPEERCRTURI="${ECPEERCRTURI}"
+
 DBGSCRIPT
 gen_unsetvars
 

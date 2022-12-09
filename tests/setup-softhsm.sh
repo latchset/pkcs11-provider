@@ -135,10 +135,11 @@ URIKEYID="%00%00"
 CACRT="${TMPPDIR}/CAcert"
 CACRTN="caCert"
 let "SERIAL+=1"
-pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE --module="$P11LIB" \
-	--label="${CACRTN}" --id="$KEYID"
-"${certtool}" --generate-self-signed --outfile="${CACRT}.crt" --template=${TMPPDIR}/cert.cfg \
-        --provider="$P11LIB" --load-privkey "pkcs11:object=$CACRTN;type=private" \
+pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE \
+	--module="$P11LIB" --label="${CACRTN}" --id="$KEYID"
+"${certtool}" --generate-self-signed --outfile="${CACRT}.crt" \
+	--template=${TMPPDIR}/cert.cfg --provider="$P11LIB" \
+        --load-privkey "pkcs11:object=$CACRTN;type=private" \
         --load-pubkey "pkcs11:object=$CACRTN;type=public" --outder
 pkcs11-tool --write-object "${CACRT}.crt" --type=cert --id=$KEYID \
         --label="$CACRTN" --module="$P11LIB"
@@ -157,8 +158,9 @@ ca_sign() {
         -e "/^ca$/d" \
         "${sed_inplace[@]}" \
         "${TMPPDIR}/cert.cfg"
-    "${certtool}" --generate-certificate --outfile="${CRT}.crt" --template=${TMPPDIR}/cert.cfg \
-        --provider="$P11LIB" --load-privkey "pkcs11:object=$LABEL;type=private" \
+    "${certtool}" --generate-certificate --outfile="${CRT}.crt" \
+        --template=${TMPPDIR}/cert.cfg --provider="$P11LIB" \
+	--load-privkey "pkcs11:object=$LABEL;type=private" \
         --load-pubkey "pkcs11:object=$LABEL;type=public" --outder \
         --load-ca-certificate "${CACRT}.crt" --inder \
         --load-ca-privkey="pkcs11:object=$CACRTN;type=private"
@@ -174,8 +176,8 @@ URIKEYID="%00%01"
 TSTCRT="${TMPPDIR}/testcert"
 TSTCRTN="testCert"
 
-pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE --module="$P11LIB" \
-	--label="${TSTCRTN}" --id="$KEYID"
+pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE \
+	--module="$P11LIB" --label="${TSTCRTN}" --id="$KEYID"
 ca_sign $TSTCRT $TSTCRTN "My Test Cert" $KEYID
 
 BASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
@@ -198,8 +200,8 @@ URIKEYID="%00%02"
 ECCRT="${TMPPDIR}/eccert"
 ECCRTN="ecCert"
 
-pkcs11-tool --keypairgen --key-type="EC:secp256r1" --login --pin=$PINVALUE --module="$P11LIB" \
-	--label="${ECCRTN}" --id="$KEYID"
+pkcs11-tool --keypairgen --key-type="EC:secp256r1" --login --pin=$PINVALUE \
+	--module="$P11LIB" --label="${ECCRTN}" --id="$KEYID"
 ca_sign $ECCRT $ECCRTN "My EC Cert" $KEYID
 
 ECBASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
@@ -213,8 +215,8 @@ URIKEYID="%00%03"
 ECPEERCRT="${TMPPDIR}/ecpeercert"
 ECPEERCRTN="ecPeerCert"
 
-pkcs11-tool --keypairgen --key-type="EC:secp256r1" --login --pin=$PINVALUE --module="$P11LIB" \
-	--label="$ECPEERCRTN" --id="$KEYID"
+pkcs11-tool --keypairgen --key-type="EC:secp256r1" --login --pin=$PINVALUE \
+	--module="$P11LIB" --label="$ECPEERCRTN" --id="$KEYID"
 ca_sign $ECPEERCRT $ECPEERCRTN "My Peer EC Cert" $KEYID
 
 ECPEERBASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
@@ -258,6 +260,53 @@ echo "${EDPUBURI}"
 echo "${EDPRIURI}"
 echo "${EDCRTURI}"
 
+
+title PARA "generate RSA key pair, self-signed certificate, remove public key"
+KEYID='0005'
+URIKEYID="%00%05"
+TSTCRT="${TMPPDIR}/testcert2"
+TSTCRTN="testCert2"
+
+pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE \
+	--module="$P11LIB" --label="${TSTCRTN}" --id="$KEYID"
+ca_sign $TSTCRT $TSTCRTN "My Test Cert 2" $KEYID
+pkcs11-tool --delete-object --type pubkey --id 0005 --module="$P11LIB"
+
+BASE2URIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+BASE2URI="pkcs11:id=${URIKEYID}"
+PRI2URI="pkcs11:type=private;id=${URIKEYID}"
+CRT2URI="pkcs11:type=cert;object=${TSTCRTN}"
+
+title LINE "RSA2 PKCS11 URIS"
+echo "${BASE2URIWITHPIN}"
+echo "${BASE2URI}"
+echo "${PRI2URI}"
+echo "${CRT2URI}"
+echo ""
+
+title PARA "generate EC key pair, self-signed certificate, remove public key"
+KEYID='0006'
+URIKEYID="%00%06"
+TSTCRT="${TMPPDIR}/eccert2"
+TSTCRTN="ecCert2"
+
+pkcs11-tool --keypairgen --key-type="EC:secp384r1" --login --pin=$PINVALUE \
+	--module="$P11LIB" --label="${TSTCRTN}" --id="$KEYID"
+ca_sign $TSTCRT $TSTCRTN "My EC Cert 2" $KEYID
+pkcs11-tool --delete-object --type pubkey --id 0006 --module="$P11LIB"
+
+ECBASE2URIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+ECBASE2URI="pkcs11:id=${URIKEYID}"
+ECPRI2URI="pkcs11:type=private;id=${URIKEYID}"
+ECCRT2URI="pkcs11:type=cert;object=${TSTCRTN}"
+
+title LINE "EC2 PKCS11 URIS"
+echo "${ECBASE2URIWITHPIN}"
+echo "${ECBASE2URI}"
+echo "${ECPRI2URI}"
+echo "${ECCRT2URI}"
+echo ""
+
 title PARA "Show contents of softhsm token"
 echo " ----------------------------------------------------------------------------------------------------"
 pkcs11-tool -O --login --pin=$PINVALUE --module="$P11LIB"
@@ -296,18 +345,33 @@ export BASEURI="${BASEURI}"
 export PUBURI="${PUBURI}"
 export PRIURI="${PRIURI}"
 export CRTURI="${CRTURI}"
+
+export ECBASEURIWITHPIN="${ECBASEURIWITHPIN}"
 export ECBASEURI="${ECBASEURI}"
 export ECPUBURI="${ECPUBURI}"
 export ECPRIURI="${ECPRIURI}"
 export ECCRTURI="${ECCRTURI}"
+
+export ECPEERBASEURIWITHPIN="${ECPEERBASEURIWITHPIN}"
 export ECPEERBASEURI="${ECPEERBASEURI}"
 export ECPEERPUBURI="${ECPEERPUBURI}"
 export ECPEERPRIURI="${ECPEERPRIURI}"
 export ECPEERCRTURI="${ECPEERCRTURI}"
+
 export EDBASEURI="${EDBASEURI}"
 export EDPUBURI="${EDPUBURI}"
 export EDPRIURI="${EDPRIURI}"
 export EDCRTURI="${EDCRTURI}"
+
+export BASE2URIWITHPIN="${BASEURIWITHPIN}"
+export BASE2URI="${BASE2URI}"
+export PRI2URI="${PRI2URI}"
+export CRT2URI="${CRT2URI}"
+
+export ECBASE2URIWITHPIN="${ECBASEURIWITHPIN}"
+export ECBASE2URI="${ECBASE2URI}"
+export ECPRI2URI="${ECPRI2URI}"
+export ECCRT2URI="${ECCRT2URI}"
 
 # for listing the separate pkcs11 calls
 #export PKCS11SPY="${PKCS11_PROVIDER_MODULE}"
