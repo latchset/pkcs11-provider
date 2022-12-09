@@ -39,6 +39,7 @@ storeutl -certs -subject "${subj}"
 DATA=$(cat ${TMPPDIR}/storeutl-crt-subj.txt)
 if [[ ! ${DATA} =~ "Total found: 1" ]]; then
     echo "Cert not found matching by subject=${subj}"
+    exit 1
 fi
 done
 
