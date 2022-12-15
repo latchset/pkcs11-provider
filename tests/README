@@ -1,16 +1,11 @@
-Quick'n'dirty HOWTO to get started until tests are in place
+Tests are currently available for two different software token implementations,
+NSS's softokn and softhsm (with some limitations).
 
-In openssl.cnf.in there is a scheleton example openssl configuration file that
-uses NSS's softoken (chosen because it does not link openssl in it).
+The easiest way to configure things to run manual tests is to simply make check;
+this will create two temporary directories with each token's configurations.
 
-copy it as openssl.cnf, set the correct cknfig dirs in.
+After make check has run, set up your environment with:
+$ source tests/tmp.<softokn|softhsm>/testvars
 
-Initialize a token with and RSA key pair in tests/tokens
-(or whatever you set in openssl.conf)
-$ certutil -d tests/tokens -G
-
-Export the conf file
-$ export OPENSSL_CONF=/path/to/openssl.cnf
-
-Try to export a public key:
-openssl pkey -in "pkcs11:type=public" -pubin -pubout -out testkey.pub
+Then you can run code like:
+$ openssl pkey -in $ECPUBURI -pubin -pubout -out ecout.pub
