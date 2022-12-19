@@ -161,7 +161,9 @@ static void p11prov_debug_token_info(CK_TOKEN_INFO *info)
 extern struct ckmap slot_flags[];
 extern struct ckmap profile_ids[];
 
-void p11prov_debug_slot(P11PROV_CTX *ctx, struct p11prov_slot *slot)
+void p11prov_debug_slot(P11PROV_CTX *ctx, CK_SLOT_ID slotid, CK_SLOT_INFO *slot,
+                        CK_TOKEN_INFO *token, CK_MECHANISM_TYPE *mechs,
+                        CK_ULONG mechs_num, CK_ULONG *profiles)
 {
     p11prov_debug(
         "Slot Info:\n"
@@ -169,10 +171,9 @@ void p11prov_debug_slot(P11PROV_CTX *ctx, struct p11prov_slot *slot)
         "  Description:      [%.64s]\n"
         "  Manufacturer ID:  [%.32s]\n"
         "  Flags (%#08lx):\n",
-        slot->id, slot->slot.slotDescription, slot->slot.manufacturerID,
-        slot->slot.flags);
+        slotid, slot->slotDescription, slot->manufacturerID, slot->flags);
     for (int i = 0; slot_flags[i].name != NULL; i++) {
-        if (slot->slot.flags & slot_flags[i].value) {
+        if (slot->flags & slot_flags[i].value) {
             p11prov_debug("    %-25s (%#08lx)", slot_flags[i].name,
                           slot_flags[i].value);
         }
@@ -180,24 +181,23 @@ void p11prov_debug_slot(P11PROV_CTX *ctx, struct p11prov_slot *slot)
     p11prov_debug(
         "  Hardware Version: %d.%d\n"
         "  Firmware Version: %d.%d\n",
-        slot->slot.hardwareVersion.major, slot->slot.hardwareVersion.minor,
-        slot->slot.firmwareVersion.major, slot->slot.firmwareVersion.minor);
-    if (slot->slot.flags & CKF_TOKEN_PRESENT) {
-        p11prov_debug_token_info(&slot->token);
+        slot->hardwareVersion.major, slot->hardwareVersion.minor,
+        slot->firmwareVersion.major, slot->firmwareVersion.minor);
+    if (slot->flags & CKF_TOKEN_PRESENT) {
+        p11prov_debug_token_info(token);
     }
 
     if (debug_lazy_init > 1) {
-        for (CK_ULONG i = 0; i < slot->mechs_num; i++) {
-            p11prov_debug_mechanism(ctx, slot->id, slot->mechs[i]);
+        for (CK_ULONG i = 0; i < mechs_num; i++) {
+            p11prov_debug_mechanism(ctx, slotid, mechs[i]);
         }
     }
 
-    if (slot->profiles[0] != CKP_INVALID_ID) {
+    if (profiles[0] != CKP_INVALID_ID) {
         p11prov_debug("  Available profiles:\n");
         for (int c = 0; c < 5; c++) {
-            CK_ULONG profile = slot->profiles[c];
             for (int i = 0; profile_ids[i].name != NULL; i++) {
-                if (profile == slot_flags[i].value) {
+                if (profiles[c] == slot_flags[i].value) {
                     p11prov_debug("    %-35s (%#08lx)", profile_ids[i].name,
                                   profile_ids[i].value);
                 }

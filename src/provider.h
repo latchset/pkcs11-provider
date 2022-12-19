@@ -51,28 +51,16 @@ typedef struct p11prov_ctx P11PROV_CTX;
 typedef struct p11prov_interface P11PROV_INTERFACE;
 typedef struct p11prov_uri P11PROV_URI;
 typedef struct p11prov_obj P11PROV_OBJ;
+typedef struct p11prov_slot P11PROV_SLOT;
 typedef struct p11prov_session P11PROV_SESSION;
 typedef struct p11prov_session_pool P11PROV_SESSION_POOL;
-
-struct p11prov_slot {
-    CK_SLOT_ID id;
-    CK_SLOT_INFO slot;
-    CK_TOKEN_INFO token;
-
-    P11PROV_SESSION_POOL *pool;
-
-    CK_MECHANISM_TYPE *mechs;
-    CK_ULONG mechs_num;
-
-    CK_ULONG profiles[5];
-};
 
 /* Provider ctx */
 struct p11prov_interface *p11prov_ctx_get_interface(P11PROV_CTX *ctx);
 CK_UTF8CHAR_PTR p11prov_ctx_pin(P11PROV_CTX *ctx);
 OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx);
 CK_RV p11prov_ctx_status(P11PROV_CTX *ctx);
-int p11prov_ctx_get_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots);
+int p11prov_ctx_get_slots(P11PROV_CTX *ctx, struct p11prov_slot ***slots);
 CK_RV p11prov_ctx_get_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
                             void **data, CK_ULONG *size);
 CK_RV p11prov_ctx_set_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
@@ -234,7 +222,9 @@ void p11prov_debug_init(void);
 void p11prov_debug(const char *fmt, ...);
 void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                              CK_MECHANISM_TYPE type);
-void p11prov_debug_slot(P11PROV_CTX *ctx, struct p11prov_slot *slot);
+void p11prov_debug_slot(P11PROV_CTX *ctx, CK_SLOT_ID slotid, CK_SLOT_INFO *slot,
+                        CK_TOKEN_INFO *token, CK_MECHANISM_TYPE *mechs,
+                        CK_ULONG mechs_num, CK_ULONG *profiles);
 
 /* Objects */
 P11PROV_OBJ *p11prov_obj_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
@@ -491,6 +481,11 @@ CK_RV p11prov_token_sup_attr(P11PROV_CTX *ctx, CK_SLOT_ID id, int action,
                              CK_ATTRIBUTE_TYPE attr, CK_BBOOL *data);
 CK_RV p11prov_copy_attr(CK_ATTRIBUTE *dst, CK_ATTRIBUTE *src);
 bool p11prov_x509_names_are_equal(CK_ATTRIBUTE *a, CK_ATTRIBUTE *b);
+
+/* Slots */
+CK_RV p11prov_get_slots(P11PROV_CTX *ctx, P11PROV_SLOT ***rslots, int *num);
+void p11prov_free_slots(P11PROV_SLOT **slots, int nslots);
+int p11prov_slot_get_mechanisms(P11PROV_SLOT *slot, CK_MECHANISM_TYPE **mechs);
 
 /* Sessions */
 CK_RV p11prov_session_pool_init(P11PROV_CTX *ctx, CK_TOKEN_INFO *token,
