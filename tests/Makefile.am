@@ -27,13 +27,13 @@ tmp.softokn:
 	TESTSSRCDIR=$(testssrcdir) \
 	TESTBLDDIR=$(testsblddir) \
 	SOFTOKNPATH="$(SOFTOKENDIR)/$(SOFTOKEN_SUBDIR)" \
-	$(testssrcdir)/setup-softokn.sh > setup-softokn.log
+	$(testssrcdir)/setup-softokn.sh > setup-softokn.log 2>&1
 tmp.softhsm:
 	LIBSPATH=$(libspath) \
 	TESTSSRCDIR=$(testssrcdir) \
 	TESTBLDDIR=$(testsblddir) \
 	P11KITCLIENTPATH="$(P11KITCLIENTPATH)" \
-	$(testssrcdir)/setup-softhsm.sh > setup-softhsm.log
+	$(testssrcdir)/setup-softhsm.sh > setup-softhsm.log 2>&1
 
 dist_check_SCRIPTS = \
 	helpers.sh setup-softhsm.sh setup-softokn.sh softhsm-proxy.sh \
