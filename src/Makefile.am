@@ -1,7 +1,26 @@
 
 AM_CFLAGS = $(STD_CFLAGS)
 
-noinst_HEADERS = pkcs11.h provider.h
+noinst_HEADERS = \
+	asymmetric_cipher.h \
+	debug.h \
+	encoder.h \
+	digests.h \
+	exchange.h \
+	kdf.h \
+	keymgmt.h \
+	interface.h \
+	oasis/pkcs11.h \
+	oasis/pkcs11f.h \
+	oasis/pkcs11t.h \
+	objects.h \
+	pkcs11.h \
+	platform/endian.h \
+	provider.h \
+	session.h \
+	signature.h \
+	store.h \
+	util.h
 pkcs11_LTLIBRARIES = pkcs11.la
 
 SHARED_EXT=@SHARED_EXT@
@@ -17,12 +36,7 @@ pkcs11_la_SOURCES = \
 	kdf.c \
 	keymgmt.c \
 	interface.c \
-	oasis/pkcs11.h \
-	oasis/pkcs11f.h \
-	oasis/pkcs11t.h \
 	objects.c \
-	pkcs11.h \
-	platform/endian.h \
 	provider.h \
 	provider.c \
 	session.c \
