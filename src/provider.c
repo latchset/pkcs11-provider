@@ -36,8 +36,8 @@ struct p11prov_ctx {
     struct p11prov_interface *interface;
     CK_FLAGS intf_flags;
 
+    P11PROV_SLOT **slots;
     int nslots;
-    struct p11prov_slot *slots;
 
     OSSL_ALGORITHM *op_digest;
     OSSL_ALGORITHM *op_kdf;
@@ -226,7 +226,7 @@ struct p11prov_interface *p11prov_ctx_get_interface(P11PROV_CTX *ctx)
     return ctx->interface;
 }
 
-int p11prov_ctx_get_slots(P11PROV_CTX *ctx, struct p11prov_slot **slots)
+int p11prov_ctx_get_slots(P11PROV_CTX *ctx, P11PROV_SLOT ***slots)
 {
     if (ctx->status != P11PROV_INITIALIZED) {
         return RET_OSSL_ERR;
@@ -282,17 +282,13 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
 
     OSSL_LIB_CTX_free(ctx->libctx);
 
-    if (ctx->dlhandle) {
-        if (ctx->slots) {
-            for (int i = 0; i < ctx->nslots; i++) {
-                (void)p11prov_session_pool_free(ctx->slots[i].pool);
-                OPENSSL_free(ctx->slots[i].mechs);
-            }
-            OPENSSL_free(ctx->slots);
-            ctx->slots = NULL;
-            ctx->nslots = 0;
-        }
+    if (ctx->nslots) {
+        p11prov_free_slots(ctx->slots, ctx->nslots);
+        ctx->slots = NULL;
+        ctx->nslots = 0;
+    }
 
+    if (ctx->dlhandle) {
         p11prov_Finalize(ctx, NULL);
         p11prov_interface_free(ctx->interface);
         dlclose(ctx->dlhandle);
@@ -570,15 +566,18 @@ static int p11prov_operations_init(P11PROV_CTX *ctx)
     int encoder_idx = 0;
 
     for (int ns = 0; ns < ctx->nslots; ns++) {
-        for (CK_ULONG ms = 0; ms < ctx->slots->mechs_num; ms++) {
+        CK_MECHANISM_TYPE *mechs;
+        int nmechs;
+        nmechs = p11prov_slot_get_mechanisms(ctx->slots[ns], &mechs);
+        for (int ms = 0; ms < nmechs; ms++) {
             CK_ULONG mech = CK_UNAVAILABLE_INFORMATION;
             if (cl_size == 0) {
                 /* we are done*/
                 break;
             }
             for (int cl = 0; cl < cl_size; cl++) {
-                if (ctx->slots->mechs[ms] == checklist[cl]) {
-                    mech = ctx->slots->mechs[ms];
+                if (mechs[ms] == checklist[cl]) {
+                    mech = mechs[ms];
                     /* found */
                     break;
                 }
@@ -940,191 +939,6 @@ static const OSSL_DISPATCH p11prov_dispatch_table[] = {
     { 0, NULL },
 };
 
-static int get_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
-{
-    CK_SESSION_HANDLE session;
-    CK_BBOOL token = CK_TRUE;
-    CK_OBJECT_CLASS class = CKO_PROFILE;
-
-    CK_ATTRIBUTE template[2] = {
-        { CKA_TOKEN, &token, sizeof(token) },
-        { CKA_CLASS, &class, sizeof(class) },
-    };
-    CK_OBJECT_HANDLE object[5];
-    CK_ULONG objcount;
-    int index = 0;
-    int ret;
-
-    ret = p11prov_OpenSession(ctx, slot->id, CKF_SERIAL_SESSION, NULL, NULL,
-                              &session);
-    if (ret != CKR_OK) {
-        return ret;
-    }
-
-    ret = p11prov_FindObjectsInit(ctx, session, template, 2);
-    if (ret != CKR_OK) {
-        (void)p11prov_CloseSession(ctx, session);
-        return ret;
-    }
-
-    /* at most 5 objects as there are 5 profiles for now */
-    ret = p11prov_FindObjects(ctx, session, object, 5, &objcount);
-    if (ret != CKR_OK) {
-        goto done;
-    }
-
-    if (objcount == 0) {
-        P11PROV_debug("No profiles for slot %lu", slot->id);
-        goto done;
-    }
-
-    for (size_t i = 0; i < objcount; i++) {
-        CK_ULONG value = CK_UNAVAILABLE_INFORMATION;
-        CK_ATTRIBUTE profileid = { CKA_PROFILE_ID, &value, sizeof(value) };
-
-        ret = p11prov_GetAttributeValue(ctx, session, object[i], &profileid, 1);
-        if (ret != CKR_OK || value == CK_UNAVAILABLE_INFORMATION) {
-            continue;
-        }
-
-        slot->profiles[index] = value;
-        index++;
-    }
-
-done:
-    (void)p11prov_FindObjectsFinal(ctx, session);
-    (void)p11prov_CloseSession(ctx, session);
-    return ret;
-}
-
-static void get_slot_mechanisms(P11PROV_CTX *ctx, struct p11prov_slot *slot)
-{
-    int ret;
-
-    ret = p11prov_GetMechanismList(ctx, slot->id, NULL, &slot->mechs_num);
-    if (ret != CKR_OK) {
-        return;
-    }
-
-    P11PROV_debug("Slot(%lu) mechs found: %lu", slot->id, slot->mechs_num);
-
-    slot->mechs = OPENSSL_malloc(slot->mechs_num * sizeof(CK_MECHANISM_TYPE));
-    if (!slot->mechs) {
-        P11PROV_raise(ctx, CKR_HOST_MEMORY, "Failed to alloc for mech list");
-        slot->mechs_num = 0;
-        return;
-    }
-
-    ret =
-        p11prov_GetMechanismList(ctx, slot->id, slot->mechs, &slot->mechs_num);
-    if (ret != CKR_OK) {
-        OPENSSL_free(slot->mechs);
-        slot->mechs_num = 0;
-        return;
-    }
-}
-
-static void trim_padded_field(CK_UTF8CHAR *field, ssize_t n)
-{
-    for (; n > 0 && field[n - 1] == ' '; n--) {
-        field[n - 1] = 0;
-    }
-}
-
-#define trim(x) trim_padded_field(x, sizeof(x))
-
-static CK_RV get_slots(P11PROV_CTX *ctx)
-{
-    CK_ULONG ns;
-    CK_ULONG ts;
-    CK_SLOT_ID *slotid;
-    struct p11prov_slot *slots;
-    int ret;
-
-    ret = p11prov_GetSlotList(ctx, CK_FALSE, NULL, &ns);
-    if (ret) {
-        return ret;
-    }
-
-    /* arbitrary number from libp11 */
-    if (ns > 0x10000) {
-        return CKR_GENERAL_ERROR;
-    }
-
-    slotid = OPENSSL_malloc(ns * sizeof(CK_SLOT_ID));
-    if (slotid == NULL) {
-        return CKR_HOST_MEMORY;
-    }
-
-    ret = p11prov_GetSlotList(ctx, CK_FALSE, slotid, &ns);
-    if (ret) {
-        OPENSSL_free(slotid);
-        return ret;
-    }
-
-    slots = OPENSSL_zalloc(ns * sizeof(struct p11prov_slot));
-    if (slots == NULL) {
-        OPENSSL_free(slotid);
-        return CKR_HOST_MEMORY;
-    }
-
-    /* keep separate counter for slots we'll actually have at the end,
-     * because we will skip slots that do not have any token present */
-    ts = 0;
-    for (size_t i = 0; i < ns; i++) {
-        CK_SLOT_INFO slot;
-        CK_TOKEN_INFO token;
-
-        ret = p11prov_GetSlotInfo(ctx, slotid[i], &slot);
-        if (ret != CKR_OK || (slot.flags & CKF_TOKEN_PRESENT) == 0) {
-            /* skip slot */
-            continue;
-        }
-        ret = p11prov_GetTokenInfo(ctx, slotid[i], &token);
-        if (ret) {
-            /* skip slot */
-            continue;
-        }
-
-        trim(slot.slotDescription);
-        trim(slot.manufacturerID);
-        trim(token.label);
-        trim(token.manufacturerID);
-        trim(token.model);
-        trim(token.serialNumber);
-
-        slots[ts].id = slotid[i];
-        slots[ts].slot = slot;
-        slots[ts].token = token;
-
-        ret = p11prov_session_pool_init(ctx, &token, &slots[ts].pool);
-        if (ret) {
-            goto done;
-        }
-
-        (void)get_slot_profiles(ctx, &slots[ts]);
-        get_slot_mechanisms(ctx, &slots[ts]);
-
-        P11PROV_debug_slot(ctx, &slots[ts]);
-
-        ts++;
-    }
-
-done:
-
-    if (ret != CKR_OK) {
-        for (size_t i = 0; i < ts; i++) {
-            p11prov_session_pool_free(slots[i].pool);
-        }
-        OPENSSL_free(slots);
-    } else {
-        ctx->slots = slots;
-        ctx->nslots = ts;
-    }
-    OPENSSL_free(slotid);
-    return ret;
-}
-
 #if !defined(RTLD_DEEPBIND)
 #define RTLD_DEEPBIND 0
 #endif
@@ -1205,7 +1019,7 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
                   ck_info.libraryDescription, (int)ck_info.libraryVersion.major,
                   (int)ck_info.libraryVersion.minor);
 
-    ret = get_slots(ctx);
+    ret = p11prov_get_slots(ctx, &ctx->slots, &ctx->nslots);
     if (ret) {
         return -EFAULT;
     }
