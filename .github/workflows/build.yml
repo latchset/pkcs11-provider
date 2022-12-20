@@ -27,7 +27,8 @@ jobs:
       run: |
           if [ -f /etc/fedora-release ]; then
             dnf -y install git ${{ matrix.compiler }} automake libtool \
-              pkgconf-pkg-config autoconf-archive openssl-devel openssl
+              pkgconf-pkg-config autoconf-archive openssl-devel openssl \
+              diffutils
             if [ "${{ matrix.token }}" = "softokn" ]; then
               dnf -y install nss-softokn nss-tools nss-softokn-devel
             elif [ "${{ matrix.token }}" = "softhsm" ]; then
