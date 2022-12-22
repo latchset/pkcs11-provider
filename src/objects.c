@@ -508,8 +508,8 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     return CKR_OK;
 }
 
-#define OBJS_IN_SEARCH 64
-#define MAX_OBJS_IN_STORE OBJS_IN_SEARCH * 16 /* 1024 */
+#define OBJS_PER_SEARCH 64
+#define MAX_OBJS_IN_STORE OBJS_PER_SEARCH * 16 /* 1024 */
 CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
                        CK_SLOT_ID slotid, P11PROV_URI *uri,
                        store_obj_callback cb, void *cb_ctx)
@@ -519,6 +519,7 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
     CK_ATTRIBUTE id = p11prov_uri_get_id(uri);
     CK_ATTRIBUTE label = p11prov_uri_get_label(uri);
     CK_ATTRIBUTE template[3] = { 0 };
+    CK_OBJECT_HANDLE *objects = NULL;
     CK_ULONG tsize = 0;
     CK_ULONG objcount = 0;
     CK_ULONG total = 0;
@@ -557,32 +558,31 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
     if (ret != CKR_OK) {
         return ret;
     }
-    while (total < MAX_OBJS_IN_STORE) {
-        CK_OBJECT_HANDLE object[OBJS_IN_SEARCH];
-        ret = p11prov_FindObjects(provctx, sess, object, OBJS_IN_SEARCH,
-                                  &objcount);
+    do {
+        CK_OBJECT_HANDLE *tmp;
+
+        objcount = 0;
+        tmp = OPENSSL_realloc(objects, (total + OBJS_PER_SEARCH)
+                                           * sizeof(CK_OBJECT_HANDLE));
+        if (tmp == NULL) {
+            OPENSSL_free(objects);
+            (void)p11prov_FindObjectsFinal(provctx, sess);
+            return CKR_HOST_MEMORY;
+        }
+        objects = tmp;
+
+        ret = p11prov_FindObjects(provctx, sess, &objects[total],
+                                  OBJS_PER_SEARCH, &objcount);
         if (ret != CKR_OK || objcount == 0) {
             result = ret;
             break;
         }
         total += objcount;
+    } while (total < MAX_OBJS_IN_STORE);
 
-        for (CK_ULONG k = 0; k < objcount; k++) {
-            P11PROV_OBJ *obj = NULL;
-            ret = p11prov_obj_from_handle(provctx, session, object[k], &obj);
-            if (ret == CKR_CANCEL) {
-                /* unknown object or other recoverable error to ignore */
-                continue;
-            }
-            if (ret == CKR_OK) {
-                ret = cb(cb_ctx, obj);
-            }
-            if (ret != CKR_OK) {
-                P11PROV_raise(provctx, ret, "Failed to store object");
-                result = ret;
-                break;
-            }
-        }
+    if (objcount != 0 && total >= MAX_OBJS_IN_STORE) {
+        P11PROV_debug("Too many objects in store, results truncated to %d",
+                      MAX_OBJS_IN_STORE);
     }
 
     ret = p11prov_FindObjectsFinal(provctx, sess);
@@ -591,7 +591,24 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
         P11PROV_raise(provctx, ret, "Failed to terminate object search");
     }
 
+    for (CK_ULONG k = 0; k < total; k++) {
+        P11PROV_OBJ *obj = NULL;
+        ret = p11prov_obj_from_handle(provctx, session, objects[k], &obj);
+        if (ret == CKR_CANCEL) {
+            /* unknown object or other recoverable error to ignore */
+            continue;
+        } else if (ret == CKR_OK) {
+            ret = cb(cb_ctx, obj);
+        }
+        if (ret != CKR_OK) {
+            P11PROV_raise(provctx, ret, "Failed to store object");
+            result = ret;
+            break;
+        }
+    }
+
     P11PROV_debug("Find objects: found %lu objects", total);
+    OPENSSL_free(objects);
     return result;
 }
 
@@ -606,7 +623,7 @@ static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
     CK_OBJECT_HANDLE handle;
     CK_ULONG objcount = 0;
     P11PROV_OBJ *retobj = NULL;
-    CK_RV ret;
+    CK_RV ret, fret;
 
     P11PROV_debug("Find associated object");
 
@@ -637,6 +654,13 @@ static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
 
     /* we expect a single entry */
     ret = p11prov_FindObjects(provctx, sess, &handle, 1, &objcount);
+
+    fret = p11prov_FindObjectsFinal(provctx, sess);
+    if (fret != CKR_OK) {
+        /* this is not fatal */
+        P11PROV_raise(provctx, fret, "Failed to terminate object search");
+    }
+
     if (ret != CKR_OK) {
         goto done;
     }
