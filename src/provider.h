@@ -14,6 +14,7 @@
 #include <openssl/core_object.h>
 #include <openssl/types.h>
 #include <openssl/crypto.h>
+#include <openssl/macros.h>
 #include <openssl/params.h>
 #include <openssl/err.h>
 #include <openssl/proverr.h>
