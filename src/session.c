@@ -48,8 +48,11 @@ static int get_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
     /* at most 5 objects as there are 5 profiles for now */
     ret = p11prov_FindObjects(ctx, session, object, 5, &objcount);
     if (ret != CKR_OK) {
+        (void)p11prov_FindObjectsFinal(ctx, session);
         goto done;
     }
+
+    (void)p11prov_FindObjectsFinal(ctx, session);
 
     if (objcount == 0) {
         P11PROV_debug("No profiles for slot %lu", slot->id);
@@ -70,7 +73,6 @@ static int get_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
     }
 
 done:
-    (void)p11prov_FindObjectsFinal(ctx, session);
     (void)p11prov_CloseSession(ctx, session);
     return ret;
 }
