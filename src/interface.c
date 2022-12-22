@@ -312,7 +312,10 @@ CK_RV p11prov_interface_init(void *dlhandle, P11PROV_INTERFACE **interface,
     intf->GetInterface = dlsym(dlhandle, "C_GetInterface");
     if (!intf->GetInterface) {
         char *err = dlerror();
-        P11PROV_debug("dlsym() failed: %s", err);
+        P11PROV_debug(
+            "C_GetInterface() not available. Falling back to "
+            "C_GetFunctionList(): %s",
+            err);
         intf->GetInterface = p11prov_NO_GetInterface;
     }
 
