@@ -1068,6 +1068,17 @@ static int p11prov_ec_get_params(void *keydata, OSSL_PARAM params[])
             return ret;
         }
     }
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_GROUP_NAME);
+    if (p) {
+        const char *curve_name = p11prov_obj_get_ec_group_name(key);
+        if (curve_name == NULL) {
+            return RET_OSSL_ERR;
+        }
+        ret = OSSL_PARAM_set_utf8_string(p, curve_name);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
 
     return RET_OSSL_OK;
 }
@@ -1078,10 +1089,10 @@ static const OSSL_PARAM *p11prov_ec_gettable_params(void *provctx)
         OSSL_PARAM_int(OSSL_PKEY_PARAM_BITS, NULL),
         OSSL_PARAM_int(OSSL_PKEY_PARAM_SECURITY_BITS, NULL),
         OSSL_PARAM_int(OSSL_PKEY_PARAM_MAX_SIZE, NULL),
+        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, NULL, 0),
         /* OSSL_PKEY_PARAM_DEFAULT_DIGEST
          * OSSL_PKEY_PARAM_ENCODED_PUBLIC_KEY
          * OSSL_PKEY_PARAM_EC_DECODED_FROM_EXPLICIT_PARAM
-         * OSSL_PKEY_PARAM_GROUP_NAME
          * OSSL_PKEY_PARAM_EC_ENCODING
          * OSSL_PKEY_PARAM_EC_POINT_CONVERSION_FORMAT
          * OSSL_PKEY_PARAM_EC_FIELD_TYPE

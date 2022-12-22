@@ -44,5 +44,6 @@ int p11prov_obj_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
                                       void *cb_arg);
 int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
                                      void *cb_arg);
+const char *p11prov_obj_get_ec_group_name(P11PROV_OBJ *obj);
 
 #endif /* _OBJECTS_H */

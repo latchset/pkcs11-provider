@@ -1193,31 +1193,21 @@ int p11prov_obj_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
     return ret;
 }
 
-#define EC_PUB_ATTRS 2
-int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
-                                     void *cb_arg)
+const char *p11prov_obj_get_ec_group_name(P11PROV_OBJ *obj)
 {
-    CK_ATTRIBUTE attrs[EC_PUB_ATTRS] = { 0 };
-    OSSL_PARAM params[EC_PUB_ATTRS + 1];
-    ASN1_OCTET_STRING *octet = NULL;
+    CK_ATTRIBUTE attrs[1] = { 0 };
     EC_GROUP *group = NULL;
     const unsigned char *val;
     const char *curve_name;
     int curve_nid;
     CK_RV rv;
-    int ret;
-
-    if (p11prov_obj_get_key_type(obj) != CKK_EC) {
-        return RET_OSSL_ERR;
-    }
 
     attrs[0].type = CKA_EC_PARAMS;
-    attrs[1].type = CKA_EC_POINT;
 
-    rv = get_public_attrs(obj, attrs, EC_PUB_ATTRS);
+    rv = get_public_attrs(obj, attrs, 1);
     if (rv != CKR_OK) {
         P11PROV_raise(obj->ctx, rv, "Failed to get public key attributes");
-        return RET_OSSL_ERR;
+        return NULL;
     }
 
     /* in d2i functions 'in' is overwritten to return the remainder of the
@@ -1227,16 +1217,42 @@ int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
     group = d2i_ECPKParameters(NULL, (const unsigned char **)&val,
                                attrs[0].ulValueLen);
     if (group == NULL) {
-        ret = RET_OSSL_ERR;
         goto done;
     }
 
     curve_nid = EC_GROUP_get_curve_name(group);
     if (curve_nid == NID_undef) {
-        ret = RET_OSSL_ERR;
         goto done;
     }
     curve_name = OSSL_EC_curve_nid2name(curve_nid);
+    if (curve_name == NULL) {
+        goto done;
+    }
+    return curve_name;
+
+done:
+    OPENSSL_free(attrs[0].pValue);
+    EC_GROUP_free(group);
+    return NULL;
+}
+
+#define EC_PUB_ATTRS 2
+int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
+                                     void *cb_arg)
+{
+    CK_ATTRIBUTE attrs[1] = { 0 };
+    OSSL_PARAM params[EC_PUB_ATTRS + 1];
+    ASN1_OCTET_STRING *octet = NULL;
+    const unsigned char *val;
+    const char *curve_name;
+    CK_RV rv;
+    int ret;
+
+    if (p11prov_obj_get_key_type(obj) != CKK_EC) {
+        return RET_OSSL_ERR;
+    }
+
+    curve_name = p11prov_obj_get_ec_group_name(obj);
     if (curve_name == NULL) {
         ret = RET_OSSL_ERR;
         goto done;
@@ -1244,11 +1260,21 @@ int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
     params[0] = OSSL_PARAM_construct_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME,
                                                  (char *)curve_name, 0);
 
-    val = attrs[1].pValue;
+    attrs[0].type = CKA_EC_POINT;
+
+    rv = get_public_attrs(obj, attrs, 1);
+    if (rv != CKR_OK) {
+        P11PROV_raise(obj->ctx, rv, "Failed to get public key attributes");
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+
+    val = attrs[0].pValue;
     octet = d2i_ASN1_OCTET_STRING(NULL, (const unsigned char **)&val,
-                                  attrs[1].ulValueLen);
+                                  attrs[0].ulValueLen);
     if (octet == NULL) {
-        return RET_OSSL_ERR;
+        ret = RET_OSSL_ERR;
+        goto done;
     }
     params[1] = OSSL_PARAM_construct_octet_string(OSSL_PKEY_PARAM_PUB_KEY,
                                                   octet->data, octet->length);
@@ -1259,10 +1285,7 @@ int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
 
 done:
     /* must be freed after callback */
-    for (int i = 0; i < EC_PUB_ATTRS; i++) {
-        OPENSSL_free(attrs[i].pValue);
-    }
+    OPENSSL_free(attrs[0].pValue);
     ASN1_OCTET_STRING_free(octet);
-    EC_GROUP_free(group);
     return ret;
 }
