@@ -6,45 +6,20 @@
 #include <openssl/pem.h>
 #include <openssl/bio.h>
 
-static void print_data_buffer(BIO *out, CK_BYTE *buf, int len, int justify,
-                              int linelen)
+static int p11prov_print_bn(BIO *out, const OSSL_PARAM *p, const char *str,
+                            int indent)
 {
-    int lines = 1;
-    int plen = len;
-    int pidx = 0;
+    BIGNUM *bn = NULL;
+    int ret;
 
-    if (linelen) {
-        lines = len / linelen;
-        if (len % linelen) {
-            lines++;
-        }
-        plen = linelen;
+    ret = OSSL_PARAM_get_BN(p, &bn);
+    if (ret != RET_OSSL_OK) {
+        return RET_OSSL_ERR;
     }
+    ASN1_bn_print(out, str, bn, NULL, indent);
+    BN_free(bn);
 
-    for (int l = 0; l < lines; l++) {
-        int i;
-        if (plen > len) {
-            plen = len;
-        }
-        if (justify) {
-            BIO_printf(out, "%*s", justify, "");
-        }
-        for (i = 0; i < plen; i++) {
-            char c[2];
-            c[0] = (buf[pidx + i] >> 4);
-            c[1] = (buf[pidx + i] & 0x0f);
-            for (int j = 0; j < 2; j++) {
-                c[j] += '0';
-                if (c[j] > '9') {
-                    c[j] += ('a' - '0' - 10);
-                }
-            }
-            BIO_write(out, c, 2);
-        }
-        len -= plen;
-        pidx += i;
-        BIO_write(out, "\n", 1);
-    }
+    return RET_OSSL_OK;
 }
 
 DISPATCH_BASE_ENCODER_FN(newctx);
@@ -73,6 +48,33 @@ static void p11prov_encoder_freectx(void *ctx)
     OPENSSL_free(ctx);
 }
 
+static int p11prov_rsa_print_public_key(const OSSL_PARAM *params, void *bio)
+{
+    BIO *out = (BIO *)bio;
+    const OSSL_PARAM *p;
+    int ret;
+
+    /* Modulus */
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_N);
+    if (p) {
+        ret = p11prov_print_bn(out, p, "Modulus:", 0);
+        if (ret != RET_OSSL_OK) {
+            return RET_OSSL_ERR;
+        }
+    }
+
+    /* Exponent */
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_E);
+    if (p) {
+        ret = p11prov_print_bn(out, p, "Exponent:", 0);
+        if (ret != RET_OSSL_OK) {
+            return RET_OSSL_ERR;
+        }
+    }
+
+    return RET_OSSL_OK;
+}
+
 static int p11prov_rsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
                                            const void *inkey,
                                            const OSSL_PARAM key_abstract[],
@@ -87,22 +89,17 @@ static int p11prov_rsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
     CK_ULONG keysize;
     CK_ATTRIBUTE *a;
     BIO *out;
+    int ret;
 
     P11PROV_debug("RSA Text Encoder");
 
     switch (selection) {
     case OSSL_KEYMGMT_SELECT_PRIVATE_KEY:
-        class = CKO_PRIVATE_KEY;
-        break;
+        return RET_OSSL_ERR;
     case OSSL_KEYMGMT_SELECT_PUBLIC_KEY:
-        class = CKO_PUBLIC_KEY;
+        /* currently we can only print a public key */
         break;
     case OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS:
-        return RET_OSSL_ERR;
-    }
-
-    if (p11prov_obj_get_class(key) != class) {
-        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid Key class");
         return RET_OSSL_ERR;
     }
 
@@ -127,29 +124,18 @@ static int p11prov_rsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
 
     a = p11prov_obj_get_attr(key, CKA_ID);
     if (a) {
-        if (a->ulValueLen > 16) {
-            BIO_printf(out, "  Key ID:\n");
-            print_data_buffer(out, a->pValue, a->ulValueLen, 4, 16);
-        } else {
-            BIO_printf(out, "  Key ID: ");
-            print_data_buffer(out, a->pValue, a->ulValueLen, 0, 0);
-        }
+        BIO_printf(out, "Key ID:\n");
+        ASN1_buf_print(out, a->pValue, a->ulValueLen, 4);
     }
     a = p11prov_obj_get_attr(key, CKA_LABEL);
     if (a) {
-        BIO_printf(out, "  Label: %*s\n", (int)a->ulValueLen,
-                   (char *)a->pValue);
+        BIO_printf(out, "Label: %*s\n", (int)a->ulValueLen, (char *)a->pValue);
     }
-    a = p11prov_obj_get_attr(key, CKA_PUBLIC_EXPONENT);
-    if (a) {
-        BIO_printf(out, "  Exponent: 0x");
-        print_data_buffer(out, a->pValue, a->ulValueLen, 0, 0);
-        BIO_write(out, "\n", 1);
-    }
-    a = p11prov_obj_get_attr(key, CKA_MODULUS);
-    if (a) {
-        BIO_printf(out, "  Modulus:\n");
-        print_data_buffer(out, a->pValue, a->ulValueLen, 4, 16);
+
+    ret = p11prov_obj_export_public_rsa_key(key, p11prov_rsa_print_public_key,
+                                            out);
+    if (ret != RET_OSSL_OK) {
+        BIO_printf(out, "[Error: Failed to decode public key data]\n");
     }
 
     BIO_free(out);
