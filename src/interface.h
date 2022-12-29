@@ -49,6 +49,11 @@ CK_RV p11prov_Login(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
 CK_RV p11prov_CreateObject(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                            CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount,
                            CK_OBJECT_HANDLE_PTR phObject);
+CK_RV p11prov_CopyObject(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                         CK_OBJECT_HANDLE hObject, CK_ATTRIBUTE_PTR pTemplate,
+                         CK_ULONG ulCount, CK_OBJECT_HANDLE_PTR phNewObject);
+CK_RV p11prov_DestroyObject(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                            CK_OBJECT_HANDLE hObject);
 CK_RV p11prov_GetAttributeValue(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                                 CK_OBJECT_HANDLE hObject,
                                 CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount);

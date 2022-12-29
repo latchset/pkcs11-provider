@@ -29,8 +29,10 @@ struct p11prov_interface {
     CK_C_GetSessionInfo GetSessionInfo;
     CK_C_GetOperationState GetOperationState;
     CK_C_SetOperationState SetOperationState;
-    CK_C_CreateObject CreateObject;
     CK_C_Login Login;
+    CK_C_CreateObject CreateObject;
+    CK_C_CopyObject CopyObject;
+    CK_C_DestroyObject DestroyObject;
     CK_C_GetAttributeValue GetAttributeValue;
     CK_C_SetAttributeValue SetAttributeValue;
     CK_C_FindObjectsInit FindObjectsInit;
@@ -158,6 +160,11 @@ IMPL_INTERFACE_FN_4_ARG(Login, CK_SESSION_HANDLE, hSession, CK_USER_TYPE,
 IMPL_INTERFACE_FN_4_ARG(CreateObject, CK_SESSION_HANDLE, hSession,
                         CK_ATTRIBUTE_PTR, pTemplate, CK_ULONG, ulCount,
                         CK_OBJECT_HANDLE_PTR, phObject);
+IMPL_INTERFACE_FN_5_ARG(CopyObject, CK_SESSION_HANDLE, hSession,
+                        CK_OBJECT_HANDLE, hObject, CK_ATTRIBUTE_PTR, pTemplate,
+                        CK_ULONG, ulCount, CK_OBJECT_HANDLE_PTR, phNewObject);
+IMPL_INTERFACE_FN_2_ARG(DestroyObject, CK_SESSION_HANDLE, hSession,
+                        CK_OBJECT_HANDLE, hObject);
 IMPL_INTERFACE_FN_4_ARG(GetAttributeValue, CK_SESSION_HANDLE, hSession,
                         CK_OBJECT_HANDLE, hObject, CK_ATTRIBUTE_PTR, pTemplate,
                         CK_ULONG, ulCount);
@@ -257,8 +264,10 @@ static void populate_interface(P11PROV_INTERFACE *intf, CK_INTERFACE *ck_intf)
     ASSIGN_FN(GetSessionInfo);
     ASSIGN_FN(GetOperationState);
     ASSIGN_FN(SetOperationState);
-    ASSIGN_FN(CreateObject);
     ASSIGN_FN(Login);
+    ASSIGN_FN(CreateObject);
+    ASSIGN_FN(CopyObject);
+    ASSIGN_FN(DestroyObject);
     ASSIGN_FN(GetAttributeValue);
     ASSIGN_FN(SetAttributeValue);
     ASSIGN_FN(FindObjectsInit);

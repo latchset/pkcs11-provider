@@ -469,7 +469,7 @@ static void *p11prov_rsa_load(const void *reference, size_t reference_sz)
         type = p11prov_obj_get_key_type(key);
         if (type == CKK_RSA) {
             /* add ref count */
-            key = p11prov_obj_ref(key);
+            key = p11prov_obj_ref_no_cache(key);
         } else {
             key = NULL;
         }
@@ -895,10 +895,25 @@ static void p11prov_ec_free(void *key)
 
 static void *p11prov_ec_load(const void *reference, size_t reference_sz)
 {
+    P11PROV_OBJ *key;
+
     P11PROV_debug("ec load %p, %ld", reference, reference_sz);
 
     /* the contents of the reference is the address to our object */
-    return p11prov_obj_from_reference(reference, reference_sz);
+    key = p11prov_obj_from_reference(reference, reference_sz);
+    if (key) {
+        CK_KEY_TYPE type = CK_UNAVAILABLE_INFORMATION;
+
+        type = p11prov_obj_get_key_type(key);
+        if (type == CKK_EC) {
+            /* add ref count */
+            key = p11prov_obj_ref_no_cache(key);
+        } else {
+            key = NULL;
+        }
+    }
+
+    return key;
 }
 
 static int p11prov_ec_has(const void *keydata, int selection)

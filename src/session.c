@@ -243,6 +243,10 @@ struct p11prov_session {
 
     int refcnt;
     int free;
+
+    /* used only for login sessions */
+    bool login;
+    pthread_mutex_t lock;
 };
 
 struct p11prov_session_pool {
@@ -494,12 +498,28 @@ static CK_RV p11prov_session_open(P11PROV_SESSION *session, bool login,
 
 void p11prov_session_free(P11PROV_SESSION *session)
 {
+    P11PROV_SESSION_POOL *p;
+    CK_ULONG cur_sessions;
+    bool ok;
+    int expected;
+    int ret;
     int ref;
 
     P11PROV_debug("Session Free %p", session);
 
     if (session == NULL) {
         return;
+    }
+
+    if (session->login) {
+        ret = pthread_mutex_trylock(&session->lock);
+        if (ret != 0) {
+            ret = errno;
+            P11PROV_raise(session->provctx, CKR_CANT_LOCK,
+                          "Locked login session (errno=%d)", ret);
+            return;
+        }
+        pthread_mutex_unlock(&session->lock);
     }
 
     ref = __atomic_sub_fetch(&session->refcnt, 1, __ATOMIC_SEQ_CST);
@@ -515,44 +535,50 @@ void p11prov_session_free(P11PROV_SESSION *session)
         __atomic_store_n(&session->refcnt, 1, __ATOMIC_SEQ_CST);
         return;
     }
-    /* last ref means we go busy -> free */
-    if (ref == 1) {
-        P11PROV_SESSION_POOL *p = session->pool;
-        CK_ULONG cur_sessions;
-        bool ok;
-        int expected = 0;
 
-        if (p == NULL) {
-            /* session was orphaned, just free it */
-            internal_session_close(session);
-            OPENSSL_clear_free(session, sizeof(P11PROV_SESSION));
+    /* last ref means we go busy -> free */
+
+    if (session->login) {
+        ret = pthread_mutex_destroy(&session->lock);
+        if (ret != 0) {
+            ret = errno;
+            P11PROV_raise(session->provctx, CKR_CANT_LOCK,
+                          "Locked login session (errno=%d)", ret);
+            /* maintain busy */
             return;
         }
+    }
 
-        if (p->login_session == session) {
-            __atomic_store_n(&session->pool->login_session, NULL,
-                             __ATOMIC_SEQ_CST);
-        }
+    p = session->pool;
+    if (p == NULL) {
+        /* session was orphaned, just free it */
+        internal_session_close(session);
+        OPENSSL_clear_free(session, sizeof(P11PROV_SESSION));
+        return;
+    }
 
-        /* check if we used more than threshold sessions, in that case also
-         * close the session to avoid hogging all the sessions of a token */
-        cur_sessions = __atomic_load_n(&p->cur_sessions, __ATOMIC_SEQ_CST);
-        if (cur_sessions > p->limit_sessions) {
-            P11PROV_debug(
-                "Session Free: Soft limit (%lu/%lu), releasing session: %lu",
-                cur_sessions, p->limit_sessions, session->session);
-            internal_session_close(session);
-        }
+    if (p->login_session == session) {
+        __atomic_store_n(&session->pool->login_session, NULL, __ATOMIC_SEQ_CST);
+    }
 
-        /* now that all is taken care of, set session to free so it can be
-         * immediately taken by another thread */
-        ok = __atomic_compare_exchange_n(&session->free, &expected, 1, false,
-                                         __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
-        if (!ok) {
-            P11PROV_raise(session->provctx, CKR_GENERAL_ERROR,
-                          "Expected a busy session on freeing, got: %d",
-                          expected);
-        }
+    /* check if we used more than threshold sessions, in that case also
+     * close the session to avoid hogging all the sessions of a token */
+    cur_sessions = __atomic_load_n(&p->cur_sessions, __ATOMIC_SEQ_CST);
+    if (cur_sessions > p->limit_sessions) {
+        P11PROV_debug(
+            "Session Free: Soft limit (%lu/%lu), releasing session: %lu",
+            cur_sessions, p->limit_sessions, session->session);
+        internal_session_close(session);
+    }
+
+    /* now that all is taken care of, set session to free so it can be
+     * immediately taken by another thread */
+    expected = 0;
+    ok = __atomic_compare_exchange_n(&session->free, &expected, 1, false,
+                                     __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    if (!ok) {
+        P11PROV_raise(session->provctx, CKR_GENERAL_ERROR,
+                      "Expected a busy session on freeing, got: %d", expected);
     }
 }
 
@@ -632,6 +658,8 @@ static CK_RV token_login(P11PROV_CTX *provctx, struct p11prov_slot *slot,
 
     ret = p11prov_session_open(session, true, pin, pinlen);
     if (ret == CKR_OK) {
+        session->login = true;
+        pthread_mutex_init(&session->lock, 0);
         session->pool->login_session = session;
     } else {
         p11prov_session_free(session);
@@ -722,6 +750,7 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
         for (i = 0; i < nslots; i++) {
             if (slots[i]->id == id) {
                 slot = slots[i];
+                break;
             }
         }
         if (slot == NULL) {
@@ -872,4 +901,49 @@ done:
         p11prov_session_free(session);
     }
     return ret;
+}
+
+CK_RV p11prov_take_login_session(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
+                                 P11PROV_SESSION **_session)
+{
+    P11PROV_SESSION *session = NULL;
+    struct p11prov_slot **slots = NULL;
+    struct p11prov_slot *slot = NULL;
+    int nslots = 0;
+
+    P11PROV_debug("Get login session from slot %lu", slotid);
+
+    nslots = p11prov_ctx_get_slots(provctx, &slots);
+    for (int i = 0; i < nslots; i++) {
+        if (slots[i]->id == slotid) {
+            slot = slots[i];
+            break;
+        }
+    }
+    if (!slot || !slot->pool) {
+        return CKR_SLOT_ID_INVALID;
+    }
+
+    if (!slot->pool->login_session) {
+        return CKR_USER_NOT_LOGGED_IN;
+    }
+
+    session = slot->pool->login_session;
+
+    /* Serialize access to the login_session */
+    pthread_mutex_lock(&session->lock);
+
+    *_session = session;
+    return CKR_OK;
+}
+
+void p11prov_return_login_session(P11PROV_SESSION *session)
+{
+    pthread_mutex_unlock(&session->lock);
+
+    /* handle case where session was orphaned because locked while the
+     * pool was being freed */
+    if (session->pool == NULL) {
+        p11prov_session_free(session);
+    }
 }
