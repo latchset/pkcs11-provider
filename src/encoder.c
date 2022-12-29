@@ -22,9 +22,20 @@ static int p11prov_print_bn(BIO *out, const OSSL_PARAM *p, const char *str,
     return RET_OSSL_OK;
 }
 
+static int p11prov_print_buf(BIO *out, const OSSL_PARAM *p, const char *str,
+                             int indent)
+{
+    if (p->data_type != OSSL_PARAM_OCTET_STRING) {
+        return RET_OSSL_ERR;
+    }
+    BIO_printf(out, "%s\n", str);
+    ASN1_buf_print(out, p->data, p->data_size, indent);
+
+    return RET_OSSL_OK;
+}
+
 DISPATCH_BASE_ENCODER_FN(newctx);
 DISPATCH_BASE_ENCODER_FN(freectx);
-DISPATCH_TEXT_ENCODER_FN(rsa, encode);
 
 struct p11prov_encoder_ctx {
     P11PROV_CTX *provctx;
@@ -47,6 +58,8 @@ static void p11prov_encoder_freectx(void *ctx)
 {
     OPENSSL_free(ctx);
 }
+
+DISPATCH_TEXT_ENCODER_FN(rsa, encode);
 
 static int p11prov_rsa_print_public_key(const OSSL_PARAM *params, void *bio)
 {
@@ -649,5 +662,122 @@ const OSSL_DISPATCH p11prov_ec_encoder_spki_der_functions[] = {
     DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
     DISPATCH_ENCODER_ELEM(DOES_SELECTION, ec, spki, der, does_selection),
     DISPATCH_ENCODER_ELEM(ENCODE, ec, spki, der, encode),
+    { 0, NULL },
+};
+
+DISPATCH_TEXT_ENCODER_FN(ec, encode);
+
+static int p11prov_ec_print_public_key(const OSSL_PARAM *params, void *bio)
+{
+    BIO *out = (BIO *)bio;
+    const OSSL_PARAM *p;
+    int ret;
+
+    /* Pub key */
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PUB_KEY);
+    if (p) {
+        ret = p11prov_print_buf(out, p, "Pub:", 4);
+        if (ret != RET_OSSL_OK) {
+            return RET_OSSL_ERR;
+        }
+    }
+
+    /* Name */
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_GROUP_NAME);
+    if (p) {
+        const char *name;
+        int nid;
+
+        ret = OSSL_PARAM_get_utf8_string_ptr(p, &name);
+        if (ret != RET_OSSL_OK) {
+            return RET_OSSL_ERR;
+        }
+
+        BIO_printf(out, "ASN1 OID: %s\n", name);
+
+        /* Print also NIST name if any */
+        nid = OBJ_txt2nid(name);
+        if (nid != NID_undef) {
+            name = EC_curve_nid2nist(nid);
+            if (name) {
+                BIO_printf(out, "NIST CURVE: %s\n", name);
+            }
+        }
+    }
+
+    return RET_OSSL_OK;
+}
+
+static int p11prov_ec_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
+                                          const void *inkey,
+                                          const OSSL_PARAM key_abstract[],
+                                          int selection,
+                                          OSSL_PASSPHRASE_CALLBACK *cb,
+                                          void *cbarg)
+{
+    struct p11prov_encoder_ctx *ctx = (struct p11prov_encoder_ctx *)inctx;
+    CK_OBJECT_CLASS class = CK_UNAVAILABLE_INFORMATION;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)inkey;
+    CK_KEY_TYPE type;
+    CK_ULONG keysize;
+    CK_ATTRIBUTE *a;
+    BIO *out;
+    int ret;
+
+    P11PROV_debug("EC Text Encoder");
+
+    switch (selection) {
+    case OSSL_KEYMGMT_SELECT_PRIVATE_KEY:
+        return RET_OSSL_ERR;
+    case OSSL_KEYMGMT_SELECT_PUBLIC_KEY:
+        /* currently we can only print a public key */
+        break;
+    case OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS:
+        return RET_OSSL_ERR;
+    }
+
+    type = p11prov_obj_get_key_type(key);
+    if (type != CKK_EC) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid Key Type");
+        return RET_OSSL_ERR;
+    }
+
+    out = BIO_new_from_core_bio(p11prov_ctx_get_libctx(ctx->provctx), cbio);
+    if (!out) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Failed to init BIO");
+        return RET_OSSL_ERR;
+    }
+
+    keysize = p11prov_obj_get_key_size(key);
+    if (class == CKO_PRIVATE_KEY) {
+        BIO_printf(out, "PKCS11 EC Private Key (%lu bits)\n", keysize * 8);
+    } else {
+        BIO_printf(out, "PKCS11 EC Public Key (%lu bits)\n", keysize * 8);
+    }
+
+    a = p11prov_obj_get_attr(key, CKA_ID);
+    if (a) {
+        BIO_printf(out, "Key ID:\n");
+        ASN1_buf_print(out, a->pValue, a->ulValueLen, 4);
+    }
+    a = p11prov_obj_get_attr(key, CKA_LABEL);
+    if (a) {
+        BIO_printf(out, "Label: %*s\n", (int)a->ulValueLen, (char *)a->pValue);
+    }
+
+    ret =
+        p11prov_obj_export_public_ec_key(key, p11prov_ec_print_public_key, out);
+    if (ret != RET_OSSL_OK) {
+        BIO_printf(out, "[Error: Failed to decode public key data]\n");
+    }
+
+    BIO_free(out);
+    return RET_OSSL_OK;
+}
+
+const OSSL_DISPATCH p11prov_ec_encoder_text_functions[] = {
+    DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
+    DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
+    DISPATCH_TEXT_ENCODER_ELEM(ENCODE, ec, encode_text),
     { 0, NULL },
 };
