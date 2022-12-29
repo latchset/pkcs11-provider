@@ -27,6 +27,7 @@ struct p11prov_obj {
     CK_SLOT_ID slotid;
     CK_OBJECT_HANDLE handle;
     CK_OBJECT_CLASS class;
+    CK_OBJECT_HANDLE cached;
 
     union {
         struct p11prov_key key;
@@ -52,14 +53,87 @@ P11PROV_OBJ *p11prov_obj_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
     obj->slotid = slotid;
     obj->handle = handle;
     obj->class = class;
+    obj->cached = CK_INVALID_HANDLE;
 
     obj->refcnt = 1;
 
     return obj;
 }
 
-P11PROV_OBJ *p11prov_obj_ref(P11PROV_OBJ *obj)
+static void destroy_key_cache(P11PROV_OBJ *obj, P11PROV_SESSION *session)
+
 {
+    P11PROV_SESSION *_session = NULL;
+    CK_SESSION_HANDLE sess;
+    CK_RV ret;
+
+    if (obj->cached == CK_INVALID_HANDLE) {
+        return;
+    }
+
+    if (session) {
+        sess = p11prov_session_handle(session);
+    } else {
+        ret = p11prov_take_login_session(obj->ctx, obj->slotid, &_session);
+        if (ret != CKR_OK) {
+            P11PROV_debug("Failed to get login session. Error %lx", ret);
+            return;
+        }
+        sess = p11prov_session_handle(_session);
+    }
+
+    ret = p11prov_DestroyObject(obj->ctx, sess, obj->cached);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Failed to destroy cached key. Error %lx", ret);
+    }
+    obj->cached = CK_INVALID_HANDLE;
+
+    if (_session) {
+        p11prov_return_login_session(_session);
+    }
+}
+
+static void cache_key(P11PROV_OBJ *obj)
+{
+    P11PROV_SESSION *session = NULL;
+    CK_BBOOL val_false = CK_FALSE;
+    CK_ATTRIBUTE template[] = { { CKA_TOKEN, &val_false, sizeof(val_false) } };
+    CK_SESSION_HANDLE sess;
+    CK_RV ret;
+
+    /* We cache only keys */
+    if (obj->class != CKO_PRIVATE_KEY && obj->class != CKO_PUBLIC_KEY) {
+        return;
+    }
+
+    ret = p11prov_take_login_session(obj->ctx, obj->slotid, &session);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Failed to get login session. Error %lx", ret);
+        return;
+    }
+
+    /* If already cached, release and re-cache */
+    destroy_key_cache(obj, session);
+
+    sess = p11prov_session_handle(session);
+    ret = p11prov_CopyObject(obj->ctx, sess, obj->handle, template, 1,
+                             &obj->cached);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Failed to cache key. Error %lx", ret);
+    }
+
+    P11PROV_debug("Key %lu:%lu cached as %lu:%lu", obj->slotid, obj->handle,
+                  session, obj->cached);
+
+    p11prov_return_login_session(session);
+    return;
+}
+
+P11PROV_OBJ *p11prov_obj_ref_no_cache(P11PROV_OBJ *obj)
+{
+    P11PROV_debug("Ref Object: %p (handle:%lu)\n", obj,
+                  obj ? obj->handle : CK_INVALID_HANDLE);
+
     if (obj && __atomic_fetch_add(&obj->refcnt, 1, __ATOMIC_SEQ_CST) > 0) {
         return obj;
     }
@@ -67,9 +141,29 @@ P11PROV_OBJ *p11prov_obj_ref(P11PROV_OBJ *obj)
     return NULL;
 }
 
+P11PROV_OBJ *p11prov_obj_ref(P11PROV_OBJ *obj)
+{
+    obj = p11prov_obj_ref_no_cache(obj);
+    if (!obj) {
+        return NULL;
+    }
+
+    /* When referenced it means we are likely going to try to use the key in
+     * some operation, let's try to cache it in the tokens volatile memory for
+     * those tokens that support the operation. This will result in much faster
+     * key operations with some tokens as the keys are unencrypted in volatile
+     * memory */
+    if (obj->cached == CK_INVALID_HANDLE) {
+        cache_key(obj);
+    }
+
+    return obj;
+}
+
 void p11prov_obj_free(P11PROV_OBJ *obj)
 {
-    P11PROV_debug("object free (%p)", obj);
+    P11PROV_debug("Free Object: %p (handle:%lu)\n", obj,
+                  obj ? obj->handle : CK_INVALID_HANDLE);
 
     if (obj == NULL) {
         return;
@@ -78,6 +172,8 @@ void p11prov_obj_free(P11PROV_OBJ *obj)
         P11PROV_debug("object free: reference held");
         return;
     }
+
+    destroy_key_cache(obj, NULL);
 
     for (size_t i = 0; i < obj->numattrs; i++) {
         OPENSSL_free(obj->attrs[i].pValue);
@@ -98,6 +194,9 @@ CK_SLOT_ID p11prov_obj_get_slotid(P11PROV_OBJ *obj)
 CK_OBJECT_HANDLE p11prov_obj_get_handle(P11PROV_OBJ *obj)
 {
     if (obj) {
+        if (obj->cached != CK_INVALID_HANDLE) {
+            return obj->cached;
+        }
         return obj->handle;
     }
     return CK_INVALID_HANDLE;
@@ -165,7 +264,7 @@ CK_ULONG p11prov_obj_get_key_size(P11PROV_OBJ *obj)
 void p11prov_obj_to_reference(P11PROV_OBJ *obj, void **reference,
                               size_t *reference_sz)
 {
-    *reference = p11prov_obj_ref(obj);
+    *reference = p11prov_obj_ref_no_cache(obj);
     *reference_sz = sizeof(P11PROV_OBJ);
 }
 
@@ -851,6 +950,11 @@ CK_RV p11prov_obj_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
 
     ret = p11prov_SetAttributeValue(ctx, p11prov_session_handle(s), obj->handle,
                                     template, tsize);
+
+    if (obj->cached != CK_INVALID_HANDLE) {
+        /* try to re-cache key to maintain matching attributes */
+        cache_key(obj);
+    }
 
     /* TODO: should we retry iterating value by value on each element of
      * template to be able to set as much as we can and return which attribute

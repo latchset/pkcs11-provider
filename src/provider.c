@@ -828,6 +828,7 @@ static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
         { CKR_ARGUMENTS_BAD,
           C("Invalid or improper arguments were provided to the "
             "invoked function") },
+        { CKR_CANT_LOCK, C("Internal locking failure") },
         { CKR_ATTRIBUTE_READ_ONLY,
           C("Attempted to set or modify an attribute that is Read "
             "Only for applications") },
