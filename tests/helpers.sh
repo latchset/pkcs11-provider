@@ -40,9 +40,17 @@ cleanup_server()
 
 ossl()
 {
-    echo "# r "$* >> ${TMPPDIR}/gdb-commands.txt
-    echo openssl $*
-    eval openssl $1
+    local __output=$2
+    echo "# r "$1 >> ${TMPPDIR}/gdb-commands.txt
+    echo openssl $1
+    __out=$(eval openssl $1)
+    __res=$?
+    if [[ "$__output" ]]; then
+        eval $__output="'$__out'"
+    else
+        echo $__out
+    fi
+    return $__res
 }
 
 gen_unsetvars() {

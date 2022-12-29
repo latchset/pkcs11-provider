@@ -12,6 +12,9 @@ title LINE "Export Public key to a file (pub-uri)"
 ossl 'pkey -in $PUBURI -pubin -pubout -out ${TSTOUT}.pub'
 title LINE "Export Public key to a file (with pin)"
 ossl 'pkey -in $BASEURIWITHPIN -pubin -pubout -out ${TSTOUT}.pub'
+title LINE "Print Public key from private"
+ossl 'pkey -in $PRIURI -pubout -text' output
+echo $output | grep "PKCS11 RSA Public Key (2048 bits)" > /dev/null 2>&1
 
 title PARA "Export Public check error"
 FAIL=0
@@ -24,6 +27,9 @@ fi
 
 title PARA "Export EC Public key to a file"
 ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${TMPPDIR}/ecout.pub'
+title LINE "Print EC Public key from private"
+ossl 'pkey -in $ECPRIURI -pubout -text' output
+echo $output | grep "PKCS11 EC Public Key (256 bits)" > /dev/null 2>&1
 
 title PARA "Raw Sign check error"
 dd if=/dev/urandom of=${TMPPDIR}/64Brandom.bin bs=64 count=1 >/dev/null 2>&1
