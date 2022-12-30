@@ -33,11 +33,10 @@ struct p11prov_ctx {
 
     /* module handles and data */
     void *dlhandle;
-    struct p11prov_interface *interface;
+    P11PROV_INTERFACE *interface;
     CK_FLAGS intf_flags;
 
-    P11PROV_SLOT **slots;
-    int nslots;
+    P11PROV_SLOTS_CTX *slots;
 
     OSSL_ALGORITHM *op_digest;
     OSSL_ALGORITHM *op_kdf;
@@ -226,14 +225,12 @@ struct p11prov_interface *p11prov_ctx_get_interface(P11PROV_CTX *ctx)
     return ctx->interface;
 }
 
-int p11prov_ctx_get_slots(P11PROV_CTX *ctx, P11PROV_SLOT ***slots)
+P11PROV_SLOTS_CTX *p11prov_ctx_get_slots(P11PROV_CTX *ctx)
 {
     if (ctx->status != P11PROV_INITIALIZED) {
-        return RET_OSSL_ERR;
+        return NULL;
     }
-
-    *slots = ctx->slots;
-    return ctx->nslots;
+    return ctx->slots;
 }
 
 OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx)
@@ -282,11 +279,7 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
 
     OSSL_LIB_CTX_free(ctx->libctx);
 
-    if (ctx->nslots) {
-        p11prov_free_slots(ctx->slots, ctx->nslots);
-        ctx->slots = NULL;
-        ctx->nslots = 0;
-    }
+    p11prov_free_slots(ctx->slots);
 
     if (ctx->dlhandle) {
         p11prov_Finalize(ctx, NULL);
@@ -541,8 +534,10 @@ static void alg_rm_mechs(CK_ULONG *checklist, CK_ULONG *rmlist, int *clsize,
         alg_rm_mechs(checklist, rmlist, &cl_size, rmsize); \
     } while (0);
 
-static int p11prov_operations_init(P11PROV_CTX *ctx)
+static int operations_init(P11PROV_CTX *ctx)
 {
+    P11PROV_SLOTS_CTX *slots;
+    P11PROV_SLOT *slot;
     CK_ULONG checklist[] = {
         CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_SIG_MECHS,
         RSAPSS_SIG_MECHS,          RSA_ENC_MECHS,
@@ -564,11 +559,20 @@ static int p11prov_operations_init(P11PROV_CTX *ctx)
     int signature_idx = 0;
     int asym_cipher_idx = 0;
     int encoder_idx = 0;
+    int slot_idx = 0;
+    CK_RV ret;
 
-    for (int ns = 0; ns < ctx->nslots; ns++) {
+    ret = p11prov_take_slots(ctx, &slots);
+    if (ret != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
+
+    for (slot = p11prov_fetch_slot(slots, &slot_idx); slot != NULL;
+         slot = p11prov_fetch_slot(slots, &slot_idx)) {
+
         CK_MECHANISM_TYPE *mechs;
         int nmechs;
-        nmechs = p11prov_slot_get_mechanisms(ctx->slots[ns], &mechs);
+        nmechs = p11prov_slot_get_mechanisms(slot, &mechs);
         for (int ms = 0; ms < nmechs; ms++) {
             CK_ULONG mech = CK_UNAVAILABLE_INFORMATION;
             if (cl_size == 0) {
@@ -712,6 +716,8 @@ static int p11prov_operations_init(P11PROV_CTX *ctx)
             }
         }
     }
+
+    p11prov_return_slots(slots);
 
     /* keymgmt */
     if (keymgmt_rsa) {
@@ -1025,12 +1031,12 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
                   ck_info.libraryDescription, (int)ck_info.libraryVersion.major,
                   (int)ck_info.libraryVersion.minor);
 
-    ret = p11prov_get_slots(ctx, &ctx->slots, &ctx->nslots);
+    ret = p11prov_init_slots(ctx, &ctx->slots);
     if (ret) {
         return -EFAULT;
     }
 
-    ret = p11prov_operations_init(ctx);
+    ret = operations_init(ctx);
     if (ret != RET_OSSL_OK) {
         return -EFAULT;
     }

@@ -5,7 +5,6 @@
 #define _UTIL_H
 
 /* Utilities to fetch objects from tokens */
-
 struct fetch_attrs {
     CK_ATTRIBUTE_TYPE type;
     CK_BYTE **value;

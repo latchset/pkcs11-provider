@@ -18,7 +18,18 @@ struct p11prov_slot {
     CK_ULONG profiles[5];
 };
 
-static int get_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
+struct p11prov_slots_ctx {
+    P11PROV_CTX *provctx;
+    P11PROV_SLOT **slots;
+    int num;
+    pthread_mutex_t lock;
+};
+
+static CK_RV session_pool_init(P11PROV_CTX *, CK_TOKEN_INFO *,
+                               P11PROV_SESSION_POOL **);
+static void session_pool_free(P11PROV_SESSION_POOL *);
+
+static void get_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
 {
     CK_SESSION_HANDLE session;
     CK_BBOOL token = CK_TRUE;
@@ -36,13 +47,12 @@ static int get_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
     ret = p11prov_OpenSession(ctx, slot->id, CKF_SERIAL_SESSION, NULL, NULL,
                               &session);
     if (ret != CKR_OK) {
-        return ret;
+        return;
     }
 
     ret = p11prov_FindObjectsInit(ctx, session, template, 2);
     if (ret != CKR_OK) {
-        (void)p11prov_CloseSession(ctx, session);
-        return ret;
+        goto done;
     }
 
     /* at most 5 objects as there are 5 profiles for now */
@@ -74,7 +84,7 @@ static int get_slot_profiles(P11PROV_CTX *ctx, struct p11prov_slot *slot)
 
 done:
     (void)p11prov_CloseSession(ctx, session);
-    return ret;
+    return;
 }
 
 static void get_slot_mechanisms(P11PROV_CTX *ctx, struct p11prov_slot *slot)
@@ -112,114 +122,181 @@ static void trim_padded_field(CK_UTF8CHAR *field, ssize_t n)
 
 #define trim(x) trim_padded_field(x, sizeof(x))
 
-CK_RV p11prov_get_slots(P11PROV_CTX *ctx, P11PROV_SLOT ***rslots, int *num)
+CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
 {
-    CK_ULONG ns;
-    CK_ULONG ts;
-    CK_SLOT_ID *slotid;
-    struct p11prov_slot **slots;
-    int ret;
+    CK_ULONG num;
+    CK_SLOT_ID *slotid = NULL;
+    struct p11prov_slots_ctx *sctx;
+    CK_RV ret;
+    int err;
 
-    ret = p11prov_GetSlotList(ctx, CK_FALSE, NULL, &ns);
+    sctx = OPENSSL_zalloc(sizeof(P11PROV_SLOTS_CTX));
+    if (!sctx) {
+        return CKR_HOST_MEMORY;
+    }
+    sctx->provctx = ctx;
+
+    err = pthread_mutex_init(&sctx->lock, 0);
+    if (err != 0) {
+        err = errno;
+        ret = CKR_CANT_LOCK;
+        P11PROV_raise(ctx, ret, "Failed to init slots lock (errno:%d)", err);
+        goto done;
+    }
+
+    ret = p11prov_GetSlotList(ctx, CK_FALSE, NULL, &num);
     if (ret) {
-        return ret;
+        goto done;
     }
 
     /* arbitrary number from libp11 */
-    if (ns > 0x10000) {
-        return CKR_GENERAL_ERROR;
+    if (num > 0x10000) {
+        ret = CKR_GENERAL_ERROR;
+        goto done;
     }
 
-    slotid = OPENSSL_malloc(ns * sizeof(CK_SLOT_ID));
-    if (slotid == NULL) {
-        return CKR_HOST_MEMORY;
+    slotid = OPENSSL_malloc(num * sizeof(CK_SLOT_ID));
+    if (!slotid) {
+        ret = CKR_HOST_MEMORY;
+        goto done;
     }
 
-    ret = p11prov_GetSlotList(ctx, CK_FALSE, slotid, &ns);
+    ret = p11prov_GetSlotList(ctx, CK_FALSE, slotid, &num);
     if (ret) {
-        OPENSSL_free(slotid);
-        return ret;
+        goto done;
     }
 
-    slots = OPENSSL_zalloc(ns * sizeof(struct p11prov_slot *));
-    if (slots == NULL) {
-        OPENSSL_free(slotid);
-        return CKR_HOST_MEMORY;
+    sctx->slots = OPENSSL_zalloc(num * sizeof(P11PROV_SLOT *));
+    if (!sctx->slots) {
+        ret = CKR_HOST_MEMORY;
+        goto done;
     }
 
-    /* keep separate counter for slots we'll actually have at the end,
-     * because we will skip slots that do not have any token present */
-    ts = 0;
-    for (size_t i = 0; i < ns; i++) {
-        CK_SLOT_INFO slot;
-        CK_TOKEN_INFO token;
+    for (size_t i = 0; i < num; i++) {
+        P11PROV_SLOT *slot;
 
-        slots[ts] = OPENSSL_zalloc(sizeof(struct p11prov_slot));
-        if (!slots[ts]) {
+        slot = OPENSSL_zalloc(sizeof(P11PROV_SLOT));
+        if (!slot) {
             ret = CKR_HOST_MEMORY;
             goto done;
         }
+        sctx->slots[sctx->num] = slot;
 
-        ret = p11prov_GetSlotInfo(ctx, slotid[i], &slot);
-        if (ret != CKR_OK || (slot.flags & CKF_TOKEN_PRESENT) == 0) {
+        ret = p11prov_GetSlotInfo(ctx, slotid[i], &slot->slot);
+        if (ret != CKR_OK || (slot->slot.flags & CKF_TOKEN_PRESENT) == 0) {
             /* skip slot */
             continue;
         }
-        ret = p11prov_GetTokenInfo(ctx, slotid[i], &token);
+        ret = p11prov_GetTokenInfo(ctx, slotid[i], &slot->token);
         if (ret) {
             /* skip slot */
             continue;
         }
 
-        trim(slot.slotDescription);
-        trim(slot.manufacturerID);
-        trim(token.label);
-        trim(token.manufacturerID);
-        trim(token.model);
-        trim(token.serialNumber);
+        trim(slot->slot.slotDescription);
+        trim(slot->slot.manufacturerID);
+        trim(slot->token.label);
+        trim(slot->token.manufacturerID);
+        trim(slot->token.model);
+        trim(slot->token.serialNumber);
 
-        slots[ts]->id = slotid[i];
-        slots[ts]->slot = slot;
-        slots[ts]->token = token;
+        slot->id = slotid[i];
 
-        ret = p11prov_session_pool_init(ctx, &token, &slots[ts]->pool);
+        ret = session_pool_init(ctx, &slot->token, &slot->pool);
         if (ret) {
             goto done;
         }
 
-        (void)get_slot_profiles(ctx, slots[ts]);
-        get_slot_mechanisms(ctx, slots[ts]);
+        get_slot_profiles(ctx, slot);
+        get_slot_mechanisms(ctx, slot);
 
-        P11PROV_debug_slot(ctx, slots[ts]->id, &slots[ts]->slot,
-                           &slots[ts]->token, slots[ts]->mechs,
-                           slots[ts]->nmechs, slots[ts]->profiles);
+        P11PROV_debug_slot(ctx, slot->id, &slot->slot, &slot->token,
+                           slot->mechs, slot->nmechs, slot->profiles);
 
-        ts++;
+        sctx->num++;
     }
 
 done:
+    OPENSSL_free(slotid);
 
     if (ret != CKR_OK) {
-        p11prov_free_slots(slots, ts);
-    } else {
-        *rslots = slots;
-        *num = ts;
+        p11prov_free_slots(sctx);
+        sctx = NULL;
     }
-    OPENSSL_free(slotid);
+    *slots = sctx;
     return ret;
 }
 
-void p11prov_free_slots(P11PROV_SLOT **slots, int nslots)
+void p11prov_free_slots(P11PROV_SLOTS_CTX *sctx)
 {
-    if (nslots == 0) {
+    int err;
+
+    if (!sctx) {
         return;
     }
-    for (int i = 0; i < nslots; i++) {
-        (void)p11prov_session_pool_free(slots[i]->pool);
-        OPENSSL_free(slots[i]->mechs);
-        OPENSSL_cleanse(slots[i], sizeof(P11PROV_SLOT));
+    err = pthread_mutex_destroy(&sctx->lock);
+    if (err != 0) {
+        err = errno;
+        P11PROV_raise(sctx->provctx, CKR_CANT_LOCK,
+                      "Failed to destroy slots lock (errno:%d), leaking memory",
+                      err);
+        return;
     }
-    OPENSSL_free(slots);
+    if (sctx->num == 0) {
+        return;
+    }
+    for (int i = 0; i < sctx->num; i++) {
+        session_pool_free(sctx->slots[i]->pool);
+        OPENSSL_free(sctx->slots[i]->mechs);
+        OPENSSL_cleanse(sctx->slots[i], sizeof(P11PROV_SLOT));
+    }
+    OPENSSL_free(sctx->slots);
+    OPENSSL_free(sctx);
+}
+
+CK_RV p11prov_take_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
+{
+    P11PROV_SLOTS_CTX *sctx;
+    int err;
+
+    sctx = p11prov_ctx_get_slots(ctx);
+    if (!sctx) {
+        return CKR_GENERAL_ERROR;
+    }
+
+    err = pthread_mutex_lock(&sctx->lock);
+    if (err != 0) {
+        err = errno;
+        P11PROV_raise(ctx, CKR_CANT_LOCK, "Failed to get slots lock (errno:%d)",
+                      err);
+        *slots = NULL;
+        return CKR_CANT_LOCK;
+    }
+    *slots = sctx;
+    return CKR_OK;
+}
+
+void p11prov_return_slots(P11PROV_SLOTS_CTX *sctx)
+{
+    int err;
+    err = pthread_mutex_unlock(&sctx->lock);
+    if (err != 0) {
+        err = errno;
+        P11PROV_raise(sctx->provctx, CKR_CANT_LOCK,
+                      "Failed to release slots lock (errno:%d)", err);
+    }
+}
+
+/* returns the slots at index idx and increments the index */
+P11PROV_SLOT *p11prov_fetch_slot(P11PROV_SLOTS_CTX *sctx, int *idx)
+{
+    int i = *idx;
+
+    if (i < 0 || i >= sctx->num) {
+        return NULL;
+    }
+    *idx = i + 1;
+    return sctx->slots[i];
 }
 
 int p11prov_slot_get_mechanisms(P11PROV_SLOT *slot, CK_MECHANISM_TYPE **mechs)
@@ -319,10 +396,11 @@ static void internal_session_close(P11PROV_SESSION *session)
     session->flags = CKF_SERIAL_SESSION;
 }
 
-CK_RV p11prov_session_pool_init(P11PROV_CTX *ctx, CK_TOKEN_INFO *token,
-                                P11PROV_SESSION_POOL **_pool)
+static CK_RV session_pool_init(P11PROV_CTX *ctx, CK_TOKEN_INFO *token,
+                               P11PROV_SESSION_POOL **_pool)
 {
     P11PROV_SESSION_POOL *pool;
+    int ret;
 
     P11PROV_debug("Creating new session pool");
 
@@ -332,7 +410,14 @@ CK_RV p11prov_session_pool_init(P11PROV_CTX *ctx, CK_TOKEN_INFO *token,
     }
     pool->provctx = ctx;
 
-    pthread_mutex_init(&pool->lock, 0);
+    ret = pthread_mutex_init(&pool->lock, 0);
+    if (ret != 0) {
+        ret = errno;
+        P11PROV_raise(ctx, CKR_CANT_LOCK, "Failed to init mutex (errno:%d)",
+                      ret);
+        OPENSSL_free(pool);
+        return CKR_CANT_LOCK;
+    }
 
     if (token->ulMaxSessionCount != CK_EFFECTIVELY_INFINITE
         && token->ulMaxSessionCount != CK_UNAVAILABLE_INFORMATION) {
@@ -357,14 +442,14 @@ CK_RV p11prov_session_pool_init(P11PROV_CTX *ctx, CK_TOKEN_INFO *token,
     return CKR_OK;
 }
 
-CK_RV p11prov_session_pool_free(P11PROV_SESSION_POOL *pool)
+static void session_pool_free(P11PROV_SESSION_POOL *pool)
 {
     P11PROV_SESSION *session;
 
     P11PROV_debug("Freeing session pool %p", pool);
 
     if (!pool) {
-        return CKR_OK;
+        return;
     }
 
     /* deref login_session first */
@@ -394,8 +479,6 @@ CK_RV p11prov_session_pool_free(P11PROV_SESSION_POOL *pool)
 
     pthread_mutex_destroy(&pool->lock);
     OPENSSL_clear_free(pool, sizeof(P11PROV_SESSION_POOL));
-
-    return CKR_OK;
 }
 
 #define SESS_ALLOC_SIZE 32
@@ -732,55 +815,61 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                           OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg,
                           bool reqlogin, bool rw, P11PROV_SESSION **_session)
 {
-    P11PROV_SESSION *session = NULL;
+    P11PROV_SLOTS_CTX *slots = NULL;
+    P11PROV_SLOT *slot = NULL;
     CK_SLOT_ID id = *slotid;
-    struct p11prov_slot **slots = NULL;
-    struct p11prov_slot *slot = NULL;
-    int nslots = 0;
-    int i;
+    P11PROV_SESSION *session = NULL;
     CK_FLAGS flags = DEFLT_SESSION_FLAGS;
-    CK_RV ret = CKR_CANCEL;
+    int slot_idx;
+    CK_RV ret;
 
     P11PROV_debug("Get session on slot %lu", id);
 
-    nslots = p11prov_ctx_get_slots(provctx, &slots);
+    ret = p11prov_take_slots(provctx, &slots);
+    if (ret != CKR_OK) {
+        return ret;
+    }
 
     if (id != CK_UNAVAILABLE_INFORMATION && next_slotid == NULL) {
+        slot_idx = 0;
         /* single shot request for a specific slot */
-        for (i = 0; i < nslots; i++) {
-            if (slots[i]->id == id) {
-                slot = slots[i];
+        for (slot = p11prov_fetch_slot(slots, &slot_idx); slot != NULL;
+             slot = p11prov_fetch_slot(slots, &slot_idx)) {
+            if (slot->id == id) {
                 break;
             }
         }
-        if (slot == NULL) {
-            return CKR_SLOT_ID_INVALID;
+        if (!slot) {
+            ret = CKR_SLOT_ID_INVALID;
+            goto done;
         }
         ret =
             check_slot(provctx, slot, reqlogin, uri, pw_cb, pw_cbarg, mechtype);
         if (ret != CKR_OK) {
-            return ret;
+            goto done;
         }
     } else {
+        slot_idx = 0;
+        ret = CKR_CANCEL;
         /* caller is cycling through slots, find the next viable one */
-        for (i = 0; i < nslots; i++) {
-            /* seek to next slot to check */
-            if (id != CK_UNAVAILABLE_INFORMATION && id != slots[i]->id) {
+        for (slot = p11prov_fetch_slot(slots, &slot_idx); slot != NULL;
+             slot = p11prov_fetch_slot(slots, &slot_idx)) {
+            if (id != CK_UNAVAILABLE_INFORMATION && id != slot->id) {
+                /* seek to next slot to check */
                 continue;
             } else {
                 /* found next slot */
                 id = CK_UNAVAILABLE_INFORMATION;
             }
 
-            ret = check_slot(provctx, slots[i], reqlogin, uri, pw_cb, pw_cbarg,
+            ret = check_slot(provctx, slot, reqlogin, uri, pw_cb, pw_cbarg,
                              mechtype);
             if (ret != CKR_OK) {
                 /* keep going */
                 continue;
             }
 
-            slot = slots[i];
-            id = slots[i]->id;
+            id = slot->id;
             break;
         }
 
@@ -790,8 +879,10 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
              * results */
             *slotid = id;
             if (next_slotid) {
-                if (i + 1 < nslots) {
-                    *next_slotid = slots[i + 1]->id;
+                P11PROV_SLOT *next_slot;
+                next_slot = p11prov_fetch_slot(slots, &slot_idx);
+                if (next_slot) {
+                    *next_slotid = next_slot->id;
                 } else {
                     *next_slotid = CK_UNAVAILABLE_INFORMATION;
                 }
@@ -800,7 +891,7 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
             if (next_slotid) {
                 *next_slotid = CK_UNAVAILABLE_INFORMATION;
             }
-            return ret;
+            goto done;
         }
     }
 
@@ -810,7 +901,7 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
 
     /* LOCKED SECTION ------------- */
     pthread_mutex_lock(&slot->pool->lock);
-    for (i = 0; i < slot->pool->num_p11sessions; i++) {
+    for (int i = 0; i < slot->pool->num_p11sessions; i++) {
         if (slot->pool->sessions[i]->free) {
             /* store the first free session we find, but continue to search for
              * a free session with an actual cached token session */
@@ -836,19 +927,22 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
             P11PROV_raise(provctx, CKR_GENERAL_ERROR,
                           "Unexpected busy session while holding lock");
             ret = CKR_GENERAL_ERROR;
+            /* null session here or it will be derefd on function exit */
+            session = NULL;
         }
     }
     pthread_mutex_unlock(&slot->pool->lock);
     /* ------------- LOCKED SECTION */
 
     if (ret != CKR_OK) {
-        return ret;
+        goto done;
     }
 
     if (session == NULL) {
         session = p11prov_session_new(provctx, slot);
         if (session == NULL) {
-            return CKR_GENERAL_ERROR;
+            ret = CKR_GENERAL_ERROR;
+            goto done;
         }
     }
 
@@ -859,7 +953,8 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                       "Failed to ref count session");
         /* intentionally leave this broken session busy so it won't be
          * used anymore */
-        return CKR_GENERAL_ERROR;
+        ret = CKR_GENERAL_ERROR;
+        goto done;
     }
 
     session->flags = flags;
@@ -900,6 +995,7 @@ done:
     } else {
         p11prov_session_free(session);
     }
+    p11prov_return_slots(slots);
     return ret;
 }
 
@@ -907,25 +1003,33 @@ CK_RV p11prov_take_login_session(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
                                  P11PROV_SESSION **_session)
 {
     P11PROV_SESSION *session = NULL;
-    struct p11prov_slot **slots = NULL;
-    struct p11prov_slot *slot = NULL;
-    int nslots = 0;
+    P11PROV_SLOTS_CTX *slots = NULL;
+    P11PROV_SLOT *slot = NULL;
+    int slot_idx = 0;
+    CK_RV ret;
 
     P11PROV_debug("Get login session from slot %lu", slotid);
 
-    nslots = p11prov_ctx_get_slots(provctx, &slots);
-    for (int i = 0; i < nslots; i++) {
-        if (slots[i]->id == slotid) {
-            slot = slots[i];
+    ret = p11prov_take_slots(provctx, &slots);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+
+    for (slot = p11prov_fetch_slot(slots, &slot_idx); slot != NULL;
+         slot = p11prov_fetch_slot(slots, &slot_idx)) {
+
+        if (slot->id == slotid) {
             break;
         }
     }
     if (!slot || !slot->pool) {
-        return CKR_SLOT_ID_INVALID;
+        ret = CKR_SLOT_ID_INVALID;
+        goto done;
     }
 
     if (!slot->pool->login_session) {
-        return CKR_USER_NOT_LOGGED_IN;
+        ret = CKR_USER_NOT_LOGGED_IN;
+        goto done;
     }
 
     session = slot->pool->login_session;
@@ -934,7 +1038,11 @@ CK_RV p11prov_take_login_session(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
     pthread_mutex_lock(&session->lock);
 
     *_session = session;
-    return CKR_OK;
+    ret = CKR_OK;
+
+done:
+    p11prov_return_slots(slots);
+    return ret;
 }
 
 void p11prov_return_login_session(P11PROV_SESSION *session)
