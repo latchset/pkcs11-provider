@@ -359,7 +359,7 @@ static int p11prov_digest_get_params(CK_MECHANISM_TYPE digest,
     OSSL_PARAM *p = NULL;
     CK_RV ret;
 
-    P11PROV_debug("digest get params: digest=%ld, params=%p", digest, params);
+    P11PROV_debug("digest get params: digest=%lX, params=%p", digest, params);
 
     p = OSSL_PARAM_locate(params, OSSL_DIGEST_PARAM_BLOCK_SIZE);
     if (p) {
@@ -374,7 +374,7 @@ static int p11prov_digest_get_params(CK_MECHANISM_TYPE digest,
             ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
             return RET_OSSL_ERR;
         }
-        P11PROV_debug("digest=%ld, block_size = %zd", digest, block_size);
+        P11PROV_debug("block_size = %zd", digest, block_size);
     }
     p = OSSL_PARAM_locate(params, OSSL_DIGEST_PARAM_SIZE);
     if (p) {
@@ -389,7 +389,7 @@ static int p11prov_digest_get_params(CK_MECHANISM_TYPE digest,
             ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
             return RET_OSSL_ERR;
         }
-        P11PROV_debug("digest=%ld, digest_size = %zd", digest, digest_size);
+        P11PROV_debug("digest_size = %zd", digest, digest_size);
     }
     p = OSSL_PARAM_locate(params, OSSL_DIGEST_PARAM_XOF);
     if (p) {
