@@ -187,6 +187,9 @@ P11PROV_CTX *p11prov_obj_get_prov_ctx(P11PROV_OBJ *obj)
     return obj->ctx;
 }
 
+/* CKA_ID
+ * CKA_LABEL
+ * CKA_ALLOWED_MECHANISMS see p11prov_obj_from_handle() */
 #define BASE_KEY_ATTRS_NUM 3
 
 #define RSA_ATTRS_NUM (BASE_KEY_ATTRS_NUM + 2)
@@ -194,24 +197,31 @@ static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                          CK_OBJECT_HANDLE object, P11PROV_OBJ *key)
 {
     struct fetch_attrs attrs[RSA_ATTRS_NUM];
-    CK_ULONG n_len = 0, e_len = 0, id_len = 0, label_len = 0;
-    CK_BYTE *n = NULL, *e = NULL, *id = NULL;
+    CK_ULONG mod_len = 0, exp_len = 0, id_len = 0, label_len = 0;
+    CK_BYTE *mod = NULL, *exp = NULL, *id = NULL;
     CK_UTF8CHAR *label = NULL;
+    int n;
     int ret;
 
     key->attrs = OPENSSL_zalloc(RSA_ATTRS_NUM * sizeof(CK_ATTRIBUTE));
     if (key->attrs == NULL) {
         return CKR_HOST_MEMORY;
     }
-    FA_ASSIGN_ALL(attrs[0], CKA_MODULUS, &n, &n_len, true, true);
-    FA_ASSIGN_ALL(attrs[1], CKA_PUBLIC_EXPONENT, &e, &e_len, true, true);
-    FA_ASSIGN_ALL(attrs[2], CKA_ID, &id, &id_len, true, false);
-    FA_ASSIGN_ALL(attrs[3], CKA_LABEL, &label, &label_len, true, false);
-    ret = p11prov_fetch_attributes(ctx, session, object, attrs, 4);
+
+    n = 0;
+    FA_ASSIGN_ALL(attrs[n], CKA_MODULUS, &mod, &mod_len, true, true);
+    n++;
+    FA_ASSIGN_ALL(attrs[n], CKA_PUBLIC_EXPONENT, &exp, &exp_len, true, true);
+    n++;
+    FA_ASSIGN_ALL(attrs[n], CKA_ID, &id, &id_len, true, false);
+    n++;
+    FA_ASSIGN_ALL(attrs[n], CKA_LABEL, &label, &label_len, true, false);
+    n++;
+    ret = p11prov_fetch_attributes(ctx, session, object, attrs, n);
     if (ret != CKR_OK) {
         /* free any allocated memory */
-        OPENSSL_free(n);
-        OPENSSL_free(e);
+        OPENSSL_free(mod);
+        OPENSSL_free(exp);
         OPENSSL_free(label);
         OPENSSL_free(id);
 
@@ -222,10 +232,11 @@ static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         return ret;
     }
 
-    key->data.key.size = n_len;
-    key->data.key.bit_size = n_len * 8;
-    CKATTR_ASSIGN_ALL(key->attrs[0], CKA_MODULUS, n, n_len);
-    CKATTR_ASSIGN_ALL(key->attrs[1], CKA_PUBLIC_EXPONENT, e, e_len);
+    key->data.key.size = mod_len;
+    key->data.key.bit_size = mod_len * 8;
+    key->data.key.size = mod_len;
+    CKATTR_ASSIGN_ALL(key->attrs[0], CKA_MODULUS, mod, mod_len);
+    CKATTR_ASSIGN_ALL(key->attrs[1], CKA_PUBLIC_EXPONENT, exp, exp_len);
     key->numattrs = 2;
     if (id_len > 0) {
         CKATTR_ASSIGN_ALL(key->attrs[key->numattrs], CKA_ID, id, id_len);
