@@ -28,6 +28,7 @@ struct p11prov_obj {
     CK_OBJECT_HANDLE handle;
     CK_OBJECT_CLASS class;
     CK_OBJECT_HANDLE cached;
+    CK_BBOOL cka_token;
 
     union {
         struct p11prov_key key;
@@ -101,8 +102,9 @@ static void cache_key(P11PROV_OBJ *obj)
     CK_SESSION_HANDLE sess;
     CK_RV ret;
 
-    /* We cache only keys */
-    if (obj->class != CKO_PRIVATE_KEY && obj->class != CKO_PUBLIC_KEY) {
+    /* We cache only keys on the token */
+    if ((obj->class != CKO_PRIVATE_KEY && obj->class != CKO_PUBLIC_KEY)
+        || obj->cka_token != CK_TRUE) {
         return;
     }
 
@@ -524,7 +526,9 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     CK_ULONG class_len = sizeof(CK_OBJECT_CLASS);
     CK_KEY_TYPE *key_type;
     CK_ULONG key_type_len = sizeof(CK_KEY_TYPE);
-    struct fetch_attrs attrs[2];
+    CK_BBOOL *token;
+    CK_ULONG token_len = sizeof(CK_BBOOL);
+    struct fetch_attrs attrs[3];
     CK_BBOOL token_supports_allowed_mechs = CK_TRUE;
     CK_RV ret;
 
@@ -550,7 +554,11 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     FA_ASSIGN_ALL(attrs[1], CKA_KEY_TYPE, &key_type, &key_type_len, false,
                   false);
 
-    ret = p11prov_fetch_attributes(ctx, session, handle, attrs, 2);
+    obj->cka_token = CK_FALSE;
+    token = &obj->cka_token;
+    FA_ASSIGN_ALL(attrs[2], CKA_TOKEN, &token, &token_len, false, false);
+
+    ret = p11prov_fetch_attributes(ctx, session, handle, attrs, 3);
     if (ret != CKR_OK) {
         P11PROV_debug("Failed to query object attributes (%lu)", ret);
         p11prov_obj_free(obj);
