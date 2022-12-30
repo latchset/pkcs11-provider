@@ -77,12 +77,12 @@ int p11prov_ctx_allow_export(P11PROV_CTX *ctx);
 void p11prov_raise(P11PROV_CTX *ctx, const char *file, int line,
                    const char *func, int errnum, const char *fmt, ...);
 
-#define P11PROV_raise(ctx, errnum, ...) \
+#define P11PROV_raise(ctx, errnum, format, ...) \
     do { \
         p11prov_raise((ctx), OPENSSL_FILE, OPENSSL_LINE, OPENSSL_FUNC, \
-                      (errnum), __VA_ARGS__); \
-        if (errnum) P11PROV_debug("Error: %lu", (unsigned long)(errnum)); \
-        P11PROV_debug(__VA_ARGS__); \
+                      (errnum), format, ##__VA_ARGS__); \
+        P11PROV_debug("Error: 0x%08lX; " format, (unsigned long)(errnum), \
+                      ##__VA_ARGS__); \
     } while (0)
 
 /* dispatching */

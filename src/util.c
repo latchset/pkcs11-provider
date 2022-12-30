@@ -91,7 +91,7 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                     return ret;
                 }
             }
-            P11PROV_debug("Attribute| type:%lu value:%p, len:%lu",
+            P11PROV_debug("Attribute| type:0x%08lX value:%p, len:%lu",
                           attrs[i].type, *attrs[i].value, *attrs[i].value_len);
         }
         ret = CKR_OK;
