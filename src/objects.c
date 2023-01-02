@@ -90,7 +90,7 @@ static void destroy_key_cache(P11PROV_OBJ *obj, P11PROV_SESSION *session)
     obj->cached = CK_INVALID_HANDLE;
 
     if (_session) {
-        p11prov_return_login_session(_session);
+        p11prov_return_session(_session);
     }
 }
 
@@ -127,7 +127,7 @@ static void cache_key(P11PROV_OBJ *obj)
     P11PROV_debug("Key %lu:%lu cached as %lu:%lu", obj->slotid, obj->handle,
                   session, obj->cached);
 
-    p11prov_return_login_session(session);
+    p11prov_return_session(session);
     return;
 }
 
@@ -805,7 +805,7 @@ static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
     }
 
 done:
-    p11prov_session_free(session);
+    p11prov_return_session(session);
     return retobj;
 }
 
@@ -924,14 +924,14 @@ again:
         if (first_pass) {
             first_pass = false;
             /* TODO: Explicitly mark handle invalid */
-            p11prov_session_free(s);
+            p11prov_return_session(s);
             s = *session = NULL;
             goto again;
         }
         /* fallthrough */
     default:
         if (*session == NULL) {
-            p11prov_session_free(s);
+            p11prov_return_session(s);
         }
         return ret;
     }
@@ -969,7 +969,7 @@ CK_RV p11prov_obj_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
      * exactly the token is refusing ? */
 
     if (s != session) {
-        p11prov_session_free(s);
+        p11prov_return_session(s);
     }
     return ret;
 }

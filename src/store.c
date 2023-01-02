@@ -37,9 +37,7 @@ static void p11prov_store_ctx_free(struct p11prov_store_ctx *ctx)
         return;
     }
 
-    if (ctx->session != NULL) {
-        p11prov_session_free(ctx->session);
-    }
+    p11prov_return_session(ctx->session);
 
     p11prov_uri_free(ctx->parsed_uri);
     OPENSSL_free(ctx->subject.pValue);
@@ -95,7 +93,7 @@ static void store_fetch(struct p11prov_store_ctx *ctx,
         nextid = CK_UNAVAILABLE_INFORMATION;
 
         if (ctx->session != NULL) {
-            p11prov_session_free(ctx->session);
+            p11prov_return_session(ctx->session);
             ctx->session = NULL;
         }
 

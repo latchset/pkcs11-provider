@@ -139,7 +139,7 @@ static void *p11prov_sig_dupctx(void *ctx)
         ret = p11prov_SetOperationState(sigctx->provctx, sess, state, state_len,
                                         handle, handle);
         if (ret != CKR_OK) {
-            p11prov_session_free(sigctx->session);
+            p11prov_return_session(sigctx->session);
             sigctx->session = NULL;
         }
     }
@@ -157,7 +157,7 @@ static void p11prov_sig_freectx(void *ctx)
         return;
     }
 
-    p11prov_session_free(sigctx->session);
+    p11prov_return_session(sigctx->session);
     p11prov_obj_free(sigctx->key);
     OPENSSL_free(sigctx->properties);
     OPENSSL_clear_free(sigctx, sizeof(P11PROV_SIG_CTX));
@@ -619,7 +619,7 @@ static int p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
             || ret == CKR_MECHANISM_PARAM_INVALID) {
             ERR_raise(ERR_LIB_PROV, PROV_R_ILLEGAL_OR_UNSUPPORTED_PADDING_MODE);
         }
-        p11prov_session_free(session);
+        p11prov_return_session(session);
         return result;
     }
 
@@ -703,7 +703,7 @@ static int p11prov_sig_operate(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
     result = RET_OSSL_OK;
 
 endsess:
-    p11prov_session_free(session);
+    p11prov_return_session(session);
     if (tbs == data) {
         OPENSSL_cleanse(data, sizeof(data));
     }
@@ -731,7 +731,7 @@ static int p11prov_sig_digest_update(P11PROV_SIG_CTX *sigctx,
         ret = p11prov_VerifyUpdate(sigctx->provctx, sess, data, datalen);
     }
     if (ret != CKR_OK) {
-        p11prov_session_free(sigctx->session);
+        p11prov_return_session(sigctx->session);
         sigctx->session = NULL;
         return RET_OSSL_ERR;
     }
@@ -772,7 +772,7 @@ static int p11prov_sig_digest_final(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
         result = RET_OSSL_OK;
     }
 
-    p11prov_session_free(sigctx->session);
+    p11prov_return_session(sigctx->session);
     sigctx->session = NULL;
     return result;
 }
