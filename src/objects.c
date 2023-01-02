@@ -28,6 +28,7 @@ struct p11prov_obj {
     CK_OBJECT_HANDLE handle;
     CK_OBJECT_CLASS class;
     CK_OBJECT_HANDLE cached;
+    CK_BBOOL cka_copyable;
     CK_BBOOL cka_token;
 
     union {
@@ -104,7 +105,7 @@ static void cache_key(P11PROV_OBJ *obj)
 
     /* We cache only keys on the token */
     if ((obj->class != CKO_PRIVATE_KEY && obj->class != CKO_PUBLIC_KEY)
-        || obj->cka_token != CK_TRUE) {
+        || obj->cka_token != CK_TRUE || obj->cka_copyable != TRUE) {
         return;
     }
 
@@ -122,6 +123,8 @@ static void cache_key(P11PROV_OBJ *obj)
                              &obj->cached);
     if (ret != CKR_OK) {
         P11PROV_debug("Failed to cache key. Error %lx", ret);
+        /* switch copyable so we do not try again */
+        obj->cka_copyable = CK_FALSE;
     }
 
     P11PROV_debug("Key %lu:%lu cached as %lu:%lu", obj->slotid, obj->handle,
@@ -526,9 +529,11 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     CK_ULONG class_len = sizeof(CK_OBJECT_CLASS);
     CK_KEY_TYPE *key_type;
     CK_ULONG key_type_len = sizeof(CK_KEY_TYPE);
+    CK_BBOOL *copyable;
+    CK_ULONG copyable_len = sizeof(CK_BBOOL);
     CK_BBOOL *token;
     CK_ULONG token_len = sizeof(CK_BBOOL);
-    struct fetch_attrs attrs[3];
+    struct fetch_attrs attrs[4];
     CK_BBOOL token_supports_allowed_mechs = CK_TRUE;
     CK_RV ret;
 
@@ -554,11 +559,16 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     FA_ASSIGN_ALL(attrs[1], CKA_KEY_TYPE, &key_type, &key_type_len, false,
                   false);
 
+    obj->cka_copyable = CK_FALSE;
+    copyable = &obj->cka_copyable;
+    FA_ASSIGN_ALL(attrs[2], CKA_COPYABLE, &copyable, &copyable_len, false,
+                  false);
+
     obj->cka_token = CK_FALSE;
     token = &obj->cka_token;
-    FA_ASSIGN_ALL(attrs[2], CKA_TOKEN, &token, &token_len, false, false);
+    FA_ASSIGN_ALL(attrs[3], CKA_TOKEN, &token, &token_len, false, false);
 
-    ret = p11prov_fetch_attributes(ctx, session, handle, attrs, 3);
+    ret = p11prov_fetch_attributes(ctx, session, handle, attrs, 4);
     if (ret != CKR_OK) {
         P11PROV_debug("Failed to query object attributes (%lu)", ret);
         p11prov_obj_free(obj);
