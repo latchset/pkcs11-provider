@@ -72,7 +72,7 @@ static void p11prov_hkdf_reset(void *ctx)
     /* free all allocated resources */
     p11prov_obj_free(hkdfctx->key);
     if (hkdfctx->session) {
-        p11prov_session_free(hkdfctx->session);
+        p11prov_return_session(hkdfctx->session);
         hkdfctx->session = NULL;
     }
 

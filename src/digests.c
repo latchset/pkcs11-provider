@@ -219,7 +219,7 @@ static void *p11prov_digest_dupctx(void *ctx)
     ret = p11prov_SetOperationState(dctx->provctx, sess, state, state_len,
                                     CK_INVALID_HANDLE, CK_INVALID_HANDLE);
     if (ret != CKR_OK) {
-        p11prov_session_free(dctx->session);
+        p11prov_return_session(dctx->session);
         dctx->session = NULL;
     }
 
@@ -237,7 +237,7 @@ static void p11prov_digest_freectx(void *ctx)
     if (!ctx) {
         return;
     }
-    p11prov_session_free(dctx->session);
+    p11prov_return_session(dctx->session);
     OPENSSL_clear_free(dctx, sizeof(P11PROV_DIGEST_CTX));
 }
 
@@ -273,7 +273,7 @@ static int p11prov_digest_init(void *ctx, const OSSL_PARAM params[])
 
     ret = p11prov_DigestInit(dctx->provctx, sess, &mechanism);
     if (ret != CKR_OK) {
-        p11prov_session_free(dctx->session);
+        p11prov_return_session(dctx->session);
         dctx->session = NULL;
         return RET_OSSL_ERR;
     }

@@ -313,7 +313,7 @@ static void *p11prov_common_gen(struct key_generator *ctx,
         /* generate unique id for the key */
         ret = p11prov_GenerateRandom(ctx->provctx, sh, id, sizeof(id));
         if (ret != CKR_OK) {
-            p11prov_session_free(session);
+            p11prov_return_session(session);
             return NULL;
         }
         id_ptr = id;
@@ -343,17 +343,17 @@ static void *p11prov_common_gen(struct key_generator *ctx,
                                   pubkey_template, pubtsize, privkey_template,
                                   privtsize, &pubkey, &privkey);
     if (ret != CKR_OK) {
-        p11prov_session_free(session);
+        p11prov_return_session(session);
         return NULL;
     }
 
     ret = p11prov_obj_from_handle(ctx->provctx, session, privkey, &key);
     if (ret != CKR_OK) {
-        p11prov_session_free(session);
+        p11prov_return_session(session);
         return NULL;
     }
 
-    p11prov_session_free(session);
+    p11prov_return_session(session);
     return key;
 }
 

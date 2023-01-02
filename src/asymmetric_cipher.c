@@ -202,7 +202,7 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
     result = RET_OSSL_OK;
 
 endsess:
-    p11prov_session_free(session);
+    p11prov_return_session(session);
     return result;
 }
 
@@ -306,7 +306,7 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     result = RET_OSSL_OK;
 
 endsess:
-    p11prov_session_free(session);
+    p11prov_return_session(session);
     return result;
 }
 

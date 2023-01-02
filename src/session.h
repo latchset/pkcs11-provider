@@ -13,7 +13,6 @@ P11PROV_SLOT *p11prov_fetch_slot(P11PROV_SLOTS_CTX *sctx, int *idx);
 int p11prov_slot_get_mechanisms(P11PROV_SLOT *slot, CK_MECHANISM_TYPE **mechs);
 
 /* Sessions */
-void p11prov_session_free(P11PROV_SESSION *session);
 CK_SESSION_HANDLE p11prov_session_handle(P11PROV_SESSION *session);
 CK_SLOT_ID p11prov_session_slotid(P11PROV_SESSION *session);
 CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
@@ -23,6 +22,6 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                           bool reqlogin, bool rw, P11PROV_SESSION **session);
 CK_RV p11prov_take_login_session(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
                                  P11PROV_SESSION **_session);
-void p11prov_return_login_session(P11PROV_SESSION *session);
+void p11prov_return_session(P11PROV_SESSION *session);
 
 #endif /* _SESSION_H */
