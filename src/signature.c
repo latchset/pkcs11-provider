@@ -49,7 +49,6 @@ static P11PROV_SIG_CTX *p11prov_sig_newctx(P11PROV_CTX *ctx,
     }
 
     sigctx->mechtype = type;
-    sigctx->session = CK_INVALID_HANDLE;
 
     return sigctx;
 }
@@ -69,6 +68,18 @@ static void *p11prov_sig_dupctx(void *ctx)
         return NULL;
     }
 
+    switch (sigctx->operation) {
+    case CKF_SIGN:
+        reqlogin = true;
+        /* fallthrough */
+    case CKF_VERIFY:
+        slotid = p11prov_obj_get_slotid(sigctx->key);
+        handle = p11prov_obj_get_handle(sigctx->key);
+        break;
+    default:
+        return NULL;
+    }
+
     newctx = p11prov_sig_newctx(sigctx->provctx, sigctx->mechtype,
                                 sigctx->properties);
     if (newctx == NULL) {
@@ -79,32 +90,21 @@ static void *p11prov_sig_dupctx(void *ctx)
     newctx->mechtype = sigctx->mechtype;
     newctx->digest = sigctx->digest;
     newctx->pss_params = sigctx->pss_params;
+    newctx->operation = sigctx->operation;
 
     if (sigctx->session == NULL) {
         goto done;
     }
 
-    /* This is not really funny. OpenSSL by dfault assume contexts with
+    /* This is not really funny. OpenSSL by default assumes contexts with
      * operations in flight can be easily duplicated, with all the
-     * cryptographic status and then both context can keep going
+     * cryptographic status and then both contexts can keep going
      * independently. We'll try here, but on failure we just 'move' the
-     * to the new token and hope for the best */
+     * session to the new context (because that's what OpenSSL seem to
+     * prefer to use after duplication) and hope for the best. */
 
     newctx->session = sigctx->session;
     sigctx->session = NULL;
-
-    switch (sigctx->operation) {
-    case CKF_SIGN:
-        reqlogin = true;
-        /* fallthrough */
-    case CKF_VERIFY:
-        slotid = p11prov_obj_get_slotid(sigctx->key);
-        handle = p11prov_obj_get_handle(newctx->key);
-        break;
-    default:
-        p11prov_sig_freectx(newctx);
-        return NULL;
-    }
 
     if (slotid != CK_UNAVAILABLE_INFORMATION && handle != CK_INVALID_HANDLE) {
         CK_SESSION_HANDLE newsess = p11prov_session_handle(newctx->session);
@@ -137,7 +137,7 @@ static void *p11prov_sig_dupctx(void *ctx)
         sess = p11prov_session_handle(sigctx->session);
 
         ret = p11prov_SetOperationState(sigctx->provctx, sess, state, state_len,
-                                        CK_INVALID_HANDLE, handle);
+                                        handle, handle);
         if (ret != CKR_OK) {
             p11prov_session_free(sigctx->session);
             sigctx->session = NULL;
@@ -146,7 +146,6 @@ static void *p11prov_sig_dupctx(void *ctx)
 
 done:
     OPENSSL_free(state);
-    newctx->operation = sigctx->operation;
     return newctx;
 }
 
