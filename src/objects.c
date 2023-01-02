@@ -95,17 +95,45 @@ static void destroy_key_cache(P11PROV_OBJ *obj, P11PROV_SESSION *session)
     }
 }
 
+static CK_RV supports_caching(P11PROV_CTX *ctx, CK_SLOT_ID id, int action,
+                              CK_BBOOL *data)
+{
+    CK_ULONG data_size = sizeof(CK_BBOOL);
+    void *data_ptr = &data;
+    const char *name = "Caching Supported";
+
+    switch (action) {
+    case GET_ATTR:
+        return p11prov_ctx_get_quirk(ctx, id, name, data_ptr, &data_size);
+    case SET_ATTR:
+        return p11prov_ctx_set_quirk(ctx, id, name, data, data_size);
+    default:
+        return CKR_ARGUMENTS_BAD;
+    }
+}
+
 static void cache_key(P11PROV_OBJ *obj)
 {
     P11PROV_SESSION *session = NULL;
     CK_BBOOL val_false = CK_FALSE;
     CK_ATTRIBUTE template[] = { { CKA_TOKEN, &val_false, sizeof(val_false) } };
     CK_SESSION_HANDLE sess;
+    CK_BBOOL can_cache = CK_TRUE;
     CK_RV ret;
 
     /* We cache only keys on the token */
     if ((obj->class != CKO_PRIVATE_KEY && obj->class != CKO_PUBLIC_KEY)
         || obj->cka_token != CK_TRUE || obj->cka_copyable != TRUE) {
+        return;
+    }
+
+    ret = supports_caching(obj->ctx, obj->slotid, GET_ATTR, &can_cache);
+    if (ret != CKR_OK) {
+        P11PROV_raise(obj->ctx, ret, "Failed to get quirk");
+    }
+    if (can_cache != CK_TRUE) {
+        /* switch copyable so we do not try again */
+        obj->cka_copyable = CK_FALSE;
         return;
     }
 
@@ -122,13 +150,20 @@ static void cache_key(P11PROV_OBJ *obj)
     ret = p11prov_CopyObject(obj->ctx, sess, obj->handle, template, 1,
                              &obj->cached);
     if (ret != CKR_OK) {
-        P11PROV_debug("Failed to cache key. Error %lx", ret);
+        P11PROV_raise(obj->ctx, ret, "Failed to cache key");
+        if (ret == CKR_FUNCTION_NOT_SUPPORTED) {
+            can_cache = CK_FALSE;
+            ret = supports_caching(obj->ctx, obj->slotid, SET_ATTR, &can_cache);
+            if (ret != CKR_OK) {
+                P11PROV_raise(obj->ctx, ret, "Failed to set quirk");
+            }
+        }
         /* switch copyable so we do not try again */
         obj->cka_copyable = CK_FALSE;
+    } else {
+        P11PROV_debug("Key %lu:%lu cached as %lu:%lu", obj->slotid, obj->handle,
+                      session, obj->cached);
     }
-
-    P11PROV_debug("Key %lu:%lu cached as %lu:%lu", obj->slotid, obj->handle,
-                  session, obj->cached);
 
     p11prov_return_session(session);
     return;
