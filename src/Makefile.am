@@ -47,6 +47,10 @@ pkcs11_la_SOURCES = \
 	provider.exports \
 	$(NULL)
 
+EXTRA_DIST = \
+	interface.gen.c \
+	$(NULL)
+
 pkcs11_la_CFLAGS = $(AM_CFLAGS) $(OPENSSL_CFLAGS) -Wall -Werror
 pkcs11_la_LIBADD = $(OPENSSL_LIBS)
 
