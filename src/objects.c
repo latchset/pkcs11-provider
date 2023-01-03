@@ -37,7 +37,7 @@ struct p11prov_obj {
     } data;
 
     CK_ATTRIBUTE *attrs;
-    unsigned long numattrs;
+    int numattrs;
 
     int refcnt;
 };
@@ -215,7 +215,7 @@ void p11prov_obj_free(P11PROV_OBJ *obj)
 
     destroy_key_cache(obj, NULL);
 
-    for (size_t i = 0; i < obj->numattrs; i++) {
+    for (int i = 0; i < obj->numattrs; i++) {
         OPENSSL_free(obj->attrs[i].pValue);
     }
     OPENSSL_free(obj->attrs);
@@ -256,7 +256,7 @@ CK_ATTRIBUTE *p11prov_obj_get_attr(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type)
         return NULL;
     }
 
-    for (size_t i = 0; i < obj->numattrs; i++) {
+    for (int i = 0; i < obj->numattrs; i++) {
         if (obj->attrs[i].type == type) {
             return &obj->attrs[i];
         }
@@ -336,10 +336,8 @@ static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                          CK_OBJECT_HANDLE object, P11PROV_OBJ *key)
 {
     struct fetch_attrs attrs[RSA_ATTRS_NUM];
-    CK_ULONG mod_len = 0, exp_len = 0, id_len = 0, label_len = 0;
-    CK_BYTE *mod = NULL, *exp = NULL, *id = NULL;
-    CK_UTF8CHAR *label = NULL;
-    int n;
+    CK_ATTRIBUTE *mod;
+    int num;
     int ret;
 
     key->attrs = OPENSSL_zalloc(RSA_ATTRS_NUM * sizeof(CK_ATTRIBUTE));
@@ -347,22 +345,15 @@ static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         return CKR_HOST_MEMORY;
     }
 
-    n = 0;
-    FA_ASSIGN_ALL(attrs[n], CKA_MODULUS, &mod, &mod_len, true, true);
-    n++;
-    FA_ASSIGN_ALL(attrs[n], CKA_PUBLIC_EXPONENT, &exp, &exp_len, true, true);
-    n++;
-    FA_ASSIGN_ALL(attrs[n], CKA_ID, &id, &id_len, true, false);
-    n++;
-    FA_ASSIGN_ALL(attrs[n], CKA_LABEL, &label, &label_len, true, false);
-    n++;
-    ret = p11prov_fetch_attributes(ctx, session, object, attrs, n);
+    num = 0;
+    FA_SET_BUF_ALLOC(attrs, num, CKA_MODULUS, true);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_PUBLIC_EXPONENT, true);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
+    ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
     if (ret != CKR_OK) {
         /* free any allocated memory */
-        OPENSSL_free(mod);
-        OPENSSL_free(exp);
-        OPENSSL_free(label);
-        OPENSSL_free(id);
+        p11prov_fetch_attrs_free(attrs, num);
 
         if (key->class == CKO_PRIVATE_KEY) {
             /* A private key may not always return these */
@@ -371,21 +362,17 @@ static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         return ret;
     }
 
-    key->data.key.size = mod_len;
-    key->data.key.bit_size = mod_len * 8;
-    key->data.key.size = mod_len;
-    CKATTR_ASSIGN_ALL(key->attrs[0], CKA_MODULUS, mod, mod_len);
-    CKATTR_ASSIGN_ALL(key->attrs[1], CKA_PUBLIC_EXPONENT, exp, exp_len);
-    key->numattrs = 2;
-    if (id_len > 0) {
-        CKATTR_ASSIGN_ALL(key->attrs[key->numattrs], CKA_ID, id, id_len);
-        key->numattrs++;
+    key->numattrs = 0;
+    p11prov_move_alloc_attrs(attrs, num, key->attrs, &key->numattrs);
+
+    mod = p11prov_obj_get_attr(key, CKA_MODULUS);
+    if (!mod) {
+        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR, "Missing Modulus");
+        return CKR_GENERAL_ERROR;
     }
-    if (label_len > 0) {
-        CKATTR_ASSIGN_ALL(key->attrs[key->numattrs], CKA_LABEL, label,
-                          label_len);
-        key->numattrs++;
-    }
+    key->data.key.size = mod->ulValueLen;
+    key->data.key.bit_size = key->data.key.size * 8;
+
     return CKR_OK;
 }
 
@@ -394,10 +381,8 @@ static int fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                         CK_OBJECT_HANDLE object, P11PROV_OBJ *key)
 {
     struct fetch_attrs attrs[EC_ATTRS_NUM];
-    CK_ULONG params_len = 0, point_len = 0, id_len = 0, label_len = 0;
-    CK_BYTE *params = NULL, *point = NULL, *id = NULL;
-    CK_UTF8CHAR *label = NULL;
-    int n;
+    CK_ATTRIBUTE *params;
+    int num;
     int ret;
 
     key->attrs = OPENSSL_zalloc(EC_ATTRS_NUM * sizeof(CK_ATTRIBUTE));
@@ -405,40 +390,34 @@ static int fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         return CKR_HOST_MEMORY;
     }
 
-    n = 0;
-    FA_ASSIGN_ALL(attrs[n], CKA_EC_PARAMS, &params, &params_len, true, true);
-    n++;
+    num = 0;
+    FA_SET_BUF_ALLOC(attrs, num, CKA_EC_PARAMS, true);
     if (key->class == CKO_PUBLIC_KEY) {
-        FA_ASSIGN_ALL(attrs[n], CKA_EC_POINT, &point, &point_len, true, true);
-        n++;
+        FA_SET_BUF_ALLOC(attrs, num, CKA_EC_POINT, true);
     }
-    FA_ASSIGN_ALL(attrs[n], CKA_ID, &id, &id_len, true, false);
-    n++;
-    FA_ASSIGN_ALL(attrs[n], CKA_LABEL, &label, &label_len, true, false);
-    n++;
-    ret = p11prov_fetch_attributes(ctx, session, object, attrs, n);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
+    ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
     if (ret != CKR_OK) {
         /* free any allocated memory */
-        OPENSSL_free(params);
-        OPENSSL_free(point);
-        OPENSSL_free(label);
-        OPENSSL_free(id);
+        p11prov_fetch_attrs_free(attrs, num);
         return ret;
     }
 
+    key->numattrs = 0;
+    p11prov_move_alloc_attrs(attrs, num, key->attrs, &key->numattrs);
+
     /* decode CKA_EC_PARAMS and store some extra attrs for
      * convenience */
+    params = p11prov_obj_get_attr(key, CKA_EC_PARAMS);
     if (params != NULL) {
-        const unsigned char *der = params;
+        const unsigned char *der = params->pValue;
         EC_GROUP *group = NULL;
 
-        (void)d2i_ECPKParameters(&group, &der, params_len);
+        (void)d2i_ECPKParameters(&group, &der, params->ulValueLen);
         if (group == NULL) {
             /* free any allocated memory */
-            OPENSSL_free(params);
-            OPENSSL_free(point);
-            OPENSSL_free(label);
-            OPENSSL_free(id);
+            p11prov_fetch_attrs_free(attrs, num);
             return CKR_KEY_INDIGESTIBLE;
         }
 
@@ -450,21 +429,6 @@ static int fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         key->data.key.size = CK_UNAVAILABLE_INFORMATION;
     }
 
-    CKATTR_ASSIGN_ALL(key->attrs[0], CKA_EC_PARAMS, params, params_len);
-    key->numattrs = 1;
-    if (point_len > 0) {
-        CKATTR_ASSIGN_ALL(key->attrs[1], CKA_EC_POINT, point, point_len);
-        key->numattrs++;
-    }
-    if (id_len > 0) {
-        CKATTR_ASSIGN_ALL(key->attrs[key->numattrs], CKA_ID, id, id_len);
-        key->numattrs++;
-    }
-    if (label_len > 0) {
-        CKATTR_ASSIGN_ALL(key->attrs[key->numattrs], CKA_LABEL, label,
-                          label_len);
-        key->numattrs++;
-    }
     return CKR_OK;
 }
 
@@ -473,18 +437,8 @@ static int fetch_certificate(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                              CK_OBJECT_HANDLE object, P11PROV_OBJ *crt)
 {
     struct fetch_attrs attrs[CERT_ATTRS_NUM];
-    CK_ULONG crt_type_len = sizeof(CK_CERTIFICATE_TYPE);
-    CK_CERTIFICATE_TYPE *crt_type;
-    CK_ULONG subject_len = 0, id_len = 0, issuer_len = 0, serial_len = 0;
-    CK_BYTE *subject = NULL, *id = NULL, *issuer = NULL, *serial = NULL;
-    CK_ULONG value_len = 0, pubkey_len = 0;
-    CK_BYTE *value = NULL, *pubkey = NULL;
-    CK_BBOOL *trusted;
-    CK_ULONG trusted_len = sizeof(CK_BBOOL);
-    CK_CERTIFICATE_CATEGORY *category;
-    CK_ULONG category_len = sizeof(CK_CERTIFICATE_CATEGORY);
+    int num;
     CK_RV ret;
-    int n;
 
     crt->attrs = OPENSSL_zalloc(CERT_ATTRS_NUM * sizeof(CK_ATTRIBUTE));
     if (crt->attrs == NULL) {
@@ -492,66 +446,28 @@ static int fetch_certificate(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         return CKR_HOST_MEMORY;
     }
 
-    n = 0;
+    num = 0;
+    FA_SET_VAR_VAL(attrs, num, CKA_CERTIFICATE_TYPE, crt->data.crt.type, true);
+    FA_SET_VAR_VAL(attrs, num, CKA_TRUSTED, crt->data.crt.trusted, false);
+    FA_SET_VAR_VAL(attrs, num, CKA_CERTIFICATE_CATEGORY, crt->data.crt.category,
+                   false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_SUBJECT, true);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_ISSUER, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_SERIAL_NUMBER, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_VALUE, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_PUBLIC_KEY_INFO, false);
 
-    crt_type = &crt->data.crt.type;
-    FA_ASSIGN_ALL(attrs[n], CKA_CERTIFICATE_TYPE, &crt_type, &crt_type_len,
-                  false, true);
-    n++;
-    trusted = &crt->data.crt.trusted;
-    FA_ASSIGN_ALL(attrs[n], CKA_TRUSTED, &trusted, &trusted_len, false, false);
-    n++;
-    category = &crt->data.crt.category;
-    FA_ASSIGN_ALL(attrs[n], CKA_CERTIFICATE_CATEGORY, &category, &category_len,
-                  false, false);
-    n++;
-    FA_ASSIGN_ALL(attrs[n], CKA_SUBJECT, &subject, &subject_len, true, true);
-    n++;
-    FA_ASSIGN_ALL(attrs[n], CKA_ID, &id, &id_len, true, false);
-    n++;
-    FA_ASSIGN_ALL(attrs[n], CKA_ISSUER, &issuer, &issuer_len, true, false);
-    n++;
-    FA_ASSIGN_ALL(attrs[n], CKA_SERIAL_NUMBER, &serial, &serial_len, true,
-                  false);
-    n++;
-    FA_ASSIGN_ALL(attrs[n], CKA_VALUE, &value, &value_len, true, false);
-    n++;
-    FA_ASSIGN_ALL(attrs[n], CKA_PUBLIC_KEY_INFO, &pubkey, &pubkey_len, true,
-                  false);
-    n++;
-
-    ret = p11prov_fetch_attributes(ctx, session, object, attrs, n);
+    ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
     if (ret != CKR_OK) {
         P11PROV_debug("Failed to query certificate attributes (%lu)", ret);
+        p11prov_fetch_attrs_free(attrs, num);
         return ret;
     }
 
-    CKATTR_ASSIGN_ALL(crt->attrs[0], CKA_SUBJECT, subject, subject_len);
-    crt->numattrs = 1;
-    if (id_len > 0) {
-        CKATTR_ASSIGN_ALL(crt->attrs[crt->numattrs], CKA_ID, id, id_len);
-        crt->numattrs++;
-    }
-    if (issuer_len > 0) {
-        CKATTR_ASSIGN_ALL(crt->attrs[crt->numattrs], CKA_ISSUER, issuer,
-                          issuer_len);
-        crt->numattrs++;
-    }
-    if (serial_len > 0) {
-        CKATTR_ASSIGN_ALL(crt->attrs[crt->numattrs], CKA_SERIAL_NUMBER, serial,
-                          serial_len);
-        crt->numattrs++;
-    }
-    if (value_len > 0) {
-        CKATTR_ASSIGN_ALL(crt->attrs[crt->numattrs], CKA_VALUE, value,
-                          value_len);
-        crt->numattrs++;
-    }
-    if (pubkey_len > 0) {
-        CKATTR_ASSIGN_ALL(crt->attrs[crt->numattrs], CKA_PUBLIC_KEY_INFO,
-                          pubkey, pubkey_len);
-        crt->numattrs++;
-    }
+    crt->numattrs = 0;
+    p11prov_move_alloc_attrs(attrs, num, crt->attrs, &crt->numattrs);
+
     return CKR_OK;
 }
 
@@ -560,15 +476,8 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                               CK_OBJECT_HANDLE handle, P11PROV_OBJ **object)
 {
     P11PROV_OBJ *obj;
-    CK_OBJECT_CLASS *class;
-    CK_ULONG class_len = sizeof(CK_OBJECT_CLASS);
-    CK_KEY_TYPE *key_type;
-    CK_ULONG key_type_len = sizeof(CK_KEY_TYPE);
-    CK_BBOOL *copyable;
-    CK_ULONG copyable_len = sizeof(CK_BBOOL);
-    CK_BBOOL *token;
-    CK_ULONG token_len = sizeof(CK_BBOOL);
     struct fetch_attrs attrs[4];
+    int num;
     CK_BBOOL token_supports_allowed_mechs = CK_TRUE;
     CK_RV ret;
 
@@ -585,25 +494,15 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     }
     obj->handle = handle;
     obj->slotid = p11prov_session_slotid(session);
-
-    class = &obj->class;
-    FA_ASSIGN_ALL(attrs[0], CKA_CLASS, &class, &class_len, false, true);
-
     obj->data.key.type = CK_UNAVAILABLE_INFORMATION;
-    key_type = &obj->data.key.type;
-    FA_ASSIGN_ALL(attrs[1], CKA_KEY_TYPE, &key_type, &key_type_len, false,
-                  false);
 
-    obj->cka_copyable = CK_FALSE;
-    copyable = &obj->cka_copyable;
-    FA_ASSIGN_ALL(attrs[2], CKA_COPYABLE, &copyable, &copyable_len, false,
-                  false);
+    num = 0;
+    FA_SET_VAR_VAL(attrs, num, CKA_CLASS, obj->class, true);
+    FA_SET_VAR_VAL(attrs, num, CKA_KEY_TYPE, obj->data.key.type, false);
+    FA_SET_VAR_VAL(attrs, num, CKA_COPYABLE, obj->cka_copyable, false);
+    FA_SET_VAR_VAL(attrs, num, CKA_TOKEN, obj->cka_token, false);
 
-    obj->cka_token = CK_FALSE;
-    token = &obj->cka_token;
-    FA_ASSIGN_ALL(attrs[3], CKA_TOKEN, &token, &token_len, false, false);
-
-    ret = p11prov_fetch_attributes(ctx, session, handle, attrs, 4);
+    ret = p11prov_fetch_attributes(ctx, session, handle, attrs, num);
     if (ret != CKR_OK) {
         P11PROV_debug("Failed to query object attributes (%lu)", ret);
         p11prov_obj_free(obj);
@@ -650,14 +549,11 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         if (ret != CKR_OK) {
             P11PROV_raise(ctx, ret, "Failed to probe quirk");
         } else if (token_supports_allowed_mechs == CK_TRUE) {
-            CK_BYTE *value;
-            CK_ULONG value_len;
-            FA_ASSIGN_ALL(attrs[0], CKA_ALLOWED_MECHANISMS, &value, &value_len,
-                          true, false);
-            ret = p11prov_fetch_attributes(ctx, session, handle, attrs, 1);
+            num = 0;
+            FA_SET_BUF_ALLOC(attrs, num, CKA_ALLOWED_MECHANISMS, false);
+            ret = p11prov_fetch_attributes(ctx, session, handle, attrs, num);
             if (ret == CKR_OK) {
-                CKATTR_ASSIGN_ALL(obj->attrs[obj->numattrs],
-                                  CKA_ALLOWED_MECHANISMS, value, value_len);
+                CKATTR_MOVE(obj->attrs[obj->numattrs], attrs[0]);
                 obj->numattrs++;
             } else if (ret == CKR_ATTRIBUTE_TYPE_INVALID) {
                 token_supports_allowed_mechs = CK_FALSE;
@@ -708,7 +604,7 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
     case CKO_CERTIFICATE:
     case CKO_PUBLIC_KEY:
     case CKO_PRIVATE_KEY:
-        CKATTR_ASSIGN_ALL(template[tsize], CKA_CLASS, &class, sizeof(class));
+        CKATTR_ASSIGN(template[tsize], CKA_CLASS, &class, sizeof(class));
         tsize++;
         break;
     case CK_UNAVAILABLE_INFORMATION:
@@ -807,7 +703,7 @@ static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
         goto done;
     }
 
-    CKATTR_ASSIGN_ALL(template[0], CKA_CLASS, &class, sizeof(class));
+    CKATTR_ASSIGN(template[0], CKA_CLASS, &class, sizeof(class));
     template[1] = *id;
 
     slotid = p11prov_obj_get_slotid(obj);
@@ -854,6 +750,7 @@ done:
     return retobj;
 }
 
+#define SECRET_KEY_ATTRS 2
 P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        P11PROV_SESSION *session,
                                        bool session_key, unsigned char *secret,
@@ -874,10 +771,8 @@ P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
     };
     CK_OBJECT_HANDLE key_handle;
     P11PROV_OBJ *obj;
-    struct fetch_attrs attrs[2];
-    CK_ULONG id_len = 0, label_len = 0;
-    CK_BYTE *id = NULL;
-    CK_UTF8CHAR *label = NULL;
+    struct fetch_attrs attrs[SECRET_KEY_ATTRS];
+    int num;
     CK_RV ret;
 
     sess = p11prov_session_handle(session);
@@ -906,31 +801,23 @@ P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
     obj->data.key.type = key_type;
     obj->data.key.size = secretlen;
 
-    obj->attrs = OPENSSL_zalloc(2 * sizeof(CK_ATTRIBUTE));
+    obj->attrs = OPENSSL_zalloc(SECRET_KEY_ATTRS * sizeof(CK_ATTRIBUTE));
     if (obj->attrs == NULL) {
         P11PROV_raise(provctx, CKR_HOST_MEMORY, "Allocation failure");
         p11prov_obj_free(obj);
         return NULL;
     }
-    obj->numattrs = 0;
 
-    FA_ASSIGN_ALL(attrs[0], CKA_ID, &id, &id_len, true, false);
-    FA_ASSIGN_ALL(attrs[1], CKA_LABEL, &label, &label_len, true, false);
-    ret = p11prov_fetch_attributes(provctx, session, key_handle, attrs, 2);
+    num = 0;
+    FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
+    ret = p11prov_fetch_attributes(provctx, session, key_handle, attrs, num);
     if (ret == CKR_OK) {
-        if (id_len > 0) {
-            CKATTR_ASSIGN_ALL(obj->attrs[obj->numattrs], CKA_ID, id, id_len);
-            obj->numattrs++;
-        }
-        if (label_len > 0) {
-            CKATTR_ASSIGN_ALL(obj->attrs[obj->numattrs], CKA_LABEL, label,
-                              label_len);
-            obj->numattrs++;
-        }
+        obj->numattrs = 0;
+        p11prov_move_alloc_attrs(attrs, num, obj->attrs, &obj->numattrs);
     } else {
         P11PROV_debug("Failed to query object attributes (%lu)", ret);
-        OPENSSL_free(label);
-        OPENSSL_free(id);
+        p11prov_fetch_attrs_free(attrs, num);
         p11prov_obj_free(obj);
         obj = NULL;
     }
