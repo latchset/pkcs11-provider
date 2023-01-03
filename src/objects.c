@@ -166,6 +166,14 @@ P11PROV_OBJ *p11prov_obj_from_reference(const void *reference,
     return (P11PROV_OBJ *)reference;
 }
 
+P11PROV_CTX *p11prov_obj_get_prov_ctx(P11PROV_OBJ *obj)
+{
+    if (!obj) {
+        return NULL;
+    }
+    return obj->ctx;
+}
+
 #define BASE_KEY_ATTRS_NUM 3
 
 #define RSA_ATTRS_NUM (BASE_KEY_ATTRS_NUM + 2)
@@ -1102,10 +1110,6 @@ int p11prov_obj_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
         return RET_OSSL_ERR;
     }
 
-    if (p11prov_ctx_allow_export(obj->ctx) & DISALLOW_EXPORT_PUBLIC) {
-        return RET_OSSL_ERR;
-    }
-
     attrs[0].type = CKA_MODULUS;
     attrs[1].type = CKA_PUBLIC_EXPONENT;
 
@@ -1146,10 +1150,6 @@ int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
     int ret;
 
     if (p11prov_obj_get_key_type(obj) != CKK_EC) {
-        return RET_OSSL_ERR;
-    }
-
-    if (p11prov_ctx_allow_export(obj->ctx) & DISALLOW_EXPORT_PUBLIC) {
         return RET_OSSL_ERR;
     }
 

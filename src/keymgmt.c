@@ -515,10 +515,15 @@ static int p11prov_rsa_export(void *keydata, int selection,
                               OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
     P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
+    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
 
     P11PROV_debug("rsa export %p", keydata);
 
     if (key == NULL) {
+        return RET_OSSL_ERR;
+    }
+
+    if (p11prov_ctx_allow_export(ctx) & DISALLOW_EXPORT_PUBLIC) {
         return RET_OSSL_ERR;
     }
 
@@ -930,10 +935,15 @@ static int p11prov_ec_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
                              void *cb_arg)
 {
     P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
+    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
 
     P11PROV_debug("ec export %p", keydata);
 
     if (key == NULL) {
+        return RET_OSSL_ERR;
+    }
+
+    if (p11prov_ctx_allow_export(ctx) & DISALLOW_EXPORT_PUBLIC) {
         return RET_OSSL_ERR;
     }
 
