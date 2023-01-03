@@ -7,39 +7,84 @@
 /* Utilities to fetch objects from tokens */
 struct fetch_attrs {
     CK_ATTRIBUTE_TYPE type;
-    CK_BYTE **value;
-    CK_ULONG *value_len;
+    CK_BYTE **value_ptr;
+    CK_ULONG *value_len_ptr;
     bool allocate;
     bool required;
+
+    /* auxiliary members to make life easier */
+    CK_BYTE *value;
+    CK_ULONG value_len;
 };
-#define FA_ASSIGN_ALL(x, _a, _b, _c, _d, _e) \
+#define FA_SET_BUF_VAL(x, n, _t, _v, _l, _a, _r) \
     do { \
-        x.type = _a; \
-        x.value = (unsigned char **)_b; \
-        x.value_len = _c; \
-        x.allocate = _d; \
-        x.required = _e; \
+        x[n].type = _t; \
+        x[n].value_ptr = (CK_BYTE_PTR *)&_v; \
+        x[n].value_len_ptr = &_l; \
+        x[n].allocate = _a; \
+        x[n].required = _r; \
+        x[n].value = NULL; \
+        x[n].value_len = 0; \
+        n++; \
     } while (0)
 
-#define FA_RETURN_VAL(x, _a, _b) \
+#define FA_SET_BUF_ALLOC(x, n, _t, _r) \
     do { \
-        *x.value = _a; \
-        *x.value_len = _b; \
+        x[n].type = _t; \
+        x[n].value = NULL; \
+        x[n].value_len = 0; \
+        x[n].value_ptr = &x[n].value; \
+        x[n].value_len_ptr = &x[n].value_len; \
+        x[n].allocate = true; \
+        x[n].required = _r; \
+        n++; \
     } while (0)
 
-#define FA_RETURN_LEN(x, _a) *x.value_len = _a
+#define FA_SET_VAR_VAL(x, n, _t, _v, _r) \
+    do { \
+        x[n].type = _t; \
+        x[n].value = (CK_BYTE *)&_v; \
+        x[n].value_len = sizeof(_v); \
+        x[n].value_ptr = &x[n].value; \
+        x[n].value_len_ptr = &x[n].value_len; \
+        x[n].allocate = false; \
+        x[n].required = _r; \
+        n++; \
+    } while (0)
 
-#define CKATTR_ASSIGN_ALL(x, _a, _b, _c) \
+#define FA_GET_VAL(x, n) *x[n].value_ptr
+#define FA_GET_LEN(x, n) *x[n].value_len_ptr
+
+#define CKATTR_ASSIGN(x, _a, _b, _c) \
     do { \
         x.type = (_a); \
         x.pValue = (void *)(_b); \
         x.ulValueLen = (_c); \
     } while (0)
 
+#define CKATTR_SET(x, y) \
+    do { \
+        x.type = y.type; \
+        x.pValue = *y.value_ptr; \
+        x.ulValueLen = *y.value_len_ptr; \
+    } while (0)
+
+#define CKATTR_MOVE(x, y) \
+    do { \
+        x.type = y.type; \
+        x.pValue = *y.value_ptr; \
+        x.ulValueLen = *y.value_len_ptr; \
+        *y.value_ptr = NULL; \
+        *y.value_len_ptr = 0; \
+    } while (0)
+
 CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                                CK_OBJECT_HANDLE object,
                                struct fetch_attrs *attrs,
                                unsigned long attrnums);
+void p11prov_move_alloc_attrs(struct fetch_attrs *attrs, int num,
+                              CK_ATTRIBUTE *ck_attrs, int *retnum);
+void p11prov_fetch_attrs_free(struct fetch_attrs *attrs, int num);
 
 #define MAX_PIN_LENGTH 32
 P11PROV_URI *p11prov_parse_uri(P11PROV_CTX *ctx, const char *uri);
