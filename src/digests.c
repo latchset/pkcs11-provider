@@ -374,7 +374,7 @@ static int p11prov_digest_get_params(CK_MECHANISM_TYPE digest,
             ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
             return RET_OSSL_ERR;
         }
-        P11PROV_debug("block_size = %zd", digest, block_size);
+        P11PROV_debug("block_size = %zd", block_size);
     }
     p = OSSL_PARAM_locate(params, OSSL_DIGEST_PARAM_SIZE);
     if (p) {
@@ -389,7 +389,7 @@ static int p11prov_digest_get_params(CK_MECHANISM_TYPE digest,
             ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
             return RET_OSSL_ERR;
         }
-        P11PROV_debug("digest_size = %zd", digest, digest_size);
+        P11PROV_debug("digest_size = %zd", digest_size);
     }
     p = OSSL_PARAM_locate(params, OSSL_DIGEST_PARAM_XOF);
     if (p) {
