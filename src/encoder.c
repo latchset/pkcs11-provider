@@ -117,19 +117,19 @@ static int p11prov_rsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
         return RET_OSSL_ERR;
     }
 
-    keysize = p11prov_obj_get_key_size(key);
+    keysize = p11prov_obj_get_key_bit_size(key);
 
     if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
         CK_OBJECT_CLASS class = p11prov_obj_get_class(key);
         if (class != CKO_PRIVATE_KEY) {
             return RET_OSSL_ERR;
         }
-        BIO_printf(out, "PKCS11 RSA Private Key (%lu bits)\n", keysize * 8);
+        BIO_printf(out, "PKCS11 RSA Private Key (%lu bits)\n", keysize);
         BIO_printf(out, "[Can't export and print private key data]\n");
     }
 
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        BIO_printf(out, "PKCS11 RSA Public Key (%lu bits)\n", keysize * 8);
+        BIO_printf(out, "PKCS11 RSA Public Key (%lu bits)\n", keysize);
         ret = p11prov_obj_export_public_rsa_key(
             key, p11prov_rsa_print_public_key, out);
         if (ret != RET_OSSL_OK) {
@@ -761,18 +761,18 @@ static int p11prov_ec_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
         return RET_OSSL_ERR;
     }
 
-    keysize = p11prov_obj_get_key_size(key);
+    keysize = p11prov_obj_get_key_bit_size(key);
     if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
         CK_OBJECT_CLASS class = p11prov_obj_get_class(key);
         if (class != CKO_PRIVATE_KEY) {
             return RET_OSSL_ERR;
         }
-        BIO_printf(out, "PKCS11 EC Private Key (%lu bits)\n", keysize * 8);
+        BIO_printf(out, "PKCS11 EC Private Key (%lu bits)\n", keysize);
         BIO_printf(out, "[Can't export and print private key data]\n");
     }
 
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        BIO_printf(out, "PKCS11 EC Public Key (%lu bits)\n", keysize * 8);
+        BIO_printf(out, "PKCS11 EC Public Key (%lu bits)\n", keysize);
         ret = p11prov_obj_export_public_ec_key(key, p11prov_ec_print_public_key,
                                                out);
         if (ret != RET_OSSL_OK) {
