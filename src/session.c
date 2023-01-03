@@ -454,10 +454,6 @@ static CK_RV token_session_open(P11PROV_SESSION *session, CK_FLAGS flags)
         break;
     }
 
-    if (ret == CKR_OK) {
-        session->flags = flags;
-        session->pool->cur_sessions++;
-    }
     return ret;
 }
 
@@ -689,12 +685,15 @@ static CK_RV token_login(P11PROV_SESSION_POOL *pool, P11PROV_URI *uri,
     size_t cb_pin_len = 0;
     CK_UTF8CHAR_PTR pin = NULL_PTR;
     CK_ULONG pinlen = 0;
+    bool locked;
     CK_RV ret;
 
     ret = MUTEX_LOCK(pool);
     if (ret != CKR_OK) {
         return ret;
     }
+    /* LOCKED SECTION ------------- */
+    locked = true;
 
     if (pool->login_session) {
         ret = MUTEX_LOCK(pool->login_session);
@@ -752,9 +751,26 @@ static CK_RV token_login(P11PROV_SESSION_POOL *pool, P11PROV_URI *uri,
             ret = CKR_HOST_MEMORY;
             goto done;
         }
+    }
 
+    /* ------------- LOCKED SECTION */
+    (void)MUTEX_UNLOCK(pool);
+    locked = false;
+
+    if (session->session == CK_INVALID_HANDLE) {
         ret = token_session_open(session, session->flags);
-        if (ret != CKR_OK) {
+        if (ret == CKR_OK) {
+            ret = MUTEX_LOCK(pool);
+            if (ret != CKR_OK) {
+                goto done;
+            }
+            locked = true;
+            /* LOCKED SECTION ------------- */
+            pool->cur_sessions++;
+            /* ------------- LOCKED SECTION */
+            (void)MUTEX_UNLOCK(pool);
+            locked = false;
+        } else {
             goto done;
         }
     }
@@ -771,7 +787,10 @@ static CK_RV token_login(P11PROV_SESSION_POOL *pool, P11PROV_URI *uri,
     }
 
 done:
-    (void)MUTEX_UNLOCK(pool);
+    if (locked) {
+        (void)MUTEX_UNLOCK(pool);
+        locked = false;
+    }
 
     if (session) {
         /* if session is not null it is always locked */
@@ -997,15 +1016,26 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
         session = session_new(pool);
     }
     ret = session_check(session, flags);
-    if (ret == CKR_OK) {
-        if (session->session == CK_INVALID_HANDLE) {
-            ret = token_session_open(session, flags);
-        }
-    }
 
     /* ------------- LOCKED SECTION */
     (void)MUTEX_UNLOCK(pool);
     /* we can continue here on error, but future operations will likely fail */
+
+    if (ret == CKR_OK) {
+        if (session->session == CK_INVALID_HANDLE) {
+            ret = token_session_open(session, flags);
+            if (ret == CKR_OK) {
+                session->flags = flags;
+
+                ret = MUTEX_LOCK(pool);
+                if (ret != CKR_OK) {
+                    goto done;
+                }
+                pool->cur_sessions++;
+                (void)MUTEX_UNLOCK(pool);
+            }
+        }
+    }
 
 done:
     if (ret == CKR_OK) {
@@ -1057,6 +1087,28 @@ void p11prov_return_session(P11PROV_SESSION *session)
 
     if (!session) {
         return;
+    }
+
+    if (session->pool) {
+        P11PROV_SESSION_POOL *pool = session->pool;
+        int ret;
+
+        /* peek at the pool lockless worst case we waste some time */
+        if (pool->cur_sessions >= pool->limit_sessions) {
+
+            ret = MUTEX_LOCK(pool);
+            if (ret != CKR_OK) {
+                /* nothing we can do */
+                return;
+            }
+            /* LOCKED SECTION ------------- */
+            if (pool->cur_sessions >= pool->limit_sessions) {
+                token_session_close(session);
+                pool->cur_sessions--;
+            }
+            /* ------------- LOCKED SECTION */
+            (void)MUTEX_UNLOCK(pool);
+        }
     }
 
     err = pthread_mutex_unlock(&session->lock);
