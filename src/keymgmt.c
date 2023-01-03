@@ -1023,16 +1023,14 @@ static int p11prov_ec_get_params(void *keydata, OSSL_PARAM params[])
         return RET_OSSL_ERR;
     }
 
-    group_size = p11prov_obj_get_key_size(key);
+    group_size = p11prov_obj_get_key_bit_size(key);
     if (group_size == CK_UNAVAILABLE_INFORMATION) {
         return RET_OSSL_ERR;
     }
 
     p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_BITS);
     if (p) {
-        /* TODO: may want to try to get CKA_MODULUS_BITS,
-         * and fallback only if unavailable */
-        ret = OSSL_PARAM_set_int(p, group_size * 8);
+        ret = OSSL_PARAM_set_int(p, group_size);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
@@ -1040,7 +1038,7 @@ static int p11prov_ec_get_params(void *keydata, OSSL_PARAM params[])
     p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_SECURITY_BITS);
     if (p) {
         /* TODO: as above, plus use log() for intermediate values */
-        int secbits = p11prov_ec_secbits(group_size * 8);
+        int secbits = p11prov_ec_secbits(group_size);
         ret = OSSL_PARAM_set_int(p, secbits);
         if (ret != RET_OSSL_OK) {
             return ret;
@@ -1048,7 +1046,9 @@ static int p11prov_ec_get_params(void *keydata, OSSL_PARAM params[])
     }
     p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_MAX_SIZE);
     if (p) {
-        ret = OSSL_PARAM_set_int(p, group_size * 2);
+        /* add room for ECDSA Signature DER overhead */
+        CK_ULONG size = p11prov_obj_get_key_size(key);
+        ret = OSSL_PARAM_set_int(p, 3 + (size + 4) * 2);
         if (ret != RET_OSSL_OK) {
             return ret;
         }

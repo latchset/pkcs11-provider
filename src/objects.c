@@ -11,6 +11,7 @@
 struct p11prov_key {
     CK_KEY_TYPE type;
     CK_BBOOL always_auth;
+    CK_ULONG bit_size;
     CK_ULONG size;
 };
 
@@ -137,6 +138,18 @@ CK_KEY_TYPE p11prov_obj_get_key_type(P11PROV_OBJ *obj)
     return CK_UNAVAILABLE_INFORMATION;
 }
 
+CK_ULONG p11prov_obj_get_key_bit_size(P11PROV_OBJ *obj)
+{
+    if (obj) {
+        switch (obj->class) {
+        case CKO_PRIVATE_KEY:
+        case CKO_PUBLIC_KEY:
+            return obj->data.key.bit_size;
+        }
+    }
+    return CK_UNAVAILABLE_INFORMATION;
+}
+
 CK_ULONG p11prov_obj_get_key_size(P11PROV_OBJ *obj)
 {
     if (obj) {
@@ -210,6 +223,7 @@ static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     }
 
     key->data.key.size = n_len;
+    key->data.key.bit_size = n_len * 8;
     CKATTR_ASSIGN_ALL(key->attrs[0], CKA_MODULUS, n, n_len);
     CKATTR_ASSIGN_ALL(key->attrs[1], CKA_PUBLIC_EXPONENT, e, e_len);
     key->numattrs = 2;
@@ -233,7 +247,6 @@ static int fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     CK_ULONG params_len = 0, point_len = 0, id_len = 0, label_len = 0;
     CK_BYTE *params = NULL, *point = NULL, *id = NULL;
     CK_UTF8CHAR *label = NULL;
-    size_t n_bytes = 0;
     int n;
     int ret;
 
@@ -268,7 +281,6 @@ static int fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     if (params != NULL) {
         const unsigned char *der = params;
         EC_GROUP *group = NULL;
-        const BIGNUM *bn;
 
         (void)d2i_ECPKParameters(&group, &der, params_len);
         if (group == NULL) {
@@ -280,23 +292,14 @@ static int fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
             return CKR_KEY_INDIGESTIBLE;
         }
 
-        bn = EC_GROUP_get0_order(group);
-        if (bn == NULL) {
-            /* free any allocated memory */
-            EC_GROUP_free(group);
-            OPENSSL_free(params);
-            OPENSSL_free(point);
-            OPENSSL_free(label);
-            OPENSSL_free(id);
-            return CKR_KEY_INDIGESTIBLE;
-        }
-
-        n_bytes = BN_num_bytes(bn);
-
+        key->data.key.bit_size = EC_GROUP_order_bits(group);
+        key->data.key.size = (key->data.key.bit_size + 7) / 8;
         EC_GROUP_free(group);
+    } else {
+        key->data.key.bit_size = CK_UNAVAILABLE_INFORMATION;
+        key->data.key.size = CK_UNAVAILABLE_INFORMATION;
     }
 
-    key->data.key.size = n_bytes;
     CKATTR_ASSIGN_ALL(key->attrs[0], CKA_EC_PARAMS, params, params_len);
     key->numattrs = 1;
     if (point_len > 0) {
