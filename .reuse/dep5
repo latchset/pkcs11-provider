@@ -15,6 +15,7 @@ Files: **/Makefile.am
        configure.ac
        src/Makefile.am
        src/provider.exports
+       src/*.gen.c
        tests/Makefile.am
        tests/README
        tests/openssl.cnf.in
