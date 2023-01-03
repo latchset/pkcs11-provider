@@ -49,6 +49,7 @@ pkcs11_la_SOURCES = \
 
 EXTRA_DIST = \
 	interface.gen.c \
+	encoder.gen.c \
 	$(NULL)
 
 pkcs11_la_CFLAGS = $(AM_CFLAGS) $(OPENSSL_CFLAGS) -Wall -Werror

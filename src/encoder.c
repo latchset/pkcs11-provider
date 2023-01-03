@@ -158,23 +158,7 @@ const OSSL_DISPATCH p11prov_rsa_encoder_text_functions[] = {
     { 0, NULL },
 };
 
-/* Have to use OpenSSL nested ASN1 macros to build this, brace... */
-typedef struct {
-    ASN1_INTEGER *n;
-    ASN1_INTEGER *e;
-} P11PROV_RSA_PUBKEY;
-
-DECLARE_ASN1_FUNCTIONS(P11PROV_RSA_PUBKEY);
-IMPLEMENT_ASN1_FUNCTIONS(P11PROV_RSA_PUBKEY);
-
-ASN1_SEQUENCE(P11PROV_RSA_PUBKEY) = {
-    ASN1_SIMPLE(P11PROV_RSA_PUBKEY, n, ASN1_INTEGER),
-    ASN1_SIMPLE(P11PROV_RSA_PUBKEY, e, ASN1_INTEGER),
-} ASN1_SEQUENCE_END(P11PROV_RSA_PUBKEY)
-
-DECLARE_PEM_write_bio(P11PROV_RSA_PUBKEY, P11PROV_RSA_PUBKEY);
-IMPLEMENT_PEM_write_bio(P11PROV_RSA_PUBKEY, P11PROV_RSA_PUBKEY,
-                        PEM_STRING_RSA_PUBLIC, P11PROV_RSA_PUBKEY);
+#include "encoder.gen.c"
 
 static int p11prov_rsa_set_asn1key_data(const OSSL_PARAM *params, void *key)
 {
