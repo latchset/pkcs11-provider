@@ -45,7 +45,7 @@ Cpp11BracedListStyle: false
 AlignArrayOfStructures: None
 AlignTrailingComments: false
 AllowShortFunctionsOnASingleLine: Empty
-AlwaysBreakBeforeMultilineStrings: true
+AlwaysBreakBeforeMultilineStrings: false
 IndentGotoLabels: true
 SortIncludes: Never
 SpaceBeforeCpp11BracedList: true
