@@ -162,7 +162,7 @@ static void cache_key(P11PROV_OBJ *obj)
         obj->cka_copyable = CK_FALSE;
     } else {
         P11PROV_debug("Key %lu:%lu cached as %lu:%lu", obj->slotid, obj->handle,
-                      session, obj->cached);
+                      sess, obj->cached);
     }
 
     p11prov_return_session(session);
