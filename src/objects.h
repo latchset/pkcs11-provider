@@ -19,6 +19,7 @@ void p11prov_obj_to_reference(P11PROV_OBJ *obj, void **reference,
                               size_t *reference_sz);
 P11PROV_OBJ *p11prov_obj_from_reference(const void *reference,
                                         size_t reference_sz);
+P11PROV_CTX *p11prov_obj_get_prov_ctx(P11PROV_OBJ *obj);
 
 typedef CK_RV (*store_obj_callback)(void *, P11PROV_OBJ *);
 CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,

@@ -376,23 +376,10 @@ static int p11prov_store_export_object(void *loaderctx, const void *reference,
                                        size_t reference_sz,
                                        OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
-    P11PROV_OBJ *obj = NULL;
-
     P11PROV_debug("store (%p) export object %p, %zu", loaderctx, reference,
                   reference_sz);
 
-    /* the contents of the reference is the address to our object */
-    obj = p11prov_obj_from_reference(reference, reference_sz);
-    if (!obj) {
-        return RET_OSSL_ERR;
-    }
-
-    /* we can only export public bits, so that's all we do */
-    if (p11prov_obj_get_class(obj) != CKO_PUBLIC_KEY) {
-        return RET_OSSL_ERR;
-    }
-
-    return p11prov_obj_export_public_rsa_key(obj, cb_fn, cb_arg);
+    return RET_OSSL_ERR;
 }
 
 static const OSSL_PARAM *p11prov_store_settable_ctx_params(void *provctx)

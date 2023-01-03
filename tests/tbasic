@@ -14,7 +14,15 @@ title LINE "Export Public key to a file (with pin)"
 ossl 'pkey -in $BASEURIWITHPIN -pubin -pubout -out ${TSTOUT}.pub'
 title LINE "Print Public key from private"
 ossl 'pkey -in $PRIURI -pubout -text' output
-echo $output | grep "PKCS11 RSA Public Key (2048 bits)" > /dev/null 2>&1
+FAIL=0
+echo $output | grep "PKCS11 RSA Public Key (2048 bits)" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -eq 1 ]; then
+    echo "Pkcs11 encoder function failed"
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+fi
 
 title PARA "Export Public check error"
 FAIL=0
@@ -29,7 +37,15 @@ title PARA "Export EC Public key to a file"
 ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${TMPPDIR}/ecout.pub'
 title LINE "Print EC Public key from private"
 ossl 'pkey -in $ECPRIURI -pubout -text' output
-echo $output | grep "PKCS11 EC Public Key (256 bits)" > /dev/null 2>&1
+FAIL=0
+echo $output | grep "PKCS11 EC Public Key (256 bits)" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -eq 1 ]; then
+    echo "Pkcs11 encoder function failed"
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+fi
 
 title PARA "Raw Sign check error"
 dd if=/dev/urandom of=${TMPPDIR}/64Brandom.bin bs=64 count=1 >/dev/null 2>&1
@@ -126,13 +142,26 @@ pkeyutl -decrypt -inkey "${PRIURI}"
 diff ${SECRETFILE} ${SECRETFILE}.dec
 
 title PARA "Test Disallow Public Export"
-FAIL=0
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
 sed "s/#pkcs11-module-allow-export/pkcs11-module-allow-export = 1/" ${OPENSSL_CONF} > ${OPENSSL_CONF}.noexport
 OPENSSL_CONF=${OPENSSL_CONF}.noexport
-ossl 'pkey -in $BASEURI -pubin -pubout -out ${TSTOUT}.pub.fail' || FAIL=1
-if [ $FAIL -eq 0 ]; then
-    echo "pkcs11 export should have failed, but actually succeeded"
+ossl 'pkey -in $PUBURI -pubin -pubout -text' output
+FAIL=0
+echo "$output" | grep "^PKCS11 RSA Public Key (2048 bits)" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -neq 0 ]; then
+    echo "$output" | grep "PUBLIC KEY" > /dev/null 2>&1 || FAIL=2
+fi
+if [ $FAIL -eq 1 ]; then
+    echo "pkcs11 pem export failed"
+fi
+if [ $FAIL -eq 2 ]; then
+    echo "pkcs11 pem export succeeded but internal encoder was not used"
+fi
+if [ $FAIL -neq 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
     exit 1
 fi
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}

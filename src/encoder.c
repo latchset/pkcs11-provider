@@ -302,15 +302,7 @@ DISPATCH_ENCODER_FN(rsa, pkcs1, der, does_selection);
 static int p11prov_rsa_encoder_pkcs1_der_does_selection(void *inctx,
                                                         int selection)
 {
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        return RET_OSSL_ERR;
-    } else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        return RET_OSSL_ERR;
-    } else if (selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) {
-        return RET_OSSL_ERR;
-    }
-
-    return RET_OSSL_OK;
+    return RET_OSSL_ERR;
 }
 
 static int p11prov_rsa_encoder_pkcs1_der_encode(
@@ -334,15 +326,7 @@ DISPATCH_ENCODER_FN(rsa, pkcs1, pem, does_selection);
 static int p11prov_rsa_encoder_pkcs1_pem_does_selection(void *inctx,
                                                         int selection)
 {
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        return RET_OSSL_ERR;
-    } else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        return RET_OSSL_ERR;
-    } else if (selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) {
-        return RET_OSSL_ERR;
-    }
-
-    return RET_OSSL_OK;
+    return RET_OSSL_ERR;
 }
 
 static int p11prov_rsa_encoder_pkcs1_pem_encode(
@@ -367,12 +351,8 @@ DISPATCH_ENCODER_FN(rsa, spki, der, does_selection);
 static int p11prov_rsa_encoder_spki_der_does_selection(void *inctx,
                                                        int selection)
 {
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        return RET_OSSL_ERR;
-    } else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return RET_OSSL_OK;
-    } else if (selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) {
-        return RET_OSSL_ERR;
     }
     return RET_OSSL_ERR;
 }
@@ -431,6 +411,75 @@ const OSSL_DISPATCH p11prov_rsa_encoder_spki_der_functions[] = {
     DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
     DISPATCH_ENCODER_ELEM(DOES_SELECTION, rsa, spki, der, does_selection),
     DISPATCH_ENCODER_ELEM(ENCODE, rsa, spki, der, encode),
+    { 0, NULL },
+};
+
+/* SubjectPublicKeyInfo PEM Encode */
+DISPATCH_ENCODER_FN(rsa, spki, pem, does_selection);
+
+static int p11prov_rsa_encoder_spki_pem_does_selection(void *inctx,
+                                                       int selection)
+{
+    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+        return RET_OSSL_OK;
+    }
+    return RET_OSSL_ERR;
+}
+
+static int p11prov_rsa_encoder_spki_pem_encode(void *inctx, OSSL_CORE_BIO *cbio,
+                                               const void *inkey,
+                                               const OSSL_PARAM key_abstract[],
+                                               int selection,
+                                               OSSL_PASSPHRASE_CALLBACK *cb,
+                                               void *cbarg)
+{
+    struct p11prov_encoder_ctx *ctx = (struct p11prov_encoder_ctx *)inctx;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)inkey;
+    CK_KEY_TYPE type;
+    P11PROV_RSA_PUBKEY *asn1key = NULL;
+    BIO *out = NULL;
+    int ret;
+
+    P11PROV_debug("RSA PKCS1 PEM Encoder");
+
+    /* we only return public key info */
+    if (!(selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY)) {
+        return RET_OSSL_ERR;
+    }
+
+    type = p11prov_obj_get_key_type(key);
+    if (type != CKK_RSA) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid Key Type");
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+
+    asn1key = p11prov_rsa_pubkey_to_asn1(key);
+    if (!asn1key) {
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+
+    out = BIO_new_from_core_bio(p11prov_ctx_get_libctx(ctx->provctx), cbio);
+    if (!out) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Failed to init BIO");
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+
+    ret = PEM_write_bio_P11PROV_RSA_PUBKEY(out, asn1key);
+
+done:
+    P11PROV_RSA_PUBKEY_free(asn1key);
+    BIO_free(out);
+    return ret;
+}
+
+const OSSL_DISPATCH p11prov_rsa_encoder_spki_pem_functions[] = {
+    DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
+    DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
+    DISPATCH_ENCODER_ELEM(DOES_SELECTION, rsa, spki, pem, does_selection),
+    DISPATCH_ENCODER_ELEM(ENCODE, rsa, spki, pem, encode),
     { 0, NULL },
 };
 
@@ -524,14 +573,6 @@ DISPATCH_ENCODER_FN(ec, pkcs1, der, does_selection);
 static int p11prov_ec_encoder_pkcs1_der_does_selection(void *inctx,
                                                        int selection)
 {
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        return RET_OSSL_ERR;
-    } else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        return RET_OSSL_ERR;
-    } else if (selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) {
-        return RET_OSSL_ERR;
-    }
-
     return RET_OSSL_ERR;
 }
 
@@ -558,14 +599,6 @@ DISPATCH_ENCODER_FN(ec, pkcs1, pem, does_selection);
 static int p11prov_ec_encoder_pkcs1_pem_does_selection(void *inctx,
                                                        int selection)
 {
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        return RET_OSSL_ERR;
-    } else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        return RET_OSSL_ERR;
-    } else if (selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) {
-        return RET_OSSL_ERR;
-    }
-
     return RET_OSSL_ERR;
 }
 
@@ -593,14 +626,9 @@ DISPATCH_ENCODER_FN(ec, spki, der, does_selection);
 static int p11prov_ec_encoder_spki_der_does_selection(void *inctx,
                                                       int selection)
 {
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        return RET_OSSL_ERR;
-    } else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         return RET_OSSL_OK;
-    } else if (selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) {
-        return RET_OSSL_ERR;
     }
-
     return RET_OSSL_ERR;
 }
 
