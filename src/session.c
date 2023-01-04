@@ -807,13 +807,16 @@ done:
 }
 
 static CK_RV check_slot(struct p11prov_slot *provslot, P11PROV_URI *uri,
-                        CK_MECHANISM_TYPE mechtype)
+                        CK_MECHANISM_TYPE mechtype, bool rw)
 {
     if ((provslot->slot.flags & CKF_TOKEN_PRESENT) == 0) {
         return CKR_TOKEN_NOT_PRESENT;
     }
     if ((provslot->token.flags & CKF_TOKEN_INITIALIZED) == 0) {
         return CKR_TOKEN_NOT_PRESENT;
+    }
+    if (rw && (provslot->token.flags & CKF_WRITE_PROTECTED)) {
+        return CKR_TOKEN_WRITE_PROTECTED;
     }
     if (uri) {
         CK_RV ret;
@@ -929,7 +932,7 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
             ret = CKR_SLOT_ID_INVALID;
             goto done;
         }
-        ret = check_slot(slot, uri, mechtype);
+        ret = check_slot(slot, uri, mechtype, rw);
         if (ret != CKR_OK) {
             goto done;
         }
@@ -956,7 +959,7 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                 id = CK_UNAVAILABLE_INFORMATION;
             }
 
-            ret = check_slot(slot, uri, mechtype);
+            ret = check_slot(slot, uri, mechtype, rw);
             if (ret != CKR_OK) {
                 /* keep going */
                 continue;
