@@ -13,6 +13,7 @@ struct p11prov_key {
     CK_BBOOL always_auth;
     CK_ULONG bit_size;
     CK_ULONG size;
+    const char *curve_name;
 };
 
 struct p11prov_crt {
@@ -1202,6 +1203,11 @@ const char *p11prov_obj_get_ec_group_name(P11PROV_OBJ *obj)
     int curve_nid;
     CK_RV rv;
 
+    if (obj->data.key.curve_name != NULL) {
+        P11PROV_debug("Using cached curve name %s", obj->data.key.curve_name);
+        return obj->data.key.curve_name;
+    }
+
     attrs[0].type = CKA_EC_PARAMS;
 
     rv = get_public_attrs(obj, attrs, 1);
@@ -1228,6 +1234,9 @@ const char *p11prov_obj_get_ec_group_name(P11PROV_OBJ *obj)
     if (curve_name == NULL) {
         goto done;
     }
+
+    obj->data.key.curve_name = curve_name;
+    P11PROV_debug("Caching curve name %s", curve_name);
     return curve_name;
 
 done:
