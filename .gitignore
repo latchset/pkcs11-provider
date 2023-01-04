@@ -6,6 +6,7 @@ tests/tmp.softokn
 tests/tdigests
 tests/tsession
 tests/tgenkey
+tests/treadkeys
 tests/ttls
 tests/pinfile.txt
 tests/*.log

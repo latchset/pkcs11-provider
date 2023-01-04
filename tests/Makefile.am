@@ -4,7 +4,7 @@ libspath=@abs_top_builddir@/src/.libs
 testsblddir=@abs_top_builddir@/tests
 testssrcdir=@abs_srcdir@
 
-check_PROGRAMS = tsession tgenkey ttls tdigests
+check_PROGRAMS = tsession tgenkey ttls tdigests treadkeys
 
 tsession_SOURCES = tsession.c
 tsession_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
@@ -21,6 +21,10 @@ ttls_LDADD = $(OPENSSL_LIBS)
 tdigests_SOURCES = tdigests.c
 tdigests_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
 tdigests_LDADD = $(OPENSSL_LIBS)
+
+treadkeys_SOURCES = treadkeys.c
+treadkeys_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
+treadkeys_LDADD = $(OPENSSL_LIBS)
 
 tmp.softokn:
 	LIBSPATH=$(libspath) \
@@ -49,6 +53,7 @@ test_LIST = \
 	digests-softokn digests-softhsm-proxy \
 	genkey-softokn genkey-softhsm \
 	session-softokn session-softhsm-proxy \
+	readkeys-softokn readkeys-softhsm-proxy \
 	tls-softokn tls-softhsm-proxy
 .PHONY: $(test_LIST)
 
