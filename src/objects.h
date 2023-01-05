@@ -4,6 +4,9 @@
 #ifndef _OBJECTS_H
 #define _OBJECTS_H
 
+/* Set the base to Vendor + 'OPP' for OpenSSL PKCS11 Provider */
+#define CKA_P11PROV_BASE CKA_VENDOR_DEFINED + 0x4F5050
+
 /* Objects */
 P11PROV_OBJ *p11prov_obj_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                              CK_OBJECT_HANDLE handle, CK_OBJECT_CLASS class);
