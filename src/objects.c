@@ -8,12 +8,15 @@
 #include <openssl/obj_mac.h>
 #include "platform/endian.h"
 
+#define CKA_P11PROV_CURVE_NAME CKA_P11PROV_BASE + 1
+#define CKA_P11PROV_CURVE_NID CKA_P11PROV_BASE + 2
+#define CKA_P11PROV_PUB_KEY CKA_P11PROV_BASE + 3
+
 struct p11prov_key {
     CK_KEY_TYPE type;
     CK_BBOOL always_auth;
     CK_ULONG bit_size;
     CK_ULONG size;
-    const char *curve_name;
 };
 
 struct p11prov_crt {
@@ -376,15 +379,96 @@ static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
 
     return CKR_OK;
 }
+#define KEY_EC_PARAMS 3
+static CK_RV pre_process_ec_key_data(P11PROV_OBJ *key)
+{
+    CK_ATTRIBUTE *attr;
+    const unsigned char *val;
+    EC_GROUP *group = NULL;
+    CK_BYTE *buffer;
+    int buffer_size;
+    const char *curve_name;
+    int curve_nid;
+    ASN1_OCTET_STRING *octet;
 
-#define EC_ATTRS_NUM (BASE_KEY_ATTRS_NUM + 2)
-static int fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
-                        CK_OBJECT_HANDLE object, P11PROV_OBJ *key)
+    attr = p11prov_obj_get_attr(key, CKA_EC_PARAMS);
+    if (!attr) {
+        key->data.key.bit_size = CK_UNAVAILABLE_INFORMATION;
+        key->data.key.size = CK_UNAVAILABLE_INFORMATION;
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    /* in d2i functions 'in' is overwritten to return the remainder of
+     * the buffer after parsing, so we always need to avoid passing in
+     * our pointer holders, to avoid having them clobbered */
+    val = attr->pValue;
+    group = d2i_ECPKParameters(NULL, &val, attr->ulValueLen);
+    if (group == NULL) {
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    curve_nid = EC_GROUP_get_curve_name(group);
+    if (curve_nid == NID_undef) {
+        return CKR_KEY_INDIGESTIBLE;
+    }
+    buffer_size = sizeof(curve_nid);
+    buffer = OPENSSL_zalloc(buffer_size);
+    if (!buffer) {
+        return CKR_HOST_MEMORY;
+    }
+    memcpy(buffer, &curve_nid, buffer_size);
+    CKATTR_ASSIGN(key->attrs[key->numattrs], CKA_P11PROV_CURVE_NID, buffer,
+                  buffer_size);
+    key->numattrs++;
+
+    curve_name = OSSL_EC_curve_nid2name(curve_nid);
+    if (curve_name == NULL) {
+        return CKR_KEY_INDIGESTIBLE;
+    }
+    buffer_size = strlen(curve_name) + 1;
+    buffer = (CK_BYTE *)OPENSSL_strdup(curve_name);
+    if (!buffer) {
+        return CKR_HOST_MEMORY;
+    }
+    CKATTR_ASSIGN(key->attrs[key->numattrs], CKA_P11PROV_CURVE_NAME, buffer,
+                  buffer_size);
+    key->numattrs++;
+
+    key->data.key.bit_size = EC_GROUP_order_bits(group);
+    key->data.key.size = (key->data.key.bit_size + 7) / 8;
+    EC_GROUP_free(group);
+
+    attr = p11prov_obj_get_attr(key, CKA_EC_POINT);
+    if (!attr) {
+        /* not available on private keys, so not fatal if absent */
+        return CKR_OK;
+    }
+
+    val = attr->pValue;
+    octet = d2i_ASN1_OCTET_STRING(NULL, (const unsigned char **)&val,
+                                  attr->ulValueLen);
+    if (!octet) {
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    CKATTR_ASSIGN(key->attrs[key->numattrs], CKA_P11PROV_PUB_KEY, octet->data,
+                  octet->length);
+    key->numattrs++;
+
+    /* moved octet data to attrs, do not free it */
+    octet->data = NULL;
+    octet->length = 0;
+    ASN1_OCTET_STRING_free(octet);
+    return CKR_OK;
+}
+
+#define EC_ATTRS_NUM (BASE_KEY_ATTRS_NUM + KEY_EC_PARAMS + 2)
+static CK_RV fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
+                          CK_OBJECT_HANDLE object, P11PROV_OBJ *key)
 {
     struct fetch_attrs attrs[EC_ATTRS_NUM];
-    CK_ATTRIBUTE *params;
     int num;
-    int ret;
+    CK_RV ret;
 
     key->attrs = OPENSSL_zalloc(EC_ATTRS_NUM * sizeof(CK_ATTRIBUTE));
     if (key->attrs == NULL) {
@@ -402,40 +486,21 @@ static int fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     if (ret != CKR_OK) {
         /* free any allocated memory */
         p11prov_fetch_attrs_free(attrs, num);
-        return ret;
+        return CKR_KEY_INDIGESTIBLE;
     }
 
     key->numattrs = 0;
     p11prov_move_alloc_attrs(attrs, num, key->attrs, &key->numattrs);
 
-    /* decode CKA_EC_PARAMS and store some extra attrs for
-     * convenience */
-    params = p11prov_obj_get_attr(key, CKA_EC_PARAMS);
-    if (params != NULL) {
-        const unsigned char *der = params->pValue;
-        EC_GROUP *group = NULL;
+    /* decode CKA_EC_PARAMS and store some extra attrs for convenience */
+    ret = pre_process_ec_key_data(key);
 
-        (void)d2i_ECPKParameters(&group, &der, params->ulValueLen);
-        if (group == NULL) {
-            /* free any allocated memory */
-            p11prov_fetch_attrs_free(attrs, num);
-            return CKR_KEY_INDIGESTIBLE;
-        }
-
-        key->data.key.bit_size = EC_GROUP_order_bits(group);
-        key->data.key.size = (key->data.key.bit_size + 7) / 8;
-        EC_GROUP_free(group);
-    } else {
-        key->data.key.bit_size = CK_UNAVAILABLE_INFORMATION;
-        key->data.key.size = CK_UNAVAILABLE_INFORMATION;
-    }
-
-    return CKR_OK;
+    return ret;
 }
 
 #define CERT_ATTRS_NUM 9
-static int fetch_certificate(P11PROV_CTX *ctx, P11PROV_SESSION *session,
-                             CK_OBJECT_HANDLE object, P11PROV_OBJ *crt)
+static CK_RV fetch_certificate(P11PROV_CTX *ctx, P11PROV_SESSION *session,
+                               CK_OBJECT_HANDLE object, P11PROV_OBJ *crt)
 {
     struct fetch_attrs attrs[CERT_ATTRS_NUM];
     int num;
@@ -907,13 +972,18 @@ CK_RV p11prov_obj_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     return ret;
 }
 
+#define MAX_KEY_ATTRS 2
 static CK_RV get_all_from_cert(P11PROV_OBJ *crt, CK_ATTRIBUTE *attrs, int num)
 {
+    OSSL_PARAM params[MAX_KEY_ATTRS + 1] = { 0 };
+    CK_ATTRIBUTE_TYPE types[MAX_KEY_ATTRS];
     CK_ATTRIBUTE *type;
     CK_ATTRIBUTE *value;
     const unsigned char *val;
     X509 *x509 = NULL;
     EVP_PKEY *pkey;
+    int attrnum = 0;
+    int ret;
     CK_RV rv;
 
     /* if CKA_CERTIFICATE_TYPE is not present assume CKC_X_509 */
@@ -944,137 +1014,118 @@ static CK_RV get_all_from_cert(P11PROV_OBJ *crt, CK_ATTRIBUTE *attrs, int num)
     }
 
     if (EVP_PKEY_is_a(pkey, "RSA")) {
-        OSSL_PARAM params[3];
-        int ret;
-
-        params[0] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N, NULL, 0);
-        params[1] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_E, NULL, 0);
-        params[2] = OSSL_PARAM_construct_end();
-
-        ret = EVP_PKEY_get_params(pkey, params);
-        if (ret != RET_OSSL_OK) {
-            rv = CKR_GENERAL_ERROR;
-            goto done;
-        }
-        ret = OSSL_PARAM_modified(params);
-        if (ret != RET_OSSL_OK) {
-            rv = CKR_GENERAL_ERROR;
-            goto done;
-        }
-        if (params[0].return_size == 0 || params[1].return_size == 0) {
-            rv = CKR_GENERAL_ERROR;
-            goto done;
-        }
-        params[0].data = OPENSSL_zalloc(params[0].return_size);
-        params[1].data = OPENSSL_zalloc(params[1].return_size);
-        if (!params[0].data || !params[1].data) {
-            OPENSSL_free(params[0].data);
-            OPENSSL_free(params[1].data);
-            rv = CKR_HOST_MEMORY;
-            goto done;
-        }
-        params[0].data_size = params[0].return_size;
-        params[1].data_size = params[1].return_size;
-        params[0].return_size = OSSL_PARAM_UNMODIFIED;
-        params[1].return_size = OSSL_PARAM_UNMODIFIED;
-
-        ret = EVP_PKEY_get_params(pkey, params);
-        if (ret != RET_OSSL_OK) {
-            OPENSSL_free(params[0].data);
-            OPENSSL_free(params[1].data);
-            rv = CKR_GENERAL_ERROR;
-            goto done;
-        }
-        ret = OSSL_PARAM_modified(params);
-        if (ret != RET_OSSL_OK) {
-            OPENSSL_free(params[0].data);
-            OPENSSL_free(params[1].data);
-            rv = CKR_GENERAL_ERROR;
-            goto done;
-        }
-
         for (int i = 0; i < num; i++) {
             switch (attrs[i].type) {
             case CKA_MODULUS:
-                attrs[i].pValue = params[0].data;
-                attrs[i].ulValueLen = params[0].data_size;
-                params[0].data = NULL;
+                types[attrnum] = CKA_MODULUS;
+                params[attrnum] =
+                    OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N, NULL, 0);
+                attrnum++;
                 break;
             case CKA_PUBLIC_EXPONENT:
-                attrs[i].pValue = params[1].data;
-                attrs[i].ulValueLen = params[1].data_size;
-                params[1].data = NULL;
+                types[attrnum] = CKA_PUBLIC_EXPONENT;
+                params[attrnum] =
+                    OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_E, NULL, 0);
+                attrnum++;
                 break;
-            default:
-                OPENSSL_free(params[0].data);
-                OPENSSL_free(params[1].data);
-                rv = CKR_ARGUMENTS_BAD;
-                goto done;
             }
         }
-        /* just in case caller didn't fetch all */
-        OPENSSL_free(params[0].data);
-        OPENSSL_free(params[1].data);
-
-        rv = CKR_OK;
+        if (attrnum == 0) {
+            rv = CKR_ARGUMENTS_BAD;
+            goto done;
+        }
+        params[attrnum] = OSSL_PARAM_construct_end();
     } else if (EVP_PKEY_is_a(pkey, "EC")) {
-        ASN1_OCTET_STRING ec_point_asn1 = { .type = V_ASN1_OCTET_STRING };
-        unsigned char *ec_point = NULL;
-        int ec_point_len;
-        unsigned char *ec_params = NULL;
-        int ec_params_len;
-
-        ec_point_asn1.length = i2d_PublicKey(pkey, &ec_point_asn1.data);
-        if (ec_point_asn1.length < 0) {
-            rv = CKR_GENERAL_ERROR;
-            goto done;
-        }
-
-        /* need to encode to keep p11prov_obj_export_public_ec_key() simple */
-        ec_point_len = i2d_ASN1_OCTET_STRING(&ec_point_asn1, &ec_point);
-        if (ec_point_len < 0) {
-            OPENSSL_free(ec_point_asn1.data);
-            rv = CKR_GENERAL_ERROR;
-            goto done;
-        }
-        OPENSSL_free(ec_point_asn1.data);
-
-        ec_params_len = i2d_KeyParams(pkey, &ec_params);
-        if (ec_params_len < 0) {
-            OPENSSL_free(ec_point);
-            rv = CKR_GENERAL_ERROR;
-            goto done;
-        }
-
         for (int i = 0; i < num; i++) {
             switch (attrs[i].type) {
-            case CKA_EC_POINT:
-                attrs[i].pValue = ec_point;
-                attrs[i].ulValueLen = ec_point_len;
-                ec_point = NULL;
+            case CKA_P11PROV_CURVE_NAME:
+                types[attrnum] = CKA_P11PROV_CURVE_NAME;
+                params[attrnum] = OSSL_PARAM_construct_utf8_string(
+                    OSSL_PKEY_PARAM_GROUP_NAME, NULL, 0);
+                attrnum++;
                 break;
-            case CKA_EC_PARAMS:
-                attrs[i].pValue = ec_params;
-                attrs[i].ulValueLen = ec_params_len;
-                ec_params = NULL;
+            case CKA_P11PROV_PUB_KEY:
+                types[attrnum] = CKA_P11PROV_PUB_KEY;
+                params[attrnum] = OSSL_PARAM_construct_octet_string(
+                    OSSL_PKEY_PARAM_PUB_KEY, NULL, 0);
+                attrnum++;
                 break;
-            default:
-                OPENSSL_free(ec_point);
-                OPENSSL_free(ec_params);
-                rv = CKR_ARGUMENTS_BAD;
-                goto done;
             }
         }
-        /* just in case caller didn't fetch all */
-        OPENSSL_free(ec_point);
-        OPENSSL_free(ec_params);
-
-        rv = CKR_OK;
+        if (attrnum == 0) {
+            rv = CKR_ARGUMENTS_BAD;
+            goto done;
+        }
+        params[attrnum] = OSSL_PARAM_construct_end();
     } else {
         rv = CKR_OBJECT_HANDLE_INVALID;
+        goto done;
     }
 
+    ret = EVP_PKEY_get_params(pkey, params);
+    if (ret != RET_OSSL_OK) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+    ret = OSSL_PARAM_modified(params);
+    if (ret != RET_OSSL_OK) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    for (int i = 0; i < attrnum; i++) {
+        if (params[i].return_size == 0) {
+            rv = CKR_GENERAL_ERROR;
+            goto done;
+        }
+        params[i].data = OPENSSL_zalloc(params[i].return_size);
+        if (!params[i].data) {
+            rv = CKR_HOST_MEMORY;
+            goto done;
+        }
+        params[i].data_size = params[i].return_size;
+        params[i].return_size = OSSL_PARAM_UNMODIFIED;
+    }
+
+    ret = EVP_PKEY_get_params(pkey, params);
+    if (ret != RET_OSSL_OK) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+    ret = OSSL_PARAM_modified(params);
+    if (ret != RET_OSSL_OK) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    for (int i = 0; i < num; i++) {
+        bool found = false;
+        for (int j = 0; j < attrnum; j++) {
+            if (attrs[i].type == types[j]) {
+                if (!params[j].data) {
+                    rv = CKR_GENERAL_ERROR;
+                    goto done;
+                }
+                attrs[i].pValue = params[j].data;
+                attrs[i].ulValueLen = params[j].data_size;
+                params[j].data = NULL;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            rv = CKR_ARGUMENTS_BAD;
+            goto done;
+        }
+    }
+
+    rv = CKR_OK;
+
 done:
+    /* just in case caller didn't fetch all */
+    for (int i = 0; i < attrnum; i++) {
+        OPENSSL_free(params[i].data);
+    }
     if (rv != CKR_OK) {
         for (int i = 0; i < num; i++) {
             OPENSSL_free(attrs[i].pValue);
@@ -1196,64 +1247,24 @@ int p11prov_obj_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
 
 const char *p11prov_obj_get_ec_group_name(P11PROV_OBJ *obj)
 {
-    CK_ATTRIBUTE attrs[1] = { 0 };
-    EC_GROUP *group = NULL;
-    const unsigned char *val;
-    const char *curve_name;
-    int curve_nid;
-    CK_RV rv;
+    CK_ATTRIBUTE *attr;
 
-    if (obj->data.key.curve_name != NULL) {
-        P11PROV_debug("Using cached curve name %s", obj->data.key.curve_name);
-        return obj->data.key.curve_name;
-    }
-
-    attrs[0].type = CKA_EC_PARAMS;
-
-    rv = get_public_attrs(obj, attrs, 1);
-    if (rv != CKR_OK) {
-        P11PROV_raise(obj->ctx, rv, "Failed to get public key attributes");
+    attr = p11prov_obj_get_attr(obj, CKA_P11PROV_CURVE_NAME);
+    if (!attr) {
+        /* this should never happen */
+        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Failed to get curve name");
         return NULL;
     }
 
-    /* in d2i functions 'in' is overwritten to return the remainder of the
-     * buffer after parsing, so we always need to avoid passing in our pointer
-     * folders, to avoid having them clobbered */
-    val = attrs[0].pValue;
-    group = d2i_ECPKParameters(NULL, (const unsigned char **)&val,
-                               attrs[0].ulValueLen);
-    if (group == NULL) {
-        goto done;
-    }
-
-    curve_nid = EC_GROUP_get_curve_name(group);
-    if (curve_nid == NID_undef) {
-        goto done;
-    }
-    curve_name = OSSL_EC_curve_nid2name(curve_nid);
-    if (curve_name == NULL) {
-        goto done;
-    }
-
-    obj->data.key.curve_name = curve_name;
-    P11PROV_debug("Caching curve name %s", curve_name);
-    return curve_name;
-
-done:
-    OPENSSL_free(attrs[0].pValue);
-    EC_GROUP_free(group);
-    return NULL;
+    return (const char *)attr->pValue;
 }
 
 #define EC_PUB_ATTRS 2
 int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
                                      void *cb_arg)
 {
-    CK_ATTRIBUTE attrs[1] = { 0 };
-    OSSL_PARAM params[EC_PUB_ATTRS + 1];
-    ASN1_OCTET_STRING *octet = NULL;
-    const unsigned char *val;
-    const char *curve_name;
+    CK_ATTRIBUTE attrs[EC_PUB_ATTRS] = { 0 };
+    OSSL_PARAM params[EC_PUB_ATTRS + 1] = { 0 };
     CK_RV rv;
     int ret;
 
@@ -1261,40 +1272,26 @@ int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
         return RET_OSSL_ERR;
     }
 
-    curve_name = p11prov_obj_get_ec_group_name(obj);
-    if (curve_name == NULL) {
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-    params[0] = OSSL_PARAM_construct_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME,
-                                                 (char *)curve_name, 0);
+    attrs[0].type = CKA_P11PROV_CURVE_NAME;
+    attrs[1].type = CKA_P11PROV_PUB_KEY;
 
-    attrs[0].type = CKA_EC_POINT;
-
-    rv = get_public_attrs(obj, attrs, 1);
+    rv = get_public_attrs(obj, attrs, EC_PUB_ATTRS);
     if (rv != CKR_OK) {
         P11PROV_raise(obj->ctx, rv, "Failed to get public key attributes");
-        ret = RET_OSSL_ERR;
-        goto done;
+        return RET_OSSL_ERR;
     }
 
-    val = attrs[0].pValue;
-    octet = d2i_ASN1_OCTET_STRING(NULL, (const unsigned char **)&val,
-                                  attrs[0].ulValueLen);
-    if (octet == NULL) {
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-    params[1] = OSSL_PARAM_construct_octet_string(OSSL_PKEY_PARAM_PUB_KEY,
-                                                  octet->data, octet->length);
-
+    params[0] = OSSL_PARAM_construct_utf8_string(
+        OSSL_PKEY_PARAM_GROUP_NAME, attrs[0].pValue, attrs[0].ulValueLen);
+    params[1] = OSSL_PARAM_construct_octet_string(
+        OSSL_PKEY_PARAM_PUB_KEY, attrs[1].pValue, attrs[1].ulValueLen);
     params[EC_PUB_ATTRS] = OSSL_PARAM_construct_end();
 
     ret = cb_fn(params, cb_arg);
 
-done:
     /* must be freed after callback */
-    OPENSSL_free(attrs[0].pValue);
-    ASN1_OCTET_STRING_free(octet);
+    for (int i = 0; i < EC_PUB_ATTRS; i++) {
+        OPENSSL_free(attrs[i].pValue);
+    }
     return ret;
 }
