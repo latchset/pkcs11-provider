@@ -309,8 +309,13 @@ int p11prov_slot_get_mechanisms(P11PROV_SLOT *slot, CK_MECHANISM_TYPE **mechs)
     return slot->nmechs;
 }
 
+#define MUTEX_RAISE_ERROR(_errstr) \
+    P11PROV_raise(provctx, ret, "%s %s mutex (errno=%d)", _errstr, obj, err); \
+    P11PROV_debug("Called from [%s:%d]%s()", file, line, func)
+
 static CK_RV mutex_init(P11PROV_CTX *provctx, pthread_mutex_t *lock,
-                        const char *obj)
+                        const char *obj, const char *file, int line,
+                        const char *func)
 {
     CK_RV ret = CKR_OK;
     int err;
@@ -319,15 +324,17 @@ static CK_RV mutex_init(P11PROV_CTX *provctx, pthread_mutex_t *lock,
     if (err != 0) {
         err = errno;
         ret = CKR_CANT_LOCK;
-        P11PROV_raise(provctx, ret, "Failed to init %s lock (errno=%d)", obj,
-                      err);
+        MUTEX_RAISE_ERROR("Failed to init");
     }
     return ret;
 }
-#define MUTEX_INIT(obj) mutex_init((obj)->provctx, &(obj)->lock, #obj)
+#define MUTEX_INIT(obj) \
+    mutex_init((obj)->provctx, &(obj)->lock, #obj, OPENSSL_FILE, OPENSSL_LINE, \
+               OPENSSL_FUNC)
 
 static CK_RV mutex_lock(P11PROV_CTX *provctx, pthread_mutex_t *lock,
-                        const char *obj)
+                        const char *obj, const char *file, int line,
+                        const char *func)
 {
     CK_RV ret = CKR_OK;
     int err;
@@ -336,14 +343,17 @@ static CK_RV mutex_lock(P11PROV_CTX *provctx, pthread_mutex_t *lock,
     if (err != 0) {
         err = errno;
         ret = CKR_CANT_LOCK;
-        P11PROV_raise(provctx, ret, "Failed to lock %s (errno=%d)", obj, err);
+        MUTEX_RAISE_ERROR("Failed to lock");
     }
     return ret;
 }
-#define MUTEX_LOCK(obj) mutex_lock((obj)->provctx, &(obj)->lock, #obj)
+#define MUTEX_LOCK(obj) \
+    mutex_lock((obj)->provctx, &(obj)->lock, #obj, OPENSSL_FILE, OPENSSL_LINE, \
+               OPENSSL_FUNC)
 
 static CK_RV mutex_try_lock(P11PROV_CTX *provctx, pthread_mutex_t *lock,
-                            const char *obj, bool expect_unlocked)
+                            const char *obj, bool expect_unlocked,
+                            const char *file, int line, const char *func)
 {
     CK_RV ret = CKR_OK;
     int err;
@@ -353,17 +363,18 @@ static CK_RV mutex_try_lock(P11PROV_CTX *provctx, pthread_mutex_t *lock,
         err = errno;
         ret = CKR_CANT_LOCK;
         if (expect_unlocked) {
-            P11PROV_raise(provctx, ret, "Already locked %s (errno=%d)", obj,
-                          err);
+            MUTEX_RAISE_ERROR("Failed to trylock");
         }
     }
     return ret;
 }
 #define MUTEX_TRY_LOCK(obj, e) \
-    mutex_try_lock((obj)->provctx, &(obj)->lock, #obj, (e))
+    mutex_try_lock((obj)->provctx, &(obj)->lock, #obj, (e), OPENSSL_FILE, \
+                   OPENSSL_LINE, OPENSSL_FUNC)
 
 static CK_RV mutex_unlock(P11PROV_CTX *provctx, pthread_mutex_t *lock,
-                          const char *obj)
+                          const char *obj, const char *file, int line,
+                          const char *func)
 {
     CK_RV ret = CKR_OK;
     int err;
@@ -372,14 +383,17 @@ static CK_RV mutex_unlock(P11PROV_CTX *provctx, pthread_mutex_t *lock,
     if (err != 0) {
         err = errno;
         ret = CKR_CANT_LOCK;
-        P11PROV_raise(provctx, ret, "Failed to unlock %s (errno=%d)", obj, err);
+        MUTEX_RAISE_ERROR("Failed to unlock");
     }
     return ret;
 }
-#define MUTEX_UNLOCK(obj) mutex_unlock((obj)->provctx, &(obj)->lock, #obj)
+#define MUTEX_UNLOCK(obj) \
+    mutex_unlock((obj)->provctx, &(obj)->lock, #obj, OPENSSL_FILE, \
+                 OPENSSL_LINE, OPENSSL_FUNC)
 
 static CK_RV mutex_destroy(P11PROV_CTX *provctx, pthread_mutex_t *lock,
-                           const char *obj)
+                           const char *obj, const char *file, int line,
+                           const char *func)
 {
     CK_RV ret = CKR_OK;
     int err;
@@ -388,12 +402,13 @@ static CK_RV mutex_destroy(P11PROV_CTX *provctx, pthread_mutex_t *lock,
     if (err != 0) {
         err = errno;
         ret = CKR_CANT_LOCK;
-        P11PROV_raise(provctx, ret, "Failed to destroy %s lock (errno=%d)", obj,
-                      err);
+        MUTEX_RAISE_ERROR("Failed to destroy");
     }
     return ret;
 }
-#define MUTEX_DESTROY(obj) mutex_destroy((obj)->provctx, &(obj)->lock, #obj)
+#define MUTEX_DESTROY(obj) \
+    mutex_destroy((obj)->provctx, &(obj)->lock, #obj, OPENSSL_FILE, \
+                  OPENSSL_LINE, OPENSSL_FUNC)
 
 /* Session stuff */
 #define DEFLT_SESSION_FLAGS CKF_SERIAL_SESSION
