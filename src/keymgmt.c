@@ -123,6 +123,9 @@ struct key_generator {
             CK_ULONG ec_params_size;
         } ec;
     } data;
+
+    OSSL_CALLBACK *cb_fn;
+    void *cb_arg;
 };
 
 static void *p11prov_common_gen_init(void *provctx, int selection,
@@ -280,10 +283,33 @@ static int p11prov_common_gen_set_params(void *genctx,
     return RET_OSSL_OK;
 }
 
+static CK_RV common_gen_callback(void *cbarg)
+{
+    struct key_generator *ctx = (struct key_generator *)cbarg;
+    OSSL_PARAM params[] = { OSSL_PARAM_END, OSSL_PARAM_END, OSSL_PARAM_END };
+    int data = 0;
+    int ret;
+
+    if (!ctx->cb_fn) {
+        return CKR_OK;
+    }
+
+    params[0] = OSSL_PARAM_construct_int(OSSL_GEN_PARAM_POTENTIAL, &data);
+    params[1] = OSSL_PARAM_construct_int(OSSL_GEN_PARAM_ITERATION, &data);
+
+    ret = ctx->cb_fn(params, ctx->cb_arg);
+    if (ret != RET_OSSL_OK) {
+        return CKR_CANCEL;
+    }
+
+    return CKR_OK;
+}
+
 static void *p11prov_common_gen(struct key_generator *ctx,
                                 CK_ATTRIBUTE *pubkey_template,
                                 CK_ATTRIBUTE *privkey_template, int pubtsize,
-                                int privtsize)
+                                int privtsize, OSSL_CALLBACK *cb_fn,
+                                void *cb_arg)
 {
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     CK_BYTE id[16];
@@ -302,6 +328,12 @@ static void *p11prov_common_gen(struct key_generator *ctx,
                               &session);
     if (ret != CKR_OK) {
         return NULL;
+    }
+
+    if (cb_fn) {
+        ctx->cb_fn = cb_fn;
+        ctx->cb_arg = cb_arg;
+        p11prov_session_set_callback(session, common_gen_callback, ctx);
     }
 
     sh = p11prov_session_handle(session);
@@ -361,7 +393,7 @@ static void p11prov_common_gen_cleanup(void *genctx)
 {
     struct key_generator *ctx = (struct key_generator *)genctx;
 
-    P11PROV_debug("rsa gen_cleanup %p", genctx);
+    P11PROV_debug("common gen_cleanup %p", genctx);
 
     if (ctx->label) {
         OPENSSL_free(ctx->label);
@@ -424,7 +456,7 @@ static void *p11prov_rsa_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
     P11PROV_debug("rsa gen %p %p %p", genctx, cb_fn, cb_arg);
 
     return p11prov_common_gen(ctx, pubkey_template, privkey_template, pubtsize,
-                              privtsize);
+                              privtsize, cb_fn, cb_arg);
 }
 
 static const OSSL_PARAM *p11prov_rsa_gen_settable_params(void *genctx,
@@ -872,7 +904,7 @@ static void *p11prov_ec_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
     P11PROV_debug("ec gen %p %p %p", ctx, cb_fn, cb_arg);
 
     return p11prov_common_gen(ctx, pubkey_template, privkey_template, pubtsize,
-                              privtsize);
+                              privtsize, cb_fn, cb_arg);
 }
 
 static const OSSL_PARAM *p11prov_ec_gen_settable_params(void *genctx,
