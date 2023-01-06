@@ -437,6 +437,9 @@ struct p11prov_session {
     CK_FLAGS flags;
 
     pthread_mutex_t lock;
+
+    p11prov_session_callback_t cb;
+    void *cbarg;
 };
 
 struct p11prov_session_pool {
@@ -455,11 +458,28 @@ struct p11prov_session_pool {
     pthread_mutex_t lock;
 };
 
+static CK_RV token_session_callback(CK_SESSION_HANDLE hSession,
+                                    CK_NOTIFICATION event,
+                                    CK_VOID_PTR pApplication)
+{
+    P11PROV_SESSION *session = (P11PROV_SESSION *)pApplication;
+
+    if (session->session != hSession) {
+        /* something not right, let's ignore this callback */
+        return CKR_OK;
+    }
+
+    if (session->cb) {
+        return session->cb(session->cbarg);
+    }
+
+    return CKR_OK;
+}
+
 /* in nanoseconds, 1 seconds */
 #define MAX_WAIT 1000000000
 /* sleep interval, 50 microseconds (max 20 attempts) */
 #define SLEEP 50000
-
 static CK_RV token_session_open(P11PROV_SESSION *session, CK_FLAGS flags)
 {
     uint64_t startime = 0;
@@ -467,7 +487,8 @@ static CK_RV token_session_open(P11PROV_SESSION *session, CK_FLAGS flags)
 
     do {
         ret = p11prov_OpenSession(session->provctx, session->slotid, flags,
-                                  NULL, NULL, &session->session);
+                                  session, token_session_callback,
+                                  &session->session);
         P11PROV_debug("C_OpenSession ret:%lu (session: %lu)", ret,
                       session->session);
         if (ret != CKR_SESSION_COUNT) {
@@ -1201,6 +1222,9 @@ void p11prov_return_session(P11PROV_SESSION *session)
         return;
     }
 
+    /* remove any callback */
+    p11prov_session_set_callback(session, NULL, NULL);
+
     pool = session->pool;
 
     if (pool) {
@@ -1229,4 +1253,11 @@ void p11prov_return_session(P11PROV_SESSION *session)
          * the pool was being freed */
         session_free(session);
     }
+}
+
+void p11prov_session_set_callback(P11PROV_SESSION *session,
+                                  p11prov_session_callback_t cb, void *cbarg)
+{
+    session->cb = cb;
+    session->cbarg = cbarg;
 }

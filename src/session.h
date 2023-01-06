@@ -24,4 +24,8 @@ CK_RV p11prov_take_login_session(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
                                  P11PROV_SESSION **_session);
 void p11prov_return_session(P11PROV_SESSION *session);
 
+typedef CK_RV (*p11prov_session_callback_t)(void *cbarg);
+void p11prov_session_set_callback(P11PROV_SESSION *session,
+                                  p11prov_session_callback_t cb, void *cbarg);
+
 #endif /* _SESSION_H */
