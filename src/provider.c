@@ -877,6 +877,7 @@ static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
           C("There is no active operation of appropriate type "
             "in the specified session") },
         { CKR_PIN_INCORRECT, C("The specified PIN is incorrect") },
+        { CKR_PIN_INVALID, C("The specified PIN is invalid") },
         { CKR_PIN_EXPIRED, C("The specified PIN has expired") },
         { CKR_PIN_LOCKED,
           C("The specified PIN is locked, and cannot be used") },
