@@ -10,6 +10,8 @@ struct p11prov_slot {
     CK_SLOT_INFO slot;
     CK_TOKEN_INFO token;
 
+    char *bad_pin;
+
     P11PROV_SESSION_POOL *pool;
 
     CK_MECHANISM_TYPE *mechs;
@@ -249,6 +251,10 @@ void p11prov_free_slots(P11PROV_SLOTS_CTX *sctx)
     for (int i = 0; i < sctx->num; i++) {
         session_pool_free(sctx->slots[i]->pool);
         OPENSSL_free(sctx->slots[i]->mechs);
+        if (sctx->slots[i]->bad_pin) {
+            OPENSSL_clear_free(sctx->slots[i]->bad_pin,
+                               strlen(sctx->slots[i]->bad_pin));
+        }
         OPENSSL_cleanse(sctx->slots[i], sizeof(P11PROV_SLOT));
     }
     OPENSSL_free(sctx->slots);
@@ -689,7 +695,8 @@ CK_SLOT_ID p11prov_session_slotid(P11PROV_SESSION *session)
 
 /* returns a locked login_session if _session is not NULL */
 static CK_RV token_login(P11PROV_SESSION *session, P11PROV_URI *uri,
-                         OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
+                         OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg,
+                         struct p11prov_slot *slot)
 {
     char cb_pin[MAX_PIN_LENGTH + 1] = { 0 };
     size_t cb_pin_len = 0;
@@ -697,36 +704,51 @@ static CK_RV token_login(P11PROV_SESSION *session, P11PROV_URI *uri,
     CK_ULONG pinlen = 0;
     CK_RV ret;
 
-    if (uri) {
-        pin = (CK_UTF8CHAR_PTR)p11prov_uri_get_pin(uri);
-    }
-    if (!pin) {
-        pin = p11prov_ctx_pin(session->provctx);
-    }
-    if (pin) {
-        pinlen = strlen((const char *)pin);
-    } else if (pw_cb) {
-        const char *info = "PKCS#11 Token";
-        OSSL_PARAM params[2] = {
-            OSSL_PARAM_DEFN(OSSL_PASSPHRASE_PARAM_INFO, OSSL_PARAM_UTF8_STRING,
-                            (void *)info, sizeof(info)),
-            OSSL_PARAM_END,
-        };
-        ret = pw_cb(cb_pin, sizeof(cb_pin), &cb_pin_len, params, pw_cbarg);
-        if (ret != RET_OSSL_OK) {
-            ret = CKR_GENERAL_ERROR;
-            goto done;
+    if (!(slot->token.flags & CKF_PROTECTED_AUTHENTICATION_PATH)) {
+        if (uri) {
+            pin = (CK_UTF8CHAR_PTR)p11prov_uri_get_pin(uri);
+            if (slot->bad_pin && strcmp((char *)pin, slot->bad_pin) == 0) {
+                P11PROV_raise(session->provctx, CKR_PIN_INVALID,
+                              "Blocking stored PIN that failed a previous login"
+                              " to avoid blocking the token");
+                pin = NULL;
+            }
         }
-        if (cb_pin_len == 0) {
+        if (!pin) {
+            pin = p11prov_ctx_pin(session->provctx);
+            if (slot->bad_pin && strcmp((char *)pin, slot->bad_pin) == 0) {
+                P11PROV_raise(session->provctx, CKR_PIN_INVALID,
+                              "Blocking stored PIN that failed a previous login"
+                              " to avoid blocking the token");
+                pin = NULL;
+            }
+        }
+        if (pin) {
+            pinlen = strlen((const char *)pin);
+        } else if (pw_cb) {
+            const char *info = "PKCS#11 Token";
+            OSSL_PARAM params[2] = {
+                OSSL_PARAM_DEFN(OSSL_PASSPHRASE_PARAM_INFO,
+                                OSSL_PARAM_UTF8_STRING, (void *)info,
+                                sizeof(info)),
+                OSSL_PARAM_END,
+            };
+            ret = pw_cb(cb_pin, sizeof(cb_pin), &cb_pin_len, params, pw_cbarg);
+            if (ret != RET_OSSL_OK) {
+                ret = CKR_GENERAL_ERROR;
+                goto done;
+            }
+            if (cb_pin_len == 0) {
+                ret = CKR_CANCEL;
+                goto done;
+            }
+
+            pin = (CK_UTF8CHAR_PTR)cb_pin;
+            pinlen = cb_pin_len;
+        } else {
             ret = CKR_CANCEL;
             goto done;
         }
-
-        pin = (CK_UTF8CHAR_PTR)cb_pin;
-        pinlen = cb_pin_len;
-    } else {
-        ret = CKR_CANCEL;
-        goto done;
     }
 
     P11PROV_debug("Attempt Login on session %lu", session->session);
@@ -735,6 +757,19 @@ static CK_RV token_login(P11PROV_SESSION *session, P11PROV_URI *uri,
                         pinlen);
     if (ret == CKR_USER_ALREADY_LOGGED_IN) {
         ret = CKR_OK;
+    } else {
+        if (pin && ret == CKR_PIN_INCORRECT) {
+            /* mark this pin as bad or we may end up locking the token */
+            if (slot->bad_pin) {
+                OPENSSL_clear_free(slot->bad_pin, strlen(slot->bad_pin));
+            }
+            slot->bad_pin = OPENSSL_strdup((const char *)pin);
+            /* not much we can do on failure */
+            if (!slot->bad_pin) {
+                P11PROV_raise(session->provctx, CKR_HOST_MEMORY,
+                              "Failed to set bad_pin");
+            }
+        }
     }
 
 done:
@@ -910,7 +945,8 @@ static CK_RV slot_login(P11PROV_SLOT *slot, P11PROV_URI *uri,
     }
 
     /* here we have a locked, open session */
-    ret = token_login(session, uri, pw_cb, pw_cbarg);
+
+    ret = token_login(session, uri, pw_cb, pw_cbarg, slot);
 
 done:
     if (session) {
