@@ -563,7 +563,7 @@ static CK_RV session_new(P11PROV_SESSION_POOL *pool, P11PROV_SESSION **_session)
 
     if (pool->num_sessions >= pool->max_sessions) {
         ret = CKR_SESSION_COUNT;
-        P11PROV_raise(pool->provctx, ret, "Max sessions (%lu) exceeded",
+        P11PROV_raise(pool->provctx, ret, "Max sessions (%d) exceeded",
                       pool->max_sessions);
         return ret;
     }
