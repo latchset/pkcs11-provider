@@ -1,6 +1,7 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
    SPDX-License-Identifier: Apache-2.0 */
 
+#define _GNU_SOURCE
 #include "provider.h"
 #include <string.h>
 
@@ -10,6 +11,7 @@ struct p11prov_slot {
     CK_SLOT_INFO slot;
     CK_TOKEN_INFO token;
 
+    char *login_info;
     char *bad_pin;
 
     P11PROV_SESSION_POOL *pool;
@@ -205,6 +207,13 @@ CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
 
         slot->id = slotid[i];
 
+        err = asprintf(&slot->login_info, "PKCS#11 Token (Slot %lu - %s)",
+                       slot->id, slot->slot.slotDescription);
+        if (err < 0) {
+            ret = CKR_HOST_MEMORY;
+            goto done;
+        }
+
         ret = session_pool_init(ctx, &slot->token, slot->id, &slot->pool);
         if (ret) {
             goto done;
@@ -255,6 +264,7 @@ void p11prov_free_slots(P11PROV_SLOTS_CTX *sctx)
             OPENSSL_clear_free(sctx->slots[i]->bad_pin,
                                strlen(sctx->slots[i]->bad_pin));
         }
+        OPENSSL_free(sctx->slots[i]->login_info);
         OPENSSL_cleanse(sctx->slots[i], sizeof(P11PROV_SLOT));
     }
     OPENSSL_free(sctx->slots);
@@ -726,11 +736,10 @@ static CK_RV token_login(P11PROV_SESSION *session, P11PROV_URI *uri,
         if (pin) {
             pinlen = strlen((const char *)pin);
         } else if (pw_cb) {
-            const char *info = "PKCS#11 Token";
             OSSL_PARAM params[2] = {
-                OSSL_PARAM_DEFN(OSSL_PASSPHRASE_PARAM_INFO,
-                                OSSL_PARAM_UTF8_STRING, (void *)info,
-                                sizeof(info)),
+                OSSL_PARAM_DEFN(
+                    OSSL_PASSPHRASE_PARAM_INFO, OSSL_PARAM_UTF8_STRING,
+                    (void *)slot->login_info, strlen(slot->login_info)),
                 OSSL_PARAM_END,
             };
             ret = pw_cb(cb_pin, sizeof(cb_pin), &cb_pin_len, params, pw_cbarg);
