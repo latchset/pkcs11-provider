@@ -153,8 +153,6 @@ static void *p11prov_store_open(void *pctx, const char *uri)
         goto done;
     }
 
-    store_fetch(ctx, NULL, NULL);
-
     result = CKR_OK;
 
 done:
