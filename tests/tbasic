@@ -179,6 +179,30 @@ sed "s/^pkcs11-module-token-pin.*$/##nopin/" ${OPENSSL_CONF} > ${OPENSSL_CONF}.n
 OPENSSL_CONF=${OPENSSL_CONF}.nopin
 echo "" | ossl 'pkey -in $PUBURI -pubin -passin stdin -pubout -out ${TMPPDIR}/rsa.pub.nopin.pem'
 echo "" | ossl 'pkey -in $ECPUBURI -pubin -passin stdin -pubout -out ${TMPPDIR}/ec.pub.nopin.pem'
+
+#Test prompting
+output=`expect -c "spawn -noecho openssl pkey -in \"${PUBURI}\" -pubin -pubout -text;
+                   expect \"Enter pass phrase for PKCS#11 Token (Slot *:\";
+                   send \"\r\";
+                   expect \"Key ID:\";"`
+echo "$output" | grep "Enter pass phrase for PKCS#11 Token (Slot .*):" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "$output" | grep "PKCS11 RSA Public Key" > /dev/null 2>&1 || FAIL=2
+fi
+if [ $FAIL -eq 1 ]; then
+    echo "Failed to obtain expected prompt"
+fi
+if [ $FAIL -eq 2 ]; then
+    echo "Failed to get expected command output"
+fi
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 rm -f ${OPENSSL_CONF}.nopin
 
