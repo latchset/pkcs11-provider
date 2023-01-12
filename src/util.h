@@ -104,5 +104,6 @@ CK_RV p11prov_token_sup_attr(P11PROV_CTX *ctx, CK_SLOT_ID id, int action,
                              CK_ATTRIBUTE_TYPE attr, CK_BBOOL *data);
 CK_RV p11prov_copy_attr(CK_ATTRIBUTE *dst, CK_ATTRIBUTE *src);
 bool p11prov_x509_names_are_equal(CK_ATTRIBUTE *a, CK_ATTRIBUTE *b);
+char *p11prov_alloc_sprintf(int size_hint, const char *format, ...);
 
 #endif /* _UTIL_H */

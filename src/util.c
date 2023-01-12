@@ -623,3 +623,41 @@ bool p11prov_x509_names_are_equal(CK_ATTRIBUTE *a, CK_ATTRIBUTE *b)
     X509_NAME_free(xb);
     return cmp == 0;
 }
+
+char *p11prov_alloc_sprintf(int size_hint, const char *format, ...)
+{
+    char *buf = NULL;
+    va_list args;
+    int repeat = 1;
+    int ret;
+
+again:
+    if (repeat-- < 0) {
+        ret = -1;
+        goto done;
+    }
+
+    if (size_hint) {
+        buf = OPENSSL_malloc(size_hint);
+    }
+
+    va_start(args, format);
+    ret = vsnprintf(buf, size_hint, format, args);
+    va_end(args);
+
+    if (ret >= size_hint) {
+        size_hint = ret + 1;
+        OPENSSL_free(buf);
+        buf = NULL;
+        goto again;
+    }
+
+done:
+    if (ret < 0) {
+        OPENSSL_free(buf);
+        buf = NULL;
+    } else if (size_hint > ret + 1) {
+        buf = OPENSSL_realloc(buf, ret + 1);
+    }
+    return buf;
+}

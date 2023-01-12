@@ -1,7 +1,6 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
    SPDX-License-Identifier: Apache-2.0 */
 
-#define _GNU_SOURCE
 #include "provider.h"
 #include <string.h>
 
@@ -126,6 +125,7 @@ static void trim_padded_field(CK_UTF8CHAR *field, ssize_t n)
 }
 
 #define trim(x) trim_padded_field(x, sizeof(x))
+static const char slot_desc_fmt[] = "PKCS#11 Token (Slot %lu - %s)";
 
 CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
 {
@@ -207,9 +207,11 @@ CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
 
         slot->id = slotid[i];
 
-        err = asprintf(&slot->login_info, "PKCS#11 Token (Slot %lu - %s)",
-                       slot->id, slot->slot.slotDescription);
-        if (err < 0) {
+        /* upper bound = slot_desc_fmt + LONG_MAX chars + MAX SLOT DESC */
+        slot->login_info = p11prov_alloc_sprintf(
+            sizeof(slot_desc_fmt) + 20 + sizeof(slot->slot.slotDescription) + 1,
+            slot_desc_fmt, slot->id, slot->slot.slotDescription);
+        if (!slot->login_info) {
             ret = CKR_HOST_MEMORY;
             goto done;
         }
@@ -264,7 +266,7 @@ void p11prov_free_slots(P11PROV_SLOTS_CTX *sctx)
             OPENSSL_clear_free(sctx->slots[i]->bad_pin,
                                strlen(sctx->slots[i]->bad_pin));
         }
-        free(sctx->slots[i]->login_info);
+        OPENSSL_free(sctx->slots[i]->login_info);
         OPENSSL_cleanse(sctx->slots[i], sizeof(P11PROV_SLOT));
     }
     OPENSSL_free(sctx->slots);
