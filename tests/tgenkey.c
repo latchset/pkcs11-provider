@@ -117,6 +117,7 @@ static void gen_keys(const char *key_type, const char *label, unsigned char *id,
         fprintf(stderr, "Failed to open pkcs11 store\n");
         exit(EXIT_FAILURE);
     }
+    free(uri);
 
     check_keys(store);
 
@@ -159,8 +160,8 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     hexify(idhex, id, 16);
-    asprintf(&label, "Test RSA gen [%.9s]", idhex);
-    if (!label) {
+    ret = asprintf(&label, "Test RSA gen [%.9s]", idhex);
+    if (ret == -1) {
         fprintf(stderr, "Failed to make label");
         exit(EXIT_FAILURE);
     }
@@ -179,8 +180,8 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     hexify(idhex, id, 16);
-    asprintf(&label, "Test RSA-PSS gen [%.9s]", idhex);
-    if (!label) {
+    ret = asprintf(&label, "Test RSA-PSS gen [%.9s]", idhex);
+    if (ret == -1) {
         fprintf(stderr, "Failed to make label");
         exit(EXIT_FAILURE);
     }
@@ -201,8 +202,8 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     hexify(idhex, id, 16);
-    asprintf(&label, "Test EC gen [%.9s]", idhex);
-    if (!label) {
+    ret = asprintf(&label, "Test EC gen [%.9s]", idhex);
+    if (ret == -1) {
         fprintf(stderr, "Failed to make label");
         exit(EXIT_FAILURE);
     }
