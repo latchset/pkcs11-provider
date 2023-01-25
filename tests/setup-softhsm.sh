@@ -19,10 +19,25 @@ if [ "$(uname)" == "Darwin" ]; then
     certtool=$(type -p gnutls-certtool)
 else
     certtool=$(type -p certtool)
+    sed_backup=""
 fi
 if [ -z "$certtool" ]; then
     echo "Missing GnuTLS certtool (on macOS, commonly installed as gnutls-certtool)"
     exit 0
+fi
+
+# macOS uses BSD sed, which expects the argument after -i (with a space after
+# it!) to be the backup suffix, while GNU sed expects a potential backup suffix
+# directly after -i and interprets -i <expression> as in-place editing with no
+# backup.
+#
+# Use "${sed_inplace[@]}" to make that work transparently by setting it to the
+# arguments required to achieve in-place editing without backups depending on
+# the version of sed.
+if sed --version 2>/dev/null | grep -q 'GNU sed'; then
+	sed_inplace=("-i")
+else
+	sed_inplace=("-i" "")
 fi
 
 if [ "$P11KITCLIENTPATH" = "" ]; then
@@ -140,7 +155,8 @@ ca_sign() {
     sed -e "s|cn = .*|cn = $CN|g" \
         -e "s|serial = .*|serial = $SERIAL|g" \
         -e "/^ca$/d" \
-        -i ${TMPPDIR}/cert.cfg
+        "${sed_inplace[@]}" \
+        "${TMPPDIR}/cert.cfg"
     "${certtool}" --generate-certificate --outfile="${CRT}.crt" --template=${TMPPDIR}/cert.cfg \
         --provider="$P11LIB" --load-privkey "pkcs11:object=$LABEL;type=private" \
         --load-pubkey "pkcs11:object=$LABEL;type=public" --outder \
