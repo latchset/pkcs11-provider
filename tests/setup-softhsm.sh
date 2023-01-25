@@ -204,6 +204,7 @@ title LINE "Generate openssl config file"
 sed -e "s|@libtoollibs[@]|${LIBSPATH}|g" \
     -e "s|@testssrcdir[@]|${BASEDIR}|g" \
     -e "s|@testsblddir@|${TESTBLDDIR}|g" \
+    -e "s|@SHARED_EXT@|${SHARED_EXT}|g" \
     -e "/pkcs11-module-init-args/d" \
     ${TESTSSRCDIR}/openssl.cnf.in > ${OPENSSL_CONF}
 

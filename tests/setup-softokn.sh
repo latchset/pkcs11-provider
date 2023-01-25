@@ -157,12 +157,13 @@ title LINE "Generate openssl config file"
 sed -e "s|@libtoollibs[@]|${LIBSPATH}|g" \
     -e "s|@testssrcdir[@]|${BASEDIR}|g" \
     -e "s|@testsblddir@|${TESTBLDDIR}|g" \
+    -e "s|@SHARED_EXT@|${SHARED_EXT}|g" \
     ${TESTSSRCDIR}/openssl.cnf.in > ${OPENSSL_CONF}
 
 title LINE "Export tests variables to ${TMPPDIR}/testvars"
 cat > ${TMPPDIR}/testvars <<DBGSCRIPT
 export PKCS11_PROVIDER_DEBUG="file:${BASEDIR}/${TMPPDIR}/p11prov-debug.log"
-export PKCS11_PROVIDER_MODULE="${SOFTOKNPATH}/libsoftokn3.so"
+export PKCS11_PROVIDER_MODULE="${SOFTOKNPATH%%/}/libsoftokn3${SHARED_EXT}"
 export OPENSSL_CONF="${OPENSSL_CONF}"
 export TESTSSRCDIR="${TESTSSRCDIR}"
 export TESTBLDDIR="${TESTBLDDIR}"
