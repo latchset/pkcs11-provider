@@ -95,8 +95,8 @@ PKG_CHECK_EXISTS(
         )]
 )
 
-AC_CHECK_FILE($SOFTOKENDIR/libsoftokn3.so, [],
-    [AC_CHECK_FILE($SOFTOKENDIR/nss/libsoftokn3.so,
+AC_CHECK_FILE($SOFTOKENDIR/libsoftokn3$SHARED_EXT, [],
+    [AC_CHECK_FILE($SOFTOKENDIR/nss/libsoftokn3$SHARED_EXT,
         [AC_SUBST([SOFTOKEN_SUBDIR], "nss/")],
         [AC_MSG_WARN([Softoken library missing, tests will fail!])])
     ])
@@ -108,6 +108,7 @@ PKG_CHECK_EXISTS([p11-kit-1],
                                 [p11_module_path])],
                  [AC_MSG_WARN([The p11-kit client not found. Can not run SoftHSM tests])])
 if test "$P11_MODULE_PATH" != "" ; then
+	# p11-kit-client is a module, so its name ends with .so also on macOS!
     AC_SUBST([P11KITCLIENTPATH], "$P11_MODULE_PATH/p11-kit-client.so")
 fi
 
