@@ -2,6 +2,7 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include "platform/endian.h"

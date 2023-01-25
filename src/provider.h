@@ -4,10 +4,14 @@
 #ifndef _PROVIDER_H
 #define _PROVIDER_H
 
-#define _XOPEN_SOURCE 500
+/* on macOS, snprintf and vsnprintf are in -D_XOPEN_SOURCE=600. This may be
+ * a bug in macOS' headers, or a deliberate choice because snprintf changed
+ * behavior with X/Open 6. */
+#define _XOPEN_SOURCE 600
 #include "config.h"
 
 #include <stdbool.h>
+#include <sys/types.h>
 
 #include "pkcs11.h"
 #include <openssl/core_dispatch.h>

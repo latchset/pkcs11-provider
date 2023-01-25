@@ -3,6 +3,7 @@
 
 #include "provider.h"
 #include <string.h>
+#include <sys/types.h>
 
 /* Slot stuff */
 struct p11prov_slot {
