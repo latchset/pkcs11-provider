@@ -10,6 +10,21 @@ then
     exit 0
 fi
 
+# On macOS, /usr/bin/certtool is a different program. Both MacPorts and
+# Homebrew rename GnuTLS' certtool to gnutls-certtool, so check for that first.
+#
+# https://github.com/macports/macports-ports/blob/4494b720a4807ddfc18bddf876620a5c6b24ce4f/devel/gnutls/Portfile#L206-L209
+# https://github.com/Homebrew/homebrew-core/blob/83be349adb47980b4046258b74fa8c1e99ca96a3/Formula/gnutls.rb#L56-L58
+if [ "$(uname)" == "Darwin" ]; then
+    certtool=$(type -p gnutls-certtool)
+else
+    certtool=$(type -p certtool)
+fi
+if [ -z "$certtool" ]; then
+    echo "Missing GnuTLS certtool (on macOS, commonly installed as gnutls-certtool)"
+    exit 0
+fi
+
 if [ "$P11KITCLIENTPATH" = "" ]; then
     echo "Missing P11KITCLIENTPATH env variable"
     exit 0
@@ -107,7 +122,7 @@ CACRTN="caCert"
 let "SERIAL+=1"
 pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE --module="$P11LIB" \
 	--label="${CACRTN}" --id="$KEYID"
-certtool --generate-self-signed --outfile="${CACRT}.crt" --template=${TMPPDIR}/cert.cfg \
+"${certtool}" --generate-self-signed --outfile="${CACRT}.crt" --template=${TMPPDIR}/cert.cfg \
         --provider="$P11LIB" --load-privkey "pkcs11:object=$CACRTN;type=private" \
         --load-pubkey "pkcs11:object=$CACRTN;type=public" --outder
 pkcs11-tool --write-object "${CACRT}.crt" --type=cert --id=$KEYID \
@@ -126,7 +141,7 @@ ca_sign() {
         -e "s|serial = .*|serial = $SERIAL|g" \
         -e "/^ca$/d" \
         -i ${TMPPDIR}/cert.cfg
-    certtool --generate-certificate --outfile="${CRT}.crt" --template=${TMPPDIR}/cert.cfg \
+    "${certtool}" --generate-certificate --outfile="${CRT}.crt" --template=${TMPPDIR}/cert.cfg \
         --provider="$P11LIB" --load-privkey "pkcs11:object=$LABEL;type=private" \
         --load-pubkey "pkcs11:object=$LABEL;type=public" --outder \
         --load-ca-certificate "${CACRT}.crt" --inder \
