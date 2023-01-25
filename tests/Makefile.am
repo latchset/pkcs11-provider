@@ -30,12 +30,14 @@ tmp.softokn:
 	LIBSPATH=$(libspath) \
 	TESTSSRCDIR=$(testssrcdir) \
 	TESTBLDDIR=$(testsblddir) \
+	SHARED_EXT=$(SHARED_EXT) \
 	SOFTOKNPATH="$(SOFTOKENDIR)/$(SOFTOKEN_SUBDIR)" \
 	$(testssrcdir)/setup-softokn.sh > setup-softokn.log 2>&1
 tmp.softhsm:
 	LIBSPATH=$(libspath) \
 	TESTSSRCDIR=$(testssrcdir) \
 	TESTBLDDIR=$(testsblddir) \
+	SHARED_EXT=$(SHARED_EXT) \
 	P11KITCLIENTPATH="$(P11KITCLIENTPATH)" \
 	$(testssrcdir)/setup-softhsm.sh > setup-softhsm.log 2>&1
 
