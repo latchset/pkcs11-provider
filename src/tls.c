@@ -178,7 +178,7 @@ struct {
 
 int tls_group_capabilities(OSSL_CALLBACK *cb, void *arg)
 {
-    for (int i = 0; tls_params[i].name != NULL; i++) {
+    for (size_t i = 0; i < sizeof(tls_params) / sizeof(*tls_params); i++) {
         int ret = cb(tls_params[i].list, arg);
         if (ret != RET_OSSL_OK) {
             return ret;
