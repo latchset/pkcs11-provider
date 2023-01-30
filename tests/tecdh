@@ -1,0 +1,13 @@
+#!/bin/bash -e
+# Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source ${TESTSSRCDIR}/helpers.sh
+
+title PARA "ECDH Exchange"
+ossl '
+pkeyutl -derive -inkey ${ECBASEURI}
+                -peerkey ${ECPEERPUBURI}
+                -out ${TMPPDIR}/secret.ecdh.bin'
+
+exit 0

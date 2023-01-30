@@ -1,0 +1,57 @@
+#!/bin/bash -e
+# Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source ${TESTSSRCDIR}/helpers.sh
+
+title PARA "Export EC Public key to a file"
+ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${TMPPDIR}/ecout.pub'
+title LINE "Print EC Public key from private"
+ossl 'pkey -in $ECPRIURI -pubout -text' output
+FAIL=0
+echo $output | grep "PKCS11 EC Public Key (256 bits)" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -eq 1 ]; then
+    echo "Pkcs11 encoder function failed"
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+fi
+
+title PARA "Sign and Verify with provided Hash and EC"
+ossl '
+pkeyutl -sign -inkey "${ECBASEURI}"
+              -in ${TMPPDIR}/sha256.bin
+              -out ${TMPPDIR}/sha256-ecsig.bin'
+
+ossl '
+pkeyutl -verify -inkey "${ECBASEURI}" -pubin
+                -in ${TMPPDIR}/sha256.bin
+                -sigfile ${TMPPDIR}/sha256-ecsig.bin'
+
+ossl '
+pkeyutl -verify -inkey "${TMPPDIR}/ecout.pub" -pubin
+                -in ${TMPPDIR}/sha256.bin
+                -sigfile ${TMPPDIR}/sha256-ecsig.bin'
+
+title PARA "DigestSign and DigestVerify with ECC"
+ossl '
+pkeyutl -sign -inkey "${ECBASEURI}"
+              -digest sha256
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha256-ecdgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${ECBASEURI}" -pubin
+                -digest sha256
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha256-ecdgstsig.bin'
+
+title PARA "Test CSR generation from private ECC keys"
+ossl '
+req -new -batch -key "${ECPRIURI}" -out ${TMPPDIR}/ecdsa_csr.pem'
+ossl '
+req -in ${TMPPDIR}/ecdsa_csr.pem -verify -noout'
+
+exit 0
