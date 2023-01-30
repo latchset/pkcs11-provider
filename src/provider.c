@@ -860,6 +860,7 @@ static const OSSL_ITEM *p11prov_get_reason_strings(void *provctx)
         { CKR_KEY_HANDLE_INVALID, C("The specified key handle is not valid") },
         { CKR_KEY_SIZE_RANGE,
           C("Unable to handle the specified key size (Out of range)") },
+        { CKR_KEY_NEEDED, C("This operation requires a key (missing)") },
         { CKR_KEY_TYPE_INCONSISTENT,
           C("The specified key is not the correct type of key to "
             "use with the specified mechanism") },

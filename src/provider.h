@@ -23,6 +23,7 @@
 #include <openssl/err.h>
 #include <openssl/proverr.h>
 #include <openssl/core_names.h>
+#include <openssl/provider.h>
 
 #define UNUSED __attribute__((unused))
 #define RET_OSSL_OK 1
@@ -51,6 +52,7 @@
 
 #define P11PROV_PARAM_KEY_LABEL "pkcs11_key_label"
 #define P11PROV_PARAM_KEY_ID "pkcs11_key_id"
+#define P11PROV_PARAM_SLOT_ID "pkcs11_slot_id"
 
 typedef struct p11prov_ctx P11PROV_CTX;
 typedef struct p11prov_interface P11PROV_INTERFACE;
