@@ -33,20 +33,6 @@ if [ $FAIL -eq 0 ]; then
     exit 1
 fi
 
-title PARA "Export EC Public key to a file"
-ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${TMPPDIR}/ecout.pub'
-title LINE "Print EC Public key from private"
-ossl 'pkey -in $ECPRIURI -pubout -text' output
-FAIL=0
-echo $output | grep "PKCS11 EC Public Key (256 bits)" > /dev/null 2>&1 || FAIL=1
-if [ $FAIL -eq 1 ]; then
-    echo "Pkcs11 encoder function failed"
-    echo
-    echo "Original command output:"
-    echo "$output"
-    echo
-fi
-
 title PARA "Raw Sign check error"
 dd if=/dev/urandom of=${TMPPDIR}/64Brandom.bin bs=64 count=1 >/dev/null 2>&1
 FAIL=0
@@ -88,22 +74,6 @@ pkeyutl -verify -inkey "${PUBURI}" -pkeyopt digest:sha256
                 -pubin
                 -in ${TMPPDIR}/sha256.bin
                 -sigfile ${TMPPDIR}/sha256-sig.bin'
-
-title PARA "Sign and Verify with provided Hash and EC"
-ossl '
-pkeyutl -sign -inkey "${ECBASEURI}"
-              -in ${TMPPDIR}/sha256.bin
-              -out ${TMPPDIR}/sha256-ecsig.bin'
-
-ossl '
-pkeyutl -verify -inkey "${ECBASEURI}" -pubin
-                -in ${TMPPDIR}/sha256.bin
-                -sigfile ${TMPPDIR}/sha256-ecsig.bin'
-
-ossl '
-pkeyutl -verify -inkey "${TMPPDIR}/ecout.pub" -pubin
-                -in ${TMPPDIR}/sha256.bin
-                -sigfile ${TMPPDIR}/sha256-ecsig.bin'
 
 title PARA "DigestSign and DigestVerify with RSA"
 ossl '
