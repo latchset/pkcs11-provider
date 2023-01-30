@@ -840,7 +840,7 @@ static CK_RV check_slot(struct p11prov_slot *provslot, P11PROV_URI *uri,
         }
         if (!found) {
             /* slot not suitable */
-            return CKR_CANCEL;
+            return CKR_MECHANISM_INVALID;
         }
     }
 

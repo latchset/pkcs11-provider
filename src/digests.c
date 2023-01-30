@@ -260,6 +260,22 @@ static int p11prov_digest_init(void *ctx, const OSSL_PARAM params[])
         return RET_OSSL_ERR;
     }
 
+    if (params != NULL) {
+        const OSSL_PARAM *p;
+        int err;
+
+        p = OSSL_PARAM_locate_const(params, P11PROV_PARAM_SLOT_ID);
+        if (p) {
+            err = OSSL_PARAM_get_ulong(p, &slotid);
+            if (err != RET_OSSL_OK) {
+                P11PROV_raise(dctx->provctx, CKR_GENERAL_ERROR,
+                              "Invalid PARAM_SLOT_ID");
+                return err;
+            }
+            P11PROV_debug("Set PARAM_SLOT_ID to %lu", slotid);
+        }
+    }
+
     ret =
         p11prov_get_session(dctx->provctx, &slotid, NULL, NULL, dctx->mechtype,
                             NULL, NULL, false, false, &dctx->session);
@@ -340,7 +356,7 @@ static int p11prov_digest_final(void *ctx, unsigned char *out, size_t *size,
         return RET_OSSL_OK;
     }
 
-    digest_len = buf_size;
+    digest_len = digest_size;
 
     sess = p11prov_session_handle(dctx->session);
 
