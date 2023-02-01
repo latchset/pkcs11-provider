@@ -1844,7 +1844,7 @@ static int p11prov_ecdsa_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         }
     }
 
-    return RET_OSSL_ERR;
+    return RET_OSSL_OK;
 }
 
 static const OSSL_PARAM *p11prov_ecdsa_gettable_ctx_params(void *ctx,
