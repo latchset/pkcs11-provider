@@ -64,3 +64,54 @@ jobs:
           tests/tmp.${{ matrix.token }}/p11prov-debug.log
           tests/tmp.${{ matrix.token }}/testvars
           config.log
+  build-macos:
+    name: CI with software token
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-12]
+        token: [softokn, softhsm]
+    steps:
+    - name: Install Dependencies
+      run: |
+        brew update
+        brew install \
+          autoconf-archive \
+          automake \
+          libtool \
+          openssl@3 \
+          pkg-config
+        if [ "${{ matrix.token }}" = "softokn" ]; then
+          brew install nss
+        elif [ "${{ matrix.token }}" = "softhsm" ]; then
+          brew install \
+            opensc \
+            p11-kit \
+            softhsm
+        fi
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+    - name: Setup
+      run: |
+        export PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig
+        export PATH=$(brew --prefix openssl@3)/bin:$PATH
+
+        autoreconf -fiv
+        CC=clang ./configure
+    - name: Build and Test
+      run: |
+        export PATH=$(brew --prefix openssl@3)/bin:$PATH
+
+        make -j$(sysctl -n hw.ncpu || echo 2)
+        make check
+    - uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: Test logs on macOS-12 with ${{ matrix.token }}
+        path: |
+          tests/*.log
+          tests/openssl.cnf
+          tests/tmp.${{ matrix.token }}/p11prov-debug.log
+          tests/tmp.${{ matrix.token }}/testvars
+          config.log
