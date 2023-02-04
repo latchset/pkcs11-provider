@@ -107,7 +107,6 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
     CK_OBJECT_HANDLE pkey_handle;
     CK_OBJECT_HANDLE dkey_handle;
     CK_SLOT_ID slotid;
-    unsigned long dkey_len;
     struct fetch_attrs attrs[1];
     int num = 0;
     CK_RV ret;
@@ -155,11 +154,19 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
     }
 
     P11PROV_debug("HKDF derived hey handle: %lu", dkey_handle);
-    FA_SET_BUF_VAL(attrs, num, CKA_VALUE, key, dkey_len, false, true);
+    FA_SET_BUF_VAL(attrs, num, CKA_VALUE, key, keylen, true);
     ret = p11prov_fetch_attributes(hkdfctx->provctx, hkdfctx->session,
                                    dkey_handle, attrs, num);
     if (ret != CKR_OK) {
-        P11PROV_debug("hkdf failed to retrieve secret %lu", ret);
+        P11PROV_raise(hkdfctx->provctx, ret, "Failed to retrieve derived key");
+        return RET_OSSL_ERR;
+    }
+    FA_GET_LEN(attrs, 0, key_size);
+    if (key_size != keylen) {
+        ret = CKR_GENERAL_ERROR;
+        P11PROV_raise(hkdfctx->provctx, ret,
+                      "Expected derived key of len %lz, but got %lu", keylen,
+                      key_size);
         return RET_OSSL_ERR;
     }
 

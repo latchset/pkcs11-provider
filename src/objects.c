@@ -615,11 +615,12 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         if (ret != CKR_OK) {
             P11PROV_raise(ctx, ret, "Failed to probe quirk");
         } else if (token_supports_allowed_mechs == CK_TRUE) {
-            num = 0;
-            FA_SET_BUF_ALLOC(attrs, num, CKA_ALLOWED_MECHANISMS, false);
-            ret = p11prov_fetch_attributes(ctx, session, handle, attrs, num);
+            struct fetch_attrs a[1];
+            CK_ULONG an = 0;
+            FA_SET_BUF_ALLOC(a, an, CKA_ALLOWED_MECHANISMS, false);
+            ret = p11prov_fetch_attributes(ctx, session, handle, a, 1);
             if (ret == CKR_OK) {
-                CKATTR_MOVE(obj->attrs[obj->numattrs], attrs[0]);
+                obj->attrs[obj->numattrs] = a[0].attr;
                 obj->numattrs++;
             } else if (ret == CKR_ATTRIBUTE_TYPE_INVALID) {
                 token_supports_allowed_mechs = CK_FALSE;
