@@ -212,7 +212,7 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
     CK_BBOOL val_true = CK_TRUE;
     CK_BBOOL val_false = CK_FALSE;
-    CK_ULONG key_size = 0;
+    CK_ULONG key_size = outlen;
     CK_ATTRIBUTE key_template[5] = {
         { CKA_CLASS, &key_class, sizeof(key_class) },
         { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
@@ -225,7 +225,6 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     CK_OBJECT_HANDLE handle;
     CK_OBJECT_HANDLE secret_handle;
     CK_SLOT_ID slotid;
-    unsigned long secret_len;
     struct fetch_attrs attrs[1];
     int num = 0;
     CK_RV ret;
@@ -238,11 +237,6 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     if (secret == NULL) {
         *psecretlen = p11prov_obj_get_key_size(ecdhctx->key);
         return RET_OSSL_OK;
-    }
-
-    if (ecdhctx->kdf_outlen > outlen) {
-        ERR_raise(ERR_LIB_PROV, PROV_R_OUTPUT_BUFFER_TOO_SMALL);
-        return 0;
     }
 
     /* set up mechanism */
@@ -266,9 +260,9 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
 
     /* complete key template */
     if (ecdhctx->kdf_outlen) {
-        key_size = ecdhctx->kdf_outlen;
-    } else {
-        key_size = p11prov_obj_get_key_size(ecdhctx->key);
+        if (ecdhctx->kdf_outlen < outlen) {
+            key_size = ecdhctx->kdf_outlen;
+        }
     }
 
     handle = p11prov_obj_get_handle(ecdhctx->key);
@@ -292,7 +286,7 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     }
 
     P11PROV_debug("ECDH derived hey handle: %lu", secret_handle);
-    FA_SET_BUF_VAL(attrs, num, CKA_VALUE, secret, secret_len, false, true);
+    FA_SET_BUF_VAL(attrs, num, CKA_VALUE, secret, key_size, true);
     ret = p11prov_fetch_attributes(ecdhctx->provctx, session, secret_handle,
                                    attrs, num);
     p11prov_return_session(session);
@@ -300,7 +294,7 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
         P11PROV_debug("ecdh failed to retrieve secret %lu", ret);
         return RET_OSSL_ERR;
     }
-    *psecretlen = secret_len;
+    FA_GET_LEN(attrs, 0, *psecretlen);
     return RET_OSSL_OK;
 }
 

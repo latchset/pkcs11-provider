@@ -4,57 +4,6 @@
 #ifndef _UTIL_H
 #define _UTIL_H
 
-/* Utilities to fetch objects from tokens */
-struct fetch_attrs {
-    CK_ATTRIBUTE_TYPE type;
-    CK_BYTE **value_ptr;
-    CK_ULONG *value_len_ptr;
-    bool allocate;
-    bool required;
-
-    /* auxiliary members to make life easier */
-    CK_BYTE *value;
-    CK_ULONG value_len;
-};
-#define FA_SET_BUF_VAL(x, n, _t, _v, _l, _a, _r) \
-    do { \
-        x[n].type = _t; \
-        x[n].value_ptr = (CK_BYTE_PTR *)&_v; \
-        x[n].value_len_ptr = &_l; \
-        x[n].allocate = _a; \
-        x[n].required = _r; \
-        x[n].value = NULL; \
-        x[n].value_len = 0; \
-        n++; \
-    } while (0)
-
-#define FA_SET_BUF_ALLOC(x, n, _t, _r) \
-    do { \
-        x[n].type = _t; \
-        x[n].value = NULL; \
-        x[n].value_len = 0; \
-        x[n].value_ptr = &x[n].value; \
-        x[n].value_len_ptr = &x[n].value_len; \
-        x[n].allocate = true; \
-        x[n].required = _r; \
-        n++; \
-    } while (0)
-
-#define FA_SET_VAR_VAL(x, n, _t, _v, _r) \
-    do { \
-        x[n].type = _t; \
-        x[n].value = (CK_BYTE *)&_v; \
-        x[n].value_len = sizeof(_v); \
-        x[n].value_ptr = &x[n].value; \
-        x[n].value_len_ptr = &x[n].value_len; \
-        x[n].allocate = false; \
-        x[n].required = _r; \
-        n++; \
-    } while (0)
-
-#define FA_GET_VAL(x, n) *x[n].value_ptr
-#define FA_GET_LEN(x, n) *x[n].value_len_ptr
-
 #define CKATTR_ASSIGN(x, _a, _b, _c) \
     do { \
         x.type = (_a); \
@@ -62,21 +11,37 @@ struct fetch_attrs {
         x.ulValueLen = (_c); \
     } while (0)
 
-#define CKATTR_SET(x, y) \
+/* Utilities to fetch objects from tokens */
+struct fetch_attrs {
+    CK_ATTRIBUTE attr;
+    bool allocate;
+    bool required;
+};
+#define FA_SET_BUF_VAL(x, n, _t, _v, _l, _r) \
     do { \
-        x.type = y.type; \
-        x.pValue = *y.value_ptr; \
-        x.ulValueLen = *y.value_len_ptr; \
+        CKATTR_ASSIGN(x[n].attr, _t, _v, _l); \
+        x[n].allocate = false; \
+        x[n].required = _r; \
+        n++; \
     } while (0)
 
-#define CKATTR_MOVE(x, y) \
+#define FA_SET_BUF_ALLOC(x, n, _t, _r) \
     do { \
-        x.type = y.type; \
-        x.pValue = *y.value_ptr; \
-        x.ulValueLen = *y.value_len_ptr; \
-        *y.value_ptr = NULL; \
-        *y.value_len_ptr = 0; \
+        CKATTR_ASSIGN(x[n].attr, _t, NULL, 0); \
+        x[n].allocate = true; \
+        x[n].required = _r; \
+        n++; \
     } while (0)
+
+#define FA_SET_VAR_VAL(x, n, _t, _v, _r) \
+    do { \
+        CKATTR_ASSIGN(x[n].attr, _t, (CK_BYTE *)&(_v), sizeof(_v)); \
+        x[n].allocate = false; \
+        x[n].required = _r; \
+        n++; \
+    } while (0)
+
+#define FA_GET_LEN(x, n, _l) (_l) = x[n].attr.ulValueLen
 
 CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                                CK_OBJECT_HANDLE object,
