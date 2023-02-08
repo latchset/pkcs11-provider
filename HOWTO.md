@@ -71,7 +71,7 @@ environment variable.
 Example:
 ```
 $ export PKCS11_PROVIDER_MODULE=/path/to/pkcs11-driver.so
-$ openssl -in pkcs11:id=%01 -pubin -pubout -text
+$ openssl pkey -in pkcs11:id=%01 -pubin -pubout -text
 ```
 
 ## Specifying keys
