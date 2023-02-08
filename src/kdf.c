@@ -165,7 +165,7 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
     if (key_size != keylen) {
         ret = CKR_GENERAL_ERROR;
         P11PROV_raise(hkdfctx->provctx, ret,
-                      "Expected derived key of len %lz, but got %lu", keylen,
+                      "Expected derived key of len %zu, but got %lu", keylen,
                       key_size);
         return RET_OSSL_ERR;
     }
