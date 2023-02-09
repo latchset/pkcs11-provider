@@ -175,7 +175,7 @@ static void cache_key(P11PROV_OBJ *obj)
 
 P11PROV_OBJ *p11prov_obj_ref_no_cache(P11PROV_OBJ *obj)
 {
-    P11PROV_debug("Ref Object: %p (handle:%lu)\n", obj,
+    P11PROV_debug("Ref Object: %p (handle:%lu)", obj,
                   obj ? obj->handle : CK_INVALID_HANDLE);
 
     if (obj && __atomic_fetch_add(&obj->refcnt, 1, __ATOMIC_SEQ_CST) > 0) {
@@ -206,7 +206,7 @@ P11PROV_OBJ *p11prov_obj_ref(P11PROV_OBJ *obj)
 
 void p11prov_obj_free(P11PROV_OBJ *obj)
 {
-    P11PROV_debug("Free Object: %p (handle:%lu)\n", obj,
+    P11PROV_debug("Free Object: %p (handle:%lu)", obj,
                   obj ? obj->handle : CK_INVALID_HANDLE);
 
     if (obj == NULL) {
