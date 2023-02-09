@@ -89,7 +89,7 @@ static void populate_interface(P11PROV_INTERFACE *intf, CK_INTERFACE *ck_intf)
     } list;
 
     list.fns = (CK_FUNCTION_LIST_PTR)ck_intf->pFunctionList;
-    P11PROV_debug("Populating Interfaces with '%s', version %d.%d\n",
+    P11PROV_debug("Populating Interfaces with '%s', version %d.%d",
                   ck_intf->pInterfaceName, list.fns->version.major,
                   list.fns->version.minor);
 
