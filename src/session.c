@@ -1073,11 +1073,8 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
         if (ret != CKR_OK) {
             goto done;
         }
-        if ((slot->token.flags & CKF_LOGIN_REQUIRED) || reqlogin) {
+        if (reqlogin) {
             ret = slot_login(slot, uri, pw_cb, pw_cbarg, NULL);
-            if (ret == CKR_CANCEL && !reqlogin) {
-                ret = CKR_OK;
-            }
             if (ret != CKR_OK) {
                 goto done;
             }
@@ -1101,7 +1098,7 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                 /* keep going */
                 continue;
             }
-            if ((slot->token.flags & CKF_LOGIN_REQUIRED) || reqlogin) {
+            if (reqlogin) {
                 ret = slot_login(slot, uri, pw_cb, pw_cbarg, NULL);
                 if (ret == CKR_CANCEL && !reqlogin) {
                     ret = CKR_OK;

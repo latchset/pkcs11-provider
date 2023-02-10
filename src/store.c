@@ -85,7 +85,12 @@ static void store_fetch(struct p11prov_store_ctx *ctx,
 {
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     CK_SLOT_ID nextid = CK_UNAVAILABLE_INFORMATION;
+    bool login = false;
     CK_RV ret;
+
+    if (ctx->expect == 0 || ctx->expect == OSSL_STORE_INFO_PKEY) {
+        login = true;
+    }
 
     /* cycle through all available slots,
      * only stack errors, but not block on any of them */
@@ -99,7 +104,7 @@ static void store_fetch(struct p11prov_store_ctx *ctx,
 
         ret = p11prov_get_session(ctx->provctx, &slotid, &nextid,
                                   ctx->parsed_uri, CK_UNAVAILABLE_INFORMATION,
-                                  pw_cb, pw_cbarg, false, false, &ctx->session);
+                                  pw_cb, pw_cbarg, login, false, &ctx->session);
         if (ret != CKR_OK) {
             P11PROV_raise(ctx->provctx, ret,
                           "Failed to get session to load keys");
