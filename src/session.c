@@ -959,9 +959,8 @@ static CK_RV slot_login(P11PROV_SLOT *slot, P11PROV_URI *uri,
     /* we have a locked session, check that it is ok */
     ret = session_check(session, flags, &state);
     if (ret == CKR_OK) {
-        if (state == CKS_RW_PUBLIC_SESSION || state == CKS_RW_USER_FUNCTIONS
-            || state == CKS_RW_SO_FUNCTIONS) {
-            /* we have a valid logged in session */
+        if (state != CKS_RO_PUBLIC_SESSION) {
+            /* we seem to have a valid logged in session */
             goto done;
         }
     } else {
