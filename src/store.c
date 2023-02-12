@@ -89,6 +89,7 @@ static void store_fetch(struct p11prov_store_ctx *ctx,
     bool login = false;
     CK_RV ret;
 
+    P11PROV_debug("called (store_ctx=%p)", ctx);
     login_behavior = p11prov_ctx_login_behavior(ctx->provctx);
 
     if (ctx->expect == 0 || ctx->expect == OSSL_STORE_INFO_PKEY
@@ -152,6 +153,8 @@ again:
      * This accounts for HW that requires a login even for public objects */
     if (login == false && ctx->num_objs == 0
         && login_behavior != PUBKEY_LOGIN_NEVER) {
+        P11PROV_debug("No object found. Retrying with login (store_ctx=%p)",
+                      ctx);
         slotid = CK_UNAVAILABLE_INFORMATION;
         ctx->loaded = 0;
         login = true;

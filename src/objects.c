@@ -774,7 +774,8 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
         }
     }
 
-    P11PROV_debug("Find objects: found %lu objects", total);
+    P11PROV_debug("Find objects: found %lu objects; Returning %lx", total,
+                  result);
     OPENSSL_free(objects);
     return result;
 }
@@ -1204,6 +1205,9 @@ static CK_RV get_public_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int num)
 {
     P11PROV_OBJ *tmp = NULL;
     CK_RV rv;
+
+    P11PROV_debug("Get Public Attributes (obj=%p, atrs=%p, num=%d)", obj, attrs,
+                  num);
 
     /* we couldn't get all of them, start fallback logic */
     switch (obj->class) {

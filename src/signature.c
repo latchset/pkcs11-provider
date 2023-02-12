@@ -769,6 +769,9 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
     bool reqlogin = false;
     CK_RV ret;
 
+    P11PROV_debug("called (sigctx=%p, digest_op=%s)", sigctx,
+                  digest_op ? "true" : "false");
+
     ret = p11prov_ctx_status(sigctx->provctx);
     if (ret != CKR_OK) {
         return ret;
