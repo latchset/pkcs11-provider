@@ -588,6 +588,7 @@ static CK_RV mech_fallback_init(P11PROV_SIG_CTX *sigctx, CK_SLOT_ID slotid)
     void *provctx;
     const char *digest;
     EVP_MD *md = NULL;
+    OSSL_LIB_CTX *libctx;
     const OSSL_PARAM *pparams = NULL;
     OSSL_PARAM params[] = {
         OSSL_PARAM_construct_ulong(P11PROV_PARAM_SLOT_ID, &slotid),
@@ -605,10 +606,11 @@ static CK_RV mech_fallback_init(P11PROV_SIG_CTX *sigctx, CK_SLOT_ID slotid)
         goto done;
     }
 
+    libctx = p11prov_ctx_get_libctx(sigctx->provctx);
     /* FIXME: should we add sigctx->properties here ? (ex: fips=yes) */
     /* try to keep digest on token but allow default (via "?") to provide
      * digests. */
-    md = EVP_MD_fetch(NULL, digest, "?" P11PROV_DEFAULT_PROPERTIES);
+    md = EVP_MD_fetch(libctx, digest, "?" P11PROV_DEFAULT_PROPERTIES);
     if (!md) {
         ret = CKR_GENERAL_ERROR;
         P11PROV_raise(sigctx->provctx, ret,
