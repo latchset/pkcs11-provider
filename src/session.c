@@ -1100,9 +1100,6 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
             }
             if (reqlogin) {
                 ret = slot_login(slot, uri, pw_cb, pw_cbarg, NULL);
-                if (ret == CKR_CANCEL && !reqlogin) {
-                    ret = CKR_OK;
-                }
                 if (ret != CKR_OK) {
                     /* keep going */
                     continue;
