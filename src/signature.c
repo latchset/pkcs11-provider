@@ -430,52 +430,79 @@ static CK_RV p11prov_sig_pss_restrictions(P11PROV_SIG_CTX *sigctx,
     return CKR_OK;
 }
 
-static int p11prov_sig_set_mechanism(void *ctx, bool digest_sign,
+/* fixates pss_params based on defaults if values are not set */
+static CK_RV pss_defaults(P11PROV_SIG_CTX *sigctx, CK_MECHANISM *mechanism,
+                          bool set_mech)
+{
+    const P11PROV_MECH *mech;
+    CK_RV ret;
+
+    ret = p11prov_mech_by_mechanism(sigctx->digest, &mech);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+    sigctx->pss_params.hashAlg = mech->digest;
+    if (sigctx->pss_params.mgf == 0) {
+        sigctx->pss_params.mgf = mech->mgf;
+    }
+    if (sigctx->pss_params.sLen == 0) {
+        /* default to digest size if not set */
+        size_t size;
+        ret = p11prov_digest_get_digest_size(mech->digest, &size);
+        if (ret != CKR_OK) {
+            return ret;
+        }
+        sigctx->pss_params.sLen = size;
+    }
+
+    mechanism->pParameter = &sigctx->pss_params;
+    mechanism->ulParameterLen = sizeof(sigctx->pss_params);
+
+    if (set_mech) {
+        mechanism->mechanism = mech->pkcs_pss;
+    }
+
+    return CKR_OK;
+}
+
+static int p11prov_sig_set_mechanism(P11PROV_SIG_CTX *sigctx, bool digest_sign,
                                      CK_MECHANISM *mechanism)
 {
-    P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
-    const P11PROV_MECH *mech;
     int result = CKR_DATA_INVALID;
 
     mechanism->mechanism = sigctx->mechtype;
     mechanism->pParameter = NULL;
     mechanism->ulParameterLen = 0;
 
-    if (sigctx->mechtype == CKM_RSA_PKCS_PSS) {
-        mechanism->pParameter = &sigctx->pss_params;
-        mechanism->ulParameterLen = sizeof(sigctx->pss_params);
-        if (sigctx->digest) {
-            sigctx->pss_params.hashAlg = sigctx->digest;
-        }
-    }
-
-    if (!digest_sign) {
-        return CKR_OK;
-    }
-
     switch (sigctx->mechtype) {
     case CKM_RSA_PKCS:
-        result = p11prov_mech_by_mechanism(sigctx->digest, &mech);
-        if (result == CKR_OK) {
-            mechanism->mechanism = mech->pkcs_mech;
+        if (digest_sign) {
+            const P11PROV_MECH *mech;
+            result = p11prov_mech_by_mechanism(sigctx->digest, &mech);
+            if (result == CKR_OK) {
+                mechanism->mechanism = mech->pkcs_mech;
+            }
+        } else {
+            result = CKR_OK;
         }
         break;
     case CKM_RSA_X_509:
         break;
     case CKM_RSA_PKCS_PSS:
-        mechanism->pParameter = &sigctx->pss_params;
-        mechanism->ulParameterLen = sizeof(sigctx->pss_params);
-
-        result = p11prov_mech_by_mechanism(sigctx->digest, &mech);
-        if (result == CKR_OK) {
-            mechanism->mechanism = mech->pkcs_pss;
-            result = p11prov_sig_pss_restrictions(ctx, mechanism);
+        result = pss_defaults(sigctx, mechanism, digest_sign);
+        if (result == CKR_OK && digest_sign) {
+            result = p11prov_sig_pss_restrictions(sigctx, mechanism);
         }
         break;
     case CKM_ECDSA:
-        result = p11prov_mech_by_mechanism(sigctx->digest, &mech);
-        if (result == CKR_OK) {
-            mechanism->mechanism = mech->ecdsa_mech;
+        if (digest_sign) {
+            const P11PROV_MECH *mech;
+            result = p11prov_mech_by_mechanism(sigctx->digest, &mech);
+            if (result == CKR_OK) {
+                mechanism->mechanism = mech->ecdsa_mech;
+            }
+        } else {
+            result = CKR_OK;
         }
         break;
     }
@@ -534,6 +561,48 @@ static int p11prov_rsasig_set_pss_saltlen_from_digest(void *ctx)
     }
 
     sigctx->pss_params.sLen = digest_size;
+    return RET_OSSL_OK;
+}
+
+static int p11prov_rsasig_set_pss_saltlen_max(void *ctx, bool max_to_digest)
+{
+    P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
+    size_t digest_size;
+    CK_ULONG key_size;
+    CK_ULONG key_bit_size;
+    CK_RV rv;
+
+    if (sigctx->digest == 0) {
+        ERR_raise_data(ERR_LIB_PROV, PROV_R_NOT_SUPPORTED,
+                       "Can only be set if Digest was set first.");
+        return RET_OSSL_ERR;
+    }
+
+    rv = p11prov_digest_get_digest_size(sigctx->digest, &digest_size);
+    if (rv != CKR_OK) {
+        P11PROV_raise(sigctx->provctx, rv, "Unavailable digest");
+        return RET_OSSL_ERR;
+    }
+
+    key_size = p11prov_obj_get_key_size(sigctx->key);
+    if (key_size == CK_UNAVAILABLE_INFORMATION) {
+        P11PROV_raise(sigctx->provctx, rv, "Unavailable key");
+        return RET_OSSL_ERR;
+    }
+    key_bit_size = p11prov_obj_get_key_bit_size(sigctx->key);
+    if (key_bit_size == CK_UNAVAILABLE_INFORMATION) {
+        P11PROV_raise(sigctx->provctx, rv, "Unavailable key");
+        return RET_OSSL_ERR;
+    }
+
+    /* from openssl */
+    sigctx->pss_params.sLen = key_size - digest_size - 2;
+    if ((key_bit_size & 0x07) == 1) {
+        sigctx->pss_params.sLen -= 1;
+    }
+    if (max_to_digest && sigctx->pss_params.sLen > digest_size) {
+        sigctx->pss_params.sLen = digest_size;
+    }
     return RET_OSSL_OK;
 }
 
@@ -980,11 +1049,6 @@ static void *p11prov_rsasig_newctx(void *provctx, const char *properties)
         return NULL;
     }
 
-    /* default PSS Params */
-    sigctx->pss_params.hashAlg = CKM_SHA256;
-    sigctx->pss_params.mgf = CKG_MGF1_SHA256;
-    sigctx->pss_params.sLen = 32;
-
     return sigctx;
 }
 
@@ -1245,7 +1309,17 @@ static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_MGF1_DIGEST);
     if (p) {
-        const char *digest = p11prov_sig_mgf_name(sigctx->pss_params.mgf);
+        const char *digest = NULL;
+
+        if (sigctx->pss_params.mgf != 0) {
+            digest = p11prov_sig_mgf_name(sigctx->pss_params.mgf);
+        } else {
+            const P11PROV_MECH *pssmech;
+            CK_RV rv = p11prov_mech_by_mechanism(sigctx->mechtype, &pssmech);
+            if (rv == CKR_OK) {
+                p11prov_digest_get_name(pssmech->digest, &digest);
+            }
+        }
         if (!digest) {
             return RET_OSSL_ERR;
         }
@@ -1256,6 +1330,32 @@ static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
     }
 
     return RET_OSSL_OK;
+}
+
+/* only available in recent OpenSSL 3.0.x headers */
+#ifndef RSA_PSS_SALTLEN_AUTO_DIGEST_MAX
+#define RSA_PSS_SALTLEN_AUTO_DIGEST_MAX -4
+#endif
+#ifndef OSSL_PKEY_RSA_PSS_SALT_LEN_AUTO_DIGEST_MAX
+#define OSSL_PKEY_RSA_PSS_SALT_LEN_AUTO_DIGEST_MAX "auto-digestmax"
+#endif
+
+static int rsasig_set_saltlen(P11PROV_SIG_CTX *sigctx, int saltlen)
+{
+    if (saltlen >= 0) {
+        sigctx->pss_params.sLen = saltlen;
+        return RET_OSSL_OK;
+    }
+    if (saltlen == RSA_PSS_SALTLEN_DIGEST) {
+        return p11prov_rsasig_set_pss_saltlen_from_digest(sigctx);
+    }
+    if (saltlen == RSA_PSS_SALTLEN_AUTO || saltlen == RSA_PSS_SALTLEN_MAX) {
+        return p11prov_rsasig_set_pss_saltlen_max(sigctx, false);
+    }
+    if (saltlen == RSA_PSS_SALTLEN_AUTO_DIGEST_MAX) {
+        return p11prov_rsasig_set_pss_saltlen_max(sigctx, true);
+    }
+    return RET_OSSL_ERR;
 }
 
 static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
@@ -1347,32 +1447,28 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
             }
             P11PROV_debug("Set OSSL_SIGNATURE_PARAM_PSS_SALTLEN to %d",
                           saltlen);
-            sigctx->pss_params.sLen = saltlen;
         } else if (p->data_type == OSSL_PARAM_UTF8_STRING) {
             P11PROV_debug("Set OSSL_SIGNATURE_PARAM_PSS_SALTLEN to %s",
                           p->data ? (const char *)p->data : "<NULL>");
             if (strcmp(p->data, OSSL_PKEY_RSA_PSS_SALT_LEN_DIGEST) == 0) {
-                ret = p11prov_rsasig_set_pss_saltlen_from_digest(sigctx);
-                if (ret != RET_OSSL_OK) {
-                    return ret;
-                }
+                saltlen = RSA_PSS_SALTLEN_DIGEST;
             } else if (strcmp(p->data, OSSL_PKEY_RSA_PSS_SALT_LEN_MAX) == 0) {
-                ERR_raise_data(ERR_LIB_PROV, PROV_R_NOT_SUPPORTED,
-                               "saltlen=max is unsupported.");
-                return RET_OSSL_ERR;
+                saltlen = RSA_PSS_SALTLEN_MAX;
             } else if (strcmp(p->data, OSSL_PKEY_RSA_PSS_SALT_LEN_AUTO) == 0) {
-                ERR_raise_data(ERR_LIB_PROV, PROV_R_NOT_SUPPORTED,
-                               "saltlen=auto is unsupported.");
-                return RET_OSSL_ERR;
+                saltlen = RSA_PSS_SALTLEN_AUTO;
+            } else if (strcmp(p->data,
+                              OSSL_PKEY_RSA_PSS_SALT_LEN_AUTO_DIGEST_MAX)
+                       == 0) {
+                saltlen = RSA_PSS_SALTLEN_AUTO_DIGEST_MAX;
             } else {
                 saltlen = atoi(p->data);
-                if (saltlen == 0) {
-                    return RET_OSSL_ERR;
-                }
-                sigctx->pss_params.sLen = saltlen;
             }
         } else {
             return RET_OSSL_ERR;
+        }
+        ret = rsasig_set_saltlen(sigctx, saltlen);
+        if (ret != RET_OSSL_OK) {
+            return ret;
         }
     }
 
