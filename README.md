@@ -8,3 +8,6 @@ compatible to previous versions as well.
 
 Spec:
 https://docs.oasis-open.org/pkcs11/pkcs11-base/v3.0/os/pkcs11-base-v3.0-os.html
+
+See the [wiki](https://github.com/latchset/pkcs11-provider/wiki) for more
+documentation.
