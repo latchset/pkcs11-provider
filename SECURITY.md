@@ -14,5 +14,7 @@ This table will specify which versions are supported:
 
 ## Reporting a Vulnerability
 
-For important security vulnerability please email simo@redhat.com directly.
-Please DO NOT open a public Issue for important vulnerabilities unless directed.
+To report security vulnerabilitis please either select the "Report
+a vulnerability" teplate from the "New issue" workflow, or email
+simo@redhat.com directly.
+Please DO NOT open a generic issue for security vulnerabilities.
