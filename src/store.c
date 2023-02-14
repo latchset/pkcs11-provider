@@ -85,13 +85,18 @@ static void store_fetch(struct p11prov_store_ctx *ctx,
 {
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     CK_SLOT_ID nextid = CK_UNAVAILABLE_INFORMATION;
+    int login_behavior;
     bool login = false;
     CK_RV ret;
 
-    if (ctx->expect == 0 || ctx->expect == OSSL_STORE_INFO_PKEY) {
+    login_behavior = p11prov_ctx_login_behavior(ctx->provctx);
+
+    if (ctx->expect == 0 || ctx->expect == OSSL_STORE_INFO_PKEY
+        || login_behavior == PUBKEY_LOGIN_ALWAYS) {
         login = true;
     }
 
+again:
     /* cycle through all available slots,
      * only stack errors, but not block on any of them */
     do {
@@ -129,6 +134,17 @@ static void store_fetch(struct p11prov_store_ctx *ctx,
         slotid = nextid;
 
     } while (nextid != CK_UNAVAILABLE_INFORMATION);
+
+    /* Given the variety of tokens, if we found no object at all, and we did
+     * *not* set login required, we retry again, after setting login required.
+     * This accounts for HW that requires a login even for public objects */
+    if (login == false && ctx->num_objs == 0
+        && login_behavior != PUBKEY_LOGIN_NEVER) {
+        slotid = CK_UNAVAILABLE_INFORMATION;
+        ctx->loaded = 0;
+        login = true;
+        goto again;
+    }
 }
 
 DISPATCH_STORE_FN(open);

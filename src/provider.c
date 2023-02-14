@@ -28,6 +28,7 @@ struct p11prov_ctx {
     const char *init_args;
     char *pin;
     int allow_export;
+    int login_behavior;
     /* TODO: ui_method */
     /* TODO: fork id */
 
@@ -328,6 +329,12 @@ int p11prov_ctx_allow_export(P11PROV_CTX *ctx)
 {
     P11PROV_debug("allow_export = %d", ctx->allow_export);
     return ctx->allow_export;
+}
+
+int p11prov_ctx_login_behavior(P11PROV_CTX *ctx)
+{
+    P11PROV_debug("login_behavior = %d", ctx->login_behavior);
+    return ctx->login_behavior;
 }
 
 static void p11prov_teardown(void *ctx)
@@ -1049,9 +1056,10 @@ static int p11prov_module_init(P11PROV_CTX *ctx)
 int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
                        const OSSL_DISPATCH **out, void **provctx)
 {
-    OSSL_PARAM core_params[5] = { 0 };
+    OSSL_PARAM core_params[6] = { 0 };
     const char *module = NULL;
     char *allow_export = NULL;
+    char *login_behavior = NULL;
     char *pin = NULL;
     P11PROV_CTX *ctx;
     int ret;
@@ -1083,7 +1091,10 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
     core_params[3] =
         OSSL_PARAM_construct_utf8_ptr(P11PROV_PKCS11_MODULE_ALLOW_EXPORT,
                                       &allow_export, sizeof(allow_export));
-    core_params[4] = OSSL_PARAM_construct_end();
+    core_params[4] =
+        OSSL_PARAM_construct_utf8_ptr(P11PROV_PKCS11_MODULE_LOGIN_BEHAVIOR,
+                                      &login_behavior, sizeof(login_behavior));
+    core_params[5] = OSSL_PARAM_construct_end();
     ret = core_get_params(handle, core_params);
     if (ret != RET_OSSL_OK) {
         ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_GET_PARAMETER);
@@ -1123,6 +1134,21 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         if (errno != 0 || *end != '\0') {
             P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Invalid value for %s: (%s)",
                           P11PROV_PKCS11_MODULE_ALLOW_EXPORT, allow_export);
+            p11prov_ctx_free(ctx);
+            return RET_OSSL_ERR;
+        }
+    }
+
+    if (login_behavior != NULL) {
+        if (strcmp(login_behavior, "auto") == 0) {
+            ctx->login_behavior = PUBKEY_LOGIN_AUTO;
+        } else if (strcmp(login_behavior, "always") == 0) {
+            ctx->login_behavior = PUBKEY_LOGIN_ALWAYS;
+        } else if (strcmp(login_behavior, "never") == 0) {
+            ctx->login_behavior = PUBKEY_LOGIN_NEVER;
+        } else {
+            P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Invalid value for %s: (%s)",
+                          P11PROV_PKCS11_MODULE_LOGIN_BEHAVIOR, login_behavior);
             p11prov_ctx_free(ctx);
             return RET_OSSL_ERR;
         }
