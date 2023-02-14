@@ -34,6 +34,7 @@
 #define P11PROV_PKCS11_MODULE_INIT_ARGS "pkcs11-module-init-args"
 #define P11PROV_PKCS11_MODULE_TOKEN_PIN "pkcs11-module-token-pin"
 #define P11PROV_PKCS11_MODULE_ALLOW_EXPORT "pkcs11-module-allow-export"
+#define P11PROV_PKCS11_MODULE_LOGIN_BEHAVIOR "pkcs11-module-login-behavior"
 
 #define P11PROV_DEFAULT_PROPERTIES "provider=pkcs11"
 #define P11PROV_NAMES_RSA "RSA:rsaEncryption:1.2.840.113549.1.1.1"
@@ -77,6 +78,11 @@ CK_RV p11prov_ctx_set_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
 #define ALLOW_EXPORT_PUBLIC 0
 #define DISALLOW_EXPORT_PUBLIC 1
 int p11prov_ctx_allow_export(P11PROV_CTX *ctx);
+
+#define PUBKEY_LOGIN_AUTO 0
+#define PUBKEY_LOGIN_ALWAYS 1
+#define PUBKEY_LOGIN_NEVER 2
+int p11prov_ctx_login_behavior(P11PROV_CTX *ctx);
 
 #include "debug.h"
 
