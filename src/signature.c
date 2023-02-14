@@ -1317,7 +1317,10 @@ static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
             const P11PROV_MECH *pssmech;
             CK_RV rv = p11prov_mech_by_mechanism(sigctx->mechtype, &pssmech);
             if (rv == CKR_OK) {
-                p11prov_digest_get_name(pssmech->digest, &digest);
+                rv = p11prov_digest_get_name(pssmech->digest, &digest);
+                if (rv != CKR_OK) {
+                    digest = NULL;
+                }
             }
         }
         if (!digest) {
