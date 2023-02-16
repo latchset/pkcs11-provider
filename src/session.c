@@ -332,6 +332,35 @@ int p11prov_slot_get_mechanisms(P11PROV_SLOT *slot, CK_MECHANISM_TYPE **mechs)
     P11PROV_raise(provctx, ret, "%s %s mutex (errno=%d)", _errstr, obj, err); \
     P11PROV_debug("Called from [%s:%d]%s()", file, line, func)
 
+int p11prov_check_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID id,
+                            CK_MECHANISM_TYPE mechtype)
+{
+    P11PROV_SLOTS_CTX *sctx;
+    CK_RV ret;
+
+    ret = p11prov_take_slots(ctx, &sctx);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+
+    ret = CKR_MECHANISM_INVALID;
+
+    for (int s = 0; s < sctx->num; s++) {
+        if (sctx->slots[s]->id != id) {
+            continue;
+        }
+        for (int i = 0; i < sctx->slots[s]->nmechs; i++) {
+            if (sctx->slots[s]->mechs[i] == mechtype) {
+                ret = CKR_OK;
+                break;
+            }
+        }
+    }
+
+    p11prov_return_slots(sctx);
+    return ret;
+}
+
 static CK_RV mutex_init(P11PROV_CTX *provctx, pthread_mutex_t *lock,
                         const char *obj, const char *file, int line,
                         const char *func)

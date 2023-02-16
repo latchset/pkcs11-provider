@@ -1426,6 +1426,25 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
             ERR_raise(ERR_LIB_PROV, PROV_R_ILLEGAL_OR_UNSUPPORTED_PADDING_MODE);
             return RET_OSSL_ERR;
         }
+
+        if (mechtype == CKM_RSA_PKCS_PSS) {
+            /* some modules do not support PSS so we need to return
+             * an error early if we try to select this. Unfortunately
+             * although openssl has separate keymgmt for PKCS vs PSS
+             * padding, it consider RSA always capable to be performed
+             * regardless, and this is not the case in PKCS#11 */
+            CK_RV rv;
+
+            rv = p11prov_check_mechanism(sigctx->provctx,
+                                         p11prov_obj_get_slotid(sigctx->key),
+                                         CKM_RSA_PKCS_PSS);
+            if (rv != CKR_OK) {
+                P11PROV_raise(sigctx->provctx, rv,
+                              "CKM_RSA_PKCS_PSS unavailable");
+                return RET_OSSL_ERR;
+            }
+        }
+
         sigctx->mechtype = mechtype;
 
         P11PROV_debug_mechanism(sigctx->provctx,
