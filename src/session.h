@@ -11,6 +11,8 @@ CK_RV p11prov_take_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots);
 void p11prov_return_slots(P11PROV_SLOTS_CTX *slots);
 P11PROV_SLOT *p11prov_fetch_slot(P11PROV_SLOTS_CTX *sctx, int *idx);
 int p11prov_slot_get_mechanisms(P11PROV_SLOT *slot, CK_MECHANISM_TYPE **mechs);
+int p11prov_check_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID id,
+                            CK_MECHANISM_TYPE mechtype);
 
 /* Sessions */
 CK_SESSION_HANDLE p11prov_session_handle(P11PROV_SESSION *session);
