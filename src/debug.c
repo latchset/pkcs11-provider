@@ -54,6 +54,9 @@ void p11prov_debug_init(void)
         if (dbg_level < 1) {
             dbg_level = 1;
         }
+        if (stddebug == NULL) {
+            stddebug = stderr;
+        }
     }
 
 done:
