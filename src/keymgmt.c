@@ -475,7 +475,15 @@ static const OSSL_PARAM *p11prov_rsa_gen_settable_params(void *genctx,
 
 static void *p11prov_rsa_new(void *provctx)
 {
+    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
+    CK_RV ret;
+
     P11PROV_debug("rsa new");
+
+    ret = p11prov_ctx_status(ctx);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
 
     return p11prov_obj_new(provctx, CK_UNAVAILABLE_INFORMATION,
                            CK_INVALID_HANDLE, CK_UNAVAILABLE_INFORMATION);
@@ -858,7 +866,16 @@ DISPATCH_KEYMGMT_FN(ec, gettable_params);
 
 static void *p11prov_ec_new(void *provctx)
 {
+    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
+    CK_RV ret;
+
     P11PROV_debug("ec new");
+
+    ret = p11prov_ctx_status(ctx);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
+
     return NULL;
 }
 
@@ -1176,7 +1193,16 @@ const void *p11prov_hkdf_static_ctx = NULL;
 
 static void *p11prov_hkdf_new(void *provctx)
 {
+    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
+    CK_RV ret;
+
     P11PROV_debug("hkdf keymgmt new");
+
+    ret = p11prov_ctx_status(ctx);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
+
     return (void *)&p11prov_hkdf_static_ctx;
 }
 

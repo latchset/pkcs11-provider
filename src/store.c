@@ -159,25 +159,31 @@ DISPATCH_STORE_FN(settable_ctx_params);
 static void *p11prov_store_open(void *pctx, const char *uri)
 {
     struct p11prov_store_ctx *ctx = NULL;
-    CK_RV result = CKR_CANCEL;
+    P11PROV_CTX *provctx = (P11PROV_CTX *)pctx;
+    CK_RV ret = CKR_CANCEL;
 
     P11PROV_debug("object open (%p, %s)", pctx, uri);
+
+    ret = p11prov_ctx_status(provctx);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
 
     ctx = OPENSSL_zalloc(sizeof(struct p11prov_store_ctx));
     if (ctx == NULL) {
         return NULL;
     }
-    ctx->provctx = (P11PROV_CTX *)pctx;
+    ctx->provctx = provctx;
 
     ctx->parsed_uri = p11prov_parse_uri(ctx->provctx, uri);
     if (ctx->parsed_uri == NULL) {
         goto done;
     }
 
-    result = CKR_OK;
+    ret = CKR_OK;
 
 done:
-    if (result != CKR_OK) {
+    if (ret != CKR_OK) {
         p11prov_store_ctx_free(ctx);
         ctx = NULL;
     }

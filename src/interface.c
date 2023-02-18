@@ -9,6 +9,16 @@
  * at runtime by emulating or returning the proper error if a 3.0
  * only function is used on a 2.40 token. */
 
+struct p11prov_module_ctx {
+    P11PROV_CTX *provctx;
+
+    char *path;
+    char *init_args;
+
+    void *dlhandle;
+    P11PROV_INTERFACE *interface;
+};
+
 /* This structure is effectively equivalent to CK_FUNCTION_LIST_3_0
  * however we list only the symbols we are actually using in the
  * code plus flags */
@@ -132,8 +142,7 @@ static void populate_interface(P11PROV_INTERFACE *intf, CK_INTERFACE *ck_intf)
     }
 }
 
-CK_RV p11prov_interface_init(void *dlhandle, P11PROV_INTERFACE **interface,
-                             CK_FLAGS *interface_flags)
+static CK_RV p11prov_interface_init(P11PROV_MODULE *mctx)
 {
     /* Try to get 3.0 interface by default */
     P11PROV_INTERFACE *intf;
@@ -147,7 +156,7 @@ CK_RV p11prov_interface_init(void *dlhandle, P11PROV_INTERFACE **interface,
     }
 
     ret = CKR_FUNCTION_NOT_SUPPORTED;
-    intf->GetInterface = dlsym(dlhandle, "C_GetInterface");
+    intf->GetInterface = dlsym(mctx->dlhandle, "C_GetInterface");
     if (!intf->GetInterface) {
         char *err = dlerror();
         P11PROV_debug(
@@ -169,7 +178,7 @@ CK_RV p11prov_interface_init(void *dlhandle, P11PROV_INTERFACE **interface,
             .flags = 0,
         };
 
-        intf->GetFunctionList = dlsym(dlhandle, "C_GetFunctionList");
+        intf->GetFunctionList = dlsym(mctx->dlhandle, "C_GetFunctionList");
         if (intf->GetFunctionList) {
             ret = intf->GetFunctionList(
                 (CK_FUNCTION_LIST_PTR_PTR)&deflt.pFunctionList);
@@ -184,15 +193,137 @@ CK_RV p11prov_interface_init(void *dlhandle, P11PROV_INTERFACE **interface,
     }
     if (ret == CKR_OK) {
         populate_interface(intf, ck_interface);
-        *interface = intf;
-        *interface_flags = intf->flags;
+        mctx->interface = intf;
     } else {
         OPENSSL_free(intf);
     }
     return ret;
 }
 
-void p11prov_interface_free(P11PROV_INTERFACE *interface)
+CK_RV p11prov_module_new(P11PROV_CTX *ctx, const char *path,
+                         const char *init_args, P11PROV_MODULE **_mctx)
 {
-    OPENSSL_free(interface);
+    struct p11prov_module_ctx *mctx;
+    const char *env_module;
+
+    mctx = OPENSSL_zalloc(sizeof(struct p11prov_module_ctx));
+    if (!mctx) {
+        return CKR_HOST_MEMORY;
+    }
+    mctx->provctx = ctx;
+
+    /* The environment variable has the highest precedence */
+    env_module = getenv("PKCS11_PROVIDER_MODULE");
+    if (env_module && *env_module) {
+        mctx->path = OPENSSL_strdup(env_module);
+    } else if (path) {
+        mctx->path = OPENSSL_strdup(path);
+    } else {
+        /* If the module is not specified in the configuration file,
+         * use the p11-kit proxy  */
+#ifdef DEFAULT_PKCS11_MODULE
+        mctx->path = OPENSSL_strdup(DEFAULT_PKCS11_MODULE);
+#else
+        P11PROV_raise(ctx, CKR_ARGUMENTS_BAD, "No PKCS#11 module specified.");
+        p11prov_module_free(mctx);
+        return CKR_ARGUMENTS_BAD;
+#endif
+    }
+    if (!mctx->path) {
+        p11prov_module_free(mctx);
+        return CKR_HOST_MEMORY;
+    }
+
+    if (init_args) {
+        mctx->init_args = OPENSSL_strdup(init_args);
+        if (!mctx->init_args) {
+            p11prov_module_free(mctx);
+            return CKR_HOST_MEMORY;
+        }
+    }
+
+    *_mctx = mctx;
+    return CKR_OK;
+}
+
+#if !defined(RTLD_DEEPBIND)
+#define RTLD_DEEPBIND 0
+#endif
+
+CK_RV p11prov_module_init(P11PROV_MODULE *mctx)
+{
+    P11PROV_SLOTS_CTX *slots;
+    CK_C_INITIALIZE_ARGS args;
+    CK_INFO ck_info = { 0 };
+    CK_RV ret;
+
+    if (!mctx) {
+        return CKR_GENERAL_ERROR;
+    }
+
+    P11PROV_debug("PKCS#11: Initializing the module: %s", mctx->path);
+
+    dlerror();
+    mctx->dlhandle = dlopen(mctx->path, RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
+    if (!mctx->dlhandle) {
+        char *err = dlerror();
+        ret = CKR_GENERAL_ERROR;
+        P11PROV_debug("dlopen(%s) failed: %s", mctx->path, err);
+        return ret;
+    }
+
+    ret = p11prov_interface_init(mctx);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+
+    args.flags = CKF_OS_LOCKING_OK;
+    args.pReserved = (void *)mctx->init_args;
+    ret = p11prov_Initialize(mctx->provctx, &args);
+    if (ret && ret != CKR_CRYPTOKI_ALREADY_INITIALIZED) {
+        return ret;
+    }
+
+    ret = p11prov_GetInfo(mctx->provctx, &ck_info);
+    if (ret) {
+        return ret;
+    }
+    P11PROV_debug("Module Info: ck_ver:%d.%d lib: '%s' '%s' ver:%d.%d",
+                  (int)ck_info.cryptokiVersion.major,
+                  (int)ck_info.cryptokiVersion.minor, ck_info.manufacturerID,
+                  ck_info.libraryDescription, (int)ck_info.libraryVersion.major,
+                  (int)ck_info.libraryVersion.minor);
+
+    ret = p11prov_init_slots(mctx->provctx, &slots);
+    if (ret) {
+        return ret;
+    }
+
+    p11prov_ctx_set_slots(mctx->provctx, slots);
+
+    return CKR_OK;
+}
+
+P11PROV_INTERFACE *p11prov_module_get_interface(P11PROV_MODULE *mctx)
+{
+    if (!mctx) {
+        return NULL;
+    }
+    return mctx->interface;
+}
+
+void p11prov_module_free(P11PROV_MODULE *mctx)
+{
+    if (!mctx) {
+        return;
+    }
+
+    if (mctx->dlhandle) {
+        p11prov_Finalize(mctx->provctx, NULL);
+        dlclose(mctx->dlhandle);
+    }
+    OPENSSL_free(mctx->interface);
+    OPENSSL_free(mctx->path);
+    OPENSSL_free(mctx->init_args);
+    OPENSSL_free(mctx);
 }

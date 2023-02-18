@@ -3,7 +3,6 @@
 
 #include "provider.h"
 #include <pthread.h>
-#include <dlfcn.h>
 #include <string.h>
 
 struct p11prov_interface;
@@ -12,7 +11,7 @@ struct quirk;
 struct p11prov_ctx {
 
     enum {
-        P11PROV_UNINITIALIZED,
+        P11PROV_UNINITIALIZED = 0,
         P11PROV_INITIALIZED,
         P11PROV_IN_ERROR,
     } status;
@@ -24,8 +23,6 @@ struct p11prov_ctx {
     OSSL_LIB_CTX *libctx;
 
     /* Configuration */
-    char *module;
-    const char *init_args;
     char *pin;
     int allow_export;
     int login_behavior;
@@ -33,20 +30,16 @@ struct p11prov_ctx {
     /* TODO: fork id */
 
     /* module handles and data */
-    void *dlhandle;
-    P11PROV_INTERFACE *interface;
-    CK_FLAGS intf_flags;
+    P11PROV_MODULE *module;
 
     P11PROV_SLOTS_CTX *slots;
 
     OSSL_ALGORITHM *op_digest;
     OSSL_ALGORITHM *op_kdf;
-    OSSL_ALGORITHM *op_keymgmt;
     OSSL_ALGORITHM *op_exchange;
     OSSL_ALGORITHM *op_signature;
     OSSL_ALGORITHM *op_asym_cipher;
     OSSL_ALGORITHM *op_encoder;
-    OSSL_ALGORITHM *op_store;
 
     struct quirk *quirks;
     int nquirks;
@@ -221,47 +214,67 @@ failed:
     return ret;
 }
 
-struct p11prov_interface *p11prov_ctx_get_interface(P11PROV_CTX *ctx)
+P11PROV_INTERFACE *p11prov_ctx_get_interface(P11PROV_CTX *ctx)
 {
-    return ctx->interface;
+    return p11prov_module_get_interface(ctx->module);
 }
 
 P11PROV_SLOTS_CTX *p11prov_ctx_get_slots(P11PROV_CTX *ctx)
 {
-    if (ctx->status != P11PROV_INITIALIZED) {
-        return NULL;
-    }
     return ctx->slots;
+}
+
+void p11prov_ctx_set_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX *slots)
+{
+    if (ctx->slots) {
+        p11prov_free_slots(ctx->slots);
+    }
+    ctx->slots = slots;
 }
 
 OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx)
 {
-    if (ctx->status != P11PROV_INITIALIZED) {
-        return NULL;
-    }
     return ctx->libctx;
 }
 
+static CK_RV operations_init(P11PROV_CTX *ctx);
+
 CK_RV p11prov_ctx_status(P11PROV_CTX *ctx)
 {
+    CK_RV ret;
+
     switch (ctx->status) {
     case P11PROV_UNINITIALIZED:
-        P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Module uninitialized!");
-        return CKR_GENERAL_ERROR;
+        ret = p11prov_module_init(ctx->module);
+        if (ret != CKR_OK) {
+            P11PROV_raise(ctx, ret, "Module initialization failed!");
+            ctx->status = P11PROV_IN_ERROR;
+            break;
+        }
+        ret = operations_init(ctx);
+        if (ret != CKR_OK) {
+            P11PROV_raise(ctx, ret, "Operations initialization failed!");
+            ctx->status = P11PROV_IN_ERROR;
+            break;
+        }
+        ctx->status = P11PROV_INITIALIZED;
+        break;
     case P11PROV_INITIALIZED:
+        ret = CKR_OK;
         break;
     case P11PROV_IN_ERROR:
         P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Module in error state!");
-        return CKR_GENERAL_ERROR;
+        ret = CKR_GENERAL_ERROR;
+        break;
+    default:
+        ret = CKR_GENERAL_ERROR;
     }
-    return CKR_OK;
+
+    return ret;
 }
 
 CK_UTF8CHAR_PTR p11prov_ctx_pin(P11PROV_CTX *ctx)
 {
-    if (ctx->status != P11PROV_INITIALIZED) {
-        return NULL;
-    }
     return (CK_UTF8CHAR_PTR)ctx->pin;
 }
 
@@ -269,33 +282,34 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
 {
     int ret;
 
-    if (ctx->status != P11PROV_UNINITIALIZED) {
-        ret = pthread_rwlock_wrlock(&ctx->rwlock);
-        if (ret != 0) {
-            P11PROV_raise(ctx, CKR_CANT_LOCK,
-                          "Failure to wrlock! Data corruption may happen (%d)",
-                          errno);
-        }
+    ret = pthread_rwlock_wrlock(&ctx->rwlock);
+    if (ret != 0) {
+        P11PROV_raise(ctx, CKR_CANT_LOCK,
+                      "Failure to wrlock! Data corruption may happen (%d)",
+                      errno);
     }
+
+    OPENSSL_free(ctx->op_digest);
+    OPENSSL_free(ctx->op_kdf);
+    /* keymgmt is static */
+    OPENSSL_free(ctx->op_exchange);
+    OPENSSL_free(ctx->op_signature);
+    OPENSSL_free(ctx->op_asym_cipher);
+    OPENSSL_free(ctx->op_encoder);
+    /* store is static */
 
     OSSL_LIB_CTX_free(ctx->libctx);
+    ctx->libctx = NULL;
 
     p11prov_free_slots(ctx->slots);
-
-    if (ctx->dlhandle) {
-        p11prov_Finalize(ctx, NULL);
-        p11prov_interface_free(ctx->interface);
-        dlclose(ctx->dlhandle);
-    }
+    ctx->slots = NULL;
 
     if (ctx->pin) {
         OPENSSL_clear_free(ctx->pin, strlen(ctx->pin));
     }
 
-    if (ctx->module) {
-        OPENSSL_free(ctx->module);
-        ctx->module = NULL;
-    }
+    p11prov_module_free(ctx->module);
+    ctx->module = NULL;
 
     if (ctx->quirks) {
         for (int i = 0; i < ctx->nquirks; i++) {
@@ -308,14 +322,13 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
         OPENSSL_free(ctx->quirks);
     }
 
-    if (ctx->status != P11PROV_UNINITIALIZED) {
-        ret = pthread_rwlock_unlock(&ctx->rwlock);
-        if (ret != 0) {
-            P11PROV_raise(ctx, CKR_CANT_LOCK,
-                          "Failure to unlock! Data corruption may happen (%d)",
-                          errno);
-        }
+    ret = pthread_rwlock_unlock(&ctx->rwlock);
+    if (ret != 0) {
+        P11PROV_raise(ctx, CKR_CANT_LOCK,
+                      "Failure to unlock! Data corruption may happen (%d)",
+                      errno);
     }
+
     ret = pthread_rwlock_destroy(&ctx->rwlock);
     if (ret != 0) {
         P11PROV_raise(ctx, CKR_CANT_LOCK,
@@ -541,7 +554,7 @@ static void alg_rm_mechs(CK_ULONG *checklist, CK_ULONG *rmlist, int *clsize,
         alg_rm_mechs(checklist, rmlist, &cl_size, rmsize); \
     } while (0);
 
-static int operations_init(P11PROV_CTX *ctx)
+static CK_RV operations_init(P11PROV_CTX *ctx)
 {
     P11PROV_SLOTS_CTX *slots;
     P11PROV_SLOT *slot;
@@ -554,14 +567,9 @@ static int operations_init(P11PROV_CTX *ctx)
     };
     bool add_rsasig = false;
     bool add_rsaenc = false;
-    bool keymgmt_rsa = false;
-    bool keymgmt_rsapss = false;
-    bool keymgmt_ec = false;
-    bool keymgmt_hkdf = false;
     int cl_size = sizeof(checklist) / sizeof(CK_ULONG);
     int digest_idx = 0;
     int kdf_idx = 0;
-    int keymgmt_idx = 0;
     int exchange_idx = 0;
     int signature_idx = 0;
     int asym_cipher_idx = 0;
@@ -571,7 +579,7 @@ static int operations_init(P11PROV_CTX *ctx)
 
     ret = p11prov_take_slots(ctx, &slots);
     if (ret != CKR_OK) {
-        return RET_OSSL_ERR;
+        return ret;
     }
 
     for (slot = p11prov_fetch_slot(slots, &slot_idx); slot != NULL;
@@ -597,11 +605,9 @@ static int operations_init(P11PROV_CTX *ctx)
             case CK_UNAVAILABLE_INFORMATION:
                 continue;
             case CKM_RSA_PKCS_KEY_PAIR_GEN:
-                keymgmt_rsa = true;
                 UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN);
                 break;
             case CKM_RSA_PKCS:
-                keymgmt_rsa = true;
                 add_rsasig = true;
                 add_rsaenc = true;
                 UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_SIG_MECHS);
@@ -616,7 +622,6 @@ static int operations_init(P11PROV_CTX *ctx)
             case CKM_SHA3_256_RSA_PKCS:
             case CKM_SHA3_384_RSA_PKCS:
             case CKM_SHA3_512_RSA_PKCS:
-                keymgmt_rsa = true;
                 add_rsasig = true;
                 UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_SIG_MECHS);
                 break;
@@ -630,19 +635,16 @@ static int operations_init(P11PROV_CTX *ctx)
             case CKM_SHA3_256_RSA_PKCS_PSS:
             case CKM_SHA3_384_RSA_PKCS_PSS:
             case CKM_SHA3_512_RSA_PKCS_PSS:
-                keymgmt_rsapss = true;
                 add_rsasig = true;
                 UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSAPSS_SIG_MECHS);
                 break;
             case CKM_RSA_PKCS_OAEP:
             case CKM_RSA_X_509:
             case CKM_RSA_X9_31:
-                keymgmt_rsa = true;
                 add_rsaenc = true;
                 UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_ENC_MECHS);
                 break;
             case CKM_EC_KEY_PAIR_GEN:
-                keymgmt_ec = true;
                 UNCHECK_MECHS(CKM_EC_KEY_PAIR_GEN);
                 break;
             case CKM_ECDSA:
@@ -655,19 +657,16 @@ static int operations_init(P11PROV_CTX *ctx)
             case CKM_ECDSA_SHA3_256:
             case CKM_ECDSA_SHA3_384:
             case CKM_ECDSA_SHA3_512:
-                keymgmt_ec = true;
                 ADD_ALGO(ECDSA, ecdsa, signature);
                 UNCHECK_MECHS(CKM_EC_KEY_PAIR_GEN, ECDSA_SIG_MECHS);
                 break;
             case CKM_ECDH1_DERIVE:
             case CKM_ECDH1_COFACTOR_DERIVE:
-                keymgmt_ec = true;
                 ADD_ALGO(ECDH, ecdh, exchange);
                 UNCHECK_MECHS(CKM_EC_KEY_PAIR_GEN, CKM_ECDH1_DERIVE,
                               CKM_ECDH1_COFACTOR_DERIVE);
                 break;
             case CKM_HKDF_DERIVE:
-                keymgmt_hkdf = true;
                 ADD_ALGO(HKDF, hkdf, kdf);
                 ADD_ALGO(HKDF, hkdf, exchange);
                 UNCHECK_MECHS(CKM_HKDF_DERIVE);
@@ -726,20 +725,6 @@ static int operations_init(P11PROV_CTX *ctx)
 
     p11prov_return_slots(slots);
 
-    /* keymgmt */
-    if (keymgmt_rsa) {
-        ADD_ALGO(RSA, rsa, keymgmt);
-    }
-    if (keymgmt_rsapss) {
-        ADD_ALGO(RSAPSS, rsapss, keymgmt);
-    }
-    if (keymgmt_ec) {
-        ADD_ALGO(EC, ec, keymgmt);
-    }
-    if (keymgmt_hkdf) {
-        ADD_ALGO(HKDF, hkdf, keymgmt);
-    }
-
     if (add_rsasig) {
         ADD_ALGO(RSA, rsa, signature);
     }
@@ -749,7 +734,6 @@ static int operations_init(P11PROV_CTX *ctx)
     /* terminations */
     TERM_ALGO(digest);
     TERM_ALGO(kdf);
-    TERM_ALGO(keymgmt);
     TERM_ALGO(exchange);
     TERM_ALGO(signature);
     TERM_ALGO(asym_cipher);
@@ -778,8 +762,20 @@ static int operations_init(P11PROV_CTX *ctx)
                  p11prov_ec_encoder_spki_der_functions);
     TERM_ALGO(encoder);
 
-    return RET_OSSL_OK;
+    return CKR_OK;
 }
+
+static const OSSL_ALGORITHM p11prov_keymgmt[] = {
+    { P11PROV_NAMES_RSA, P11PROV_DEFAULT_PROPERTIES,
+      p11prov_rsa_keymgmt_functions, P11PROV_DESCS_RSA },
+    { P11PROV_NAMES_RSAPSS, P11PROV_DEFAULT_PROPERTIES,
+      p11prov_rsapss_keymgmt_functions, P11PROV_DESCS_RSAPSS },
+    { P11PROV_NAMES_EC, P11PROV_DEFAULT_PROPERTIES,
+      p11prov_ec_keymgmt_functions, P11PROV_DESCS_EC },
+    { P11PROV_NAMES_HKDF, P11PROV_DEFAULT_PROPERTIES,
+      p11prov_hkdf_keymgmt_functions, P11PROV_DESCS_HKDF },
+    { NULL, NULL, NULL, NULL },
+};
 
 static const OSSL_ALGORITHM p11prov_store[] = {
     {
@@ -802,7 +798,7 @@ p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
     case OSSL_OP_KDF:
         return ctx->op_kdf;
     case OSSL_OP_KEYMGMT:
-        return ctx->op_keymgmt;
+        return p11prov_keymgmt;
     case OSSL_OP_KEYEXCH:
         return ctx->op_exchange;
     case OSSL_OP_SIGNATURE:
@@ -960,104 +956,12 @@ static const OSSL_DISPATCH p11prov_dispatch_table[] = {
     { 0, NULL },
 };
 
-#if !defined(RTLD_DEEPBIND)
-#define RTLD_DEEPBIND 0
-#endif
-
-static int p11prov_module_init(P11PROV_CTX *ctx)
-{
-    CK_C_INITIALIZE_ARGS args = {
-        .flags = CKF_OS_LOCKING_OK,
-        .pReserved = (void *)ctx->init_args,
-    };
-    CK_INFO ck_info = { 0 };
-    const char *env_module;
-    int ret;
-
-    if (ctx->status != P11PROV_UNINITIALIZED) {
-        return 0;
-    }
-
-    /* The environment variable has the highest precedence */
-    env_module = getenv("PKCS11_PROVIDER_MODULE");
-    if (env_module && *env_module) {
-        OPENSSL_free(ctx->module);
-        ctx->module = OPENSSL_strdup(env_module);
-    }
-
-    /* If the module is not specified in the configuration file, use the
-     * p11-kit proxy  */
-    if (ctx->module == NULL) {
-#ifdef DEFAULT_PKCS11_MODULE
-        ctx->module = OPENSSL_strdup(DEFAULT_PKCS11_MODULE);
-#else
-        P11PROV_raise(ctx, CKR_GENERAL_ERROR, "No PKCS#11 module specified.");
-        return -ENOENT;
-#endif
-    }
-
-    P11PROV_debug("PKCS#11: Initializing the module: %s", ctx->module);
-
-    dlerror();
-    ctx->dlhandle = dlopen(ctx->module, RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
-    if (ctx->dlhandle == NULL) {
-        char *err = dlerror();
-        P11PROV_debug("dlopen() failed: %s", err);
-        return -ENOENT;
-    }
-
-    ret = p11prov_interface_init(ctx->dlhandle, &ctx->interface,
-                                 &ctx->intf_flags);
-    if (ret != CKR_OK) {
-        P11PROV_debug("interface failed: %d (%s:%d)", ret, __FILE__, __LINE__);
-        dlclose(ctx->dlhandle);
-        ctx->dlhandle = NULL;
-        return -EFAULT;
-    }
-
-    ret = p11prov_Initialize(ctx, &args);
-    if (ret && ret != CKR_CRYPTOKI_ALREADY_INITIALIZED) {
-        P11PROV_debug("init failed: %d (%s:%d)", ret, __FILE__, __LINE__);
-        return -EFAULT;
-    }
-
-    ctx->status = P11PROV_INITIALIZED;
-
-    ret = pthread_rwlock_init(&ctx->rwlock, NULL);
-    if (ret != 0) {
-        ret = errno;
-        P11PROV_debug("rwlock init failed (%d)", ret);
-        return -ret;
-    }
-
-    ret = p11prov_GetInfo(ctx, &ck_info);
-    if (ret) {
-        return -EFAULT;
-    }
-    P11PROV_debug("Module Info: ck_ver:%d.%d lib: '%s' '%s' ver:%d.%d",
-                  (int)ck_info.cryptokiVersion.major,
-                  (int)ck_info.cryptokiVersion.minor, ck_info.manufacturerID,
-                  ck_info.libraryDescription, (int)ck_info.libraryVersion.major,
-                  (int)ck_info.libraryVersion.minor);
-
-    ret = p11prov_init_slots(ctx, &ctx->slots);
-    if (ret) {
-        return -EFAULT;
-    }
-
-    ret = operations_init(ctx);
-    if (ret != RET_OSSL_OK) {
-        return -EFAULT;
-    }
-
-    return 0;
-}
-
 int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
                        const OSSL_DISPATCH **out, void **provctx)
 {
     OSSL_PARAM core_params[6] = { 0 };
-    const char *module = NULL;
+    const char *path = NULL;
+    const char *init_args = NULL;
     char *allow_export = NULL;
     char *login_behavior = NULL;
     char *pin = NULL;
@@ -1074,6 +978,13 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
     }
     ctx->handle = handle;
 
+    ret = pthread_rwlock_init(&ctx->rwlock, NULL);
+    if (ret != 0) {
+        ret = errno;
+        P11PROV_debug("rwlock init failed (%d)", ret);
+        return RET_OSSL_ERR;
+    }
+
     ctx->libctx = OSSL_LIB_CTX_new_from_dispatch(handle, in);
     if (ctx->libctx == NULL) {
         OPENSSL_free(ctx);
@@ -1082,10 +993,10 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
 
     /* get module path */
     core_params[0] = OSSL_PARAM_construct_utf8_ptr(
-        P11PROV_PKCS11_MODULE_PATH, (char **)&module, sizeof(module));
-    core_params[1] = OSSL_PARAM_construct_utf8_ptr(
-        P11PROV_PKCS11_MODULE_INIT_ARGS, (char **)&ctx->init_args,
-        sizeof(ctx->init_args));
+        P11PROV_PKCS11_MODULE_PATH, (char **)&path, sizeof(path));
+    core_params[1] =
+        OSSL_PARAM_construct_utf8_ptr(P11PROV_PKCS11_MODULE_INIT_ARGS,
+                                      (char **)&init_args, sizeof(init_args));
     core_params[2] = OSSL_PARAM_construct_utf8_ptr(
         P11PROV_PKCS11_MODULE_TOKEN_PIN, &pin, sizeof(pin));
     core_params[3] =
@@ -1101,17 +1012,8 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         p11prov_ctx_free(ctx);
         return ret;
     }
-    /* Copy the returned module path if there was one */
-    if (module != NULL) {
-        ctx->module = OPENSSL_strdup(module);
-        if (ctx->module == NULL) {
-            ERR_raise(ERR_LIB_PROV, PROV_R_IN_ERROR_STATE);
-            p11prov_ctx_free(ctx);
-            return RET_OSSL_ERR;
-        }
-    }
 
-    ret = p11prov_module_init(ctx);
+    ret = p11prov_module_new(ctx, path, init_args, &ctx->module);
     if (ret != CKR_OK) {
         ERR_raise(ERR_LIB_PROV, PROV_R_IN_ERROR_STATE);
         p11prov_ctx_free(ctx);

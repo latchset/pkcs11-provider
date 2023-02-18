@@ -56,6 +56,7 @@
 #define P11PROV_PARAM_SLOT_ID "pkcs11_slot_id"
 
 typedef struct p11prov_ctx P11PROV_CTX;
+typedef struct p11prov_module_ctx P11PROV_MODULE;
 typedef struct p11prov_interface P11PROV_INTERFACE;
 typedef struct p11prov_uri P11PROV_URI;
 typedef struct p11prov_obj P11PROV_OBJ;
@@ -65,11 +66,12 @@ typedef struct p11prov_session P11PROV_SESSION;
 typedef struct p11prov_session_pool P11PROV_SESSION_POOL;
 
 /* Provider ctx */
-struct p11prov_interface *p11prov_ctx_get_interface(P11PROV_CTX *ctx);
+P11PROV_INTERFACE *p11prov_ctx_get_interface(P11PROV_CTX *ctx);
 CK_UTF8CHAR_PTR p11prov_ctx_pin(P11PROV_CTX *ctx);
 OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx);
 CK_RV p11prov_ctx_status(P11PROV_CTX *ctx);
 P11PROV_SLOTS_CTX *p11prov_ctx_get_slots(P11PROV_CTX *ctx);
+void p11prov_ctx_set_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX *slots);
 CK_RV p11prov_ctx_get_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
                             void **data, CK_ULONG *size);
 CK_RV p11prov_ctx_set_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,

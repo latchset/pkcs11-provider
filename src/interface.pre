@@ -5,7 +5,11 @@ BEGIN:
 
 #define IMPL_CALL_PROLOG(name) \
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx); \
-    CK_RV ret; \
+    CK_RV ret = CKR_GENERAL_ERROR; \
+    if (!intf) { \
+        P11PROV_raise(ctx, ret, "Can't get module interfaces"); \
+        return ret; \
+    } \
     P11PROV_debug("Calling C_" #name);
 #define IMPL_CALL_EPILOG(name) \
     if (ret != CKR_OK) { \
