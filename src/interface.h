@@ -5,9 +5,11 @@
 #define _INTERFACE_H
 
 /* interface declarations for PKCS#11 wrapper functions */
-CK_RV p11prov_interface_init(void *dlhandle, P11PROV_INTERFACE **interface,
-                             CK_FLAGS *interface_flags);
-void p11prov_interface_free(P11PROV_INTERFACE *interface);
+CK_RV p11prov_module_new(P11PROV_CTX *ctx, const char *path,
+                         const char *init_args, P11PROV_MODULE **_mctx);
+CK_RV p11prov_module_init(P11PROV_MODULE *mctx);
+P11PROV_INTERFACE *p11prov_module_get_interface(P11PROV_MODULE *mctx);
+void p11prov_module_free(P11PROV_MODULE *mctx);
 CK_RV p11prov_Initialize(P11PROV_CTX *ctx, CK_VOID_PTR pInitArgs);
 CK_RV p11prov_Finalize(P11PROV_CTX *ctx, CK_VOID_PTR pReserved);
 CK_RV p11prov_GetInfo(P11PROV_CTX *ctx, CK_INFO_PTR pInfo);

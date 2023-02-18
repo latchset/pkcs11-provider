@@ -4,7 +4,11 @@
 CK_RV p11prov_Initialize(P11PROV_CTX *ctx, CK_VOID_PTR pInitArgs)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "Initialize");
     ret = intf->Initialize(pInitArgs);
@@ -19,7 +23,11 @@ CK_RV p11prov_Initialize(P11PROV_CTX *ctx, CK_VOID_PTR pInitArgs)
 CK_RV p11prov_Finalize(P11PROV_CTX *ctx, CK_VOID_PTR pReserved)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "Finalize");
     ret = intf->Finalize(pReserved);
@@ -34,7 +42,11 @@ CK_RV p11prov_Finalize(P11PROV_CTX *ctx, CK_VOID_PTR pReserved)
 CK_RV p11prov_GetInfo(P11PROV_CTX *ctx, CK_INFO_PTR pInfo)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "GetInfo");
     ret = intf->GetInfo(pInfo);
@@ -51,7 +63,11 @@ CK_RV p11prov_GetInterface(P11PROV_CTX *ctx, CK_UTF8CHAR_PTR pInterfaceName,
                            CK_INTERFACE_PTR_PTR ppInterface, CK_FLAGS flags)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "GetInterface");
     ret = intf->GetInterface(pInterfaceName, pVersion, ppInterface, flags);
@@ -67,7 +83,11 @@ CK_RV p11prov_GetFunctionList(P11PROV_CTX *ctx,
                               CK_FUNCTION_LIST_PTR_PTR ppFunctionList)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "GetFunctionList");
     ret = intf->GetFunctionList(ppFunctionList);
@@ -83,7 +103,11 @@ CK_RV p11prov_GetSlotList(P11PROV_CTX *ctx, CK_BBOOL tokenPresent,
                           CK_SLOT_ID_PTR pSlotList, CK_ULONG_PTR pulCount)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "GetSlotList");
     ret = intf->GetSlotList(tokenPresent, pSlotList, pulCount);
@@ -99,7 +123,11 @@ CK_RV p11prov_GetSlotInfo(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
                           CK_SLOT_INFO_PTR pInfo)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "GetSlotInfo");
     ret = intf->GetSlotInfo(slotID, pInfo);
@@ -115,7 +143,11 @@ CK_RV p11prov_GetTokenInfo(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
                            CK_TOKEN_INFO_PTR pInfo)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "GetTokenInfo");
     ret = intf->GetTokenInfo(slotID, pInfo);
@@ -132,7 +164,11 @@ CK_RV p11prov_GetMechanismList(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
                                CK_ULONG_PTR pulCount)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "GetMechanismList");
     ret = intf->GetMechanismList(slotID, pMechanismList, pulCount);
@@ -149,7 +185,11 @@ CK_RV p11prov_GetMechanismInfo(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
                                CK_MECHANISM_INFO_PTR pInfo)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "GetMechanismInfo");
     ret = intf->GetMechanismInfo(slotID, type, pInfo);
@@ -166,7 +206,11 @@ CK_RV p11prov_OpenSession(P11PROV_CTX *ctx, CK_SLOT_ID slotID, CK_FLAGS flags,
                           CK_SESSION_HANDLE_PTR phSession)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "OpenSession");
     ret = intf->OpenSession(slotID, flags, pApplication, Notify, phSession);
@@ -181,7 +225,11 @@ CK_RV p11prov_OpenSession(P11PROV_CTX *ctx, CK_SLOT_ID slotID, CK_FLAGS flags,
 CK_RV p11prov_CloseSession(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "CloseSession");
     ret = intf->CloseSession(hSession);
@@ -197,7 +245,11 @@ CK_RV p11prov_GetSessionInfo(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                              CK_SESSION_INFO_PTR pInfo)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "GetSessionInfo");
     ret = intf->GetSessionInfo(hSession, pInfo);
@@ -214,7 +266,11 @@ CK_RV p11prov_GetOperationState(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                                 CK_ULONG_PTR pulOperationStateLen)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "GetOperationState");
     ret = intf->GetOperationState(hSession, pOperationState,
@@ -234,7 +290,11 @@ CK_RV p11prov_SetOperationState(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                                 CK_OBJECT_HANDLE hAuthenticationKey)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "SetOperationState");
     ret =
@@ -253,7 +313,11 @@ CK_RV p11prov_Login(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                     CK_ULONG ulPinLen)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "Login");
     ret = intf->Login(hSession, userType, pPin, ulPinLen);
@@ -270,7 +334,11 @@ CK_RV p11prov_CreateObject(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                            CK_OBJECT_HANDLE_PTR phObject)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "CreateObject");
     ret = intf->CreateObject(hSession, pTemplate, ulCount, phObject);
@@ -287,7 +355,11 @@ CK_RV p11prov_CopyObject(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                          CK_ULONG ulCount, CK_OBJECT_HANDLE_PTR phNewObject)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "CopyObject");
     ret = intf->CopyObject(hSession, hObject, pTemplate, ulCount, phNewObject);
@@ -303,7 +375,11 @@ CK_RV p11prov_DestroyObject(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                             CK_OBJECT_HANDLE hObject)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "DestroyObject");
     ret = intf->DestroyObject(hSession, hObject);
@@ -320,7 +396,11 @@ CK_RV p11prov_GetAttributeValue(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                                 CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "GetAttributeValue");
     ret = intf->GetAttributeValue(hSession, hObject, pTemplate, ulCount);
@@ -337,7 +417,11 @@ CK_RV p11prov_SetAttributeValue(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                                 CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "SetAttributeValue");
     ret = intf->SetAttributeValue(hSession, hObject, pTemplate, ulCount);
@@ -353,7 +437,11 @@ CK_RV p11prov_FindObjectsInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                               CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "FindObjectsInit");
     ret = intf->FindObjectsInit(hSession, pTemplate, ulCount);
@@ -371,7 +459,11 @@ CK_RV p11prov_FindObjects(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                           CK_ULONG_PTR pulObjectCount)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "FindObjects");
     ret =
@@ -387,7 +479,11 @@ CK_RV p11prov_FindObjects(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
 CK_RV p11prov_FindObjectsFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "FindObjectsFinal");
     ret = intf->FindObjectsFinal(hSession);
@@ -403,7 +499,11 @@ CK_RV p11prov_EncryptInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                           CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "EncryptInit");
     ret = intf->EncryptInit(hSession, pMechanism, hKey);
@@ -421,7 +521,11 @@ CK_RV p11prov_Encrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                       CK_ULONG_PTR pulEncryptedDataLen)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "Encrypt");
     ret = intf->Encrypt(hSession, pData, ulDataLen, pEncryptedData,
@@ -438,7 +542,11 @@ CK_RV p11prov_DecryptInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                           CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "DecryptInit");
     ret = intf->DecryptInit(hSession, pMechanism, hKey);
@@ -455,7 +563,11 @@ CK_RV p11prov_Decrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                       CK_BYTE_PTR pData, CK_ULONG_PTR pulDataLen)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "Decrypt");
     ret = intf->Decrypt(hSession, pEncryptedData, ulEncryptedDataLen, pData,
@@ -472,7 +584,11 @@ CK_RV p11prov_DigestInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                          CK_MECHANISM_PTR pMechanism)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "DigestInit");
     ret = intf->DigestInit(hSession, pMechanism);
@@ -488,7 +604,11 @@ CK_RV p11prov_DigestUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                            CK_BYTE_PTR pPart, CK_ULONG ulPartLen)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "DigestUpdate");
     ret = intf->DigestUpdate(hSession, pPart, ulPartLen);
@@ -504,7 +624,11 @@ CK_RV p11prov_DigestFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                           CK_BYTE_PTR pDigest, CK_ULONG_PTR pulDigestLen)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "DigestFinal");
     ret = intf->DigestFinal(hSession, pDigest, pulDigestLen);
@@ -520,7 +644,11 @@ CK_RV p11prov_SignInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                        CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "SignInit");
     ret = intf->SignInit(hSession, pMechanism, hKey);
@@ -537,7 +665,11 @@ CK_RV p11prov_Sign(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                    CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "Sign");
     ret = intf->Sign(hSession, pData, ulDataLen, pSignature, pulSignatureLen);
@@ -553,7 +685,11 @@ CK_RV p11prov_SignUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                          CK_BYTE_PTR pPart, CK_ULONG ulPartLen)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "SignUpdate");
     ret = intf->SignUpdate(hSession, pPart, ulPartLen);
@@ -569,7 +705,11 @@ CK_RV p11prov_SignFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                         CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "SignFinal");
     ret = intf->SignFinal(hSession, pSignature, pulSignatureLen);
@@ -585,7 +725,11 @@ CK_RV p11prov_VerifyInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                          CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "VerifyInit");
     ret = intf->VerifyInit(hSession, pMechanism, hKey);
@@ -602,7 +746,11 @@ CK_RV p11prov_Verify(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                      CK_BYTE_PTR pSignature, CK_ULONG ulSignatureLen)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "Verify");
     ret = intf->Verify(hSession, pData, ulDataLen, pSignature, ulSignatureLen);
@@ -618,7 +766,11 @@ CK_RV p11prov_VerifyUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                            CK_BYTE_PTR pPart, CK_ULONG ulPartLen)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "VerifyUpdate");
     ret = intf->VerifyUpdate(hSession, pPart, ulPartLen);
@@ -634,7 +786,11 @@ CK_RV p11prov_VerifyFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                           CK_BYTE_PTR pSignature, CK_ULONG ulSignatureLen)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "VerifyFinal");
     ret = intf->VerifyFinal(hSession, pSignature, ulSignatureLen);
@@ -653,7 +809,11 @@ CK_RV p11prov_GenerateKeyPair(
     CK_OBJECT_HANDLE_PTR phPublicKey, CK_OBJECT_HANDLE_PTR phPrivateKey)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "GenerateKeyPair");
     ret = intf->GenerateKeyPair(hSession, pMechanism, pPublicKeyTemplate,
@@ -674,7 +834,11 @@ CK_RV p11prov_DeriveKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                         CK_OBJECT_HANDLE_PTR phKey)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "DeriveKey");
     ret = intf->DeriveKey(hSession, pMechanism, hBaseKey, pTemplate,
@@ -691,7 +855,11 @@ CK_RV p11prov_GenerateRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                              CK_BYTE_PTR RandomData, CK_ULONG ulRandomLen)
 {
     P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
-    CK_RV ret;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
     P11PROV_debug("Calling C_"
                   "GenerateRandom");
     ret = intf->GenerateRandom(hSession, RandomData, ulRandomLen);
