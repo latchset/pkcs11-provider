@@ -127,7 +127,9 @@ static void populate_interface(P11PROV_INTERFACE *intf, CK_INTERFACE *ck_intf)
     ASSIGN_FN(GenerateKeyPair);
     ASSIGN_FN(DeriveKey);
     ASSIGN_FN(GenerateRandom);
-    ASSIGN_FN_3_0(GetInterface);
+    if (intf->version.major == 3) {
+        ASSIGN_FN_3_0(GetInterface);
+    }
 }
 
 CK_RV p11prov_interface_init(void *dlhandle, P11PROV_INTERFACE **interface,
