@@ -253,7 +253,7 @@ CK_RV p11prov_module_new(P11PROV_CTX *ctx, const char *path,
 CK_RV p11prov_module_init(P11PROV_MODULE *mctx)
 {
     P11PROV_SLOTS_CTX *slots;
-    CK_C_INITIALIZE_ARGS args;
+    CK_C_INITIALIZE_ARGS args = { 0 };
     CK_INFO ck_info = { 0 };
     CK_RV ret;
 
