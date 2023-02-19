@@ -601,7 +601,7 @@ static const OSSL_PARAM *p11prov_rsa_export_types(int selection)
 
 static const char *p11prov_rsa_query_operation_name(int operation_id)
 {
-    return P11PROV_NAMES_RSA;
+    return P11PROV_NAME_RSA;
 }
 
 static int p11prov_rsa_secbits(int bits)
@@ -1049,9 +1049,9 @@ static const char *p11prov_ec_query_operation_name(int operation_id)
 {
     switch (operation_id) {
     case OSSL_OP_SIGNATURE:
-        return P11PROV_NAMES_ECDSA;
+        return P11PROV_NAME_ECDSA;
     case OSSL_OP_KEYEXCH:
-        return P11PROV_NAMES_ECDH;
+        return P11PROV_NAME_ECDH;
     }
     return NULL;
 }
@@ -1220,7 +1220,7 @@ static const char *p11prov_hkdf_query_operation_name(int operation_id)
 {
     P11PROV_debug("hkdf keymgmt query op name %d", operation_id);
 
-    return P11PROV_NAMES_HKDF;
+    return P11PROV_NAME_HKDF;
 }
 
 static int p11prov_hkdf_has(const void *kdfdata, int selection)
