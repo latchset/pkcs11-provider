@@ -177,6 +177,7 @@ static void *p11prov_store_open(void *pctx, const char *uri)
 
     ctx->parsed_uri = p11prov_parse_uri(ctx->provctx, uri);
     if (ctx->parsed_uri == NULL) {
+        ret = CKR_HOST_MEMORY;
         goto done;
     }
 
