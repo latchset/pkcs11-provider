@@ -982,6 +982,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
     if (ret != 0) {
         ret = errno;
         P11PROV_debug("rwlock init failed (%d)", ret);
+        OPENSSL_free(ctx);
         return RET_OSSL_ERR;
     }
 
