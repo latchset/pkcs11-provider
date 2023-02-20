@@ -409,11 +409,13 @@ static CK_RV pre_process_ec_key_data(P11PROV_OBJ *key)
 
     curve_nid = EC_GROUP_get_curve_name(group);
     if (curve_nid == NID_undef) {
+        EC_GROUP_free(group);
         return CKR_KEY_INDIGESTIBLE;
     }
     buffer_size = sizeof(curve_nid);
     buffer = OPENSSL_zalloc(buffer_size);
     if (!buffer) {
+        EC_GROUP_free(group);
         return CKR_HOST_MEMORY;
     }
     memcpy(buffer, &curve_nid, buffer_size);
@@ -423,11 +425,13 @@ static CK_RV pre_process_ec_key_data(P11PROV_OBJ *key)
 
     curve_name = OSSL_EC_curve_nid2name(curve_nid);
     if (curve_name == NULL) {
+        EC_GROUP_free(group);
         return CKR_KEY_INDIGESTIBLE;
     }
     buffer_size = strlen(curve_name) + 1;
     buffer = (CK_BYTE *)OPENSSL_strdup(curve_name);
     if (!buffer) {
+        EC_GROUP_free(group);
         return CKR_HOST_MEMORY;
     }
     CKATTR_ASSIGN(key->attrs[key->numattrs], CKA_P11PROV_CURVE_NAME, buffer,
