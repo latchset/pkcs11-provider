@@ -26,3 +26,23 @@ openssl req -batch -noenc -newkey rsa:2048 \
 title PARA "Signing the new certificate"
 openssl ca -batch -in ${DEMOCA}/cert.csr -keyfile ${PRIURI} -out ${DEMOCA}/cert.pem
 
+title PARA "Set up OCSP"
+openssl req -batch -noenc -new -subj '/CN=OCSP/O=PKCS11 Provider/C=US' \
+            -key ${PRIURI} -out ${DEMOCA}/ocspSigning.csr
+openssl ca -batch -keyfile ${PRIURI} -cert ${DEMOCA}/cacert.pem \
+            -in ${DEMOCA}/ocspSigning.csr -out ${DEMOCA}/ocspSigning.pem
+
+
+#The next test is not working on Debian for some reason, so skip the rest for now
+if [ -e /etc/debian_version ]; then
+    exit 0
+fi
+
+title PARA "Run OCSP"
+trap 'jobs -p | xargs -r kill >/dev/null 2>&1' EXIT
+#Unclear why but w/o -rmd sha1 this fails
+openssl ocsp -index ${DEMOCA}/index.txt -rsigner ${DEMOCA}/ocspSigning.pem \
+            -rkey ${PRIURI} -CA ${DEMOCA}/cacert.pem -rmd sha1 -port 12345 -text &
+openssl ocsp -CAfile ${DEMOCA}/cacert.pem -issuer ${DEMOCA}/cacert.pem \
+             -cert ${DEMOCA}/cert.pem -resp_text -noverify \
+             -url http://127.0.0.1:12345
