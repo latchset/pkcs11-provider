@@ -1,0 +1,28 @@
+#!/bin/bash -e
+# Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source ${TESTSSRCDIR}/helpers.sh
+
+DEMOCA="${TMPPDIR}/demoCA"
+
+title PARA "Set up demoCA"
+mkdir -p ${DEMOCA}/newcerts ${DEMOCA}/private
+if [ ! -e ${DEMOCA}/serial ]; then
+    echo "01" > ${DEMOCA}/serial
+fi
+touch ${DEMOCA}/index.txt
+
+title PARA "Generating CA cert if needed"
+if [ ! -e ${DEMOCA}/cacert.pem ]; then
+    openssl req -batch -noenc -x509 -new -key ${PRIURI} -out ${DEMOCA}/cacert.pem
+fi
+
+title PARA "Generating a new CSR"
+openssl req -batch -noenc -newkey rsa:2048 \
+            -subj '/CN=testing-csr-signing/O=PKCS11 Provider/C=US' \
+            -keyout ${DEMOCA}/cert.key -out ${DEMOCA}/cert.csr
+
+title PARA "Signing the new certificate"
+openssl ca -batch -in ${DEMOCA}/cert.csr -keyfile ${PRIURI} -out ${DEMOCA}/cert.pem
+
