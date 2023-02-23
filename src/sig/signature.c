@@ -122,26 +122,25 @@ void *p11prov_sig_dupctx(void *ctx)
         return newctx;
     }
 
+    ret = CKR_OK;
+
     /* This is not really funny. OpenSSL by default assumes contexts with
      * operations in flight can be easily duplicated, with all the
      * cryptographic status and then both contexts can keep going
-     * independently. We'll try here, but on failure we just 'move' the
-     * session to the new context (because that's what OpenSSL seem to
-     * prefer to use after duplication) and hope for the best. */
-
-    newctx->session = sigctx->session;
-    sigctx->session = NULL;
-
-    newctx->session_state = sigctx->session_state;
+     * independently. We'll try to save/restore state here. for OpenSSL versions
+     * greater than 3.2 this will be a hard failure, while for older OpenSSL
+     * versions, in order to maintain compatibility with previous behavior
+     * we just 'move' the the session to the new context and hope there is no
+     * need for the old context which will have no session and just return
+     * errors if an update is attempted. */
 
     if (slotid != CK_UNAVAILABLE_INFORMATION && handle != CK_INVALID_HANDLE) {
-        CK_SESSION_HANDLE newsess = p11prov_session_handle(newctx->session);
-        CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
+        CK_SESSION_HANDLE sess = p11prov_session_handle(sigctx->session);
 
         /* NOTE: most tokens will probably return errors trying to do this on
          * sign sessions. If GetOperationState fails we don't try to duplicate
          * the context and just return. */
-        ret = p11prov_GetOperationState(sigctx->provctx, newsess, NULL_PTR,
+        ret = p11prov_GetOperationState(sigctx->provctx, sess, NULL_PTR,
                                         &state_len);
         if (ret != CKR_OK) {
             goto done;
@@ -151,33 +150,43 @@ void *p11prov_sig_dupctx(void *ctx)
             goto done;
         }
 
-        ret = p11prov_GetOperationState(sigctx->provctx, newsess, state,
-                                        &state_len);
+        ret =
+            p11prov_GetOperationState(sigctx->provctx, sess, state, &state_len);
         if (ret != CKR_OK) {
             goto done;
         }
 
-        ret = p11prov_get_session(sigctx->provctx, &slotid, NULL, NULL,
-                                  sigctx->mechtype, NULL, NULL, reqlogin, false,
-                                  &sigctx->session);
+        ret = p11prov_get_session(newctx->provctx, &slotid, NULL, NULL,
+                                  newctx->mechtype, NULL, NULL, reqlogin, false,
+                                  &newctx->session);
         if (ret != CKR_OK) {
-            P11PROV_raise(sigctx->provctx, ret,
+            P11PROV_raise(newctx->provctx, ret,
                           "Failed to open session on slot %lu", slotid);
             goto done;
         }
-        sess = p11prov_session_handle(sigctx->session);
+        sess = p11prov_session_handle(newctx->session);
 
-        ret = p11prov_SetOperationState(sigctx->provctx, sess, state, state_len,
+        ret = p11prov_SetOperationState(newctx->provctx, sess, state, state_len,
                                         handle, handle);
-        if (ret != CKR_OK) {
-            p11prov_return_session(sigctx->session);
-            sigctx->session = NULL;
-        }
     }
 
 done:
-    if (!sigctx->session) {
+    if (ret != CKR_OK) {
+#if OPENSSL_VERSION_NUMBER >= 0x30200000L
+        /* For OpenSSL 3.2+ we can fail duplication */
+        p11prov_sig_freectx(newctx);
+        newctx = NULL;
+#else
+        /* For OpenSSL 3.0.x, we must 'move' the context on failure */
+        p11prov_return_session(newctx->session);
+
+        /* move old session to new context, we swap because normally openssl
+         * continues on the duplicated context */
+        newctx->session = sigctx->session;
+        newctx->session_state = sigctx->session_state;
+        sigctx->session = NULL;
         sigctx->session_state = SESS_UNUSED;
+#endif
     }
     OPENSSL_free(state);
     return newctx;
