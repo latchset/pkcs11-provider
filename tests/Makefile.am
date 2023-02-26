@@ -43,12 +43,14 @@ tmp.softhsm:
 
 dist_check_SCRIPTS = \
 	helpers.sh setup-softhsm.sh setup-softokn.sh softhsm-proxy.sh \
-	test-wrapper tbasic tcerts tecc tecdh tdemoca thkdf toaepsha2 trsapss
+	test-wrapper tbasic tcerts tecc tecdh tedwards tdemoca thkdf \
+	toaepsha2 trsapss
 
 test_LIST = \
 	basic-softokn basic-softhsm-proxy \
 	certs-softokn certs-softhsm-proxy \
 	ecc-softokn ecc-softhsm-proxy \
+	edwards-softhsm-proxy \
 	ecdh-softokn \
 	democa-softokn democa-softhsm-proxy \
 	oaepsha2-softokn \

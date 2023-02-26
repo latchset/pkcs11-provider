@@ -1,0 +1,23 @@
+#!/bin/bash -e
+# Copyright (C) 2023 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source ${TESTSSRCDIR}/helpers.sh
+
+title PARA "Export ED25519 Public key to a file"
+ossl 'pkey -in $EDPUBURI -pubin -pubout -out ${TMPPDIR}/edout.pub'
+
+title LINE "Print ED25519 Public key from private"
+ossl 'pkey -in $EDPRIURI -pubout -text' output
+FAIL=0
+echo $output | grep "ED25519 Public-Key" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -eq 1 ]; then
+    echo "Could not extract public key from private"
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
+exit 0

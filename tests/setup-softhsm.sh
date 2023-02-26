@@ -236,6 +236,28 @@ echo "${ECPEERPRIURI}"
 echo "${ECPEERCRTURI}"
 echo ""
 
+# generate ED25519
+KEYID='0004'
+URIKEYID="%00%04"
+EDCRT="${TMPPDIR}/edcert"
+EDCRTN="edCert"
+
+pkcs11-tool --keypairgen --key-type="EC:edwards25519" --login --pin=$PINVALUE --module="$P11LIB" \
+	--label="${EDCRTN}" --id="$KEYID"
+ca_sign $EDCRT $EDCRTN "My ED25519 Cert" $KEYID
+
+EDBASEURI="pkcs11:id=${URIKEYID}"
+EDPUBURI="pkcs11:type=public;id=${URIKEYID}"
+EDPRIURI="pkcs11:type=private;id=${URIKEYID}"
+EDCRTURI="pkcs11:type=cert;object=${EDCRTN}"
+
+title LINE "ED25519 PKCS11 URIS"
+echo "${EDBASEURIWITHPIN}"
+echo "${EDBASEURI}"
+echo "${EDPUBURI}"
+echo "${EDPRIURI}"
+echo "${EDCRTURI}"
+
 title PARA "Show contents of softhsm token"
 echo " ----------------------------------------------------------------------------------------------------"
 pkcs11-tool -O --login --pin=$PINVALUE --module="$P11LIB"
@@ -282,6 +304,10 @@ export ECPEERBASEURI="${ECPEERBASEURI}"
 export ECPEERPUBURI="${ECPEERPUBURI}"
 export ECPEERPRIURI="${ECPEERPRIURI}"
 export ECPEERCRTURI="${ECPEERCRTURI}"
+export EDBASEURI="${EDBASEURI}"
+export EDPUBURI="${EDPUBURI}"
+export EDPRIURI="${EDPRIURI}"
+export EDCRTURI="${EDCRTURI}"
 
 # for listing the separate pkcs11 calls
 #export PKCS11SPY="${PKCS11_PROVIDER_MODULE}"
