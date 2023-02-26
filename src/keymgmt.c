@@ -170,6 +170,9 @@ static void *p11prov_common_gen_init(void *provctx, int selection,
         ctx->data.ec.ec_params = prime256v1_param;
         ctx->data.ec.ec_params_size = sizeof(prime256v1_param);
         break;
+    case CKK_EC_EDWARDS:
+        ctx->mechanism.mechanism = CKM_EC_EDWARDS_KEY_PAIR_GEN;
+        break;
     default:
         P11PROV_raise(provctx, CKR_ARGUMENTS_BAD, "Invalid type %lu", type);
         OPENSSL_free(ctx);
@@ -190,6 +193,10 @@ static int p11prov_common_gen_set_params(void *genctx,
     struct key_generator *ctx = (struct key_generator *)genctx;
     const OSSL_PARAM *p;
     int ret;
+
+    if (!ctx) {
+        return RET_OSSL_ERR;
+    }
 
     if (params == NULL) {
         return RET_OSSL_OK;
@@ -273,6 +280,26 @@ static int p11prov_common_gen_set_params(void *genctx,
             }
             ctx->data.ec.ec_params = ec_name_to_params[i].ec_param;
             ctx->data.ec.ec_params_size = ec_name_to_params[i].ec_param_size;
+        }
+        break;
+    case CKK_EC_EDWARDS:
+        p = OSSL_PARAM_locate_const(params, "p11prov_edname");
+        if (p) {
+            if (p->data_type != OSSL_PARAM_UTF8_STRING) {
+                return RET_OSSL_ERR;
+            }
+            if (strcmp(p->data, ED25519) == 0) {
+                ctx->data.ec.ec_params = ed25519_ec_params;
+                ctx->data.ec.ec_params_size = ED25519_EC_PARAMS_LEN;
+            } else if (strcmp(p->data, ED448) == 0) {
+                ctx->data.ec.ec_params = ed448_ec_params;
+                ctx->data.ec.ec_params_size = ED448_EC_PARAMS_LEN;
+            } else {
+                P11PROV_raise(ctx->provctx, CKR_ARGUMENTS_BAD,
+                              "Unknown edwards curve '%*s'", (int)p->data_size,
+                              (char *)p->data);
+                return RET_OSSL_ERR;
+            }
         }
         break;
     default:
@@ -410,6 +437,28 @@ static void p11prov_common_gen_cleanup(void *genctx)
     OPENSSL_clear_free(genctx, sizeof(struct key_generator));
 }
 
+static void *p11prov_common_load(const void *reference, size_t reference_sz,
+                                 CK_KEY_TYPE key_type)
+{
+    P11PROV_OBJ *key;
+
+    /* the contents of the reference is the address to our object */
+    key = p11prov_obj_from_reference(reference, reference_sz);
+    if (key) {
+        CK_KEY_TYPE type = CK_UNAVAILABLE_INFORMATION;
+
+        type = p11prov_obj_get_key_type(key);
+        if (type == key_type) {
+            /* add ref count */
+            key = p11prov_obj_ref_no_cache(key);
+        } else {
+            key = NULL;
+        }
+    }
+
+    return key;
+}
+
 /* RSA gen key */
 static void *p11prov_rsa_gen_init(void *provctx, int selection,
                                   const OSSL_PARAM params[])
@@ -497,25 +546,8 @@ static void p11prov_rsa_free(void *key)
 
 static void *p11prov_rsa_load(const void *reference, size_t reference_sz)
 {
-    P11PROV_OBJ *key;
-
     P11PROV_debug("rsa load %p, %ld", reference, reference_sz);
-
-    /* the contents of the reference is the address to our object */
-    key = p11prov_obj_from_reference(reference, reference_sz);
-    if (key) {
-        CK_KEY_TYPE type = CK_UNAVAILABLE_INFORMATION;
-
-        type = p11prov_obj_get_key_type(key);
-        if (type == CKK_RSA) {
-            /* add ref count */
-            key = p11prov_obj_ref_no_cache(key);
-        } else {
-            key = NULL;
-        }
-    }
-
-    return key;
+    return p11prov_common_load(reference, reference_sz, CKK_RSA);
 }
 
 static int p11prov_rsa_has(const void *keydata, int selection)
@@ -944,25 +976,8 @@ static void p11prov_ec_free(void *key)
 
 static void *p11prov_ec_load(const void *reference, size_t reference_sz)
 {
-    P11PROV_OBJ *key;
-
     P11PROV_debug("ec load %p, %ld", reference, reference_sz);
-
-    /* the contents of the reference is the address to our object */
-    key = p11prov_obj_from_reference(reference, reference_sz);
-    if (key) {
-        CK_KEY_TYPE type = CK_UNAVAILABLE_INFORMATION;
-
-        type = p11prov_obj_get_key_type(key);
-        if (type == CKK_EC) {
-            /* add ref count */
-            key = p11prov_obj_ref_no_cache(key);
-        } else {
-            key = NULL;
-        }
-    }
-
-    return key;
+    return p11prov_common_load(reference, reference_sz, CKK_EC);
 }
 
 static int p11prov_ec_has(const void *keydata, int selection)
@@ -1020,10 +1035,6 @@ static int p11prov_ec_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
 }
 
 static const OSSL_PARAM p11prov_ec_key_types[] = {
-    /*
-    OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_N, NULL, 0),
-    OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_E, NULL, 0),
- */
     OSSL_PARAM_END,
 };
 
@@ -1181,6 +1192,282 @@ const OSSL_DISPATCH p11prov_ec_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ec, QUERY_OPERATION_NAME, query_operation_name),
     DISPATCH_KEYMGMT_ELEM(ec, GET_PARAMS, get_params),
     DISPATCH_KEYMGMT_ELEM(ec, GETTABLE_PARAMS, gettable_params),
+    { 0, NULL },
+};
+
+DISPATCH_KEYMGMT_FN(ed25519, gen_init);
+DISPATCH_KEYMGMT_FN(ed448, gen_init);
+DISPATCH_KEYMGMT_FN(ed, gen_settable_params);
+DISPATCH_KEYMGMT_FN(ed, load);
+DISPATCH_KEYMGMT_FN(ed, import_types);
+DISPATCH_KEYMGMT_FN(ed, export);
+DISPATCH_KEYMGMT_FN(ed, export_types);
+DISPATCH_KEYMGMT_FN(ed, get_params);
+DISPATCH_KEYMGMT_FN(ed, gettable_params);
+DISPATCH_KEYMGMT_FN(ed, set_params);
+DISPATCH_KEYMGMT_FN(ed, settable_params);
+
+static void *p11prov_ed25519_gen_init(void *provctx, int selection,
+                                      const OSSL_PARAM params[])
+{
+    struct key_generator *ctx = NULL;
+    const OSSL_PARAM curve[] = { OSSL_PARAM_utf8_string("p11prov_edname",
+                                                        (void *)ED25519,
+                                                        sizeof(ED25519)),
+                                 OSSL_PARAM_END };
+    int ret;
+
+    P11PROV_debug("ed25519 gen_init %p", provctx);
+
+    ctx = p11prov_common_gen_init(provctx, selection, CKK_EC_EDWARDS, curve);
+    if (!ctx) {
+        return NULL;
+    }
+
+    ret = p11prov_common_gen_set_params(ctx, params);
+    if (ret != RET_OSSL_OK) {
+        p11prov_common_gen_cleanup(ctx);
+        return NULL;
+    }
+    return ctx;
+}
+
+static void *p11prov_ed448_gen_init(void *provctx, int selection,
+                                    const OSSL_PARAM params[])
+{
+    struct key_generator *ctx = NULL;
+    const OSSL_PARAM curve[] = {
+        OSSL_PARAM_utf8_string("p11prov_edname", (void *)ED448, sizeof(ED448)),
+        OSSL_PARAM_END
+    };
+    int ret;
+
+    P11PROV_debug("ed448 gen_init %p", provctx);
+
+    ctx = p11prov_common_gen_init(provctx, selection, CKK_EC_EDWARDS, curve);
+    if (!ctx) {
+        return NULL;
+    }
+
+    ret = p11prov_common_gen_set_params(ctx, params);
+    if (ret != RET_OSSL_OK) {
+        p11prov_common_gen_cleanup(ctx);
+        return NULL;
+    }
+    return ctx;
+}
+
+static const OSSL_PARAM *p11prov_ed_gen_settable_params(void *genctx,
+                                                        void *provctx)
+{
+    static OSSL_PARAM p11prov_ed_params[] = {
+        OSSL_PARAM_utf8_string(P11PROV_PARAM_KEY_LABEL, NULL, 0),
+        OSSL_PARAM_octet_string(P11PROV_PARAM_KEY_ID, NULL, 0),
+        OSSL_PARAM_END,
+    };
+    return p11prov_ed_params;
+}
+
+static void *p11prov_ed_load(const void *reference, size_t reference_sz)
+{
+    P11PROV_debug("ed load %p, %ld", reference, reference_sz);
+    return p11prov_common_load(reference, reference_sz, CKK_EC_EDWARDS);
+}
+
+static int p11prov_ed_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
+                             void *cb_arg)
+{
+    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
+    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
+
+    P11PROV_debug("ed export %p", keydata);
+
+    if (key == NULL) {
+        return RET_OSSL_ERR;
+    }
+
+    if (p11prov_ctx_allow_export(ctx) & DISALLOW_EXPORT_PUBLIC) {
+        return RET_OSSL_ERR;
+    }
+
+    /* this will return the public EC_POINT */
+    if ((selection & ~(PUBLIC_PARAMS)) == 0) {
+        return p11prov_obj_export_public_ec_key(key, cb_fn, cb_arg);
+    }
+
+    return RET_OSSL_ERR;
+}
+
+static const OSSL_PARAM *p11prov_ed_import_types(int selection)
+{
+    static const OSSL_PARAM p11prov_ed_imp_key_types[] = {
+        OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_PRIV_KEY, NULL, 0),
+        OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_PUB_KEY, NULL, 0),
+        OSSL_PARAM_END,
+    };
+    P11PROV_debug("ed import types");
+    if (selection & OSSL_KEYMGMT_SELECT_KEYPAIR) {
+        return p11prov_ed_imp_key_types;
+    }
+    return NULL;
+}
+
+static const OSSL_PARAM *p11prov_ed_export_types(int selection)
+{
+    static const OSSL_PARAM p11prov_ed_exp_key_types[] = {
+        OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_PUB_KEY, NULL, 0),
+        OSSL_PARAM_END,
+    };
+    P11PROV_debug("ed export types");
+    if (selection == OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+        return p11prov_ed_exp_key_types;
+    }
+    return NULL;
+}
+
+static const char *p11prov_ed25519_query_operation_name(int operation_id)
+{
+    if (operation_id == OSSL_OP_SIGNATURE) {
+        return P11PROV_NAME_ED25519;
+    }
+    return NULL;
+}
+
+static const char *p11prov_ed448_query_operation_name(int operation_id)
+{
+    if (operation_id == OSSL_OP_SIGNATURE) {
+        return P11PROV_NAME_ED448;
+    }
+    return NULL;
+}
+
+static int p11prov_ed_get_params(void *keydata, OSSL_PARAM params[])
+{
+    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
+    OSSL_PARAM *p;
+    CK_ULONG group_size;
+    int ret;
+
+    P11PROV_debug("ed get params %p", keydata);
+
+    if (key == NULL) {
+        return RET_OSSL_ERR;
+    }
+
+    group_size = p11prov_obj_get_key_bit_size(key);
+    if (group_size == CK_UNAVAILABLE_INFORMATION) {
+        return RET_OSSL_ERR;
+    }
+
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_BITS);
+    if (p) {
+        ret = OSSL_PARAM_set_int(p, group_size);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_SECURITY_BITS);
+    if (p) {
+        int secbits;
+        if (group_size == ED448_BIT_SIZE) {
+            secbits = ED448_SEC_BITS;
+        } else if (group_size == ED25519_BIT_SIZE) {
+            secbits = ED25519_SEC_BITS;
+        } else {
+            return RET_OSSL_ERR;
+        }
+        ret = OSSL_PARAM_set_int(p, secbits);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_MAX_SIZE);
+    if (p) {
+        int sigsize;
+        if (group_size == ED448_BIT_SIZE) {
+            sigsize = ED448_SIG_SIZE;
+        } else if (group_size == ED25519_BIT_SIZE) {
+            sigsize = ED25519_SIG_SIZE;
+        } else {
+            return RET_OSSL_ERR;
+        }
+        ret = OSSL_PARAM_set_int(p, sigsize);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+
+    return RET_OSSL_OK;
+}
+
+static const OSSL_PARAM *p11prov_ed_gettable_params(void *provctx)
+{
+    static const OSSL_PARAM params[] = {
+        /* TODO: OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_PUB_KEY, NULL, 0), */
+        OSSL_PARAM_int(OSSL_PKEY_PARAM_BITS, NULL),
+        OSSL_PARAM_int(OSSL_PKEY_PARAM_SECURITY_BITS, NULL),
+        OSSL_PARAM_int(OSSL_PKEY_PARAM_MAX_SIZE, NULL),
+        OSSL_PARAM_END,
+    };
+    return params;
+}
+
+static int p11prov_ed_set_params(void *keydata, const OSSL_PARAM params[])
+{
+    return RET_OSSL_OK;
+}
+
+static const OSSL_PARAM *p11prov_ed_settable_params(void *provctx)
+{
+    static const OSSL_PARAM params[] = {
+        OSSL_PARAM_END,
+    };
+    return params;
+}
+
+const OSSL_DISPATCH p11prov_ed25519_keymgmt_functions[] = {
+    DISPATCH_KEYMGMT_ELEM(ec, NEW, new),
+    DISPATCH_KEYMGMT_ELEM(ed25519, GEN_INIT, gen_init),
+    DISPATCH_KEYMGMT_ELEM(ec, GEN, gen),
+    DISPATCH_KEYMGMT_ELEM(common, GEN_CLEANUP, gen_cleanup),
+    DISPATCH_KEYMGMT_ELEM(common, GEN_SET_PARAMS, gen_set_params),
+    DISPATCH_KEYMGMT_ELEM(ed, GEN_SETTABLE_PARAMS, gen_settable_params),
+    DISPATCH_KEYMGMT_ELEM(ed, LOAD, load),
+    DISPATCH_KEYMGMT_ELEM(ec, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(ec, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(ec, IMPORT, import),
+    DISPATCH_KEYMGMT_ELEM(ed, IMPORT_TYPES, import_types),
+    DISPATCH_KEYMGMT_ELEM(ed, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(ed, EXPORT_TYPES, export_types),
+    DISPATCH_KEYMGMT_ELEM(ed25519, QUERY_OPERATION_NAME, query_operation_name),
+    DISPATCH_KEYMGMT_ELEM(ed, GET_PARAMS, get_params),
+    DISPATCH_KEYMGMT_ELEM(ed, GETTABLE_PARAMS, gettable_params),
+    DISPATCH_KEYMGMT_ELEM(ed, SET_PARAMS, set_params),
+    DISPATCH_KEYMGMT_ELEM(ed, SETTABLE_PARAMS, settable_params),
+    /* TODO: match, validate, dup? */
+    { 0, NULL },
+};
+
+const OSSL_DISPATCH p11prov_ed448_keymgmt_functions[] = {
+    DISPATCH_KEYMGMT_ELEM(ec, NEW, new),
+    DISPATCH_KEYMGMT_ELEM(ed448, GEN_INIT, gen_init),
+    DISPATCH_KEYMGMT_ELEM(ec, GEN, gen),
+    DISPATCH_KEYMGMT_ELEM(common, GEN_CLEANUP, gen_cleanup),
+    DISPATCH_KEYMGMT_ELEM(common, GEN_SET_PARAMS, gen_set_params),
+    DISPATCH_KEYMGMT_ELEM(ed, GEN_SETTABLE_PARAMS, gen_settable_params),
+    DISPATCH_KEYMGMT_ELEM(ed, LOAD, load),
+    DISPATCH_KEYMGMT_ELEM(ec, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(ec, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(ec, IMPORT, import),
+    DISPATCH_KEYMGMT_ELEM(ed, IMPORT_TYPES, import_types),
+    DISPATCH_KEYMGMT_ELEM(ed, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(ed, EXPORT_TYPES, export_types),
+    DISPATCH_KEYMGMT_ELEM(ed448, QUERY_OPERATION_NAME, query_operation_name),
+    DISPATCH_KEYMGMT_ELEM(ed, GET_PARAMS, get_params),
+    DISPATCH_KEYMGMT_ELEM(ed, GETTABLE_PARAMS, gettable_params),
+    DISPATCH_KEYMGMT_ELEM(ed, SET_PARAMS, set_params),
+    DISPATCH_KEYMGMT_ELEM(ed, SETTABLE_PARAMS, settable_params),
+    /* TODO: match, validate, dup? */
     { 0, NULL },
 };
 

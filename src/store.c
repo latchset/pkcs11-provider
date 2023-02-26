@@ -332,6 +332,18 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
         case CKK_EC:
             data_type = (char *)P11PROV_NAME_EC;
             break;
+        case CKK_EC_EDWARDS:
+            switch (p11prov_obj_get_key_bit_size(obj)) {
+            case ED448_BIT_SIZE:
+                data_type = (char *)ED448;
+                break;
+            case ED25519_BIT_SIZE:
+                data_type = (char *)ED25519;
+                break;
+            default:
+                return RET_OSSL_ERR;
+            }
+            break;
         default:
             return RET_OSSL_ERR;
         }
