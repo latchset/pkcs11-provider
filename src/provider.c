@@ -774,6 +774,10 @@ static const OSSL_ALGORITHM p11prov_keymgmt[] = {
       p11prov_ec_keymgmt_functions, P11PROV_DESCS_EC },
     { P11PROV_NAMES_HKDF, P11PROV_DEFAULT_PROPERTIES,
       p11prov_hkdf_keymgmt_functions, P11PROV_DESCS_HKDF },
+    { P11PROV_NAMES_ED25519, P11PROV_DEFAULT_PROPERTIES,
+      p11prov_ed25519_keymgmt_functions, P11PROV_DESCS_ED25519 },
+    { P11PROV_NAMES_ED448, P11PROV_DEFAULT_PROPERTIES,
+      p11prov_ed448_keymgmt_functions, P11PROV_DESCS_ED448 },
     { NULL, NULL, NULL, NULL },
 };
 

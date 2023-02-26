@@ -49,4 +49,24 @@ int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
                                      void *cb_arg);
 const char *p11prov_obj_get_ec_group_name(P11PROV_OBJ *obj);
 
+#define ED25519 "ED25519"
+#define ED25519_BIT_SIZE 256
+#define ED25519_BYTE_SIZE ED25519_BIT_SIZE / 8
+#define ED25519_SEC_BITS 128
+#define ED25519_SIG_SIZE 64
+#define ED25519_EC_PARAMS \
+    0x13, 0x0c, 0x65, 0x64, 0x77, 0x61, 0x72, 0x64, 0x73, 0x32, 0x35, 0x35, \
+        0x31, 0x39
+#define ED25519_EC_PARAMS_LEN 14
+#define ED448 "ED448"
+#define ED448_BIT_SIZE 456
+#define ED448_BYTE_SIZE ED448_BIT_SIZE / 8
+#define ED448_SEC_BITS 224
+#define ED448_SIG_SIZE 114
+#define ED448_EC_PARAMS \
+    0x13, 0x0a, 0x65, 0x64, 0x77, 0x61, 0x72, 0x64, 0x73, 0x34, 0x34, 0x38
+#define ED448_EC_PARAMS_LEN 12
+extern const CK_BYTE ed25519_ec_params[];
+extern const CK_BYTE ed448_ec_params[];
+
 #endif /* _OBJECTS_H */
