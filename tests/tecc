@@ -16,6 +16,7 @@ if [ $FAIL -eq 1 ]; then
     echo "Original command output:"
     echo "$output"
     echo
+    exit 1
 fi
 
 title PARA "Sign and Verify with provided Hash and EC"
