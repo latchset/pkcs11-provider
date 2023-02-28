@@ -20,4 +20,22 @@ if [ $FAIL -eq 1 ]; then
     exit 1
 fi
 
+title PARA "DigestSign and DigestVerify with ED25519"
+ossl '
+pkeyutl -sign -inkey "${EDBASEURI}"
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha256-eddgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${EDBASEURI}" -pubin
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha256-eddgstsig.bin'
+
+title PARA "Test CSR generation from private ED25519 keys"
+ossl '
+req -new -batch -key "${EDPRIURI}" -out ${TMPPDIR}/ed25519_csr.pem'
+ossl '
+req -in ${TMPPDIR}/ed25519_csr.pem -verify -noout'
+
 exit 0
