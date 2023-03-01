@@ -21,4 +21,9 @@ extern const OSSL_DISPATCH p11prov_rsa_signature_functions[];
     DECL_DISPATCH_FUNC(signature, p11prov_ecdsa, name)
 extern const OSSL_DISPATCH p11prov_ecdsa_signature_functions[];
 
+/* eddsa sig functions */
+#define DISPATCH_EDDSA_FN(name) \
+    DECL_DISPATCH_FUNC(signature, p11prov_eddsa, name)
+extern const OSSL_DISPATCH p11prov_eddsa_signature_functions[];
+
 #endif /* _SIGNATURE_H */

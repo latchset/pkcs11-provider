@@ -22,6 +22,10 @@ struct p11prov_sig_ctx {
 
     CK_RSA_PKCS_PSS_PARAMS pss_params;
 
+    /* EdDSA param data */
+    CK_EDDSA_PARAMS eddsa_params;
+    CK_BBOOL use_eddsa_params;
+
     /* If not NULL this indicates that the requested mechanism to calculate
      * digest+signature (C_SignUpdate/C_VerifyUpdate) is not supported by
      * the token, so we try to fall back to calculating the digest
@@ -99,6 +103,14 @@ static void *p11prov_sig_dupctx(void *ctx)
     newctx->digest = sigctx->digest;
     newctx->pss_params = sigctx->pss_params;
     newctx->operation = sigctx->operation;
+
+    newctx->eddsa_params = sigctx->eddsa_params;
+    if (sigctx->eddsa_params.pContextData) {
+        newctx->eddsa_params.pContextData =
+            OPENSSL_memdup(sigctx->eddsa_params.pContextData,
+                           sigctx->eddsa_params.ulContextDataLen);
+    }
+    newctx->use_eddsa_params = sigctx->use_eddsa_params;
 
     if (sigctx->mechanism_fallback) {
         int err;
@@ -180,6 +192,8 @@ static void p11prov_sig_freectx(void *ctx)
         return;
     }
 
+    OPENSSL_clear_free(sigctx->eddsa_params.pContextData,
+                       sigctx->eddsa_params.ulContextDataLen);
     p11prov_return_session(sigctx->session);
     EVP_MD_CTX_free(sigctx->mechanism_fallback);
     p11prov_obj_free(sigctx->key);
@@ -336,6 +350,17 @@ static const P11PROV_MECH mech_map[] = {
       sizeof(der_digestinfo_sha1) },
     { CK_UNAVAILABLE_INFORMATION, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
+
+#define DER_ED25519_OID 0x06, 0x03, 0x2B, 0x65, 0x70
+#define DER_ED25519_OID_LEN 0x05
+static const unsigned char der_ed25519_algorithm_id[] = { DER_SEQUENCE,
+                                                          DER_ED25519_OID_LEN,
+                                                          DER_ED25519_OID };
+#define DER_ED448_OID 0x06, 0x03, 0x2B, 0x65, 0x71
+#define DER_ED448_OID_LEN 0x05
+static const unsigned char der_ed448_algorithm_id[] = { DER_SEQUENCE,
+                                                        DER_ED448_OID_LEN,
+                                                        DER_ED448_OID };
 
 static CK_RV p11prov_mech_by_mechanism(CK_MECHANISM_TYPE mechanism,
                                        const P11PROV_MECH **mech)
@@ -505,6 +530,12 @@ static int p11prov_sig_set_mechanism(P11PROV_SIG_CTX *sigctx, bool digest_sign,
             result = CKR_OK;
         }
         break;
+    case CKM_EDDSA:
+        if (sigctx->use_eddsa_params == CK_TRUE) {
+            mechanism->pParameter = &sigctx->eddsa_params;
+            mechanism->ulParameterLen = sizeof(sigctx->eddsa_params);
+        }
+        result = CKR_OK;
     }
 
     if (result == CKR_OK) {
@@ -535,6 +566,15 @@ static CK_RV p11prov_sig_get_sig_size(void *ctx, size_t *siglen)
     case CKK_EC:
         /* add room for ECDSA Signature DER overhead */
         *siglen = 3 + (size + 4) * 2;
+        break;
+    case CKK_EC_EDWARDS:
+        if (size == ED25519_BYTE_SIZE) {
+            *siglen = ED25519_SIG_SIZE;
+        } else if (size == ED448_BYTE_SIZE) {
+            *siglen = ED448_SIG_SIZE;
+        } else {
+            return CKR_KEY_TYPE_INCONSISTENT;
+        }
         break;
     default:
         return CKR_KEY_TYPE_INCONSISTENT;
@@ -2007,5 +2047,266 @@ const OSSL_DISPATCH p11prov_ecdsa_signature_functions[] = {
     DISPATCH_SIG_ELEM(ecdsa, GETTABLE_CTX_PARAMS, gettable_ctx_params),
     DISPATCH_SIG_ELEM(ecdsa, SET_CTX_PARAMS, set_ctx_params),
     DISPATCH_SIG_ELEM(ecdsa, SETTABLE_CTX_PARAMS, settable_ctx_params),
+    { 0, NULL },
+};
+
+DISPATCH_EDDSA_FN(newctx);
+DISPATCH_EDDSA_FN(digest_sign_init);
+DISPATCH_EDDSA_FN(digest_sign);
+DISPATCH_EDDSA_FN(digest_verify_init);
+DISPATCH_EDDSA_FN(digest_verify);
+DISPATCH_EDDSA_FN(get_ctx_params);
+DISPATCH_EDDSA_FN(set_ctx_params);
+DISPATCH_EDDSA_FN(gettable_ctx_params);
+DISPATCH_EDDSA_FN(settable_ctx_params);
+
+static void *p11prov_eddsa_newctx(void *provctx, const char *properties)
+{
+    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
+
+    return p11prov_sig_newctx(ctx, CKM_EDDSA, properties);
+}
+
+static int p11prov_eddsa_digest_sign_init(void *ctx, const char *digest,
+                                          void *provkey,
+                                          const OSSL_PARAM params[])
+{
+    CK_RV ret;
+
+    P11PROV_debug(
+        "eddsa digest sign init (ctx=%p, digest=%s, key=%p, params=%p)", ctx,
+        digest ? digest : "<NULL>", provkey, params);
+
+    if (digest != NULL && digest[0] != '\0') {
+        ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
+        return RET_OSSL_ERR;
+    }
+
+    ret = p11prov_sig_op_init(ctx, provkey, CKF_SIGN, digest);
+    if (ret != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
+
+    return p11prov_eddsa_set_ctx_params(ctx, params);
+}
+
+static int p11prov_eddsa_digest_sign(void *ctx, unsigned char *sig,
+                                     size_t *siglen, size_t sigsize,
+                                     const unsigned char *tbs, size_t tbslen)
+{
+    P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
+    CK_RV ret;
+
+    P11PROV_debug("eddsa digest sign (ctx=%p, tbs=%p, tbslen=%zu)", ctx, tbs,
+                  tbslen);
+
+    if (sigctx == NULL) {
+        return RET_OSSL_ERR;
+    }
+
+    ret =
+        p11prov_sig_operate(sigctx, sig, siglen, sigsize, (void *)tbs, tbslen);
+    if (ret != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
+    return RET_OSSL_OK;
+}
+
+static int p11prov_eddsa_digest_verify_init(void *ctx, const char *digest,
+                                            void *provkey,
+                                            const OSSL_PARAM params[])
+{
+    CK_RV ret;
+
+    P11PROV_debug("eddsa digest verify init (ctx=%p, key=%p, params=%p)", ctx,
+                  provkey, params);
+
+    if (digest != NULL && digest[0] != '\0') {
+        ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
+        return RET_OSSL_ERR;
+    }
+
+    ret = p11prov_sig_op_init(ctx, provkey, CKF_VERIFY, digest);
+    if (ret != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
+
+    return p11prov_eddsa_set_ctx_params(ctx, params);
+}
+
+static int p11prov_eddsa_digest_verify(void *ctx, const unsigned char *sig,
+                                       size_t siglen, const unsigned char *tbs,
+                                       size_t tbslen)
+{
+    P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
+    CK_RV ret;
+
+    P11PROV_debug("eddsa digest verify (ctx=%p, tbs=%p, tbslen=%zu)", ctx, tbs,
+                  tbslen);
+
+    if (sigctx == NULL) {
+        return RET_OSSL_ERR;
+    }
+
+    ret = p11prov_sig_operate(sigctx, (void *)sig, NULL, siglen, (void *)tbs,
+                              tbslen);
+    if (ret != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
+    return RET_OSSL_OK;
+}
+
+static int p11prov_eddsa_get_ctx_params(void *ctx, OSSL_PARAM *params)
+{
+    P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
+    OSSL_PARAM *p;
+    int ret = RET_OSSL_OK;
+
+    /* todo sig params:
+        OSSL_SIGNATURE_PARAM_ALGORITHM_ID
+     */
+
+    P11PROV_debug("eddsa get ctx params (ctx=%p, params=%p)", ctx, params);
+
+    p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_ALGORITHM_ID);
+    if (p) {
+        if (sigctx->mechtype != CKM_EDDSA) {
+            return RET_OSSL_ERR;
+        }
+        CK_ULONG size = p11prov_obj_get_key_bit_size(sigctx->key);
+        switch (size) {
+        case ED25519_BIT_SIZE:
+            ret = OSSL_PARAM_set_octet_string(p, der_ed25519_algorithm_id,
+                                              sizeof(der_ed25519_algorithm_id));
+            break;
+        case ED448_BIT_SIZE:
+            ret = OSSL_PARAM_set_octet_string(p, der_ed448_algorithm_id,
+                                              sizeof(der_ed448_algorithm_id));
+            break;
+        default:
+            return RET_OSSL_ERR;
+        }
+    }
+
+    return ret;
+}
+
+#ifndef OSSL_SIGNATURE_PARAM_INSTANCE
+#define OSSL_SIGNATURE_PARAM_INSTANCE "instance"
+#endif
+#ifndef OSSL_SIGNATURE_PARAM_CONTEXT_STRING
+#define OSSL_SIGNATURE_PARAM_CONTEXT_STRING "context-string"
+#endif
+static int p11prov_eddsa_set_ctx_params(void *ctx, const OSSL_PARAM params[])
+{
+    P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
+    const OSSL_PARAM *p;
+    int ret;
+
+    P11PROV_debug("eddsa set ctx params (ctx=%p, params=%p)", sigctx, params);
+
+    if (params == NULL) {
+        return RET_OSSL_OK;
+    }
+
+    p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_INSTANCE);
+    if (p) {
+        const char *instance = NULL;
+        bool matched = false;
+        CK_ULONG size;
+
+        ret = OSSL_PARAM_get_utf8_string_ptr(p, &instance);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+        P11PROV_debug("Set OSSL_SIGNATURE_PARAM_INSTANCE to %s", instance);
+
+        size = p11prov_obj_get_key_bit_size(sigctx->key);
+        if (size != ED25519_BIT_SIZE && size != ED448_BIT_SIZE) {
+            P11PROV_raise(sigctx->provctx, CKR_KEY_TYPE_INCONSISTENT,
+                          "Invalid EdDSA key size %lu", size);
+            return RET_OSSL_ERR;
+        }
+        if (size == ED25519_BIT_SIZE) {
+            if (OPENSSL_strcasecmp(instance, "Ed25519") == 0) {
+                matched = true;
+                sigctx->use_eddsa_params = CK_FALSE;
+            } else if (OPENSSL_strcasecmp(instance, "Ed25519ph") == 0) {
+                matched = true;
+                sigctx->use_eddsa_params = CK_TRUE;
+                sigctx->eddsa_params.phFlag = CK_TRUE;
+            } else if (OPENSSL_strcasecmp(instance, "Ed25519ctx") == 0) {
+                matched = true;
+                sigctx->use_eddsa_params = CK_TRUE;
+                sigctx->eddsa_params.phFlag = CK_FALSE;
+            }
+        } else if (size == ED448_BIT_SIZE) {
+            if (OPENSSL_strcasecmp(instance, "Ed448") == 0) {
+                matched = true;
+                sigctx->use_eddsa_params = CK_TRUE;
+                sigctx->eddsa_params.phFlag = CK_FALSE;
+            } else if (OPENSSL_strcasecmp(instance, "Ed448ph") == 0) {
+                matched = true;
+                sigctx->use_eddsa_params = CK_TRUE;
+                sigctx->eddsa_params.phFlag = CK_TRUE;
+            }
+        }
+        if (!matched) {
+            P11PROV_raise(sigctx->provctx, CKR_ARGUMENTS_BAD,
+                          "Invalid instance");
+            return RET_OSSL_ERR;
+        }
+    }
+
+    p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_CONTEXT_STRING);
+    if (p) {
+        size_t datalen;
+        OPENSSL_clear_free(sigctx->eddsa_params.pContextData,
+                           sigctx->eddsa_params.ulContextDataLen);
+        sigctx->eddsa_params.pContextData = NULL;
+        ret = OSSL_PARAM_get_octet_string(
+            p, (void **)&sigctx->eddsa_params.pContextData, 0, &datalen);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+        sigctx->eddsa_params.ulContextDataLen = datalen;
+    }
+
+    return RET_OSSL_OK;
+}
+
+static const OSSL_PARAM *p11prov_eddsa_gettable_ctx_params(void *ctx,
+                                                           void *prov)
+{
+    static const OSSL_PARAM params[] = {
+        OSSL_PARAM_octet_string(OSSL_SIGNATURE_PARAM_ALGORITHM_ID, NULL, 0),
+        OSSL_PARAM_END,
+    };
+    return params;
+}
+
+static const OSSL_PARAM *p11prov_eddsa_settable_ctx_params(void *ctx,
+                                                           void *prov)
+{
+    static const OSSL_PARAM params[] = {
+        OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_INSTANCE, NULL, 0),
+        OSSL_PARAM_octet_string(OSSL_SIGNATURE_PARAM_CONTEXT_STRING, NULL, 0),
+        OSSL_PARAM_END,
+    };
+    return params;
+}
+
+const OSSL_DISPATCH p11prov_eddsa_signature_functions[] = {
+    DISPATCH_SIG_ELEM(eddsa, NEWCTX, newctx),
+    DISPATCH_SIG_ELEM(sig, FREECTX, freectx),
+    DISPATCH_SIG_ELEM(sig, DUPCTX, dupctx),
+    DISPATCH_SIG_ELEM(eddsa, DIGEST_SIGN_INIT, digest_sign_init),
+    DISPATCH_SIG_ELEM(eddsa, DIGEST_SIGN, digest_sign),
+    DISPATCH_SIG_ELEM(eddsa, DIGEST_VERIFY_INIT, digest_verify_init),
+    DISPATCH_SIG_ELEM(eddsa, DIGEST_VERIFY, digest_verify),
+    DISPATCH_SIG_ELEM(eddsa, GET_CTX_PARAMS, get_ctx_params),
+    DISPATCH_SIG_ELEM(eddsa, GETTABLE_CTX_PARAMS, gettable_ctx_params),
+    DISPATCH_SIG_ELEM(eddsa, SET_CTX_PARAMS, set_ctx_params),
+    DISPATCH_SIG_ELEM(eddsa, SETTABLE_CTX_PARAMS, settable_ctx_params),
     { 0, NULL },
 };

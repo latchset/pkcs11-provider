@@ -483,7 +483,7 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
             return RET_OSSL_ERR; \
         } \
         operation##_idx++; \
-    } while (0);
+    } while (0)
 
 #define ADD_ALGO(NAME, name, operation) \
     ADD_ALGO_EXT(NAME, operation, P11PROV_DEFAULT_PROPERTIES, \
@@ -558,13 +558,17 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
 {
     P11PROV_SLOTS_CTX *slots;
     P11PROV_SLOT *slot;
-    CK_ULONG checklist[] = {
-        CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_SIG_MECHS,
-        RSAPSS_SIG_MECHS,          RSA_ENC_MECHS,
-        CKM_EC_KEY_PAIR_GEN,       ECDSA_SIG_MECHS,
-        CKM_ECDH1_DERIVE,          CKM_ECDH1_COFACTOR_DERIVE,
-        CKM_HKDF_DERIVE,           DIGEST_MECHS
-    };
+    CK_ULONG checklist[] = { CKM_RSA_PKCS_KEY_PAIR_GEN,
+                             RSA_SIG_MECHS,
+                             RSAPSS_SIG_MECHS,
+                             RSA_ENC_MECHS,
+                             CKM_EC_KEY_PAIR_GEN,
+                             ECDSA_SIG_MECHS,
+                             CKM_ECDH1_DERIVE,
+                             CKM_ECDH1_COFACTOR_DERIVE,
+                             CKM_HKDF_DERIVE,
+                             DIGEST_MECHS,
+                             CKM_EDDSA };
     bool add_rsasig = false;
     bool add_rsaenc = false;
     int cl_size = sizeof(checklist) / sizeof(CK_ULONG);
@@ -714,6 +718,13 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
             case CKM_SHA3_512:
                 ADD_ALGO(SHA3_512, sha3_512, digest);
                 UNCHECK_MECHS(CKM_SHA3_512);
+                break;
+            case CKM_EDDSA:
+                ADD_ALGO_EXT(ED25519, signature, P11PROV_DEFAULT_PROPERTIES,
+                             p11prov_eddsa_signature_functions);
+                ADD_ALGO_EXT(ED448, signature, P11PROV_DEFAULT_PROPERTIES,
+                             p11prov_eddsa_signature_functions);
+                UNCHECK_MECHS(CKM_EC_EDWARDS_KEY_PAIR_GEN, CKM_EDDSA);
                 break;
             default:
                 P11PROV_raise(ctx, CKR_GENERAL_ERROR,
