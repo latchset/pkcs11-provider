@@ -71,4 +71,6 @@ CK_RV p11prov_copy_attr(CK_ATTRIBUTE *dst, CK_ATTRIBUTE *src);
 bool p11prov_x509_names_are_equal(CK_ATTRIBUTE *a, CK_ATTRIBUTE *b);
 char *p11prov_alloc_sprintf(int size_hint, const char *format, ...);
 
+void trim_padded_field(CK_UTF8CHAR *field, ssize_t n);
+#define trim(x) trim_padded_field(x, sizeof(x))
 #endif /* _UTIL_H */

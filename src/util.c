@@ -646,3 +646,12 @@ done:
     }
     return buf;
 }
+
+void trim_padded_field(CK_UTF8CHAR *field, ssize_t n)
+{
+    for (; n > 0 && field[n - 1] == ' '; n--) {
+        field[n - 1] = 0;
+    }
+}
+
+#define trim(x) trim_padded_field(x, sizeof(x))

@@ -288,6 +288,8 @@ CK_RV p11prov_module_init(P11PROV_MODULE *mctx)
     if (ret) {
         return ret;
     }
+    trim(ck_info.manufacturerID);
+    trim(ck_info.libraryDescription);
     P11PROV_debug("Module Info: ck_ver:%d.%d lib: '%s' '%s' ver:%d.%d",
                   (int)ck_info.cryptokiVersion.major,
                   (int)ck_info.cryptokiVersion.minor, ck_info.manufacturerID,

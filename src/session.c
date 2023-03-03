@@ -118,14 +118,6 @@ static void get_slot_mechanisms(P11PROV_CTX *ctx, struct p11prov_slot *slot)
     slot->nmechs = mechs_num;
 }
 
-static void trim_padded_field(CK_UTF8CHAR *field, ssize_t n)
-{
-    for (; n > 0 && field[n - 1] == ' '; n--) {
-        field[n - 1] = 0;
-    }
-}
-
-#define trim(x) trim_padded_field(x, sizeof(x))
 static const char slot_desc_fmt[] = "PKCS#11 Token (Slot %lu - %s)";
 
 CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
