@@ -14,12 +14,16 @@ BuildRequires: libtool
 # for tests
 BuildRequires: nss-devel
 BuildRequires: nss-softokn
+BuildRequires: nss-softokn-devel
 BuildRequires: nss-tools
 BuildRequires: openssl
 BuildRequires: softhsm
 BuildRequires: opensc
 BuildRequires: p11-kit-devel
 BuildRequires: p11-kit-server
+BuildRequires: gnutls-utils
+BuildRequires: xz
+BuildRequires: expect
 
 
 %description
