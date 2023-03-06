@@ -305,6 +305,30 @@ echo "${ECPRI2URI}"
 echo "${ECCRT2URI}"
 echo ""
 
+if [ -f /etc/fedora-release ]; then
+    title PARA "explicit EC unsupported on Fedora"
+else
+    title PARA "generate explicit EC key pair"
+    KEYID='0007'
+    URIKEYID="%00%07"
+    ECXCRTN="ecExplicitCert"
+
+    pkcs11-tool --write-object="${TESTSSRCDIR}/explicit_ec.key.der" --type=privkey --login --pin=$PINVALUE \
+        --module="$P11LIB" --label="${ECXCRTN}" --id="$KEYID"
+    pkcs11-tool --write-object="${TESTSSRCDIR}/explicit_ec.pub.der" --type=pubkey --login --pin=$PINVALUE \
+        --module="$P11LIB" --label="${ECXCRTN}" --id="$KEYID"
+
+    ECXBASEURI="pkcs11:id=${URIKEYID}"
+    ECXPUBURI="pkcs11:type=public;id=${URIKEYID}"
+    ECXPRIURI="pkcs11:type=private;id=${URIKEYID}"
+
+    title LINE "EXPLICIT EC PKCS11 URIS"
+    echo "${ECXBASEURI}"
+    echo "${ECXPUBURI}"
+    echo "${ECXPRIURI}"
+    echo ""
+fi
+
 title PARA "Show contents of softhsm token"
 echo " ----------------------------------------------------------------------------------------------------"
 pkcs11-tool -O --login --pin=$PINVALUE --module="$P11LIB"
@@ -372,6 +396,18 @@ export ECBASE2URIWITHPIN="${ECBASEURIWITHPIN}"
 export ECBASE2URI="${ECBASE2URI}"
 export ECPRI2URI="${ECPRI2URI}"
 export ECCRT2URI="${ECCRT2URI}"
+DBGSCRIPT
+
+if [ -n "${ECXBASEURI}" ]; then
+    cat >> ${TMPPDIR}/testvars <<DBGSCRIPT
+
+export ECXBASEURI="${ECXBASEURI}"
+export ECXPUBURI="${ECXPUBURI}"
+export ECXPRIURI="${ECXPRIURI}"
+DBGSCRIPT
+fi
+
+cat >> ${TMPPDIR}/testvars <<DBGSCRIPT
 
 # for listing the separate pkcs11 calls
 #export PKCS11SPY="${PKCS11_PROVIDER_MODULE}"

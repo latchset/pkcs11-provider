@@ -24,6 +24,7 @@ jobs:
             tdigest
             tecc
             tecdh
+            tecxc
             tedwards
             test-wrapper
             thkdf

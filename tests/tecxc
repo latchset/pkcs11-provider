@@ -1,0 +1,136 @@
+#!/bin/bash -e
+# Copyright (C) 2023 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+# On Fedora they completely removed support for explicit EC from libcrypto,
+# so skip the test completely
+if [ -f /etc/fedora-release ]; then
+    exit 0
+fi
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+title PARA "Export EC Public key to a file"
+ossl 'pkey -in $ECXPUBURI -pubin -pubout -out ${TMPPDIR}/ecout.pub'
+title LINE "Print EC Public key from private"
+ossl 'pkey -in $ECXPRIURI -pubout -text' "$helper_emit"
+output="$helper_output"
+FAIL=0
+echo "$output" | grep "PKCS11 EC Public Key (190 bits)" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -eq 1 ]; then
+    echo "Pkcs11 encoder function failed"
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
+title PARA "Sign and Verify with provided Hash and EC"
+ossl 'dgst -sha256 -binary -out ${TMPPDIR}/sha256.bin ${SEEDFILE}'
+ossl '
+pkeyutl -sign -inkey "${ECXBASEURI}"
+              -in ${TMPPDIR}/sha256.bin
+              -out ${TMPPDIR}/sha256-ecsig.bin'
+
+ossl '
+pkeyutl -verify -inkey "${ECXBASEURI}" -pubin
+                -in ${TMPPDIR}/sha256.bin
+                -sigfile ${TMPPDIR}/sha256-ecsig.bin'
+
+ossl '
+pkeyutl -verify -inkey "${TMPPDIR}/ecout.pub" -pubin
+                -in ${TMPPDIR}/sha256.bin
+                -sigfile ${TMPPDIR}/sha256-ecsig.bin'
+
+title PARA "DigestSign and DigestVerify with ECC (SHA-256)"
+ossl '
+pkeyutl -sign -inkey "${ECXBASEURI}"
+              -digest sha256
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha256-ecdgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${ECXBASEURI}" -pubin
+                -digest sha256
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha256-ecdgstsig.bin'
+
+title PARA "DigestSign and DigestVerify with ECC (SHA-384)"
+ossl '
+pkeyutl -sign -inkey "${ECXBASEURI}"
+              -digest sha384
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha384-ecdgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${ECXBASEURI}" -pubin
+                -digest sha384
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha384-ecdgstsig.bin'
+
+title PARA "DigestSign and DigestVerify with ECC (SHA-512)"
+ossl '
+pkeyutl -sign -inkey "${ECXBASEURI}"
+              -digest sha512
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha512-ecdgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${ECXBASEURI}" -pubin
+                -digest sha512
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha512-ecdgstsig.bin'
+
+title PARA "DigestSign and DigestVerify with ECC (SHA3-256)"
+ossl '
+pkeyutl -sign -inkey "${ECXBASEURI}"
+              -digest sha3-256
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha3-256-ecdgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${ECXBASEURI}" -pubin
+                -digest sha3-256
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha3-256-ecdgstsig.bin'
+
+title PARA "DigestSign and DigestVerify with ECC (SHA3-384)"
+ossl '
+pkeyutl -sign -inkey "${ECXBASEURI}"
+              -digest sha3-384
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha3-384-ecdgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${ECXBASEURI}" -pubin
+                -digest sha3-384
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha3-384-ecdgstsig.bin'
+
+title PARA "DigestSign and DigestVerify with ECC (SHA3-512)"
+ossl '
+pkeyutl -sign -inkey "${ECXBASEURI}"
+              -digest sha3-512
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha3-512-ecdgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${ECXBASEURI}" -pubin
+                -digest sha3-512
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha3-512-ecdgstsig.bin'
+
+title PARA "Test CSR generation from private ECC keys"
+ossl '
+req -new -batch -key "${ECXPRIURI}" -out ${TMPPDIR}/ecdsa_csr.pem'
+ossl '
+req -in ${TMPPDIR}/ecdsa_csr.pem -verify -noout'
+
+exit 0

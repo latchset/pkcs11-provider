@@ -1,5 +1,6 @@
 EXTRA_DIST = openssl.cnf.in \
-	lsan.supp
+	lsan.supp \
+	explicit_ec.key.der explicit_ec.pub.der
 
 libspath=@abs_top_builddir@/src/.libs
 testsblddir=@abs_top_builddir@/tests
@@ -57,7 +58,7 @@ tmp.softhsm:
 dist_check_SCRIPTS = \
 	helpers.sh setup-softhsm.sh setup-softokn.sh softhsm-proxy.sh \
 	test-wrapper tbasic tcerts tecc tecdh tedwards tdemoca thkdf \
-	toaepsha2 trsapss tdigest ttls tpubkey tfork turi trand
+	toaepsha2 trsapss tdigest ttls tpubkey tfork turi trand tecxc
 
 test_LIST = \
 	basic-softokn.t basic-softhsm.t \
@@ -77,7 +78,7 @@ test_LIST = \
 	rand-softokn.t rand-softhsm.t \
 	readkeys-softokn.t readkeys-softhsm.t \
 	tls-softokn.t tls-softhsm.t \
-	uri-softokn.t uri-softhsm.t
+	uri-softokn.t uri-softhsm.t ecxc-softhsm.t
 
 .PHONY: $(test_LIST)
 
