@@ -1,0 +1,15 @@
+#!/bin/bash -e
+# Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source ${TESTSSRCDIR}/helpers.sh
+
+# We need to configure early loading otherwise no digests are loaded,
+# and all checks are skipped
+sed "s/#pkcs11-module-load-behavior/pkcs11-module-load-behavior = early/" ${OPENSSL_CONF} > ${OPENSSL_CONF}.early_load
+OPENSSL_CONF=${OPENSSL_CONF}.early_load
+
+title PARA "Test Digests support"
+./tdigests
+
+exit 0
