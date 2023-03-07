@@ -44,7 +44,7 @@ tmp.softhsm:
 dist_check_SCRIPTS = \
 	helpers.sh setup-softhsm.sh setup-softokn.sh softhsm-proxy.sh \
 	test-wrapper tbasic tcerts tecc tecdh tedwards tdemoca thkdf \
-	toaepsha2 trsapss
+	toaepsha2 trsapss tdigest
 
 test_LIST = \
 	basic-softokn basic-softhsm-proxy \
@@ -53,10 +53,10 @@ test_LIST = \
 	edwards-softhsm-proxy \
 	ecdh-softokn \
 	democa-softokn democa-softhsm-proxy \
+	digest-softokn digest-softhsm-proxy \
 	oaepsha2-softokn \
 	hkdf-softokn \
 	rsapss-softokn \
-	digests-softokn digests-softhsm-proxy \
 	genkey-softokn genkey-softhsm \
 	session-softokn session-softhsm-proxy \
 	readkeys-softokn readkeys-softhsm-proxy \

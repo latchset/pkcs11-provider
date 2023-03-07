@@ -24,6 +24,7 @@ module = @libtoollibs@/pkcs11@SHARED_EXT@
 pkcs11-module-init-args = configDir=@testsblddir@/tmp.softokn/tokens
 pkcs11-module-token-pin = file:@testsblddir@/pinfile.txt
 #pkcs11-module-allow-export
+#pkcs11-module-load-behavior
 activate = 1
 
 ####################################################################

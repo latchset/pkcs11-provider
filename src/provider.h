@@ -35,6 +35,7 @@
 #define P11PROV_PKCS11_MODULE_TOKEN_PIN "pkcs11-module-token-pin"
 #define P11PROV_PKCS11_MODULE_ALLOW_EXPORT "pkcs11-module-allow-export"
 #define P11PROV_PKCS11_MODULE_LOGIN_BEHAVIOR "pkcs11-module-login-behavior"
+#define P11PROV_PKCS11_MODULE_LOAD_BEHAVIOR "pkcs11-module-load-behavior"
 
 #define P11PROV_DEFAULT_PROPERTIES "provider=pkcs11"
 #define P11PROV_NAME_RSA "RSA"

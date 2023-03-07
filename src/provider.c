@@ -974,11 +974,12 @@ static const OSSL_DISPATCH p11prov_dispatch_table[] = {
 int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
                        const OSSL_DISPATCH **out, void **provctx)
 {
-    OSSL_PARAM core_params[6] = { 0 };
+    OSSL_PARAM core_params[7] = { 0 };
     const char *path = NULL;
     const char *init_args = NULL;
     char *allow_export = NULL;
     char *login_behavior = NULL;
+    char *load = NULL;
     char *pin = NULL;
     P11PROV_CTX *ctx;
     int ret;
@@ -1021,7 +1022,9 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
     core_params[4] =
         OSSL_PARAM_construct_utf8_ptr(P11PROV_PKCS11_MODULE_LOGIN_BEHAVIOR,
                                       &login_behavior, sizeof(login_behavior));
-    core_params[5] = OSSL_PARAM_construct_end();
+    core_params[5] = OSSL_PARAM_construct_utf8_ptr(
+        P11PROV_PKCS11_MODULE_LOAD_BEHAVIOR, &load, sizeof(load));
+    core_params[6] = OSSL_PARAM_construct_end();
     ret = core_get_params(handle, core_params);
     if (ret != RET_OSSL_OK) {
         ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_GET_PARAMETER);
@@ -1067,6 +1070,15 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         } else {
             P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Invalid value for %s: (%s)",
                           P11PROV_PKCS11_MODULE_LOGIN_BEHAVIOR, login_behavior);
+            p11prov_ctx_free(ctx);
+            return RET_OSSL_ERR;
+        }
+    }
+
+    if (load != NULL && strcmp(load, "early") == 0) {
+        /* this triggers early module loading */
+        ret = p11prov_ctx_status(ctx);
+        if (ret != CKR_OK) {
             p11prov_ctx_free(ctx);
             return RET_OSSL_ERR;
         }
