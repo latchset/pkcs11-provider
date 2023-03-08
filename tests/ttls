@@ -1,0 +1,51 @@
+#!/bin/bash -e
+# Copyright (C) 2023 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source ${TESTSSRCDIR}/helpers.sh
+
+title PARA "Test SSL_CTX creation"
+./tlsctx
+
+title PARA "Test an actual TLS connection"
+rm -f ${TMPPDIR}/s_server_input
+rm -f ${TMPPDIR}/s_server_output
+
+# Set up command fifo
+mkfifo ${TMPPDIR}/s_server_input
+exec 3<>${TMPPDIR}/s_server_input
+
+openssl s_server -accept 12345 -key ${ECPRIURI} -cert ${ECCRTURI} <&3 &
+
+# Wait a sec to make sure server is up before client tries to connect
+sleep 0.5
+
+# The client will error when the server drops the connection
+set +e
+openssl s_client -connect localhost:12345 -quiet > ${TMPPDIR}/s_server_output &
+set -e
+
+# Wait to make sure client is connected
+sleep 0.5
+
+# Send command to the client
+echo " TLS SUCCESSFUL " >&3
+
+# s_server seem to be confused if Q comes in too early
+sleep 0.5
+
+echo "Q" >&3
+
+# Tear down command fifo
+exec 3>&-
+rm -f ${TMPPDIR}/s_server_input
+
+echo "Check message was successfully delivered over TLS"
+grep " TLS SUCCESSFUL " ${TMPPDIR}/s_server_output
+
+#Make sure there is enough time for the server to tear down the port
+#To avoid interference with other tests
+sleep 0.5
+
+exit 0
+
