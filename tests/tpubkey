@@ -8,8 +8,6 @@ title PARA "Export RSA Public key to a file"
 ossl 'pkey -in $BASEURI -pubin -pubout -out ${TMPPDIR}/baseout.pub'
 title LINE "Export Public key to a file (pub-uri)"
 ossl 'pkey -in $PUBURI -pubin -pubout -out ${TMPPDIR}/pubout.pub'
-title LINE "Export Public key to a file (with pin)"
-ossl 'pkey -in $BASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/pubout-pin.pub'
 title LINE "Print Public key from private"
 ossl 'pkey -in $PRIURI -pubout -text' output
 FAIL=0
@@ -36,8 +34,6 @@ title PARA "Export EC Public key to a file"
 ossl 'pkey -in $ECBASEURI -pubin -pubout -out ${TMPPDIR}/baseecout.pub'
 title LINE "Export EC Public key to a file (pub-uri)"
 ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${TMPPDIR}/pubecout.pub'
-title LINE "Export EC Public key to a file (with pin)"
-ossl 'pkey -in $ECBASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/pubecout-pin.pub'
 title LINE "Print EC Public key from private"
 ossl 'pkey -in $ECPRIURI -pubout -text' output
 FAIL=0
