@@ -4,7 +4,7 @@ libspath=@abs_top_builddir@/src/.libs
 testsblddir=@abs_top_builddir@/tests
 testssrcdir=@abs_srcdir@
 
-check_PROGRAMS = tsession tgenkey ttls tdigests treadkeys
+check_PROGRAMS = tsession tgenkey tlsctx tdigests treadkeys
 
 tsession_SOURCES = tsession.c
 tsession_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
@@ -14,9 +14,9 @@ tgenkey_SOURCES = tgenkey.c
 tgenkey_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
 tgenkey_LDADD = $(OPENSSL_LIBS)
 
-ttls_SOURCES = ttls.c
-ttls_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
-ttls_LDADD = $(OPENSSL_LIBS)
+tlsctx_SOURCES = tlsctx.c
+tlsctx_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
+tlsctx_LDADD = $(OPENSSL_LIBS)
 
 tdigests_SOURCES = tdigests.c
 tdigests_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
@@ -44,7 +44,7 @@ tmp.softhsm:
 dist_check_SCRIPTS = \
 	helpers.sh setup-softhsm.sh setup-softokn.sh softhsm-proxy.sh \
 	test-wrapper tbasic tcerts tecc tecdh tedwards tdemoca thkdf \
-	toaepsha2 trsapss tdigest
+	toaepsha2 trsapss tdigest ttls
 
 test_LIST = \
 	basic-softokn basic-softhsm-proxy \
