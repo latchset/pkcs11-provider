@@ -43,6 +43,7 @@ trap 'jobs -p | xargs -r kill >/dev/null 2>&1' EXIT
 #Unclear why but w/o -rmd sha1 this fails
 openssl ocsp -index ${DEMOCA}/index.txt -rsigner ${DEMOCA}/ocspSigning.pem \
             -rkey ${PRIURI} -CA ${DEMOCA}/cacert.pem -rmd sha1 -port 12345 -text &
+sleep 0.5
 openssl ocsp -CAfile ${DEMOCA}/cacert.pem -issuer ${DEMOCA}/cacert.pem \
              -cert ${DEMOCA}/cert.pem -resp_text -noverify \
              -url http://127.0.0.1:12345
