@@ -1111,6 +1111,10 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
     } else {
         slot_idx = 0;
         ret = CKR_CANCEL;
+
+        /* set error mark so we can clear spurious errors on success */
+        p11prov_set_error_mark(provctx);
+
         /* caller is cycling through slots, find the next viable one */
         for (slot = p11prov_fetch_slot(slots, &slot_idx); slot != NULL;
              slot = p11prov_fetch_slot(slots, &slot_idx)) {
@@ -1143,6 +1147,10 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
             /* Found a slot, return it and the next slot to the caller for
              * continuation if the current slot does not yield the desired
              * results */
+
+            /* if there was any error, remove it, as we got success */
+            p11prov_pop_error_to_mark(provctx);
+
             *slotid = id;
             if (next_slotid) {
                 P11PROV_SLOT *next_slot;
@@ -1154,6 +1162,9 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                 }
             }
         } else {
+            /* otherwise clear the mark and leave errors on the stack */
+            p11prov_clear_last_error_mark(provctx);
+
             if (next_slotid) {
                 *next_slotid = CK_UNAVAILABLE_INFORMATION;
             }

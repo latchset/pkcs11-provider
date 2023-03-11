@@ -359,6 +359,10 @@ static OSSL_FUNC_core_get_params_fn *core_get_params = NULL;
 static OSSL_FUNC_core_new_error_fn *core_new_error = NULL;
 static OSSL_FUNC_core_set_error_debug_fn *core_set_error_debug = NULL;
 static OSSL_FUNC_core_vset_error_fn *core_vset_error = NULL;
+static OSSL_FUNC_core_set_error_mark_fn *core_set_error_mark = NULL;
+static OSSL_FUNC_core_clear_last_error_mark_fn *core_clear_last_error_mark =
+    NULL;
+static OSSL_FUNC_core_pop_error_to_mark_fn *core_pop_error_to_mark = NULL;
 
 static void p11prov_get_core_dispatch_funcs(const OSSL_DISPATCH *in)
 {
@@ -377,6 +381,16 @@ static void p11prov_get_core_dispatch_funcs(const OSSL_DISPATCH *in)
             break;
         case OSSL_FUNC_CORE_VSET_ERROR:
             core_vset_error = OSSL_FUNC_core_vset_error(iter_in);
+            break;
+        case OSSL_FUNC_CORE_SET_ERROR_MARK:
+            core_set_error_mark = OSSL_FUNC_core_set_error_mark(iter_in);
+            break;
+        case OSSL_FUNC_CORE_CLEAR_LAST_ERROR_MARK:
+            core_clear_last_error_mark =
+                OSSL_FUNC_core_clear_last_error_mark(iter_in);
+            break;
+        case OSSL_FUNC_CORE_POP_ERROR_TO_MARK:
+            core_pop_error_to_mark = OSSL_FUNC_core_pop_error_to_mark(iter_in);
             break;
         default:
             /* Just ignore anything we don't understand */
@@ -399,6 +413,21 @@ void p11prov_raise(P11PROV_CTX *ctx, const char *file, int line,
     core_set_error_debug(ctx->handle, file, line, func);
     core_vset_error(ctx->handle, errnum, fmt, args);
     va_end(args);
+}
+
+int p11prov_set_error_mark(P11PROV_CTX *ctx)
+{
+    return core_set_error_mark(ctx->handle);
+}
+
+int p11prov_clear_last_error_mark(P11PROV_CTX *ctx)
+{
+    return core_clear_last_error_mark(ctx->handle);
+}
+
+int p11prov_pop_error_to_mark(P11PROV_CTX *ctx)
+{
+    return core_pop_error_to_mark(ctx->handle);
 }
 
 /* Parameters we provide to the core */
