@@ -113,6 +113,10 @@ void p11prov_raise(P11PROV_CTX *ctx, const char *file, int line,
                       ##__VA_ARGS__); \
     } while (0)
 
+int p11prov_set_error_mark(P11PROV_CTX *ctx);
+int p11prov_clear_last_error_mark(P11PROV_CTX *ctx);
+int p11prov_pop_error_to_mark(P11PROV_CTX *ctx);
+
 /* dispatching */
 #define DECL_DISPATCH_FUNC(type, prefix, name) \
     static OSSL_FUNC_##type##_##name##_fn prefix##_##name
