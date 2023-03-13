@@ -1122,7 +1122,10 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                 /* seek to next slot to check */
                 continue;
             } else {
-                /* found next slot */
+                /* Found "next" slot.
+                 * Reset the id, so from now on we check every following slot
+                 * and return the first one that successfully passes checks.
+                 */
                 id = CK_UNAVAILABLE_INFORMATION;
             }
 
