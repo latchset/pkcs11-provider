@@ -656,4 +656,70 @@ void trim_padded_field(CK_UTF8CHAR *field, ssize_t n)
     }
 }
 
-#define trim(x) trim_padded_field(x, sizeof(x))
+#define MUTEX_RAISE_ERROR(_errstr) \
+    P11PROV_raise(provctx, ret, "%s %s mutex (errno=%d)", _errstr, obj, err); \
+    P11PROV_debug("Called from [%s:%d]%s()", file, line, func)
+
+CK_RV p11prov_mutex_init(P11PROV_CTX *provctx, pthread_mutex_t *lock,
+                         const char *obj, const char *file, int line,
+                         const char *func)
+{
+    CK_RV ret = CKR_OK;
+    int err;
+
+    err = pthread_mutex_init(lock, NULL);
+    if (err != 0) {
+        err = errno;
+        ret = CKR_CANT_LOCK;
+        MUTEX_RAISE_ERROR("Failed to init");
+    }
+    return ret;
+}
+
+CK_RV p11prov_mutex_lock(P11PROV_CTX *provctx, pthread_mutex_t *lock,
+                         const char *obj, const char *file, int line,
+                         const char *func)
+{
+    CK_RV ret = CKR_OK;
+    int err;
+
+    err = pthread_mutex_lock(lock);
+    if (err != 0) {
+        err = errno;
+        ret = CKR_CANT_LOCK;
+        MUTEX_RAISE_ERROR("Failed to lock");
+    }
+    return ret;
+}
+
+CK_RV p11prov_mutex_unlock(P11PROV_CTX *provctx, pthread_mutex_t *lock,
+                           const char *obj, const char *file, int line,
+                           const char *func)
+{
+    CK_RV ret = CKR_OK;
+    int err;
+
+    err = pthread_mutex_unlock(lock);
+    if (err != 0) {
+        err = errno;
+        ret = CKR_CANT_LOCK;
+        MUTEX_RAISE_ERROR("Failed to unlock");
+    }
+    return ret;
+}
+
+CK_RV p11prov_mutex_destroy(P11PROV_CTX *provctx, pthread_mutex_t *lock,
+                            const char *obj, const char *file, int line,
+                            const char *func)
+{
+    CK_RV ret = CKR_OK;
+    int err;
+
+    err = pthread_mutex_destroy(lock);
+    if (err != 0) {
+        err = errno;
+        ret = CKR_CANT_LOCK;
+        MUTEX_RAISE_ERROR("Failed to destroy");
+    }
+    return ret;
+}

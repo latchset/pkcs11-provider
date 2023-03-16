@@ -15,6 +15,7 @@ struct p11prov_slot {
     char *bad_pin;
 
     P11PROV_SESSION_POOL *pool;
+    P11PROV_OBJ_POOL *objects;
 
     CK_MECHANISM_TYPE *mechs;
     int nmechs;
@@ -214,6 +215,11 @@ CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
             goto done;
         }
 
+        ret = p11prov_obj_pool_init(ctx, slot->id, &slot->objects);
+        if (ret) {
+            goto done;
+        }
+
         get_slot_profiles(ctx, slot);
         get_slot_mechanisms(ctx, slot);
 
@@ -254,6 +260,7 @@ void p11prov_free_slots(P11PROV_SLOTS_CTX *sctx)
     }
     for (int i = 0; i < sctx->num; i++) {
         session_pool_free(sctx->slots[i]->pool);
+        p11prov_obj_pool_free(sctx->slots[i]->objects);
         OPENSSL_free(sctx->slots[i]->mechs);
         if (sctx->slots[i]->bad_pin) {
             OPENSSL_clear_free(sctx->slots[i]->bad_pin,
@@ -320,10 +327,6 @@ int p11prov_slot_get_mechanisms(P11PROV_SLOT *slot, CK_MECHANISM_TYPE **mechs)
     return slot->nmechs;
 }
 
-#define MUTEX_RAISE_ERROR(_errstr) \
-    P11PROV_raise(provctx, ret, "%s %s mutex (errno=%d)", _errstr, obj, err); \
-    P11PROV_debug("Called from [%s:%d]%s()", file, line, func)
-
 int p11prov_check_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID id,
                             CK_MECHANISM_TYPE mechtype)
 {
@@ -353,81 +356,34 @@ int p11prov_check_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID id,
     return ret;
 }
 
-static CK_RV mutex_init(P11PROV_CTX *provctx, pthread_mutex_t *lock,
-                        const char *obj, const char *file, int line,
-                        const char *func)
+CK_RV p11prov_slot_get_obj_pool(P11PROV_CTX *ctx, CK_SLOT_ID id,
+                                P11PROV_OBJ_POOL **pool)
 {
-    CK_RV ret = CKR_OK;
-    int err;
+    P11PROV_SLOT *slot = NULL;
+    P11PROV_SLOTS_CTX *sctx;
+    CK_RV ret;
 
-    err = pthread_mutex_init(lock, NULL);
-    if (err != 0) {
-        err = errno;
-        ret = CKR_CANT_LOCK;
-        MUTEX_RAISE_ERROR("Failed to init");
+    ret = p11prov_take_slots(ctx, &sctx);
+    if (ret != CKR_OK) {
+        return ret;
     }
+
+    for (int s = 0; s < sctx->num; s++) {
+        if (sctx->slots[s]->id == id) {
+            slot = sctx->slots[s];
+            break;
+        }
+    }
+
+    if (!slot) {
+        ret = CKR_SLOT_ID_INVALID;
+    } else {
+        *pool = slot->objects;
+    }
+
+    p11prov_return_slots(sctx);
     return ret;
 }
-#define MUTEX_INIT(obj) \
-    mutex_init((obj)->provctx, &(obj)->lock, #obj, OPENSSL_FILE, OPENSSL_LINE, \
-               OPENSSL_FUNC)
-
-static CK_RV mutex_lock(P11PROV_CTX *provctx, pthread_mutex_t *lock,
-                        const char *obj, const char *file, int line,
-                        const char *func)
-{
-    CK_RV ret = CKR_OK;
-    int err;
-
-    err = pthread_mutex_lock(lock);
-    if (err != 0) {
-        err = errno;
-        ret = CKR_CANT_LOCK;
-        MUTEX_RAISE_ERROR("Failed to lock");
-    }
-    return ret;
-}
-#define MUTEX_LOCK(obj) \
-    mutex_lock((obj)->provctx, &(obj)->lock, #obj, OPENSSL_FILE, OPENSSL_LINE, \
-               OPENSSL_FUNC)
-
-static CK_RV mutex_unlock(P11PROV_CTX *provctx, pthread_mutex_t *lock,
-                          const char *obj, const char *file, int line,
-                          const char *func)
-{
-    CK_RV ret = CKR_OK;
-    int err;
-
-    err = pthread_mutex_unlock(lock);
-    if (err != 0) {
-        err = errno;
-        ret = CKR_CANT_LOCK;
-        MUTEX_RAISE_ERROR("Failed to unlock");
-    }
-    return ret;
-}
-#define MUTEX_UNLOCK(obj) \
-    mutex_unlock((obj)->provctx, &(obj)->lock, #obj, OPENSSL_FILE, \
-                 OPENSSL_LINE, OPENSSL_FUNC)
-
-static CK_RV mutex_destroy(P11PROV_CTX *provctx, pthread_mutex_t *lock,
-                           const char *obj, const char *file, int line,
-                           const char *func)
-{
-    CK_RV ret = CKR_OK;
-    int err;
-
-    err = pthread_mutex_destroy(lock);
-    if (err != 0) {
-        err = errno;
-        ret = CKR_CANT_LOCK;
-        MUTEX_RAISE_ERROR("Failed to destroy");
-    }
-    return ret;
-}
-#define MUTEX_DESTROY(obj) \
-    mutex_destroy((obj)->provctx, &(obj)->lock, #obj, OPENSSL_FILE, \
-                  OPENSSL_LINE, OPENSSL_FUNC)
 
 /* Session stuff */
 #define DEFLT_SESSION_FLAGS CKF_SERIAL_SESSION

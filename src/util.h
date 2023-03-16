@@ -73,4 +73,30 @@ char *p11prov_alloc_sprintf(int size_hint, const char *format, ...);
 
 void trim_padded_field(CK_UTF8CHAR *field, ssize_t n);
 #define trim(x) trim_padded_field(x, sizeof(x))
+
+CK_RV p11prov_mutex_init(P11PROV_CTX *provctx, pthread_mutex_t *lock,
+                         const char *obj, const char *file, int line,
+                         const char *func);
+CK_RV p11prov_mutex_lock(P11PROV_CTX *provctx, pthread_mutex_t *lock,
+                         const char *obj, const char *file, int line,
+                         const char *func);
+CK_RV p11prov_mutex_unlock(P11PROV_CTX *provctx, pthread_mutex_t *lock,
+                           const char *obj, const char *file, int line,
+                           const char *func);
+CK_RV p11prov_mutex_destroy(P11PROV_CTX *provctx, pthread_mutex_t *lock,
+                            const char *obj, const char *file, int line,
+                            const char *func);
+#define MUTEX_INIT(obj) \
+    p11prov_mutex_init((obj)->provctx, &(obj)->lock, #obj, OPENSSL_FILE, \
+                       OPENSSL_LINE, OPENSSL_FUNC)
+#define MUTEX_LOCK(obj) \
+    p11prov_mutex_lock((obj)->provctx, &(obj)->lock, #obj, OPENSSL_FILE, \
+                       OPENSSL_LINE, OPENSSL_FUNC)
+#define MUTEX_UNLOCK(obj) \
+    p11prov_mutex_unlock((obj)->provctx, &(obj)->lock, #obj, OPENSSL_FILE, \
+                         OPENSSL_LINE, OPENSSL_FUNC)
+#define MUTEX_DESTROY(obj) \
+    p11prov_mutex_destroy((obj)->provctx, &(obj)->lock, #obj, OPENSSL_FILE, \
+                          OPENSSL_LINE, OPENSSL_FUNC)
+
 #endif /* _UTIL_H */

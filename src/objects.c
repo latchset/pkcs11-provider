@@ -44,12 +44,179 @@ struct p11prov_obj {
     int numattrs;
 
     int refcnt;
+    int poolid;
 };
+
+struct p11prov_obj_pool {
+    P11PROV_CTX *provctx;
+    CK_SLOT_ID slotid;
+
+    P11PROV_OBJ **objects;
+    int size;
+    int num;
+    int first_free;
+
+    pthread_mutex_t lock;
+};
+
+CK_RV p11prov_obj_pool_init(P11PROV_CTX *ctx, CK_SLOT_ID id,
+                            P11PROV_OBJ_POOL **_pool)
+{
+    P11PROV_OBJ_POOL *pool;
+    int ret;
+
+    P11PROV_debug("Creating new object pool");
+
+    pool = OPENSSL_zalloc(sizeof(P11PROV_OBJ_POOL));
+    if (!pool) {
+        return CKR_HOST_MEMORY;
+    }
+    pool->provctx = ctx;
+    pool->slotid = id;
+
+    ret = MUTEX_INIT(pool);
+    if (ret != CKR_OK) {
+        OPENSSL_free(pool);
+        return ret;
+    }
+
+    P11PROV_debug("New object pool %p created", pool);
+
+    *_pool = pool;
+    return CKR_OK;
+}
+
+void p11prov_obj_pool_free(P11PROV_OBJ_POOL *pool)
+{
+    P11PROV_debug("Freeing object pool %p", pool);
+
+    if (!pool) {
+        return;
+    }
+
+    if (MUTEX_LOCK(pool) == CKR_OK) {
+        /* LOCKED SECTION ------------- */
+        if (pool->num != 0) {
+            P11PROV_debug("%d objects still in pool", pool->num);
+        }
+        OPENSSL_free(pool->objects);
+        (void)MUTEX_UNLOCK(pool);
+        /* ------------- LOCKED SECTION */ }
+    else {
+        P11PROV_debug("Failed to lock object pool, leaking it!");
+        return;
+    }
+
+    (void)MUTEX_DESTROY(pool);
+    OPENSSL_clear_free(pool, sizeof(P11PROV_OBJ_POOL));
+}
+
+#define POOL_ALLOC_SIZE 32
+#define POOL_MAX_SIZE (POOL_ALLOC_SIZE * (1 << 16))
+static CK_RV obj_add_to_pool(P11PROV_OBJ *obj)
+{
+    P11PROV_OBJ_POOL *pool;
+    CK_RV ret;
+
+    ret = p11prov_slot_get_obj_pool(obj->ctx, obj->slotid, &pool);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+
+    ret = MUTEX_LOCK(pool);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+
+    /* LOCKED SECTION ------------- */
+    if (pool->num >= pool->size) {
+        P11PROV_OBJ **tmp;
+
+        if (pool->size >= POOL_MAX_SIZE) {
+            ret = CKR_HOST_MEMORY;
+            P11PROV_raise(pool->provctx, ret, "Too many objects in pool");
+            goto done;
+        }
+        tmp = OPENSSL_realloc(pool->objects, (pool->size + POOL_ALLOC_SIZE)
+                                                 * sizeof(P11PROV_OBJ *));
+        if (tmp == NULL) {
+            ret = CKR_HOST_MEMORY;
+            P11PROV_raise(pool->provctx, ret,
+                          "Failed to re-allocate objects array");
+            goto done;
+        }
+        memset(&tmp[pool->size], 0, POOL_ALLOC_SIZE * sizeof(P11PROV_OBJ *));
+        pool->objects = tmp;
+        pool->size += POOL_ALLOC_SIZE;
+    }
+
+    if (pool->first_free >= pool->size) {
+        pool->first_free = 0;
+    }
+
+    for (int i = 0; i < pool->size; i++) {
+        int idx = (i + pool->first_free) % pool->size;
+        if (pool->objects[idx] == NULL) {
+            pool->objects[idx] = obj;
+            pool->num++;
+            obj->poolid = idx;
+            pool->first_free = idx + 1;
+            ret = CKR_OK;
+            goto done;
+        }
+    }
+
+    /* if we couldn't find a free pool spot at this point,
+     * something clearly went wrong, bail out */
+    ret = CKR_GENERAL_ERROR;
+    P11PROV_raise(pool->provctx, ret, "Objects pool in inconsistent state");
+
+done:
+    (void)MUTEX_UNLOCK(pool);
+    /* ------------- LOCKED SECTION */
+
+    return ret;
+}
+
+static void obj_rm_from_pool(P11PROV_OBJ *obj)
+{
+    P11PROV_OBJ_POOL *pool;
+    CK_RV ret;
+
+    ret = p11prov_slot_get_obj_pool(obj->ctx, obj->slotid, &pool);
+    if (ret != CKR_OK) {
+        return;
+    }
+
+    ret = MUTEX_LOCK(pool);
+    if (ret != CKR_OK) {
+        return;
+    }
+
+    /* LOCKED SECTION ------------- */
+    if (obj->poolid > pool->size || pool->objects[obj->poolid] != obj) {
+        ret = CKR_GENERAL_ERROR;
+        P11PROV_raise(pool->provctx, ret, "Objects pool in inconsistent state");
+        goto done;
+    }
+
+    pool->objects[obj->poolid] = NULL;
+    pool->num--;
+    if (pool->first_free > obj->poolid) {
+        pool->first_free = obj->poolid;
+    }
+    obj->poolid = 0;
+
+done:
+    (void)MUTEX_UNLOCK(pool);
+    /* ------------- LOCKED SECTION */
+}
 
 P11PROV_OBJ *p11prov_obj_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                              CK_OBJECT_HANDLE handle, CK_OBJECT_CLASS class)
 {
     P11PROV_OBJ *obj;
+    CK_RV ret;
 
     obj = OPENSSL_zalloc(sizeof(P11PROV_OBJ));
     if (obj == NULL) {
@@ -63,6 +230,11 @@ P11PROV_OBJ *p11prov_obj_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
 
     obj->refcnt = 1;
 
+    ret = obj_add_to_pool(obj);
+    if (ret != CKR_OK) {
+        OPENSSL_free(obj);
+        obj = NULL;
+    }
     return obj;
 }
 
@@ -216,6 +388,8 @@ void p11prov_obj_free(P11PROV_OBJ *obj)
         P11PROV_debug("object free: reference held");
         return;
     }
+
+    obj_rm_from_pool(obj);
 
     destroy_key_cache(obj, NULL);
 
