@@ -19,6 +19,7 @@ noinst_HEADERS = \
 	provider.h \
 	session.h \
 	signature.h \
+	slot.h \
 	store.h \
 	util.h
 pkcs11_LTLIBRARIES = pkcs11.la
@@ -41,6 +42,7 @@ pkcs11_la_SOURCES = \
 	provider.c \
 	session.c \
 	signature.c \
+	slot.c \
 	store.c \
 	tls.c \
 	util.c \
