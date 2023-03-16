@@ -834,7 +834,7 @@ done:
 static CK_RV check_slot(struct p11prov_slot *provslot, P11PROV_URI *uri,
                         CK_MECHANISM_TYPE mechtype, bool rw)
 {
-    P11PROV_debug("Checking Slot id=%lu, uri=%p, mechtype=%x, rw=%s)",
+    P11PROV_debug("Checking Slot id=%lu, uri=%p, mechtype=%lx, rw=%s)",
                   provslot->id, uri, mechtype, rw ? "true" : "false");
 
     if ((provslot->slot.flags & CKF_TOKEN_PRESENT) == 0) {
