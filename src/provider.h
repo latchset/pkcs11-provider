@@ -77,6 +77,7 @@ typedef struct p11prov_slot P11PROV_SLOT;
 typedef struct p11prov_slots_ctx P11PROV_SLOTS_CTX;
 typedef struct p11prov_session P11PROV_SESSION;
 typedef struct p11prov_session_pool P11PROV_SESSION_POOL;
+typedef struct p11prov_obj_pool P11PROV_OBJ_POOL;
 
 /* Provider ctx */
 P11PROV_INTERFACE *p11prov_ctx_get_interface(P11PROV_CTX *ctx);
