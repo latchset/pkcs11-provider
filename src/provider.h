@@ -134,6 +134,7 @@ int p11prov_pop_error_to_mark(P11PROV_CTX *ctx);
 #include "digests.h"
 #include "util.h"
 #include "session.h"
+#include "slot.h"
 
 /* TLS */
 int tls_group_capabilities(OSSL_CALLBACK *cb, void *arg);
