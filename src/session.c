@@ -391,27 +391,6 @@ static CK_RV mutex_lock(P11PROV_CTX *provctx, pthread_mutex_t *lock,
     mutex_lock((obj)->provctx, &(obj)->lock, #obj, OPENSSL_FILE, OPENSSL_LINE, \
                OPENSSL_FUNC)
 
-static CK_RV mutex_try_lock(P11PROV_CTX *provctx, pthread_mutex_t *lock,
-                            const char *obj, bool expect_unlocked,
-                            const char *file, int line, const char *func)
-{
-    CK_RV ret = CKR_OK;
-    int err;
-
-    err = pthread_mutex_trylock(lock);
-    if (err != 0) {
-        err = errno;
-        ret = CKR_CANT_LOCK;
-        if (expect_unlocked) {
-            MUTEX_RAISE_ERROR("Failed to trylock");
-        }
-    }
-    return ret;
-}
-#define MUTEX_TRY_LOCK(obj, e) \
-    mutex_try_lock((obj)->provctx, &(obj)->lock, #obj, (e), OPENSSL_FILE, \
-                   OPENSSL_LINE, OPENSSL_FUNC)
-
 static CK_RV mutex_unlock(P11PROV_CTX *provctx, pthread_mutex_t *lock,
                           const char *obj, const char *file, int line,
                           const char *func)
@@ -461,6 +440,7 @@ struct p11prov_session {
     CK_FLAGS flags;
 
     pthread_mutex_t lock;
+    bool in_use;
 
     p11prov_session_callback_t cb;
     void *cbarg;
@@ -662,11 +642,8 @@ static CK_RV session_new(P11PROV_SESSION_POOL *pool, P11PROV_SESSION **_session)
         pool->sessions = tmp;
     }
 
-    ret = MUTEX_LOCK(session);
-    if (ret != CKR_OK) {
-        session_free(session);
-        return ret;
-    }
+    /* mark this session as owned only once nothing else can fail */
+    session->in_use = true;
 
     pool->sessions[pool->num_sessions] = session;
     pool->num_sessions++;
@@ -683,6 +660,11 @@ static CK_RV session_check(P11PROV_SESSION *session, CK_FLAGS flags,
     int ret;
 
     if (!session) {
+        return CKR_GENERAL_ERROR;
+    }
+
+    /* lockless check, if this fails in any way it is bad regardless */
+    if (!session->in_use) {
         return CKR_GENERAL_ERROR;
     }
 
@@ -716,6 +698,7 @@ static CK_RV session_check(P11PROV_SESSION *session, CK_FLAGS flags,
 /* only call this from session_new or session_pool_free */
 static void session_free(P11PROV_SESSION *session)
 {
+    bool abandon = true;
     int ret;
 
     P11PROV_debug("Session Free %p", session);
@@ -724,17 +707,26 @@ static void session_free(P11PROV_SESSION *session)
         return;
     }
 
-    ret = MUTEX_TRY_LOCK(session, false);
-    if (ret != CKR_OK) {
+    ret = MUTEX_LOCK(session);
+    /* LOCKED SECTION ------------- */
+    if (ret == CKR_OK) {
+        if (!session->in_use) {
+            abandon = false;
+        }
+        (void)MUTEX_UNLOCK(session);
+        /* ------------- LOCKED SECTION */
+    }
+
+    if (abandon) {
         /* just orphan this session, will potentially leak memory ... */
         session->pool = NULL;
         return;
     }
 
+    (void)MUTEX_DESTROY(session);
+
     token_session_close(session);
 
-    (void)MUTEX_UNLOCK(session);
-    (void)MUTEX_DESTROY(session);
     OPENSSL_clear_free(session, sizeof(P11PROV_SESSION));
 }
 
@@ -872,9 +864,10 @@ static CK_RV check_slot(struct p11prov_slot *provslot, P11PROV_URI *uri,
 }
 
 static CK_RV fetch_session(P11PROV_SESSION_POOL *pool, CK_FLAGS flags,
-                           P11PROV_SESSION **_session)
+                           bool login_session, P11PROV_SESSION **_session)
 {
     P11PROV_SESSION *session = NULL;
+    bool found = false;
     int ret;
 
     ret = MUTEX_LOCK(pool);
@@ -883,40 +876,79 @@ static CK_RV fetch_session(P11PROV_SESSION_POOL *pool, CK_FLAGS flags,
     }
     /* LOCKED SECTION ------------- */
 
+    if (login_session && pool->login_session) {
+        ret = MUTEX_LOCK(pool->login_session);
+        if (ret == CKR_OK) {
+            if (pool->login_session->in_use) {
+                ret = CKR_CANT_LOCK;
+            } else {
+                session = pool->login_session;
+                session->in_use = true;
+                found = true;
+            }
+            (void)MUTEX_UNLOCK(pool->login_session);
+        }
+        goto done;
+    }
+
     /* try to find session with a cached handle first */
-    for (int i = 0; i < pool->num_sessions; i++) {
+    for (int i = 0; i < pool->num_sessions && !found; i++) {
         session = pool->sessions[i];
         if (session == pool->login_session) {
             continue;
         }
         if (session->flags == flags) {
             if (session->session != CK_INVALID_HANDLE) {
-                ret = MUTEX_TRY_LOCK(session, false);
+                ret = MUTEX_LOCK(session);
                 if (ret == CKR_OK) {
-                    /* Bingo! A compatible session with a cached handle */
-                    goto done;
+                    /* LOCKED SECTION ------------- */
+                    if (!session->in_use) {
+                        /* Bingo! A compatible session with a cached handle */
+                        session->in_use = true;
+                        found = true;
+                    }
+                    /* No luck */
+                    (void)MUTEX_UNLOCK(session);
+                    /* ------------- LOCKED SECTION */
                 }
             }
         }
     }
 
     /* try again, get any free session */
-    for (int i = 0; i < pool->num_sessions; i++) {
+    for (int i = 0; i < pool->num_sessions && !found; i++) {
         session = pool->sessions[i];
         if (session == pool->login_session) {
             continue;
         }
-        ret = MUTEX_TRY_LOCK(session, false);
+        ret = MUTEX_LOCK(session);
         if (ret == CKR_OK) {
-            /* we got a free session */
-            goto done;
+            /* LOCKED SECTION ------------- */
+            if (!session->in_use) {
+                /* we got a free session */
+                session->in_use = true;
+                found = true;
+            }
+            /* No luck */
+            (void)MUTEX_UNLOCK(session);
+            /* ------------- LOCKED SECTION */
         }
     }
 
-    /* no free sessions, try to allocate a new one */
-    ret = session_new(pool, &session);
+    if (!found) {
+        session = NULL;
+        /* no free sessions, try to allocate a new one */
+        ret = session_new(pool, &session);
+        if (ret == CKR_OK) {
+            found = true;
+        }
+    }
 
 done:
+    if (login_session && found) {
+        pool->login_session = session;
+    }
+
     (void)MUTEX_UNLOCK(pool);
     /* ------------- LOCKED SECTION */
 
@@ -935,53 +967,17 @@ static CK_RV slot_login(P11PROV_SLOT *slot, P11PROV_URI *uri,
     CK_FLAGS flags = DEFLT_SESSION_FLAGS;
     CK_STATE state = CKS_RO_PUBLIC_SESSION;
     int num_open_sessions = 0;
-    uint64_t startime = 0;
     CK_RV ret;
 
-    /* try to lock the login_session */
-    do {
-        ret = MUTEX_LOCK(pool);
-        if (ret != CKR_OK) {
-            break;
-        }
-
-        /* LOCKED SECTION ------------- */
-        session = pool->login_session;
-        if (session) {
-            ret = MUTEX_TRY_LOCK(session, false);
-        }
-        (void)MUTEX_UNLOCK(pool);
-        /* ------------- LOCKED SECTION */
-
-        /* we cycle only if we have a session but failed to lock it */
-        if (ret == CKR_OK) {
-            break;
-        }
-
-    } while (cyclewait_with_timeout(MAX_WAIT, SLEEP, &startime));
-
+    /* try to get a login_session */
+    ret = fetch_session(pool, flags, true, &session);
     if (ret != CKR_OK) {
-        if (session) {
-            P11PROV_raise(
-                pool->provctx, ret,
-                "Failed to lock login_session after several attemepts");
-            session = NULL;
-        }
-        goto done;
+        P11PROV_raise(pool->provctx, ret, "Failed to fetch a login_session");
+        return ret;
     }
 
-    if (session) {
-        /* we have a login session */
-        flags = session->flags;
-    } else {
-        ret = fetch_session(pool, flags, &session);
-        if (ret != CKR_OK) {
-            return ret;
-        }
-    }
-
-    /* we have a locked session, check that it is ok */
-    ret = session_check(session, flags, &state);
+    /* we acquired the session, check that it is ok */
+    ret = session_check(session, session->flags, &state);
     if (ret == CKR_OK) {
         if (state != CKS_RO_PUBLIC_SESSION) {
             /* we seem to have a valid logged in session */
@@ -1000,29 +996,23 @@ static CK_RV slot_login(P11PROV_SLOT *slot, P11PROV_URI *uri,
         }
     }
 
-    /* here we have a locked, open session */
-
     ret = token_login(session, uri, pw_cb, pw_cbarg, slot);
 
 done:
-    if (session) {
-        /* if we found or created a session we need to update the pool
-         * status */
+    /* lock the pool only if needed */
+    if (num_open_sessions != 0 || ret != CKR_OK) {
 
         /* LOCKED SECTION ------------- */
         if (MUTEX_LOCK(pool) == CKR_OK) {
 
             pool->open_sessions += num_open_sessions;
 
-            if (ret == CKR_OK) {
-                if (pool->login_session == NULL) {
-                    /* Any session can be used as login session.
-                     * As long as there is one session open */
-                    pool->login_session = session;
-                }
-            } else {
-                if (pool->login_session == session) {
-                    /* broken login session, unmark it as a login session */
+            if (ret != CKR_OK) {
+                if (pool->login_session != session) {
+                    /* something raced us during the login and replaced
+                     * the login session, hands off */
+                } else {
+                    /* remove the session, as it is not a good one */
                     pool->login_session = NULL;
                 }
             }
@@ -1030,15 +1020,14 @@ done:
             (void)MUTEX_UNLOCK(pool);
         }
         /* ------------- LOCKED SECTION */
-
-        if (_session) {
-            *_session = session;
-        } else {
-            /* unlock the session */
-            p11prov_return_session(session);
-        }
     }
 
+    if (_session) {
+        *_session = session;
+    } else {
+        /* unlock the session */
+        p11prov_return_session(session);
+    }
     return ret;
 }
 
@@ -1180,7 +1169,7 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
         flags |= CKF_RW_SESSION;
     }
 
-    ret = fetch_session(pool, flags, &session);
+    ret = fetch_session(pool, flags, false, &session);
     if (ret == CKR_OK) {
         ret = session_check(session, flags, NULL);
         if (ret != CKR_OK) {
@@ -1255,6 +1244,7 @@ done:
 void p11prov_return_session(P11PROV_SESSION *session)
 {
     P11PROV_SESSION_POOL *pool;
+    CK_RV ret;
 
     if (!session) {
         return;
@@ -1283,11 +1273,22 @@ void p11prov_return_session(P11PROV_SESSION *session)
             /* ------------- LOCKED SECTION */
         }
     }
-    /* not much we can do if this fails */
-    (void)MUTEX_UNLOCK(session);
+
+    ret = MUTEX_LOCK(session);
+    if (ret == CKR_OK) {
+        /* LOCKED SECTION ------------- */
+        session->in_use = false;
+        (void)MUTEX_UNLOCK(session);
+        /* ------------- LOCKED SECTION */
+    } else {
+        /* not much we can do if this fails */
+        P11PROV_raise(session->provctx, ret,
+                      "Failed to release session object");
+        return;
+    }
 
     if (!pool) {
-        /* handle case where session was orphaned because locked while
+        /* handle case where session was orphaned because in use while
          * the pool was being freed */
         session_free(session);
     }
