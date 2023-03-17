@@ -11,6 +11,7 @@
 CK_RV p11prov_obj_pool_init(P11PROV_CTX *ctx, CK_SLOT_ID id,
                             P11PROV_OBJ_POOL **_pool);
 void p11prov_obj_pool_free(P11PROV_OBJ_POOL *pool);
+void p11prov_obj_pool_fork_reset(P11PROV_OBJ_POOL *pool);
 P11PROV_OBJ *p11prov_obj_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                              CK_OBJECT_HANDLE handle, CK_OBJECT_CLASS class);
 P11PROV_OBJ *p11prov_obj_ref_no_cache(P11PROV_OBJ *obj);

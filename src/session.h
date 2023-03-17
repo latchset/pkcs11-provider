@@ -8,6 +8,7 @@
 CK_RV p11prov_session_pool_init(P11PROV_CTX *ctx, CK_TOKEN_INFO *token,
                                 CK_SLOT_ID id, P11PROV_SESSION_POOL **_pool);
 void p11prov_session_pool_free(P11PROV_SESSION_POOL *pool);
+void p11prov_session_pool_fork_reset(P11PROV_SESSION_POOL *pool);
 
 CK_SESSION_HANDLE p11prov_session_handle(P11PROV_SESSION *session);
 CK_SLOT_ID p11prov_session_slotid(P11PROV_SESSION *session);
