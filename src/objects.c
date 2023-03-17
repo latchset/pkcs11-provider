@@ -27,6 +27,7 @@ struct p11prov_crt {
 
 struct p11prov_obj {
     P11PROV_CTX *ctx;
+    bool raf; /* re-init after fork */
 
     CK_SLOT_ID slotid;
     CK_OBJECT_HANDLE handle;
@@ -109,6 +110,34 @@ void p11prov_obj_pool_free(P11PROV_OBJ_POOL *pool)
 
     (void)MUTEX_DESTROY(pool);
     OPENSSL_clear_free(pool, sizeof(P11PROV_OBJ_POOL));
+}
+
+void p11prov_obj_pool_fork_reset(P11PROV_OBJ_POOL *pool)
+{
+    P11PROV_debug("Resetting objects in pool %p", pool);
+
+    if (!pool) {
+        return;
+    }
+
+    if (MUTEX_LOCK(pool) == CKR_OK) {
+        /* LOCKED SECTION ------------- */
+        for (int i = 0; i < pool->size; i++) {
+            P11PROV_OBJ *obj = pool->objects[i];
+
+            if (!obj) {
+                continue;
+            }
+            obj->raf = true;
+            obj->handle = CK_INVALID_HANDLE;
+            obj->cached = CK_INVALID_HANDLE;
+        }
+
+        (void)MUTEX_UNLOCK(pool);
+        /* ------------- LOCKED SECTION */
+    } else {
+        P11PROV_debug("Failed to reset objects in pool");
+    }
 }
 
 #define POOL_ALLOC_SIZE 32
@@ -323,8 +352,8 @@ static void cache_key(P11PROV_OBJ *obj)
     destroy_key_cache(obj, session);
 
     sess = p11prov_session_handle(session);
-    ret = p11prov_CopyObject(obj->ctx, sess, obj->handle, template, 1,
-                             &obj->cached);
+    ret = p11prov_CopyObject(obj->ctx, sess, p11prov_obj_get_handle(obj),
+                             template, 1, &obj->cached);
     if (ret != CKR_OK) {
         P11PROV_raise(obj->ctx, ret, "Failed to cache key");
         if (ret == CKR_FUNCTION_NOT_SUPPORTED) {
@@ -409,9 +438,14 @@ CK_SLOT_ID p11prov_obj_get_slotid(P11PROV_OBJ *obj)
     return CK_UNAVAILABLE_INFORMATION;
 }
 
+static void p11prov_obj_refresh(P11PROV_OBJ *obj);
+
 CK_OBJECT_HANDLE p11prov_obj_get_handle(P11PROV_OBJ *obj)
 {
     if (obj) {
+        if (obj->raf) {
+            p11prov_obj_refresh(obj);
+        }
         if (obj->cached != CK_INVALID_HANDLE) {
             return obj->cached;
         }
@@ -1022,6 +1056,37 @@ done:
     return retobj;
 }
 
+static void p11prov_obj_refresh(P11PROV_OBJ *obj)
+{
+    P11PROV_OBJ *tmp = NULL;
+    tmp = find_associated_obj(obj->ctx, obj, obj->class);
+    if (!tmp) {
+        /* nothing we can do, invalid handle it is */
+        return;
+    }
+
+    /* move over all the object data, then free the tmp */
+    obj->handle = tmp->handle;
+    obj->cached = tmp->cached;
+    obj->cka_copyable = tmp->cka_copyable;
+    obj->cka_token = tmp->cka_token;
+    switch (obj->class) {
+    case CKO_CERTIFICATE:
+        obj->data.crt = tmp->data.crt;
+        break;
+    case CKO_PUBLIC_KEY:
+    case CKO_PRIVATE_KEY:
+        obj->data.key = tmp->data.key;
+        break;
+    default:
+        break;
+    }
+    /* FIXME: How do we refresh attrs? What happens if a pointer
+     * to an attr value was saved somewhere? Freeing ->attrs would
+     * cause use-after-free issues */
+    obj->raf = false;
+}
+
 #define SECRET_KEY_ATTRS 2
 P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        P11PROV_SESSION *session,
@@ -1160,8 +1225,9 @@ CK_RV p11prov_obj_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         }
     }
 
-    ret = p11prov_SetAttributeValue(ctx, p11prov_session_handle(s), obj->handle,
-                                    template, tsize);
+    ret =
+        p11prov_SetAttributeValue(ctx, p11prov_session_handle(s),
+                                  p11prov_obj_get_handle(obj), template, tsize);
 
     if (obj->cached != CK_INVALID_HANDLE) {
         /* try to re-cache key to maintain matching attributes */

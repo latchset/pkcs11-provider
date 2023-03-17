@@ -168,6 +168,83 @@ void p11prov_session_pool_free(P11PROV_SESSION_POOL *pool)
     OPENSSL_clear_free(pool, sizeof(P11PROV_SESSION_POOL));
 }
 
+static CK_RV session_new_bare(P11PROV_SESSION_POOL *pool,
+                              P11PROV_SESSION **_session);
+
+void p11prov_session_pool_fork_reset(P11PROV_SESSION_POOL *pool)
+{
+    P11PROV_debug("Resetting sessions in pool %p", pool);
+
+    if (!pool) {
+        return;
+    }
+
+    if (MUTEX_LOCK(pool) == CKR_OK) {
+        /* LOCKED SECTION ------------- */
+        pool->login_session = NULL;
+        for (int i = 0; i < pool->num_sessions; i++) {
+            P11PROV_SESSION *session = pool->sessions[i];
+            CK_RV ret;
+
+            session->session = CK_INVALID_HANDLE;
+            session->flags = DEFLT_SESSION_FLAGS;
+            session->in_use = false;
+            session->cb = NULL;
+            session->cbarg = NULL;
+
+            /* at last reinit mutex and replace on failure */
+            ret = MUTEX_INIT(session);
+            if (ret != CKR_OK) {
+                /* this is bad, but all we can do is hope this
+                 * session will never be used and just orphan it */
+                P11PROV_debug("Failed to reinint session lock");
+                session->pool = NULL;
+                /* if this fails nothing really we can do,
+                 * we leave the current broken session and
+                 * it will never be used because lockig it
+                 * should always fail */
+                ret = session_new_bare(pool, &session);
+                if (ret != CKR_OK) {
+                    /* session was unchanged, put the pool back */
+                    session->pool = pool;
+                }
+            }
+        }
+        (void)MUTEX_UNLOCK(pool);
+        /* ------------- LOCKED SECTION */
+    } else {
+        P11PROV_debug("Failed to reset sessions in pool");
+    }
+}
+
+static CK_RV session_new_bare(P11PROV_SESSION_POOL *pool,
+                              P11PROV_SESSION **_session)
+{
+    P11PROV_SESSION *session;
+    int ret;
+
+    session = OPENSSL_zalloc(sizeof(P11PROV_SESSION));
+    if (session == NULL) {
+        ret = CKR_HOST_MEMORY;
+        P11PROV_raise(pool->provctx, ret, "Failed to allocate session");
+        return ret;
+    }
+    session->provctx = pool->provctx;
+    session->slotid = pool->slotid;
+    session->session = CK_INVALID_HANDLE;
+    session->flags = DEFLT_SESSION_FLAGS;
+    session->pool = pool;
+
+    ret = MUTEX_INIT(session);
+    if (ret != CKR_OK) {
+        OPENSSL_free(session);
+        return ret;
+    }
+
+    *_session = session;
+    return CKR_OK;
+}
+
 #define SESS_ALLOC_SIZE 32
 
 /* NOTE: to be called with Pool Lock held,
@@ -186,21 +263,8 @@ static CK_RV session_new(P11PROV_SESSION_POOL *pool, P11PROV_SESSION **_session)
         return ret;
     }
 
-    session = OPENSSL_zalloc(sizeof(P11PROV_SESSION));
-    if (session == NULL) {
-        ret = CKR_HOST_MEMORY;
-        P11PROV_raise(pool->provctx, ret, "Failed to allocate session");
-        return ret;
-    }
-    session->provctx = pool->provctx;
-    session->slotid = pool->slotid;
-    session->session = CK_INVALID_HANDLE;
-    session->flags = DEFLT_SESSION_FLAGS;
-    session->pool = pool;
-
-    ret = MUTEX_INIT(session);
+    ret = session_new_bare(pool, &session);
     if (ret != CKR_OK) {
-        OPENSSL_free(session);
         return ret;
     }
 
