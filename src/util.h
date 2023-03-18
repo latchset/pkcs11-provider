@@ -99,4 +99,6 @@ CK_RV p11prov_mutex_destroy(P11PROV_CTX *provctx, pthread_mutex_t *lock,
     p11prov_mutex_destroy((obj)->provctx, &(obj)->lock, #obj, OPENSSL_FILE, \
                           OPENSSL_LINE, OPENSSL_FUNC)
 
+void p11prov_force_rwlock_reinit(pthread_rwlock_t *lock);
+
 #endif /* _UTIL_H */
