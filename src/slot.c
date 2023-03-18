@@ -230,19 +230,49 @@ done:
         p11prov_free_slots(sctx);
         sctx = NULL;
     }
+
     *slots = sctx;
     return ret;
 }
 
-void p11prov_slot_fork_reset(P11PROV_SLOTS_CTX *sctx)
+void p11prov_slot_fork_prepare(P11PROV_SLOTS_CTX *sctx)
 {
     int err;
 
     err = pthread_rwlock_wrlock(&sctx->rwlock);
     if (err != 0) {
         err = errno;
-        P11PROV_raise(sctx->provctx, CKR_CANT_LOCK,
-                      "Failed to get slots lock (errno:%d)", err);
+        P11PROV_debug("Failed to get slots lock (errno:%d)", err);
+        return;
+    }
+}
+
+void p11prov_slot_fork_release(P11PROV_SLOTS_CTX *sctx)
+{
+    int err;
+
+    err = pthread_rwlock_unlock(&sctx->rwlock);
+    if (err != 0) {
+        err = errno;
+        P11PROV_debug("Failed to release slots lock (errno:%d)", err);
+    }
+}
+
+void p11prov_slot_fork_reset(P11PROV_SLOTS_CTX *sctx)
+{
+    int err;
+
+    /* rwlock, saves TID internally, so we need to reset
+     * after fork in the child */
+    p11prov_force_rwlock_reinit(&sctx->rwlock);
+
+    /* This is running in the fork handler, so there should be no
+     * way to have other threads running, but just in case some
+     * crazy library creates threads in their child handler */
+    err = pthread_rwlock_wrlock(&sctx->rwlock);
+    if (err != 0) {
+        err = errno;
+        P11PROV_debug("Failed to get slots lock (errno:%d)", err);
         return;
     }
 
@@ -259,8 +289,7 @@ void p11prov_slot_fork_reset(P11PROV_SLOTS_CTX *sctx)
     err = pthread_rwlock_unlock(&sctx->rwlock);
     if (err != 0) {
         err = errno;
-        P11PROV_raise(sctx->provctx, CKR_CANT_LOCK,
-                      "Failed to release slots lock (errno:%d)", err);
+        P11PROV_debug("Failed to release slots lock (errno:%d)", err);
     }
 }
 

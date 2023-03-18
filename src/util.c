@@ -723,3 +723,9 @@ CK_RV p11prov_mutex_destroy(P11PROV_CTX *provctx, pthread_mutex_t *lock,
     }
     return ret;
 }
+
+void p11prov_force_rwlock_reinit(pthread_rwlock_t *lock)
+{
+    pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
+    memcpy(lock, &rwlock, sizeof(rwlock));
+}

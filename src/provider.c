@@ -13,6 +13,7 @@ struct p11prov_ctx {
     enum {
         P11PROV_UNINITIALIZED = 0,
         P11PROV_INITIALIZED,
+        P11PROV_NEEDS_REINIT,
         P11PROV_IN_ERROR,
     } status;
 
@@ -44,6 +45,174 @@ struct p11prov_ctx {
     struct quirk *quirks;
     int nquirks;
 };
+
+static struct p11prov_context_pool {
+    struct p11prov_ctx **contexts;
+    int num;
+
+    pthread_rwlock_t rwlock;
+} ctx_pool = {
+    .contexts = NULL,
+    .num = 0,
+    .rwlock = PTHREAD_RWLOCK_INITIALIZER,
+};
+
+static void fork_prepare(void)
+{
+    int err;
+
+    err = pthread_rwlock_rdlock(&ctx_pool.rwlock);
+    if (err != 0) {
+        err = errno;
+        P11PROV_debug("Can't lock contexts pool (error=%d)", err);
+    }
+
+    for (int i = 0; i < ctx_pool.num; i++) {
+        if (ctx_pool.contexts[i]->status == P11PROV_INITIALIZED) {
+            p11prov_slot_fork_prepare(ctx_pool.contexts[i]->slots);
+        }
+    }
+}
+
+static void fork_parent(void)
+{
+    int err;
+
+    for (int i = 0; i < ctx_pool.num; i++) {
+        if (ctx_pool.contexts[i]->status == P11PROV_INITIALIZED) {
+            p11prov_slot_fork_release(ctx_pool.contexts[i]->slots);
+        }
+    }
+    err = pthread_rwlock_unlock(&ctx_pool.rwlock);
+    if (err != 0) {
+        err = errno;
+        P11PROV_debug("Failed to release context pool (errno:%d)", err);
+    }
+}
+
+static void fork_child(void)
+{
+    int err;
+
+    /* rwlock, saves TID internally, so we need to reset
+     * after fork in the child */
+    p11prov_force_rwlock_reinit(&ctx_pool.rwlock);
+
+    /* This is running in the fork handler, so there should be no
+     * way to have other threads running, but just in case some
+     * crazy library creates threads in their child handler */
+    err = pthread_rwlock_wrlock(&ctx_pool.rwlock);
+    if (err != 0) {
+        err = errno;
+        P11PROV_debug("Failed to get slots lock (errno:%d)", err);
+        return;
+    }
+
+    for (int i = 0; i < ctx_pool.num; i++) {
+        if (ctx_pool.contexts[i]->status == P11PROV_INITIALIZED) {
+            /* can't re-init in the fork handler, mark it */
+            ctx_pool.contexts[i]->status = P11PROV_NEEDS_REINIT;
+            p11prov_slot_fork_reset(ctx_pool.contexts[i]->slots);
+        }
+    }
+
+    err = pthread_rwlock_unlock(&ctx_pool.rwlock);
+    if (err != 0) {
+        err = errno;
+        P11PROV_debug("Failed to release context pool (errno:%d)", err);
+    }
+}
+
+#define CTX_POOL_ALLOC 4
+static void context_add_pool(struct p11prov_ctx *ctx)
+{
+    int err;
+    /* init static pool for atfork/atexit handling */
+    err = pthread_rwlock_wrlock(&ctx_pool.rwlock);
+    if (err != 0) {
+        /* just warn */
+        err = errno;
+        P11PROV_raise(ctx, CKR_CANT_LOCK, "Failed to lock ctx pool (error:%d)",
+                      err);
+        return;
+    }
+
+    /* WRLOCKED ------------------------------------------------- */
+    if (ctx_pool.contexts == NULL) {
+        ctx_pool.contexts =
+            OPENSSL_zalloc(CTX_POOL_ALLOC * sizeof(P11PROV_CTX *));
+        if (!ctx_pool.contexts) {
+            P11PROV_raise(ctx, CKR_HOST_MEMORY, "Failed to alloc ctx pool");
+            goto done;
+        }
+        err = pthread_atfork(fork_prepare, fork_parent, fork_child);
+        if (err != 0) {
+            /* just warn, nothing much we can do */
+            P11PROV_raise(ctx, CKR_GENERAL_ERROR,
+                          "Failed to register fork handlers (error:%d)", err);
+        }
+    } else {
+        if (ctx_pool.num % CTX_POOL_ALLOC == 0) {
+            P11PROV_CTX **tmp;
+            tmp = OPENSSL_realloc(ctx_pool.contexts,
+                                  (ctx_pool.num + CTX_POOL_ALLOC)
+                                      * sizeof(P11PROV_CTX *));
+            if (!tmp) {
+                P11PROV_raise(ctx, CKR_HOST_MEMORY,
+                              "Failed to realloc ctx pool");
+                goto done;
+            }
+            ctx_pool.contexts = tmp;
+        }
+    }
+    ctx_pool.contexts[ctx_pool.num] = ctx;
+    ctx_pool.num++;
+
+done:
+    /* ------------------------------------------------- WRLOCKED */
+    (void)pthread_rwlock_unlock(&ctx_pool.rwlock);
+    return;
+}
+
+static void context_rm_pool(struct p11prov_ctx *ctx)
+{
+    int found = false;
+    int err;
+
+    /* init static pool for atfork/atexit handling */
+    err = pthread_rwlock_wrlock(&ctx_pool.rwlock);
+    if (err != 0) {
+        /* just warn */
+        err = errno;
+        P11PROV_raise(ctx, CKR_CANT_LOCK, "Failed to lock ctx pool (error:%d)",
+                      err);
+        return;
+    }
+
+    /* WRLOCKED ------------------------------------------------- */
+    for (int i = 0; i < ctx_pool.num; i++) {
+        if (!found) {
+            if (ctx_pool.contexts[i] == ctx) {
+                ctx_pool.contexts[i] = NULL;
+                found = true;
+            }
+        } else {
+            ctx_pool.contexts[i - 1] = ctx_pool.contexts[i];
+            if (i == ctx_pool.num - 1) {
+                ctx_pool.contexts[i] = NULL;
+            }
+        }
+    }
+    if (found) {
+        ctx_pool.num--;
+    } else {
+        P11PROV_debug("Context not found in pool ?!");
+    }
+
+    /* ------------------------------------------------- WRLOCKED */
+    (void)pthread_rwlock_unlock(&ctx_pool.rwlock);
+    return;
+}
 
 struct quirk {
     CK_SLOT_ID id;
@@ -262,6 +431,15 @@ CK_RV p11prov_ctx_status(P11PROV_CTX *ctx)
     case P11PROV_INITIALIZED:
         ret = CKR_OK;
         break;
+    case P11PROV_NEEDS_REINIT:
+        ret = p11prov_module_reinit(ctx->module);
+        if (ret != CKR_OK) {
+            P11PROV_raise(ctx, ret, "Module re-initialization failed!");
+            ctx->status = P11PROV_IN_ERROR;
+            break;
+        }
+        ctx->status = P11PROV_INITIALIZED;
+        break;
     case P11PROV_IN_ERROR:
         P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Module in error state!");
         ret = CKR_GENERAL_ERROR;
@@ -321,6 +499,9 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
         }
         OPENSSL_free(ctx->quirks);
     }
+
+    /* remove from pool */
+    context_rm_pool(ctx);
 
     ret = pthread_rwlock_unlock(&ctx->rwlock);
     if (ret != 0) {
@@ -1113,7 +1294,10 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         }
     }
 
+    /* done */
+    ret = RET_OSSL_OK;
+    context_add_pool(ctx);
     *out = p11prov_dispatch_table;
     *provctx = ctx;
-    return RET_OSSL_OK;
+    return ret;
 }

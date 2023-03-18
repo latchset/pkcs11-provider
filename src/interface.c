@@ -3,6 +3,7 @@
 
 #include "provider.h"
 #include <dlfcn.h>
+#include <string.h>
 
 /* Wrapper Interface on top of PKCS#11 interfaces.
  * This allows us to support multiple versions of PKCS#11 drivers
@@ -17,6 +18,11 @@ struct p11prov_module_ctx {
 
     void *dlhandle;
     P11PROV_INTERFACE *interface;
+
+    CK_INFO ck_info;
+
+    pthread_mutex_t lock;
+    bool initialized;
 };
 
 /* This structure is effectively equivalent to CK_FUNCTION_LIST_3_0
@@ -205,6 +211,7 @@ CK_RV p11prov_module_new(P11PROV_CTX *ctx, const char *path,
 {
     struct p11prov_module_ctx *mctx;
     const char *env_module;
+    CK_RV ret;
 
     mctx = OPENSSL_zalloc(sizeof(struct p11prov_module_ctx));
     if (!mctx) {
@@ -242,6 +249,12 @@ CK_RV p11prov_module_new(P11PROV_CTX *ctx, const char *path,
         }
     }
 
+    ret = MUTEX_INIT(mctx);
+    if (ret != CKR_OK) {
+        p11prov_module_free(mctx);
+        return ret;
+    }
+
     *_mctx = mctx;
     return CKR_OK;
 }
@@ -254,11 +267,21 @@ CK_RV p11prov_module_init(P11PROV_MODULE *mctx)
 {
     P11PROV_SLOTS_CTX *slots;
     CK_C_INITIALIZE_ARGS args = { 0 };
-    CK_INFO ck_info = { 0 };
     CK_RV ret;
 
     if (!mctx) {
         return CKR_GENERAL_ERROR;
+    }
+
+    ret = MUTEX_LOCK(mctx);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+
+    /* LOCKED SECTION ------------- */
+    if (mctx->initialized) {
+        ret = CKR_OK;
+        goto done;
     }
 
     P11PROV_debug("PKCS#11: Initializing the module: %s", mctx->path);
@@ -269,41 +292,48 @@ CK_RV p11prov_module_init(P11PROV_MODULE *mctx)
         char *err = dlerror();
         ret = CKR_GENERAL_ERROR;
         P11PROV_debug("dlopen(%s) failed: %s", mctx->path, err);
-        return ret;
+        goto done;
     }
 
     ret = p11prov_interface_init(mctx);
     if (ret != CKR_OK) {
-        return ret;
+        goto done;
     }
 
     args.flags = CKF_OS_LOCKING_OK;
     args.pReserved = (void *)mctx->init_args;
     ret = p11prov_Initialize(mctx->provctx, &args);
     if (ret && ret != CKR_CRYPTOKI_ALREADY_INITIALIZED) {
-        return ret;
+        goto done;
     }
 
-    ret = p11prov_GetInfo(mctx->provctx, &ck_info);
+    ret = p11prov_GetInfo(mctx->provctx, &mctx->ck_info);
     if (ret) {
-        return ret;
+        goto done;
     }
-    trim(ck_info.manufacturerID);
-    trim(ck_info.libraryDescription);
+    trim(mctx->ck_info.manufacturerID);
+    trim(mctx->ck_info.libraryDescription);
     P11PROV_debug("Module Info: ck_ver:%d.%d lib: '%s' '%s' ver:%d.%d",
-                  (int)ck_info.cryptokiVersion.major,
-                  (int)ck_info.cryptokiVersion.minor, ck_info.manufacturerID,
-                  ck_info.libraryDescription, (int)ck_info.libraryVersion.major,
-                  (int)ck_info.libraryVersion.minor);
+                  (int)mctx->ck_info.cryptokiVersion.major,
+                  (int)mctx->ck_info.cryptokiVersion.minor,
+                  mctx->ck_info.manufacturerID,
+                  mctx->ck_info.libraryDescription,
+                  (int)mctx->ck_info.libraryVersion.major,
+                  (int)mctx->ck_info.libraryVersion.minor);
 
     ret = p11prov_init_slots(mctx->provctx, &slots);
     if (ret) {
-        return ret;
+        goto done;
     }
 
     p11prov_ctx_set_slots(mctx->provctx, slots);
 
-    return CKR_OK;
+    ret = CKR_OK;
+
+done:
+    (void)MUTEX_UNLOCK(mctx);
+    /* ------------- LOCKED SECTION */
+    return ret;
 }
 
 P11PROV_INTERFACE *p11prov_module_get_interface(P11PROV_MODULE *mctx)
@@ -328,4 +358,76 @@ void p11prov_module_free(P11PROV_MODULE *mctx)
     OPENSSL_free(mctx->path);
     OPENSSL_free(mctx->init_args);
     OPENSSL_free(mctx);
+}
+
+CK_RV p11prov_module_reinit(P11PROV_MODULE *mctx)
+{
+    CK_C_INITIALIZE_ARGS args = { 0 };
+    CK_INFO ck_info = { 0 };
+    CK_RV ret;
+
+    if (!mctx) {
+        return CKR_GENERAL_ERROR;
+    }
+
+    ret = MUTEX_LOCK(mctx);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+
+    /* LOCKED SECTION ------------- */
+    P11PROV_debug("PKCS#11: Re-initializing the module: %s", mctx->path);
+
+    (void)p11prov_Finalize(mctx->provctx, NULL);
+
+    args.flags = CKF_OS_LOCKING_OK;
+    args.pReserved = (void *)mctx->init_args;
+    ret = p11prov_Initialize(mctx->provctx, &args);
+    if (ret == CKR_CRYPTOKI_ALREADY_INITIALIZED) {
+        ret = CKR_OK;
+    }
+    if (ret != CKR_OK) {
+        P11PROV_debug("PKCS#11: Re-init failed: %lx", ret);
+        goto done;
+    }
+
+    ret = p11prov_GetInfo(mctx->provctx, &ck_info);
+    if (ret != CKR_OK) {
+        goto done;
+    }
+    trim(ck_info.manufacturerID);
+    trim(ck_info.libraryDescription);
+
+    if (ck_info.cryptokiVersion.major != mctx->ck_info.cryptokiVersion.major
+        || ck_info.cryptokiVersion.minor != mctx->ck_info.cryptokiVersion.minor
+        || strncmp((const char *)ck_info.manufacturerID,
+                   (const char *)mctx->ck_info.manufacturerID, 32)
+               != 0
+        || ck_info.flags != mctx->ck_info.flags
+        || strncmp((const char *)ck_info.libraryDescription,
+                   (const char *)mctx->ck_info.libraryDescription, 32)
+               != 0
+        || ck_info.libraryVersion.major != mctx->ck_info.libraryVersion.major
+        || ck_info.libraryVersion.minor != mctx->ck_info.libraryVersion.minor) {
+        P11PROV_debug("PKCS#11: Re-init module mismatch");
+        P11PROV_debug("Original Info: ck_ver:%d.%d lib: '%s' '%s' ver:%d.%d",
+                      (int)mctx->ck_info.cryptokiVersion.major,
+                      (int)mctx->ck_info.cryptokiVersion.minor,
+                      mctx->ck_info.manufacturerID,
+                      mctx->ck_info.libraryDescription,
+                      (int)mctx->ck_info.libraryVersion.major,
+                      (int)mctx->ck_info.libraryVersion.minor);
+        P11PROV_debug("Recovered Info: ck_ver:%d.%d lib: '%s' '%s' ver:%d.%d",
+                      (int)ck_info.cryptokiVersion.major,
+                      (int)ck_info.cryptokiVersion.minor,
+                      ck_info.manufacturerID, ck_info.libraryDescription,
+                      (int)ck_info.libraryVersion.major,
+                      (int)ck_info.libraryVersion.minor);
+        ret = CKR_GENERAL_ERROR;
+    }
+
+done:
+    (void)MUTEX_UNLOCK(mctx);
+    /* ------------- LOCKED SECTION */
+    return ret;
 }
