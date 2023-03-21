@@ -161,6 +161,11 @@ again:
         goto again;
     }
 
+    if (ctx->loaded == 0) {
+        /* if we get here it means we tried all */
+        ctx->loaded = -1;
+    }
+
     if (ctx->num_objs > 0) {
         /* if there was any error, remove it, as we got success */
         p11prov_pop_error_to_mark(ctx->provctx);
