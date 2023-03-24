@@ -391,28 +391,27 @@ static CK_RV token_login(P11PROV_SESSION *session, P11PROV_URI *uri,
     CK_UTF8CHAR_PTR pin = NULL_PTR;
     CK_ULONG pinlen = 0;
     CK_TOKEN_INFO *token;
+    bool cache = false;
     CK_RV ret;
 
     token = p11prov_slot_get_token(slot);
     if (!(token->flags & CKF_PROTECTED_AUTHENTICATION_PATH)) {
+        const char *cached_pin = p11prov_slot_get_cached_pin(slot);
         const char *bad_pin = p11prov_slot_get_bad_pin(slot);
         if (uri) {
             pin = (CK_UTF8CHAR_PTR)p11prov_uri_get_pin(uri);
-            if (bad_pin && strcmp((const char *)pin, bad_pin) == 0) {
-                P11PROV_raise(session->provctx, CKR_PIN_INVALID,
-                              "Blocking stored PIN that failed a previous login"
-                              " to avoid blocking the token");
-                pin = NULL;
-            }
         }
         if (!pin) {
             pin = p11prov_ctx_pin(session->provctx);
-            if (bad_pin && strcmp((const char *)pin, bad_pin) == 0) {
-                P11PROV_raise(session->provctx, CKR_PIN_INVALID,
-                              "Blocking stored PIN that failed a previous login"
-                              " to avoid blocking the token");
-                pin = NULL;
-            }
+        }
+        if (!pin && cached_pin) {
+            pin = (CK_UTF8CHAR_PTR)cached_pin;
+        }
+        if (pin && bad_pin && strcmp((char *)pin, bad_pin) == 0) {
+            P11PROV_raise(session->provctx, CKR_PIN_INVALID,
+                          "Blocking stored PIN that failed a previous login"
+                          " to avoid blocking the token");
+            pin = NULL;
         }
         if (pin) {
             pinlen = strlen((const char *)pin);
@@ -436,6 +435,9 @@ static CK_RV token_login(P11PROV_SESSION *session, P11PROV_URI *uri,
 
             pin = (CK_UTF8CHAR_PTR)cb_pin;
             pinlen = cb_pin_len;
+
+            cache = p11prov_ctx_cache_pins(session->provctx);
+
         } else {
             ret = CKR_CANCEL;
             goto done;
@@ -457,6 +459,14 @@ static CK_RV token_login(P11PROV_SESSION *session, P11PROV_URI *uri,
             if (trv != CKR_OK) {
                 P11PROV_raise(session->provctx, trv, "Failed to set bad_pin");
             }
+        }
+    }
+    if (ret == CKR_OK && pin && cache) {
+        CK_RV trv;
+        trv = p11prov_slot_set_cached_pin(slot, (const char *)pin);
+        /* not much we can do on failure */
+        if (trv != CKR_OK) {
+            P11PROV_raise(session->provctx, trv, "Failed to cache pin");
         }
     }
 
