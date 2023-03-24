@@ -27,6 +27,7 @@ struct p11prov_ctx {
     char *pin;
     int allow_export;
     int login_behavior;
+    bool cache_pins;
     /* TODO: ui_method */
     /* TODO: fork id */
 
@@ -529,6 +530,12 @@ int p11prov_ctx_login_behavior(P11PROV_CTX *ctx)
 {
     P11PROV_debug("login_behavior = %d", ctx->login_behavior);
     return ctx->login_behavior;
+}
+
+bool p11prov_ctx_cache_pins(P11PROV_CTX *ctx)
+{
+    P11PROV_debug("cache_pins = %s", ctx->cache_pins ? "true" : "false");
+    return ctx->cache_pins;
 }
 
 static void p11prov_teardown(void *ctx)
@@ -1188,6 +1195,7 @@ enum p11prov_cfg_enum {
     P11PROV_CFG_ALLOW_EXPORT,
     P11PROV_CFG_LOGIN_BEHAVIOR,
     P11PROV_CFG_LOAD_BEHAVIOR,
+    P11PROV_CFG_CACHE_PINS,
     P11PROV_CFG_SIZE,
 };
 
@@ -1197,6 +1205,7 @@ static struct p11prov_cfg_names {
     { "pkcs11-module-path" },           { "pkcs11-module-init-args" },
     { "pkcs11-module-token-pin" },      { "pkcs11-module-allow-export" },
     { "pkcs11-module-login-behavior" }, { "pkcs11-module-load-behavior" },
+    { "pkcs11-module-cache-pins" },
 };
 
 int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
@@ -1210,6 +1219,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         OSSL_PARAM_utf8_ptr(p11prov_cfg_names[3].name, &cfg[3], sizeof(void *)),
         OSSL_PARAM_utf8_ptr(p11prov_cfg_names[4].name, &cfg[4], sizeof(void *)),
         OSSL_PARAM_utf8_ptr(p11prov_cfg_names[5].name, &cfg[5], sizeof(void *)),
+        OSSL_PARAM_utf8_ptr(p11prov_cfg_names[6].name, &cfg[6], sizeof(void *)),
         OSSL_PARAM_END
     };
     P11PROV_CTX *ctx;
@@ -1292,6 +1302,12 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         }
     }
 
+    if (cfg[P11PROV_CFG_CACHE_PINS] != NULL
+        && strcmp(cfg[P11PROV_CFG_CACHE_PINS], "cache") == 0) {
+        ctx->cache_pins = true;
+    }
+
+    /* do this as the last thing */
     if (cfg[P11PROV_CFG_LOAD_BEHAVIOR] != NULL
         && strcmp(cfg[P11PROV_CFG_LOAD_BEHAVIOR], "early") == 0) {
         /* this triggers early module loading */
