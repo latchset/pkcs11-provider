@@ -151,4 +151,12 @@ fi
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 rm -f ${OPENSSL_CONF}.nopin
 
+title PARA "Test PIN caching"
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed "s/^pkcs11-module-token-pin.*$/pkcs11-module-cache-pins = cache/" ${OPENSSL_CONF} > ${OPENSSL_CONF}.pincaching
+OPENSSL_CONF=${OPENSSL_CONF}.pincaching
+${TESTBLDDIR}/pincache
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
+
 exit 0

@@ -4,7 +4,7 @@ libspath=@abs_top_builddir@/src/.libs
 testsblddir=@abs_top_builddir@/tests
 testssrcdir=@abs_srcdir@
 
-check_PROGRAMS = tsession tgenkey tlsctx tdigests treadkeys tfork
+check_PROGRAMS = tsession tgenkey tlsctx tdigests treadkeys tfork pincache
 
 tsession_SOURCES = tsession.c
 tsession_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
@@ -29,6 +29,10 @@ treadkeys_LDADD = $(OPENSSL_LIBS)
 tfork_SOURCES = tfork.c
 tfork_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
 tfork_LDADD = $(OPENSSL_LIBS)
+
+pincache_SOURCES = pincache.c
+pincache_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
+pincache_LDADD = $(OPENSSL_LIBS)
 
 tmp.softokn:
 	LIBSPATH=$(libspath) \
