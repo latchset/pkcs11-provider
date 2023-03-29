@@ -325,6 +325,13 @@ static void cache_key(P11PROV_OBJ *obj)
     CK_SESSION_HANDLE sess;
     CK_BBOOL can_cache = CK_TRUE;
     CK_RV ret;
+    int cache_keys;
+
+    /* check whether keys should be cached at all */
+    cache_keys = p11prov_ctx_cache_keys(obj->ctx);
+    if (cache_keys == P11PROV_CACHE_KEYS_NEVER) {
+        return;
+    }
 
     /* We cache only keys on the token */
     if ((obj->class != CKO_PRIVATE_KEY && obj->class != CKO_PUBLIC_KEY)

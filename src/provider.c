@@ -28,6 +28,7 @@ struct p11prov_ctx {
     int allow_export;
     int login_behavior;
     bool cache_pins;
+    int cache_keys;
     /* TODO: ui_method */
     /* TODO: fork id */
 
@@ -536,6 +537,12 @@ bool p11prov_ctx_cache_pins(P11PROV_CTX *ctx)
 {
     P11PROV_debug("cache_pins = %s", ctx->cache_pins ? "true" : "false");
     return ctx->cache_pins;
+}
+
+int p11prov_ctx_cache_keys(P11PROV_CTX *ctx)
+{
+    P11PROV_debug("cache_keys = %d", ctx->cache_keys);
+    return ctx->cache_keys;
 }
 
 static void p11prov_teardown(void *ctx)
@@ -1196,6 +1203,7 @@ enum p11prov_cfg_enum {
     P11PROV_CFG_LOGIN_BEHAVIOR,
     P11PROV_CFG_LOAD_BEHAVIOR,
     P11PROV_CFG_CACHE_PINS,
+    P11PROV_CFG_CACHE_KEYS,
     P11PROV_CFG_SIZE,
 };
 
@@ -1205,23 +1213,14 @@ static struct p11prov_cfg_names {
     { "pkcs11-module-path" },           { "pkcs11-module-init-args" },
     { "pkcs11-module-token-pin" },      { "pkcs11-module-allow-export" },
     { "pkcs11-module-login-behavior" }, { "pkcs11-module-load-behavior" },
-    { "pkcs11-module-cache-pins" },
+    { "pkcs11-module-cache-pins" },     { "pkcs11-module-cache-keys" },
 };
 
 int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
                        const OSSL_DISPATCH **out, void **provctx)
 {
     const char *cfg[P11PROV_CFG_SIZE] = { 0 };
-    OSSL_PARAM core_params[P11PROV_CFG_SIZE + 1] = {
-        OSSL_PARAM_utf8_ptr(p11prov_cfg_names[0].name, &cfg[0], sizeof(void *)),
-        OSSL_PARAM_utf8_ptr(p11prov_cfg_names[1].name, &cfg[1], sizeof(void *)),
-        OSSL_PARAM_utf8_ptr(p11prov_cfg_names[2].name, &cfg[2], sizeof(void *)),
-        OSSL_PARAM_utf8_ptr(p11prov_cfg_names[3].name, &cfg[3], sizeof(void *)),
-        OSSL_PARAM_utf8_ptr(p11prov_cfg_names[4].name, &cfg[4], sizeof(void *)),
-        OSSL_PARAM_utf8_ptr(p11prov_cfg_names[5].name, &cfg[5], sizeof(void *)),
-        OSSL_PARAM_utf8_ptr(p11prov_cfg_names[6].name, &cfg[6], sizeof(void *)),
-        OSSL_PARAM_END
-    };
+    OSSL_PARAM core_params[P11PROV_CFG_SIZE + 1];
     P11PROV_CTX *ctx;
     int ret;
 
@@ -1248,6 +1247,12 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         OPENSSL_free(ctx);
         return RET_OSSL_ERR;
     }
+
+    for (int i = 0; i < P11PROV_CFG_SIZE; i++) {
+        core_params[i] = OSSL_PARAM_construct_utf8_ptr(
+            p11prov_cfg_names[i].name, (char **)&cfg[i], sizeof(void *));
+    }
+    core_params[P11PROV_CFG_SIZE] = OSSL_PARAM_construct_end();
 
     ret = core_get_params(handle, core_params);
     if (ret != RET_OSSL_OK) {
@@ -1305,6 +1310,17 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
     if (cfg[P11PROV_CFG_CACHE_PINS] != NULL
         && strcmp(cfg[P11PROV_CFG_CACHE_PINS], "cache") == 0) {
         ctx->cache_pins = true;
+    }
+
+    if (cfg[P11PROV_CFG_CACHE_KEYS] != NULL) {
+        if (strcmp(cfg[P11PROV_CFG_CACHE_KEYS], "true") == 0) {
+            ctx->cache_keys = P11PROV_CACHE_KEYS_IN_SESSION;
+        } else if (strcmp(cfg[P11PROV_CFG_CACHE_KEYS], "false") == 0) {
+            ctx->cache_keys = P11PROV_CACHE_KEYS_NEVER;
+        }
+    } else {
+        /* defaults to session */
+        ctx->cache_keys = P11PROV_CACHE_KEYS_IN_SESSION;
     }
 
     /* do this as the last thing */

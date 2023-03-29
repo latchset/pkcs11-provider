@@ -94,6 +94,12 @@ int p11prov_ctx_allow_export(P11PROV_CTX *ctx);
 int p11prov_ctx_login_behavior(P11PROV_CTX *ctx);
 bool p11prov_ctx_cache_pins(P11PROV_CTX *ctx);
 
+enum p11prov_cache_keys {
+    P11PROV_CACHE_KEYS_NEVER = 0,
+    P11PROV_CACHE_KEYS_IN_SESSION,
+};
+int p11prov_ctx_cache_keys(P11PROV_CTX *ctx);
+
 #include "debug.h"
 
 /* Errors */
