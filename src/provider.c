@@ -1284,7 +1284,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         ctx->allow_export = (int)strtol(cfg[P11PROV_CFG_ALLOW_EXPORT], &end, 0);
         if (errno != 0 || *end != '\0') {
             P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Invalid value for %s: (%s)",
-                          p11prov_cfg_names[P11PROV_CFG_ALLOW_EXPORT],
+                          p11prov_cfg_names[P11PROV_CFG_ALLOW_EXPORT].name,
                           cfg[P11PROV_CFG_ALLOW_EXPORT]);
             p11prov_ctx_free(ctx);
             return RET_OSSL_ERR;
@@ -1300,7 +1300,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
             ctx->login_behavior = PUBKEY_LOGIN_NEVER;
         } else {
             P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Invalid value for %s: (%s)",
-                          p11prov_cfg_names[P11PROV_CFG_LOGIN_BEHAVIOR],
+                          p11prov_cfg_names[P11PROV_CFG_LOGIN_BEHAVIOR].name,
                           cfg[P11PROV_CFG_LOGIN_BEHAVIOR]);
             p11prov_ctx_free(ctx);
             return RET_OSSL_ERR;
