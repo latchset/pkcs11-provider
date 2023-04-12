@@ -55,22 +55,22 @@ dist_check_SCRIPTS = \
 	toaepsha2 trsapss tdigest ttls tpubkey tfork
 
 test_LIST = \
-	basic-softokn basic-softhsm-proxy \
-	pubkey-softokn pubkey-softhsm-proxy \
-	certs-softokn certs-softhsm-proxy \
-	ecc-softokn ecc-softhsm-proxy \
-	edwards-softhsm-proxy \
+	basic-softokn basic-softhsm \
+	pubkey-softokn pubkey-softhsm \
+	certs-softokn certs-softhsm \
+	ecc-softokn ecc-softhsm \
+	edwards-softhsm \
 	ecdh-softokn \
-	democa-softokn democa-softhsm-proxy \
-	digest-softokn digest-softhsm-proxy \
-	fork-softokn fork-softhsm-proxy \
+	democa-softokn democa-softhsm \
+	digest-softokn digest-softhsm \
+	fork-softokn fork-softhsm \
 	oaepsha2-softokn \
 	hkdf-softokn \
 	rsapss-softokn \
 	genkey-softokn genkey-softhsm \
-	session-softokn session-softhsm-proxy \
-	readkeys-softokn readkeys-softhsm-proxy \
-	tls-softokn tls-softhsm-proxy
+	session-softokn session-softhsm \
+	readkeys-softokn readkeys-softhsm \
+	tls-softokn tls-softhsm
 
 .PHONY: $(test_LIST)
 
