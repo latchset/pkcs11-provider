@@ -1170,6 +1170,11 @@ static int p11prov_rsasig_digest_sign_init(void *ctx, const char *digest,
     P11PROV_debug("rsa digest sign init (ctx=%p, digest=%s, key=%p, params=%p)",
                   ctx, digest ? digest : "<NULL>", provkey, params);
 
+    /* use a default of sha2 256 if not provided */
+    if (!digest) {
+        digest = "sha256";
+    }
+
     ret = p11prov_sig_op_init(ctx, provkey, CKF_SIGN, digest);
     if (ret != CKR_OK) {
         return RET_OSSL_ERR;
@@ -1219,6 +1224,11 @@ static int p11prov_rsasig_digest_verify_init(void *ctx, const char *digest,
 
     P11PROV_debug("rsa digest verify init (ctx=%p, key=%p, params=%p)", ctx,
                   provkey, params);
+
+    /* use a default of sha2 256 if not provided */
+    if (!digest) {
+        digest = "sha256";
+    }
 
     ret = p11prov_sig_op_init(ctx, provkey, CKF_VERIFY, digest);
     if (ret != CKR_OK) {
@@ -1798,6 +1808,11 @@ static int p11prov_ecdsa_digest_sign_init(void *ctx, const char *digest,
         "ecdsa digest sign init (ctx=%p, digest=%s, key=%p, params=%p)", ctx,
         digest ? digest : "<NULL>", provkey, params);
 
+    /* use a default of sha2 256 if not provided */
+    if (!digest) {
+        digest = "sha256";
+    }
+
     ret = p11prov_sig_op_init(ctx, provkey, CKF_SIGN, digest);
     if (ret != CKR_OK) {
         return RET_OSSL_ERR;
@@ -1860,6 +1875,11 @@ static int p11prov_ecdsa_digest_verify_init(void *ctx, const char *digest,
 
     P11PROV_debug("ecdsa digest verify init (ctx=%p, key=%p, params=%p)", ctx,
                   provkey, params);
+
+    /* use a default of sha2 256 if not provided */
+    if (!digest) {
+        digest = "sha256";
+    }
 
     ret = p11prov_sig_op_init(ctx, provkey, CKF_VERIFY, digest);
     if (ret != CKR_OK) {
