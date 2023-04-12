@@ -23,6 +23,9 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         q[i] = attrs[i].attr;
     }
 
+    /* error stack mark so we can avoid returning bogus errors */
+    p11prov_set_error_mark(ctx);
+
     /* try one shot, then fallback to individual calls if that fails */
     ret = p11prov_GetAttributeValue(ctx, sess, object, q, attrnums);
     if (ret == CKR_OK) {
@@ -31,14 +34,18 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
             if (q[i].ulValueLen == CK_UNAVAILABLE_INFORMATION) {
                 /* This can't happen according to the algorithm described
                  * in the spec when the call returns CKR_OK. */
-                return CKR_GENERAL_ERROR;
+                ret = CKR_GENERAL_ERROR;
+                P11PROV_raise(ctx, ret, "Failed to get attributes");
+                goto done;
             }
             if (attrs[i].allocate) {
                 /* always allocate one more, so that zero terminated strings
                  * work automatically */
                 q[i].pValue = OPENSSL_zalloc(q[i].ulValueLen + 1);
                 if (!q[i].pValue) {
-                    return CKR_HOST_MEMORY;
+                    ret = CKR_HOST_MEMORY;
+                    P11PROV_raise(ctx, ret, "Failed to get attributes");
+                    goto done;
                 }
                 /* add to re-request list */
                 r[retrnums] = q[i];
@@ -69,7 +76,9 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                     attrs[i].attr.pValue =
                         OPENSSL_zalloc(attrs[i].attr.ulValueLen + 1);
                     if (!attrs[i].attr.pValue) {
-                        return CKR_HOST_MEMORY;
+                        ret = CKR_HOST_MEMORY;
+                        P11PROV_raise(ctx, ret, "Failed to get attributes");
+                        goto done;
                     }
                 }
             }
@@ -91,6 +100,14 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                           attrs[i].attr.ulValueLen);
         }
         ret = CKR_OK;
+    }
+done:
+    if (ret == CKR_OK) {
+        /* if there was any error, remove it, as we got success */
+        p11prov_pop_error_to_mark(ctx);
+    } else {
+        /* otherwise clear the mark and leave errors on the stack */
+        p11prov_clear_last_error_mark(ctx);
     }
     return ret;
 }
