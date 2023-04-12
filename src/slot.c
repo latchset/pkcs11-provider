@@ -436,7 +436,12 @@ CK_RV p11prov_slot_get_obj_pool(P11PROV_CTX *ctx, CK_SLOT_ID id,
     if (!slot) {
         ret = CKR_SLOT_ID_INVALID;
     } else {
-        *pool = slot->objects;
+        if (slot->objects) {
+            *pool = slot->objects;
+            ret = CKR_OK;
+        } else {
+            ret = CKR_GENERAL_ERROR;
+        }
     }
 
     p11prov_return_slots(sctx);

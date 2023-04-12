@@ -14,6 +14,7 @@ struct p11prov_ctx {
         P11PROV_UNINITIALIZED = 0,
         P11PROV_INITIALIZED,
         P11PROV_NEEDS_REINIT,
+        P11PROV_NO_DEINIT,
         P11PROV_IN_ERROR,
     } status;
 
@@ -31,6 +32,9 @@ struct p11prov_ctx {
     int cache_keys;
     /* TODO: ui_method */
     /* TODO: fork id */
+
+    /* cfg quirks */
+    bool no_deinit;
 
     /* module handles and data */
     P11PROV_MODULE *module;
@@ -387,6 +391,13 @@ failed:
 
 P11PROV_INTERFACE *p11prov_ctx_get_interface(P11PROV_CTX *ctx)
 {
+    if (ctx->status == P11PROV_NO_DEINIT) {
+        /* This is a quirk to handle modules that do funny things
+         * with openssl and have issues when called in the openssl
+         * destructors. Prevent any call to finalize or otherwise
+         * use the module. */
+        return NULL;
+    }
     return p11prov_module_get_interface(ctx->module);
 }
 
@@ -431,6 +442,7 @@ CK_RV p11prov_ctx_status(P11PROV_CTX *ctx)
         ctx->status = P11PROV_INITIALIZED;
         break;
     case P11PROV_INITIALIZED:
+    case P11PROV_NO_DEINIT:
         ret = CKR_OK;
         break;
     case P11PROV_NEEDS_REINIT:
@@ -467,6 +479,10 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
         P11PROV_raise(ctx, CKR_CANT_LOCK,
                       "Failure to wrlock! Data corruption may happen (%d)",
                       errno);
+    }
+
+    if (ctx->no_deinit) {
+        ctx->status = P11PROV_NO_DEINIT;
     }
 
     OPENSSL_free(ctx->op_digest);
@@ -1204,6 +1220,7 @@ enum p11prov_cfg_enum {
     P11PROV_CFG_LOAD_BEHAVIOR,
     P11PROV_CFG_CACHE_PINS,
     P11PROV_CFG_CACHE_KEYS,
+    P11PROV_CFG_QUIRKS,
     P11PROV_CFG_SIZE,
 };
 
@@ -1214,6 +1231,7 @@ static struct p11prov_cfg_names {
     { "pkcs11-module-token-pin" },      { "pkcs11-module-allow-export" },
     { "pkcs11-module-login-behavior" }, { "pkcs11-module-load-behavior" },
     { "pkcs11-module-cache-pins" },     { "pkcs11-module-cache-keys" },
+    { "pkcs11-module-quirks" },
 };
 
 int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
@@ -1323,7 +1341,13 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         ctx->cache_keys = P11PROV_CACHE_KEYS_IN_SESSION;
     }
 
-    /* do this as the last thing */
+    if (cfg[P11PROV_CFG_QUIRKS] != NULL) {
+        if (strcmp(cfg[P11PROV_CFG_QUIRKS], "no-deinit") == 0) {
+            ctx->no_deinit = true;
+        }
+    }
+
+    /* PAY ATTENTION: do this as the last thing */
     if (cfg[P11PROV_CFG_LOAD_BEHAVIOR] != NULL
         && strcmp(cfg[P11PROV_CFG_LOAD_BEHAVIOR], "early") == 0) {
         /* this triggers early module loading */
