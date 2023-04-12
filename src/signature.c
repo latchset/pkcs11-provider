@@ -1297,6 +1297,9 @@ static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
         case CKM_RSA_PKCS:
             result = p11prov_mech_by_mechanism(sigctx->digest, &mech);
             if (result != CKR_OK) {
+                P11PROV_raise(
+                    sigctx->provctx, result,
+                    "Failed to get digest for signature algorithm ID");
                 return RET_OSSL_ERR;
             }
             ret = OSSL_PARAM_set_octet_string(p, mech->der_rsa_algorithm_id,
@@ -1353,12 +1356,13 @@ static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
     p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_MGF1_DIGEST);
     if (p) {
         const char *digest = NULL;
+        CK_RV rv = CKR_GENERAL_ERROR;
 
         if (sigctx->pss_params.mgf != 0) {
             digest = p11prov_sig_mgf_name(sigctx->pss_params.mgf);
         } else {
             const P11PROV_MECH *pssmech;
-            CK_RV rv = p11prov_mech_by_mechanism(sigctx->mechtype, &pssmech);
+            rv = p11prov_mech_by_mechanism(sigctx->mechtype, &pssmech);
             if (rv == CKR_OK) {
                 rv = p11prov_digest_get_name(pssmech->digest, &digest);
                 if (rv != CKR_OK) {
@@ -1367,6 +1371,7 @@ static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
             }
         }
         if (!digest) {
+            P11PROV_raise(sigctx->provctx, rv, "Failed to get digest for MGF1");
             return RET_OSSL_ERR;
         }
         ret = OSSL_PARAM_set_utf8_string(p, digest);
@@ -1929,6 +1934,9 @@ static int p11prov_ecdsa_get_ctx_params(void *ctx, OSSL_PARAM *params)
         case CKM_ECDSA:
             result = p11prov_mech_by_mechanism(sigctx->digest, &mech);
             if (result != CKR_OK) {
+                P11PROV_raise(
+                    sigctx->provctx, result,
+                    "Failed to get digest for signature algorithm ID");
                 return RET_OSSL_ERR;
             }
             ret = OSSL_PARAM_set_octet_string(p, mech->der_ecdsa_algorithm_id,
