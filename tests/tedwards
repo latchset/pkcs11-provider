@@ -20,12 +20,6 @@ if [ $FAIL -eq 1 ]; then
     exit 1
 fi
 
-
-# FIXME: Currently not test backend supports CKM_EDDSA
-# SoftHSM does support it with Ed25519, but the p11-proxy we have to use to
-# avoid segfaults in the destructors does not support proxying CKM_EDDSA
-exit 0
-
 title PARA "DigestSign and DigestVerify with ED25519"
 ossl '
 pkeyutl -sign -inkey "${EDBASEURI}"
