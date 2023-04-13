@@ -588,6 +588,7 @@ static int p11prov_rsa_export(void *keydata, int selection,
 {
     P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
     P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
+    CK_OBJECT_CLASS class = p11prov_obj_get_class(key);
 
     P11PROV_debug("rsa export %p", keydata);
 
@@ -600,7 +601,7 @@ static int p11prov_rsa_export(void *keydata, int selection,
     }
 
     /* if anything else is asked for we can't provide it, so be strict */
-    if ((selection & ~(PUBLIC_PARAMS)) == 0) {
+    if ((class == CKO_PUBLIC_KEY) || (selection & ~(PUBLIC_PARAMS)) == 0) {
         return p11prov_obj_export_public_rsa_key(key, cb_fn, cb_arg);
     }
 
@@ -1015,6 +1016,7 @@ static int p11prov_ec_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
 {
     P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
     P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
+    CK_OBJECT_CLASS class = p11prov_obj_get_class(key);
 
     P11PROV_debug("ec export %p", keydata);
 
@@ -1027,7 +1029,7 @@ static int p11prov_ec_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
     }
 
     /* this will return the public EC_POINT as well as DOMAIN_PARAMTERS */
-    if ((selection & ~(PUBLIC_PARAMS)) == 0) {
+    if ((class == CKO_PUBLIC_KEY) || (selection & ~(PUBLIC_PARAMS)) == 0) {
         return p11prov_obj_export_public_ec_key(key, cb_fn, cb_arg);
     }
 
@@ -1279,6 +1281,7 @@ static int p11prov_ed_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
 {
     P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
     P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
+    CK_OBJECT_CLASS class = p11prov_obj_get_class(key);
 
     P11PROV_debug("ed export %p", keydata);
 
@@ -1291,7 +1294,7 @@ static int p11prov_ed_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
     }
 
     /* this will return the public EC_POINT */
-    if ((selection & ~(PUBLIC_PARAMS)) == 0) {
+    if ((class == CKO_PUBLIC_KEY) || (selection & ~(PUBLIC_PARAMS)) == 0) {
         return p11prov_obj_export_public_ec_key(key, cb_fn, cb_arg);
     }
 
