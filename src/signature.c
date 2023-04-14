@@ -432,7 +432,7 @@ static CK_RV p11prov_sig_pss_restrictions(P11PROV_SIG_CTX *sigctx,
 
     if (allowed_mechs) {
         CK_ATTRIBUTE_TYPE *mechs = (CK_ATTRIBUTE_TYPE *)allowed_mechs->pValue;
-        int num_mechs = allowed_mechs->ulValueLen;
+        int num_mechs = allowed_mechs->ulValueLen / sizeof(CK_MECHANISM_TYPE);
         bool allowed = false;
 
         if (num_mechs == 0) {
