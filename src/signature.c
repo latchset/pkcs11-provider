@@ -435,6 +435,14 @@ static CK_RV p11prov_sig_pss_restrictions(P11PROV_SIG_CTX *sigctx,
         int num_mechs = allowed_mechs->ulValueLen;
         bool allowed = false;
 
+        if (num_mechs == 0) {
+            /* It makes no sense to return 0 allowed mechanisms for a key,
+             * this just means the token is bogus, let's ignore the check
+             * and try the operation and see what happens */
+            P11PROV_debug("Buggy CKA_ALLOWED_MECHANISMS implementation");
+            return CKR_OK;
+        }
+
         for (int i = 0; i < num_mechs; i++) {
             if (mechs[i] == mechanism->mechanism) {
                 allowed = true;
