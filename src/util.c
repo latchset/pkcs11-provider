@@ -20,6 +20,8 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     CK_RV ret;
 
     for (size_t i = 0; i < attrnums; i++) {
+        P11PROV_debug("Fetching attributes (%d): 0x%08x", i,
+                      attrs[i].attr.type);
         q[i] = attrs[i].attr;
     }
 
@@ -56,7 +58,13 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
             attrs[i].attr = q[i];
         }
         if (retrnums > 0) {
+            P11PROV_debug("(Re)Fetching %d attributes", retrnums);
             ret = p11prov_GetAttributeValue(ctx, sess, object, r, retrnums);
+        }
+        for (size_t i = 0; i < attrnums; i++) {
+            P11PROV_debug("Attribute| type:0x%08lX value:%p, len:%lu",
+                          attrs[i].attr.type, attrs[i].attr.pValue,
+                          attrs[i].attr.ulValueLen);
         }
     } else if (attrnums > 1
                && (ret == CKR_ATTRIBUTE_SENSITIVE
