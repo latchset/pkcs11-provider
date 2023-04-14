@@ -18,7 +18,7 @@ exec 3<>${TMPPDIR}/s_server_input
 #Make sure we terminate programs if test fails in the middle
 trap 'jobs -p | xargs -r kill >/dev/null 2>&1 || true' EXIT
 
-openssl s_server -accept 12345 -key ${ECPRIURI} -cert ${ECCRTURI} <&3 &
+openssl s_server -accept 12345 -key ${PRIURI} -cert ${CRTURI} <&3 &
 
 # Wait a sec to make sure server is up before client tries to connect
 sleep 0.5
