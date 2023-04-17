@@ -925,11 +925,11 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
         /* nothing to find for us */
         return CKR_OK;
     }
-    if (id.type == CKA_ID) {
+    if (id.pValue != NULL) {
         template[tsize] = id;
         tsize++;
     }
-    if (label.type == CKA_LABEL) {
+    if (label.pValue != NULL) {
         template[tsize] = label;
         tsize++;
     }

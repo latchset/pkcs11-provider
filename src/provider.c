@@ -1288,7 +1288,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
     }
 
     if (cfg[P11PROV_CFG_TOKEN_PIN] != NULL) {
-        ret = p11prov_get_pin(cfg[P11PROV_CFG_TOKEN_PIN], &ctx->pin);
+        ret = p11prov_get_pin(ctx, cfg[P11PROV_CFG_TOKEN_PIN], &ctx->pin);
         if (ret != 0) {
             ERR_raise(ERR_LIB_PROV, PROV_R_IN_ERROR_STATE);
             p11prov_ctx_free(ctx);
