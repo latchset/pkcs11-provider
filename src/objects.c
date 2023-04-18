@@ -925,11 +925,11 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
         /* nothing to find for us */
         return CKR_OK;
     }
-    if (id.pValue != NULL) {
+    if (id.ulValueLen != 0) {
         template[tsize] = id;
         tsize++;
     }
-    if (label.pValue != NULL) {
+    if (label.ulValueLen != 0) {
         template[tsize] = label;
         tsize++;
     }
@@ -1011,7 +1011,7 @@ static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
     P11PROV_debug("Find associated object");
 
     id = p11prov_obj_get_attr(obj, CKA_ID);
-    if (!id) {
+    if (!id || id->ulValueLen == 0) {
         P11PROV_raise(provctx, CKR_GENERAL_ERROR, "No CKA_ID in source object");
         goto done;
     }
