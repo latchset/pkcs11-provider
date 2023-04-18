@@ -537,6 +537,7 @@ P11PROV_URI *p11prov_parse_uri(P11PROV_CTX *ctx, const char *uri)
 {
     struct p11prov_uri u = {
         .type = CK_UNAVAILABLE_INFORMATION,
+        .slot_id = CK_UNAVAILABLE_INFORMATION,
         .id = { .type = CKA_ID },
         .object = { .type = CKA_LABEL },
     };
@@ -829,8 +830,27 @@ char *p11prov_uri_get_pin(P11PROV_URI *uri)
     return uri->pin;
 }
 
-CK_RV p11prov_uri_match_token(P11PROV_URI *uri, CK_TOKEN_INFO *token)
+CK_RV p11prov_uri_match_token(P11PROV_URI *uri, CK_SLOT_ID slot_id,
+                              CK_SLOT_INFO *slot, CK_TOKEN_INFO *token)
 {
+    if (uri->slot_id != CK_UNAVAILABLE_INFORMATION && uri->slot_id != slot_id) {
+        return CKR_CANCEL;
+    }
+
+    if (uri->slot_description
+        && strncmp(uri->slot_description, (const char *)slot->slotDescription,
+                   64)
+               != 0) {
+        return CKR_CANCEL;
+    }
+
+    if (uri->slot_manufacturer
+        && strncmp(uri->slot_manufacturer, (const char *)slot->manufacturerID,
+                   32)
+               != 0) {
+        return CKR_CANCEL;
+    }
+
     if (uri->model
         && strncmp(uri->model, (const char *)token->model, 16) != 0) {
         return CKR_CANCEL;
