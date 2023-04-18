@@ -479,7 +479,7 @@ static CK_RV check_slot(P11PROV_CTX *ctx, P11PROV_SLOT *slot, P11PROV_URI *uri,
                         CK_MECHANISM_TYPE mechtype, bool rw)
 {
     CK_TOKEN_INFO *token;
-    CK_FLAGS slot_flags;
+    CK_SLOT_INFO *ck_slot;
     CK_SLOT_ID slotid;
     CK_RV ret;
 
@@ -488,8 +488,8 @@ static CK_RV check_slot(P11PROV_CTX *ctx, P11PROV_SLOT *slot, P11PROV_URI *uri,
     P11PROV_debug("Checking Slot id=%lu, uri=%p, mechtype=%lx, rw=%s)", slotid,
                   uri, mechtype, rw ? "true" : "false");
 
-    slot_flags = p11prov_slot_get_slot_flags(slot);
-    if ((slot_flags & CKF_TOKEN_PRESENT) == 0) {
+    ck_slot = p11prov_slot_get_slot(slot);
+    if ((ck_slot->flags & CKF_TOKEN_PRESENT) == 0) {
         return CKR_TOKEN_NOT_PRESENT;
     }
     token = p11prov_slot_get_token(slot);
@@ -500,8 +500,7 @@ static CK_RV check_slot(P11PROV_CTX *ctx, P11PROV_SLOT *slot, P11PROV_URI *uri,
         return CKR_TOKEN_WRITE_PROTECTED;
     }
     if (uri) {
-        /* skip slots that do not match */
-        ret = p11prov_uri_match_token(uri, token);
+        ret = p11prov_uri_match_token(uri, slotid, ck_slot, token);
         if (ret != CKR_OK) {
             return ret;
         }

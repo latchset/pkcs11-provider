@@ -463,9 +463,9 @@ CK_SLOT_ID p11prov_slot_get_slot_id(P11PROV_SLOT *slot)
     return slot->id;
 }
 
-CK_FLAGS p11prov_slot_get_slot_flags(P11PROV_SLOT *slot)
+CK_SLOT_INFO *p11prov_slot_get_slot(P11PROV_SLOT *slot)
 {
-    return slot->slot.flags;
+    return &slot->slot;
 }
 
 CK_TOKEN_INFO *p11prov_slot_get_token(P11PROV_SLOT *slot)
