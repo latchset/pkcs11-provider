@@ -376,6 +376,16 @@ P11PROV_SLOT *p11prov_fetch_slot(P11PROV_SLOTS_CTX *sctx, int *idx)
     return sctx->slots[i];
 }
 
+P11PROV_SLOT *p11prov_get_slot_by_id(P11PROV_SLOTS_CTX *sctx, CK_SLOT_ID id)
+{
+    for (int s = 0; s < sctx->num; s++) {
+        if (sctx->slots[s]->id == id) {
+            return sctx->slots[s];
+        }
+    }
+    return NULL;
+}
+
 int p11prov_slot_get_mechanisms(P11PROV_SLOT *slot, CK_MECHANISM_TYPE **mechs)
 {
     if (!slot) {
