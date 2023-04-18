@@ -4,10 +4,8 @@
 #ifndef _PROVIDER_H
 #define _PROVIDER_H
 
-/* on macOS, snprintf and vsnprintf are in -D_XOPEN_SOURCE=600. This may be
- * a bug in macOS' headers, or a deliberate choice because snprintf changed
- * behavior with X/Open 6. */
-#define _XOPEN_SOURCE 600
+/* We need at least -D_XOPEN_SOURCE=700 for strnlen. */
+#define _XOPEN_SOURCE 700
 #include "config.h"
 
 #include <stdbool.h>

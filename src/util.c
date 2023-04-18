@@ -159,6 +159,12 @@ void p11prov_fetch_attrs_free(struct fetch_attrs *attrs, int num)
 #define ATTR_object "object"
 #define ATTR_type "type"
 
+#define TYPE_data "data"
+#define TYPE_cert "cert"
+#define TYPE_public "public"
+#define TYPE_private "private"
+#define TYPE_secret_key "secret-key"
+
 struct p11prov_uri {
     /* CK_INFO attributes */
     char *library_description;
@@ -402,13 +408,15 @@ static int parse_class(P11PROV_CTX *ctx, const char *str, size_t len,
         return ret;
     }
 
-    if (strcmp(typestr, "cert") == 0) {
+    if (strcmp(typestr, TYPE_data) == 0) {
+        *class = CKO_DATA;
+    } else if (strcmp(typestr, TYPE_cert) == 0) {
         *class = CKO_CERTIFICATE;
-    } else if (strcmp(typestr, "public") == 0) {
+    } else if (strcmp(typestr, TYPE_public) == 0) {
         *class = CKO_PUBLIC_KEY;
-    } else if (strcmp(typestr, "private") == 0) {
+    } else if (strcmp(typestr, TYPE_private) == 0) {
         *class = CKO_PRIVATE_KEY;
-    } else if (strcmp(typestr, "secret") == 0) {
+    } else if (strcmp(typestr, TYPE_secret_key) == 0) {
         *class = CKO_SECRET_KEY;
     } else {
         P11PROV_raise(ctx, CKR_ARGUMENTS_BAD, "Unknown object type [%.*s]",
@@ -607,6 +615,182 @@ done:
         return mu;
     }
     return NULL;
+}
+
+static void byte_to_hex(uint8_t c, char *out, bool bin, int *written)
+{
+    if (bin || c < '\'' || c == '/' || c == ';' || c == '?' || c > '~') {
+        (void)snprintf(out, 4, "%%%02X", (unsigned int)c);
+        *written = 3;
+        return;
+    }
+
+    *out = c;
+    *written = 1;
+}
+
+static char *uri_component(const char *name, const char *val, size_t vlen,
+                           size_t *clen)
+{
+    size_t max_size;
+    size_t name_len;
+    size_t val_len = vlen;
+    size_t ci;
+    bool bin = false;
+    char *c;
+
+    if (!name || !val) {
+        return NULL;
+    }
+
+    name_len = strlen(name);
+    if (name_len == 2) {
+        /* id */
+        bin = true;
+    }
+
+    if (val_len == 0) {
+        val_len = strlen(val);
+    }
+
+    max_size = name_len + 1 + val_len * 3 + 2;
+    c = OPENSSL_malloc(max_size);
+    if (!c) {
+        return NULL;
+    }
+
+    memcpy(c, name, name_len);
+    c[name_len] = '=';
+
+    ci = name_len + 1;
+    for (size_t vi = 0; vi < val_len; vi++) {
+        int inc = 0;
+        byte_to_hex(val[vi], c + ci, bin, &inc);
+        ci += inc;
+    }
+    c[ci] = ';';
+    c[ci + 1] = '\0';
+
+    *clen = ci;
+    return c;
+}
+
+char *p11prov_key_to_uri(P11PROV_CTX *ctx, P11PROV_OBJ *key)
+{
+    P11PROV_SLOTS_CTX *slots;
+    P11PROV_SLOT *slot;
+    CK_TOKEN_INFO *token;
+    CK_ATTRIBUTE *cka_label;
+    CK_ATTRIBUTE *cka_id;
+    CK_OBJECT_CLASS class;
+    CK_SLOT_ID slot_id;
+    const char *type;
+    char *model = NULL;
+    char *manufacturer = NULL;
+    char *serial = NULL;
+    char *token_label = NULL;
+    char *object = NULL;
+    char *id = NULL;
+    char *uri = NULL;
+    size_t clen = 0;
+    size_t size_hint = 0;
+    CK_RV ret;
+
+    class = p11prov_obj_get_class(key);
+    slot_id = p11prov_obj_get_slotid(key);
+    cka_id = p11prov_obj_get_attr(key, CKA_ID);
+    cka_label = p11prov_obj_get_attr(key, CKA_LABEL);
+
+    switch (class) {
+    case CKO_DATA:
+        type = TYPE_data;
+        break;
+    case CKO_CERTIFICATE:
+        type = TYPE_cert;
+        break;
+    case CKO_PUBLIC_KEY:
+        type = TYPE_public;
+        break;
+    case CKO_PRIVATE_KEY:
+        type = TYPE_private;
+        break;
+    case CKO_SECRET_KEY:
+        type = TYPE_secret_key;
+        break;
+    default:
+        return NULL;
+    }
+
+    ret = p11prov_take_slots(ctx, &slots);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
+
+    slot = p11prov_get_slot_by_id(slots, slot_id);
+    if (!slot) {
+        goto done;
+    }
+
+    token = p11prov_slot_get_token(slot);
+
+    if (token->model[0] != 0) {
+        const char *str = (const char *)token->model;
+        int len = strnlen(str, 16);
+        clen = 0;
+        model = uri_component(ATTR_model, str, len, &clen);
+        size_hint += clen;
+    }
+    if (token->manufacturerID[0] != 0) {
+        const char *str = (const char *)token->manufacturerID;
+        int len = strnlen(str, 32);
+        clen = 0;
+        manufacturer = uri_component(ATTR_manufacturer, str, len, &clen);
+        size_hint += clen;
+    }
+    if (token->serialNumber[0] != 0) {
+        const char *str = (const char *)token->serialNumber;
+        int len = strnlen(str, 16);
+        clen = 0;
+        serial = uri_component(ATTR_serial, str, len, &clen);
+        size_hint += clen;
+    }
+    if (token->label[0] != 0) {
+        const char *str = (const char *)token->label;
+        int len = strnlen(str, 32);
+        clen = 0;
+        token_label = uri_component(ATTR_token, str, len, &clen);
+        size_hint += clen;
+    }
+    if (cka_id && cka_id->ulValueLen > 0) {
+        clen = 0;
+        id = uri_component(ATTR_id, (const char *)cka_id->pValue,
+                           cka_id->ulValueLen, &clen);
+        size_hint += clen;
+    }
+    if (cka_label && cka_id->ulValueLen > 0) {
+        clen = 0;
+        object = uri_component(ATTR_object, (const char *)cka_label->pValue,
+                               cka_label->ulValueLen, &clen);
+        size_hint += clen;
+    }
+
+    size_hint += sizeof("pkcs11:") + sizeof("type=") + strlen(type);
+
+    uri = p11prov_alloc_sprintf(
+        size_hint, "pkcs11:%s%s%s%s%s%stype=%s", model ? model : "",
+        manufacturer ? manufacturer : "", serial ? serial : "",
+        token_label ? token_label : "", id ? id : "", object ? object : "",
+        type);
+
+done:
+    OPENSSL_free(model);
+    OPENSSL_free(manufacturer);
+    OPENSSL_free(serial);
+    OPENSSL_free(token_label);
+    OPENSSL_free(id);
+    OPENSSL_free(object);
+    p11prov_return_slots(slots);
+    return uri;
 }
 
 void p11prov_uri_free(P11PROV_URI *uri)

@@ -99,7 +99,7 @@ static int p11prov_rsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
     P11PROV_OBJ *key = (P11PROV_OBJ *)inkey;
     CK_KEY_TYPE type;
     CK_ULONG keysize;
-    CK_ATTRIBUTE *a;
+    char *uri = NULL;
     BIO *out;
     int ret;
 
@@ -137,14 +137,9 @@ static int p11prov_rsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
         }
     }
 
-    a = p11prov_obj_get_attr(key, CKA_ID);
-    if (a) {
-        BIO_printf(out, "Key ID:\n");
-        ASN1_buf_print(out, a->pValue, a->ulValueLen, 4);
-    }
-    a = p11prov_obj_get_attr(key, CKA_LABEL);
-    if (a) {
-        BIO_printf(out, "Label: %*s\n", (int)a->ulValueLen, (char *)a->pValue);
+    uri = p11prov_key_to_uri(ctx->provctx, key);
+    if (uri) {
+        BIO_printf(out, "URI %s\n", uri);
     }
 
     BIO_free(out);
@@ -727,7 +722,7 @@ static int p11prov_ec_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
     P11PROV_OBJ *key = (P11PROV_OBJ *)inkey;
     CK_KEY_TYPE type;
     CK_ULONG keysize;
-    CK_ATTRIBUTE *a;
+    char *uri = NULL;
     BIO *out;
     int ret;
 
@@ -764,16 +759,12 @@ static int p11prov_ec_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
         }
     }
 
-    a = p11prov_obj_get_attr(key, CKA_ID);
-    if (a) {
-        BIO_printf(out, "Key ID:\n");
-        ASN1_buf_print(out, a->pValue, a->ulValueLen, 4);
-    }
-    a = p11prov_obj_get_attr(key, CKA_LABEL);
-    if (a) {
-        BIO_printf(out, "Label: %*s\n", (int)a->ulValueLen, (char *)a->pValue);
+    uri = p11prov_key_to_uri(ctx->provctx, key);
+    if (uri) {
+        BIO_printf(out, "URI %s\n", uri);
     }
 
+    OPENSSL_free(uri);
     BIO_free(out);
     return RET_OSSL_OK;
 }
