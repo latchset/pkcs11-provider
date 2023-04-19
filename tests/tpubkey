@@ -9,7 +9,8 @@ ossl 'pkey -in $BASEURI -pubin -pubout -out ${TMPPDIR}/baseout.pub'
 title LINE "Export Public key to a file (pub-uri)"
 ossl 'pkey -in $PUBURI -pubin -pubout -out ${TMPPDIR}/pubout.pub'
 title LINE "Print Public key from private"
-ossl 'pkey -in $PRIURI -pubout -text' output
+ossl 'pkey -in $PRIURI -pubout -text' $helper_emit
+output="$helper_output"
 FAIL=0
 echo $output | grep "PKCS11 RSA Public Key (2048 bits)" > /dev/null 2>&1 || FAIL=1
 if [ $FAIL -eq 1 ]; then
@@ -35,7 +36,8 @@ ossl 'pkey -in $ECBASEURI -pubin -pubout -out ${TMPPDIR}/baseecout.pub'
 title LINE "Export EC Public key to a file (pub-uri)"
 ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${TMPPDIR}/pubecout.pub'
 title LINE "Print EC Public key from private"
-ossl 'pkey -in $ECPRIURI -pubout -text' output
+ossl 'pkey -in $ECPRIURI -pubout -text' $helper_emit
+output="$helper_output"
 FAIL=0
 echo $output | grep "PKCS11 EC Public Key (256 bits)" > /dev/null 2>&1 || FAIL=1
 if [ $FAIL -eq 1 ]; then

@@ -38,17 +38,19 @@ cleanup_server()
     kill -9 -- $2
 }
 
+helper_emit=1
+
 ossl()
 {
-    local __output=$2
+    helper_output=""
     echo "# r "$1 >> ${TMPPDIR}/gdb-commands.txt
     echo openssl $1
     __out=$(eval openssl $1)
     __res=$?
-    if [[ "$__output" ]]; then
-        eval $__output="'$__out'"
+    if [ $2 -eq $helper_emit ]; then
+        helper_output="$__out"
     else
-        echo $__out
+        echo "$__out"
     fi
     return $__res
 }

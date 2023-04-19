@@ -86,7 +86,8 @@ title PARA "Test Disallow Public Export"
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
 sed "s/#pkcs11-module-allow-export/pkcs11-module-allow-export = 1/" ${OPENSSL_CONF} > ${OPENSSL_CONF}.noexport
 OPENSSL_CONF=${OPENSSL_CONF}.noexport
-ossl 'pkey -in $PUBURI -pubin -pubout -text' output
+ossl 'pkey -in $PUBURI -pubin -pubout -text' $helper_emit
+output="$helper_output"
 FAIL=0
 echo "$output" | grep "^PKCS11 RSA Public Key (2048 bits)" > /dev/null 2>&1 || FAIL=1
 if [ $FAIL -ne 0 ]; then

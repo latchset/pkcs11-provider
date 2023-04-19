@@ -7,7 +7,8 @@ source ${TESTSSRCDIR}/helpers.sh
 title PARA "Export EC Public key to a file"
 ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${TMPPDIR}/ecout.pub'
 title LINE "Print EC Public key from private"
-ossl 'pkey -in $ECPRIURI -pubout -text' output
+ossl 'pkey -in $ECPRIURI -pubout -text' $helper_emit
+output="$helper_output"
 FAIL=0
 echo $output | grep "PKCS11 EC Public Key (256 bits)" > /dev/null 2>&1 || FAIL=1
 if [ $FAIL -eq 1 ]; then
