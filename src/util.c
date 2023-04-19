@@ -768,7 +768,7 @@ char *p11prov_key_to_uri(P11PROV_CTX *ctx, P11PROV_OBJ *key)
                            cka_id->ulValueLen, &clen);
         size_hint += clen;
     }
-    if (cka_label && cka_id->ulValueLen > 0) {
+    if (cka_label && cka_label->ulValueLen > 0) {
         clen = 0;
         object = uri_component(ATTR_object, (const char *)cka_label->pValue,
                                cka_label->ulValueLen, &clen);
