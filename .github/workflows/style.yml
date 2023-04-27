@@ -39,4 +39,4 @@ jobs:
     - name: Check the Style
       run: make check-style || (make check-style-show; exit -1)
     - name: Check spelling
-      run: codespell --ignore-words-list="sorce" *.md Makefile.am configure.ac src tests -S src/oasis
+      run: codespell --ignore-words-list="sorce,clen,adin" *.md Makefile.am configure.ac src tests -S src/oasis
