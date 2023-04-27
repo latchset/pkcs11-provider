@@ -114,6 +114,8 @@ CK_RV p11prov_DeriveKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                         CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hBaseKey,
                         CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulAttributeCount,
                         CK_OBJECT_HANDLE_PTR phKey);
+CK_RV p11prov_SeedRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                         CK_BYTE_PTR SeedData, CK_ULONG ulSeedLen);
 CK_RV p11prov_GenerateRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                              CK_BYTE_PTR RandomData, CK_ULONG ulRandomLen);
 

@@ -851,6 +851,26 @@ CK_RV p11prov_DeriveKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     return ret;
 }
 
+CK_RV p11prov_SeedRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                         CK_BYTE_PTR pSeed, CK_ULONG ulSeedLen)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    P11PROV_debug("Calling C_"
+                  "SeedRandom");
+    ret = intf->SeedRandom(hSession, pSeed, ulSeedLen);
+    if (ret != CKR_OK) {
+        P11PROV_raise(ctx, ret,
+                      "Error returned by C_"
+                      "SeedRandom");
+    }
+    return ret;
+}
+
 CK_RV p11prov_GenerateRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                              CK_BYTE_PTR RandomData, CK_ULONG ulRandomLen)
 {
