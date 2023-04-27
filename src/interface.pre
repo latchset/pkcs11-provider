@@ -209,5 +209,8 @@ IMPL_INTERFACE_FN_6_ARG(DeriveKey, CK_SESSION_HANDLE, hSession,
                         hBaseKey, CK_ATTRIBUTE_PTR, pTemplate, CK_ULONG,
                         ulAttributeCount, CK_OBJECT_HANDLE_PTR, phKey)
 
+IMPL_INTERFACE_FN_3_ARG(SeedRandom, CK_SESSION_HANDLE, hSession,
+                        CK_BYTE_PTR, pSeed, CK_ULONG, ulSeedLen)
+
 IMPL_INTERFACE_FN_3_ARG(GenerateRandom, CK_SESSION_HANDLE, hSession,
                         CK_BYTE_PTR, RandomData, CK_ULONG, ulRandomLen)

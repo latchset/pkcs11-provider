@@ -43,6 +43,7 @@ struct p11prov_ctx {
 
     OSSL_ALGORITHM *op_digest;
     OSSL_ALGORITHM *op_kdf;
+    OSSL_ALGORITHM *op_random;
     OSSL_ALGORITHM *op_exchange;
     OSSL_ALGORITHM *op_signature;
     OSSL_ALGORITHM *op_asym_cipher;
@@ -487,6 +488,7 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
 
     OPENSSL_free(ctx->op_digest);
     OPENSSL_free(ctx->op_kdf);
+    OPENSSL_free(ctx->op_random);
     /* keymgmt is static */
     OPENSSL_free(ctx->op_exchange);
     OPENSSL_free(ctx->op_signature);
@@ -814,6 +816,7 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
     int cl_size = sizeof(checklist) / sizeof(CK_ULONG);
     int digest_idx = 0;
     int kdf_idx = 0;
+    int random_idx = 0;
     int exchange_idx = 0;
     int signature_idx = 0;
     int asym_cipher_idx = 0;
@@ -1013,6 +1016,13 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                  p11prov_ec_encoder_spki_der_functions);
     TERM_ALGO(encoder);
 
+    /* handle random */
+    ret = p11prov_check_random(ctx);
+    if (ret == CKR_OK) {
+        ADD_ALGO_EXT(RAND, random, "provider=pkcs11", p11prov_rand_functions);
+        TERM_ALGO(random);
+    }
+
     return CKR_OK;
 }
 
@@ -1052,6 +1062,8 @@ p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
         return ctx->op_digest;
     case OSSL_OP_KDF:
         return ctx->op_kdf;
+    case OSSL_OP_RAND:
+        return ctx->op_random;
     case OSSL_OP_KEYMGMT:
         return p11prov_keymgmt;
     case OSSL_OP_KEYEXCH:

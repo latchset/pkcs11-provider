@@ -17,6 +17,7 @@ noinst_HEADERS = \
 	pkcs11.h \
 	platform/endian.h \
 	provider.h \
+	random.h \
 	session.h \
 	signature.h \
 	slot.h \
@@ -40,6 +41,7 @@ pkcs11_la_SOURCES = \
 	objects.c \
 	provider.h \
 	provider.c \
+	random.c \
 	session.c \
 	signature.c \
 	slot.c \
