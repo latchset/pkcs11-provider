@@ -52,7 +52,7 @@ tmp.softhsm:
 dist_check_SCRIPTS = \
 	helpers.sh setup-softhsm.sh setup-softokn.sh softhsm-proxy.sh \
 	test-wrapper tbasic tcerts tecc tecdh tedwards tdemoca thkdf \
-	toaepsha2 trsapss tdigest ttls tpubkey tfork turi
+	toaepsha2 trsapss tdigest ttls tpubkey tfork turi trand
 
 test_LIST = \
 	basic-softokn basic-softhsm \
@@ -69,6 +69,7 @@ test_LIST = \
 	rsapss-softokn \
 	genkey-softokn genkey-softhsm \
 	session-softokn session-softhsm \
+	rand-softokn rand-softhsm \
 	readkeys-softokn readkeys-softhsm \
 	tls-softokn tls-softhsm \
 	uri-softokn uri-softhsm
