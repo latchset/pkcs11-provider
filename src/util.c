@@ -433,8 +433,7 @@ static int parse_version(P11PROV_CTX *ctx, const char *str, size_t len,
 {
     CK_VERSION *ver = (CK_VERSION *)output;
     const char *sep;
-    char *endptr;
-    long val;
+    CK_ULONG val;
     int ret;
 
     if (len < 3 || len > 7) {
@@ -448,36 +447,23 @@ static int parse_version(P11PROV_CTX *ctx, const char *str, size_t len,
     }
 
     /* major */
-    errno = 0;
-    endptr = NULL;
-    val = strtol(str, &endptr, 10);
-    if (errno != 0) {
-        ret = errno;
+    ret = parse_ulong(ctx, str, (sep - str), (void **)&val);
+    if (ret != 0) {
         goto done;
     }
-    if (endptr != sep) {
-        ret = EINVAL;
-        goto done;
-    }
-    if (val < 0 || val > 255) {
+    if (val > 255) {
         ret = EINVAL;
         goto done;
     }
     ver->major = val;
 
     /* minor */
-    errno = 0;
-    endptr = NULL;
-    val = strtol(sep + 1, &endptr, 10);
-    if (errno != 0) {
-        ret = errno;
+    sep++;
+    ret = parse_ulong(ctx, sep, len - (sep - str), (void **)&val);
+    if (ret != 0) {
         goto done;
     }
-    if (endptr != str + len) {
-        ret = EINVAL;
-        goto done;
-    }
-    if (val < 0 || val > 255) {
+    if (val > 255) {
         ret = EINVAL;
         goto done;
     }
@@ -493,8 +479,7 @@ done:
     return ret;
 }
 
-static int parse_ulong(P11PROV_CTX *ctx, const char *str, size_t len,
-                       void **output)
+int parse_ulong(P11PROV_CTX *ctx, const char *str, size_t len, void **output)
 {
     CK_ULONG *val = (CK_ULONG *)output;
     char *endptr;

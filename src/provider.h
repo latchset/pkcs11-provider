@@ -99,6 +99,7 @@ enum p11prov_cache_keys {
     P11PROV_CACHE_KEYS_IN_SESSION,
 };
 int p11prov_ctx_cache_keys(P11PROV_CTX *ctx);
+int p11prov_ctx_cache_sessions(P11PROV_CTX *ctx);
 
 #include "debug.h"
 

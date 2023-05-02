@@ -120,18 +120,13 @@ CK_RV p11prov_session_pool_init(P11PROV_CTX *ctx, CK_TOKEN_INFO *token,
     if (token->ulMaxSessionCount != CK_EFFECTIVELY_INFINITE
         && token->ulMaxSessionCount != CK_UNAVAILABLE_INFORMATION) {
         pool->max_sessions = token->ulMaxSessionCount;
-        /* keep a max of 10% of the sessions */
-        pool->max_cached_sessions = pool->max_sessions / 10;
-        if (pool->max_cached_sessions == 0) {
-            pool->max_cached_sessions = 3;
-        }
     } else {
-        /* arbitrary max concurrent open sessions */
-        pool->max_sessions = 1024;
-        pool->max_cached_sessions = 8;
+        pool->max_sessions = MAX_CONCURRENT_SESSIONS;
     }
-    if (pool->max_cached_sessions > pool->max_sessions) {
-        pool->max_cached_sessions = pool->max_sessions;
+
+    pool->max_cached_sessions = p11prov_ctx_cache_sessions(ctx);
+    if (pool->max_sessions < pool->max_cached_sessions) {
+        pool->max_cached_sessions = pool->max_sessions - 1;
     }
 
     P11PROV_debug("New session pool %p created", pool);

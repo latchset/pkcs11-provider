@@ -30,6 +30,7 @@ struct p11prov_ctx {
     int login_behavior;
     bool cache_pins;
     int cache_keys;
+    int cache_sessions;
     /* TODO: ui_method */
     /* TODO: fork id */
 
@@ -561,6 +562,12 @@ int p11prov_ctx_cache_keys(P11PROV_CTX *ctx)
 {
     P11PROV_debug("cache_keys = %d", ctx->cache_keys);
     return ctx->cache_keys;
+}
+
+int p11prov_ctx_cache_sessions(P11PROV_CTX *ctx)
+{
+    P11PROV_debug("cache_sessions = %d", ctx->cache_sessions);
+    return ctx->cache_sessions;
 }
 
 static void p11prov_teardown(void *ctx)
@@ -1233,6 +1240,7 @@ enum p11prov_cfg_enum {
     P11PROV_CFG_CACHE_PINS,
     P11PROV_CFG_CACHE_KEYS,
     P11PROV_CFG_QUIRKS,
+    P11PROV_CFG_CACHE_SESSIONS,
     P11PROV_CFG_SIZE,
 };
 
@@ -1243,7 +1251,7 @@ static struct p11prov_cfg_names {
     { "pkcs11-module-token-pin" },      { "pkcs11-module-allow-export" },
     { "pkcs11-module-login-behavior" }, { "pkcs11-module-load-behavior" },
     { "pkcs11-module-cache-pins" },     { "pkcs11-module-cache-keys" },
-    { "pkcs11-module-quirks" },
+    { "pkcs11-module-quirks" },         { "pkcs11-module-cache-sessions" },
 };
 
 int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
@@ -1357,6 +1365,23 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         if (strcmp(cfg[P11PROV_CFG_QUIRKS], "no-deinit") == 0) {
             ctx->no_deinit = true;
         }
+    }
+
+    if (cfg[P11PROV_CFG_CACHE_SESSIONS] != NULL) {
+        CK_ULONG val;
+        ret =
+            parse_ulong(ctx, cfg[P11PROV_CFG_CACHE_SESSIONS],
+                        strlen(cfg[P11PROV_CFG_CACHE_SESSIONS]), (void **)&val);
+        if (ret != 0 || val > MAX_CONCURRENT_SESSIONS) {
+            P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Invalid value for %s: (%s)",
+                          p11prov_cfg_names[P11PROV_CFG_CACHE_SESSIONS].name,
+                          cfg[P11PROV_CFG_CACHE_SESSIONS]);
+            p11prov_ctx_free(ctx);
+            return RET_OSSL_ERR;
+        }
+        ctx->cache_sessions = val;
+    } else {
+        ctx->cache_sessions = MAX_CACHE_SESSIONS;
     }
 
     /* PAY ATTENTION: do this as the last thing */
