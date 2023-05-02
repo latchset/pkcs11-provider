@@ -25,4 +25,8 @@ typedef CK_RV (*p11prov_session_callback_t)(void *cbarg);
 void p11prov_session_set_callback(P11PROV_SESSION *session,
                                   p11prov_session_callback_t cb, void *cbarg);
 
+/* Some reasonable limit */
+#define MAX_CONCURRENT_SESSIONS 1024
+#define MAX_CACHE_SESSIONS 5
+
 #endif /* _SESSION_H */
