@@ -83,6 +83,10 @@ CK_RV p11prov_ctx_get_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
                             void **data, CK_ULONG *size);
 CK_RV p11prov_ctx_set_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
                             void *data, CK_ULONG size);
+#define GET_ATTR 0
+#define SET_ATTR 1
+CK_RV p11prov_token_sup_attr(P11PROV_CTX *ctx, CK_SLOT_ID id, int action,
+                             CK_ATTRIBUTE_TYPE attr, CK_BBOOL *data);
 
 #define ALLOW_EXPORT_PUBLIC 0
 #define DISALLOW_EXPORT_PUBLIC 1

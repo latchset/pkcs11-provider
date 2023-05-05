@@ -36,6 +36,7 @@ struct p11prov_ctx {
 
     /* cfg quirks */
     bool no_deinit;
+    bool no_allowed_mechanisms;
 
     /* module handles and data */
     P11PROV_MODULE *module;
@@ -389,6 +390,43 @@ failed:
         OPENSSL_clear_free(_data, _size);
     }
     return ret;
+}
+
+CK_RV p11prov_token_sup_attr(P11PROV_CTX *ctx, CK_SLOT_ID id, int action,
+                             CK_ATTRIBUTE_TYPE attr, CK_BBOOL *data)
+{
+    CK_ULONG data_size = sizeof(CK_BBOOL);
+    void *data_ptr = &data;
+    char alloc_name[32];
+    const char *name;
+    int err;
+
+    switch (attr) {
+    case CKA_ALLOWED_MECHANISMS:
+        if (ctx->no_allowed_mechanisms) {
+            if (action == GET_ATTR) {
+                *data = false;
+            }
+            return CKR_OK;
+        }
+        name = "sup_attr_CKA_ALLOWED_MECHANISMS";
+        break;
+    default:
+        err = snprintf(alloc_name, 32, "sup_attr_%016lx", attr);
+        if (err < 0 || err >= 32) {
+            return CKR_HOST_MEMORY;
+        }
+        name = alloc_name;
+    }
+
+    switch (action) {
+    case GET_ATTR:
+        return p11prov_ctx_get_quirk(ctx, id, name, data_ptr, &data_size);
+    case SET_ATTR:
+        return p11prov_ctx_set_quirk(ctx, id, name, data, data_size);
+    default:
+        return CKR_ARGUMENTS_BAD;
+    }
 }
 
 P11PROV_INTERFACE *p11prov_ctx_get_interface(P11PROV_CTX *ctx)
@@ -1362,8 +1400,31 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
     }
 
     if (cfg[P11PROV_CFG_QUIRKS] != NULL) {
-        if (strcmp(cfg[P11PROV_CFG_QUIRKS], "no-deinit") == 0) {
-            ctx->no_deinit = true;
+        const char *str;
+        const char *sep;
+        size_t len = strlen(cfg[P11PROV_CFG_QUIRKS]);
+        size_t toklen;
+
+        str = cfg[P11PROV_CFG_QUIRKS];
+        while (str) {
+            sep = strchr(str, ' ');
+            if (sep) {
+                toklen = sep - str;
+            } else {
+                toklen = len;
+            }
+            if (strncmp(str, "no-deinit", toklen) == 0) {
+                ctx->no_deinit = true;
+            } else if (strncmp(str, "no-allowed-mechanisms", toklen) == 0) {
+                ctx->no_allowed_mechanisms = true;
+            }
+            len -= toklen;
+            if (sep) {
+                str = sep + 1;
+                len--;
+            } else {
+                str = NULL;
+            }
         }
     }
 
