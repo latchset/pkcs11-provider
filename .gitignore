@@ -10,6 +10,10 @@ tests/treadkeys
 tests/pinfile.txt
 tests/*.log
 tests/*.trs
+tests/pincache
+tests/tfork
+tests/tlsctx
+
 /pkcs11-provider-?.?/
 /pkcs11-provider-?.?.tar.?z
 
