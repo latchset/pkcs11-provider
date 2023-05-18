@@ -1,7 +1,7 @@
 ## Build Prerequisites
 
 This package requires the following:
-- OpenSSL 3.0+ libraries and development headers
+- OpenSSL 3.0.7+ libraries and development headers
 - OpenSSL tools (for testing)
 - autoconf-archive packages for some m4 macros
 - NSS softoken, tools and development headers (for testing)
@@ -13,6 +13,7 @@ This package requires the following:
 
 The usual command to build are:
 - autoreconf -fi (if needed)
-- ./configure
+- ./configure (--with-openssl if needed)
 - make
 - make check
+

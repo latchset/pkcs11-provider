@@ -47,10 +47,10 @@ AC_ARG_WITH([openssl],
         # Relative paths
         ./*|../*)  OPENSSL_DIR="`pwd`/$OPENSSL_DIR"
       esac
-      if test -d "$OPENSSL_DIR/lib"; then
-        libcrypto_path="$OPENSSL_DIR/lib"
-      elif test -d "$OPENSSL_DIR/lib64"; then
+      if test -d "$OPENSSL_DIR/lib64"; then
         libcrypto_path="$OPENSSL_DIR/lib64"
+      elif test -d "$OPENSSL_DIR/lib"; then
+        libcrypto_path="$OPENSSL_DIR/lib"
       else
         # Built but not installed
         libcrypto_path="$OPENSSL_DIR"
@@ -58,6 +58,7 @@ AC_ARG_WITH([openssl],
       CFLAGS="-I$OPENSSL_DIR/include $CFLAGS"
       LDFLAGS="-L${libcrypto_path} ${LDFLAGS}"
       LIBS="$LIBS -L${libcrypto_path}"
+      OPENSSL_LIBS="-lcrypto -lssl"
       AC_MSG_WARN([Custom openssl located in $OPENSSL_DIR is used, lib version check is skipped])
   ],
   [
