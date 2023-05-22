@@ -4,6 +4,12 @@
 
 source ${TESTSSRCDIR}/helpers.sh
 
+SLEEP=0.5
+# with valgrind, it might take a bit longer
+if [ -n "$VALGRIND" ]; then
+    SLEEP=10
+fi
+
 title PARA "Test SSL_CTX creation"
 $CHECKER ./tlsctx
 
@@ -16,26 +22,25 @@ mkfifo ${TMPPDIR}/s_server_input
 exec 3<>${TMPPDIR}/s_server_input
 
 #Make sure we terminate programs if test fails in the middle
-trap 'jobs -p | xargs -r kill >/dev/null 2>&1 || true' EXIT
-
+trap kill_children EXIT
+PORT=23456
 $CHECKER openssl s_server -accept ${PORT} -key ${PRIURI} -cert ${CRTURI} <&3 &
 
-# Wait a sec to make sure server is up before client tries to connect
-sleep 0.5
+sleep $SLEEP
 
 # The client will error when the server drops the connection
 set +e
-$CHECKER openssl s_client -connect localhost:12345 -quiet > ${TMPPDIR}/s_server_output &
+$CHECKER openssl s_client -connect localhost:${PORT} -quiet > ${TMPPDIR}/s_server_output &
 set -e
 
 # Wait to make sure client is connected
-sleep 0.5
+sleep $SLEEP
 
 # Send command to the client
 echo " TLS SUCCESSFUL " >&3
 
 # s_server seem to be confused if Q comes in too early
-sleep 0.5
+sleep $SLEEP
 
 echo "Q" >&3
 
@@ -46,8 +51,7 @@ rm -f ${TMPPDIR}/s_server_input
 echo "Check message was successfully delivered over TLS"
 grep " TLS SUCCESSFUL " ${TMPPDIR}/s_server_output
 
-#Make sure there is enough time for the server to tear down the port
-#To avoid interference with other tests
-sleep 0.5
+title PARA "Kill any remaining children and wait for them"
+kill_children
 
 exit 0

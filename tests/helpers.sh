@@ -60,3 +60,8 @@ gen_unsetvars() {
     | sed -e 's/export/unset/' -e 's/=.*$//' \
     >> ${TMPPDIR}/unsetvars
 }
+
+kill_children() {
+    # make sure it is killed before we continue
+    jobs -p | xargs -r kill -9 || true
+}
