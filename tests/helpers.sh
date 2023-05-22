@@ -44,8 +44,8 @@ ossl()
 {
     helper_output=""
     echo "# r "$1 >> ${TMPPDIR}/gdb-commands.txt
-    echo openssl $1
-    __out=$(eval openssl $1)
+    echo $CHECKER openssl $1
+    __out=$(eval $CHECKER openssl $1)
     __res=$?
     if [ $2 -eq $helper_emit ]; then
         helper_output="$__out"

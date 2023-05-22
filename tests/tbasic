@@ -127,7 +127,7 @@ ossl 'pkey -in $BASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/rsa.pub.uripin.pem
 ossl 'pkey -in $ECBASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/ec.pub.uripin.pem'
 
 title PARA "Test prompting without PIN in config files"
-output=`expect -c "spawn -noecho openssl pkey -in \"${PRIURI}\" -text -noout;
+output=`expect -c "spawn -noecho $CHECKER openssl pkey -in \"${PRIURI}\" -text -noout;
                    expect \"Enter pass phrase for PKCS#11 Token (Slot *:\";
                    send \"${PINVALUE}\r\";
                    expect \"Key ID:\";"`
@@ -156,7 +156,7 @@ title PARA "Test PIN caching"
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
 sed "s/^pkcs11-module-token-pin.*$/pkcs11-module-cache-pins = cache/" ${OPENSSL_CONF} > ${OPENSSL_CONF}.pincaching
 OPENSSL_CONF=${OPENSSL_CONF}.pincaching
-${TESTBLDDIR}/pincache
+$CHECKER ${TESTBLDDIR}/pincache
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
 

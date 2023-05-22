@@ -19,6 +19,8 @@ AX_CHECK_COMPILE_FLAG([-std=c11],
                       AC_MSG_ERROR([C compiler must support at least C11 standard])
 )
 
+AX_VALGRIND_CHECK()
+
 STD_CFLAGS="-Wall -Wextra -Wwrite-strings -Wpointer-arith -Wno-missing-field-initializers -Wformat -Wshadow"
 
 # Temporarily disable unused parameter until the implementation is complete

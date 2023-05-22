@@ -4,6 +4,10 @@ libspath=@abs_top_builddir@/src/.libs
 testsblddir=@abs_top_builddir@/tests
 testssrcdir=@abs_srcdir@
 
+@VALGRIND_CHECK_RULES@
+#VALGRIND_SUPPRESSIONS_FILES = $(top_srcdir)/tests/pkcs11-provider.supp
+VALGRIND_FLAGS = --num-callers=30 -q --keep-debuginfo=yes
+
 check_PROGRAMS = tsession tgenkey tlsctx tdigests treadkeys tfork pincache
 
 tsession_SOURCES = tsession.c
@@ -55,24 +59,24 @@ dist_check_SCRIPTS = \
 	toaepsha2 trsapss tdigest ttls tpubkey tfork turi trand
 
 test_LIST = \
-	basic-softokn basic-softhsm \
-	pubkey-softokn pubkey-softhsm \
-	certs-softokn certs-softhsm \
-	ecc-softokn ecc-softhsm \
-	edwards-softhsm \
-	ecdh-softokn \
-	democa-softokn democa-softhsm \
-	digest-softokn digest-softhsm \
-	fork-softokn fork-softhsm \
-	oaepsha2-softokn \
-	hkdf-softokn \
-	rsapss-softokn \
-	genkey-softokn genkey-softhsm \
-	session-softokn session-softhsm \
-	rand-softokn rand-softhsm \
-	readkeys-softokn readkeys-softhsm \
-	tls-softokn tls-softhsm \
-	uri-softokn uri-softhsm
+	basic-softokn.t basic-softhsm.t \
+	pubkey-softokn.t pubkey-softhsm.t \
+	certs-softokn.t certs-softhsm.t \
+	ecc-softokn.t ecc-softhsm.t \
+	edwards-softhsm.t \
+	ecdh-softokn.t \
+	democa-softokn.t democa-softhsm.t \
+	digest-softokn.t digest-softhsm.t \
+	fork-softokn.t fork-softhsm.t \
+	oaepsha2-softokn.t \
+	hkdf-softokn.t \
+	rsapss-softokn.t \
+	genkey-softokn.t genkey-softhsm.t \
+	session-softokn.t session-softhsm.t \
+	rand-softokn.t rand-softhsm.t \
+	readkeys-softokn.t readkeys-softhsm.t \
+	tls-softokn.t tls-softhsm.t \
+	uri-softokn.t uri-softhsm.t
 
 .PHONY: $(test_LIST)
 
@@ -82,7 +86,9 @@ $(TESTS): tmp.softokn tmp.softhsm
 
 TESTS_ENVIRONMENT =     \
 	LC_ALL="C"
-LOG_COMPILER = $(testssrcdir)/test-wrapper
+
+TEST_EXTENSIONS = .t
+T_LOG_COMPILER = $(testssrcdir)/test-wrapper
 
 CLEANFILES = \
 	setup-*.log \

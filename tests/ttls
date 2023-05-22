@@ -5,7 +5,7 @@
 source ${TESTSSRCDIR}/helpers.sh
 
 title PARA "Test SSL_CTX creation"
-./tlsctx
+$CHECKER ./tlsctx
 
 title PARA "Test an actual TLS connection"
 rm -f ${TMPPDIR}/s_server_input
@@ -18,14 +18,14 @@ exec 3<>${TMPPDIR}/s_server_input
 #Make sure we terminate programs if test fails in the middle
 trap 'jobs -p | xargs -r kill >/dev/null 2>&1 || true' EXIT
 
-openssl s_server -accept 12345 -key ${PRIURI} -cert ${CRTURI} <&3 &
+$CHECKER openssl s_server -accept ${PORT} -key ${PRIURI} -cert ${CRTURI} <&3 &
 
 # Wait a sec to make sure server is up before client tries to connect
 sleep 0.5
 
 # The client will error when the server drops the connection
 set +e
-openssl s_client -connect localhost:12345 -quiet > ${TMPPDIR}/s_server_output &
+$CHECKER openssl s_client -connect localhost:12345 -quiet > ${TMPPDIR}/s_server_output &
 set -e
 
 # Wait to make sure client is connected
@@ -51,4 +51,3 @@ grep " TLS SUCCESSFUL " ${TMPPDIR}/s_server_output
 sleep 0.5
 
 exit 0
-
