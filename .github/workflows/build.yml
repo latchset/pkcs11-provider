@@ -28,7 +28,7 @@ jobs:
           if [ -f /etc/fedora-release ]; then
             dnf -y install git ${{ matrix.compiler }} automake libtool \
               pkgconf-pkg-config autoconf-archive openssl-devel openssl \
-              diffutils expect
+              diffutils expect valgrind
             if [ "${{ matrix.token }}" = "softokn" ]; then
               dnf -y install nss-softokn nss-tools nss-softokn-devel
             elif [ "${{ matrix.token }}" = "softhsm" ]; then
@@ -38,7 +38,8 @@ jobs:
           elif [ -f /etc/debian_version ]; then
             apt-get -q update
             apt-get -yq install git ${{ matrix.compiler }} make automake \
-              libtool pkg-config autoconf-archive libssl-dev openssl expect
+              libtool pkg-config autoconf-archive libssl-dev openssl expect \
+              valgrind procps
             if [ "${{ matrix.token }}" = "softokn" ]; then
               apt-get -yq install libnss3 libnss3-tools libnss3-dev
             elif [ "${{ matrix.token }}" = "softhsm" ]; then
@@ -58,6 +59,21 @@ jobs:
       if: failure()
       with:
         name: Test logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
+        path: |
+          tests/*.log
+          tests/openssl.cnf
+          tests/tmp.${{ matrix.token }}/p11prov-debug.log
+          tests/tmp.${{ matrix.token }}/testvars
+          config.log
+    - name: Run tests with valgrind
+      run: |
+          if [ "${{ matrix.compiler }}" = "gcc" ]; then
+            make check-valgrind-memcheck
+          fi
+    - uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: Test valgrind logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
         path: |
           tests/*.log
           tests/openssl.cnf
