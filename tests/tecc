@@ -21,6 +21,7 @@ if [ $FAIL -eq 1 ]; then
 fi
 
 title PARA "Sign and Verify with provided Hash and EC"
+ossl 'dgst -sha256 -binary -out ${TMPPDIR}/sha256.bin ${SEEDFILE}'
 ossl '
 pkeyutl -sign -inkey "${ECBASEURI}"
               -in ${TMPPDIR}/sha256.bin
