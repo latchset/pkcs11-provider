@@ -5,8 +5,8 @@
 source ${TESTSSRCDIR}/helpers.sh
 
 SLEEP=0.5
-# with valgrind, it might take a bit longer
-if [ -n "$VALGRIND" ]; then
+# with valgrind/asan, it might take a bit longer
+if [ -n "$CHECKER" ]; then
     SLEEP=10
 fi
 
@@ -22,7 +22,12 @@ mkfifo ${TMPPDIR}/s_server_input
 exec 3<>${TMPPDIR}/s_server_input
 
 #Make sure we terminate programs if test fails in the middle
-trap kill_children EXIT
+kill_children_print() {
+    kill_children
+    echo "Server output:"
+    cat ${TMPPDIR}/s_server_output
+}
+trap kill_children_print EXIT
 PORT=23456
 $CHECKER openssl s_server -accept ${PORT} -key ${PRIURI} -cert ${CRTURI} <&3 &
 
