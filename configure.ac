@@ -127,6 +127,7 @@ AC_CHECK_FUNCS([strpbrk])
 
 AC_CONFIG_FILES([
 	Makefile
+	docs/Makefile
 	src/Makefile
 	tests/Makefile
 ])

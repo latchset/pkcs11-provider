@@ -1,6 +1,6 @@
 ACLOCAL_AMFLAGS = -Im4
 
-SUBDIRS = src tests
+SUBDIRS = src tests docs
 dist_doc_DATA = README
 
 check-style:
@@ -29,6 +29,13 @@ generate-code:
 		cat "$${gfile}.tmp" >> $${gfile}; \
 		clang-format -i --verbose "$${gfile}"; \
 		rm "$${gfile}.tmp"; \
+	done
+
+generate-docs:
+	for mdfile in docs/*.md; do \
+		echo "Processing $${mdfile}"; \
+		manfile=`echo $${mdfile} | sed s/\.md//`; \
+		pandoc --standalone --to man $${mdfile} -o $${manfile}; \
 	done
 
 DISTCLEANFILES = \

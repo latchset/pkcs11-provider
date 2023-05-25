@@ -54,6 +54,7 @@ make check || if [ $? -ne 0 ]; then cat tests/*.log; exit 1; fi;
 
 %files
 %license COPYING
+%{_mandir}/man7/*
 %doc README
 %{_libdir}/ossl-modules/pkcs11.so
 
