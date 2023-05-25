@@ -140,6 +140,7 @@ static int p11prov_rsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
     uri = p11prov_key_to_uri(ctx->provctx, key);
     if (uri) {
         BIO_printf(out, "URI %s\n", uri);
+        free(uri);
     }
 
     BIO_free(out);
