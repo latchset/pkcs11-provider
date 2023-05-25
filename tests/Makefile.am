@@ -1,4 +1,5 @@
-EXTRA_DIST = openssl.cnf.in
+EXTRA_DIST = openssl.cnf.in \
+	lsan.supp
 
 libspath=@abs_top_builddir@/src/.libs
 testsblddir=@abs_top_builddir@/tests
@@ -82,13 +83,30 @@ test_LIST = \
 
 TESTS = $(test_LIST)
 
-$(TESTS): tmp.softokn tmp.softhsm
-
-TESTS_ENVIRONMENT =     \
-	LC_ALL="C"
+AM_TESTS_ENVIRONMENT =     \
+	export LC_ALL='C';
 
 TEST_EXTENSIONS = .t
 T_LOG_COMPILER = $(testssrcdir)/test-wrapper
+
+if ADDRESS_SANITIZER
+# Avoids closing dlopened libraries for ASan to be able to print usable traces
+FAKE_DLCLOSE=.libs/fake_dlclose.so
+lib_LTLIBRARIES = fake_dlclose.la
+fake_dlclose_la_SOURCES = fake_dlclose.c
+fake_dlclose_la_CFLAGS = $(AM_CFLAGS) -Wall -Werror
+fake_dlclose_la_LDFLAGS = $(AM_LDFLAGS) -module -shared -avoid-version
+
+# LD_PRELOAD is needed before invoking openssl as it is not instrumented with
+# asan and asan needs to be loaded as a firs dynamic library of the process.
+AM_TESTS_ENVIRONMENT += \
+	export ASAN_OPTIONS='fast_unwind_on_malloc=0'; \
+	export LSAN_OPTIONS='suppressions=$(testssrcdir)/lsan.supp'; \
+	export DLCLOSE='$(testsblddir)/$(FAKE_DLCLOSE)'; \
+	export CHECKER='env LD_PRELOAD=$(ADDRESS_SANITIZER_PATH):$(testsblddir)/$(FAKE_DLCLOSE)';
+endif
+
+$(TESTS): tmp.softokn tmp.softhsm $(FAKE_DLCLOSE)
 
 CLEANFILES = \
 	setup-*.log \

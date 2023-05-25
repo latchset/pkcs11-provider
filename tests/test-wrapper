@@ -34,7 +34,7 @@ if [ -n "$VALGRIND" -a -n "$LOG_COMPILER" ]; then
     CHECKER="$LOG_COMPILER"
 fi
 
-# for compiled tests, we need to add valgrind if needed
+# for compiled tests, we need to add valgrind/checker
 if [ -f "${TEST_PATH}/t${TEST_NAME}.c" ]; then
     COMMAND="$CHECKER $COMMAND"
 fi
