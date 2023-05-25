@@ -289,7 +289,8 @@ CK_RV p11prov_module_init(P11PROV_MODULE *mctx)
     P11PROV_debug("PKCS#11: Initializing the module: %s", mctx->path);
 
     dlerror();
-    mctx->dlhandle = dlopen(mctx->path, RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
+
+    mctx->dlhandle = dlopen(mctx->path, P11PROV_DLOPEN_FLAGS);
     if (!mctx->dlhandle) {
         char *err = dlerror();
         ret = CKR_GENERAL_ERROR;

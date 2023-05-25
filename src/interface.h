@@ -4,6 +4,13 @@
 #ifndef _INTERFACE_H
 #define _INTERFACE_H
 
+#if P11PROV_ADDRESS_SANITIZER
+/* address sanitizer does not play well with the RTLD_DEEPBIND */
+#define P11PROV_DLOPEN_FLAGS RTLD_NOW | RTLD_LOCAL
+#else
+#define P11PROV_DLOPEN_FLAGS RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND
+#endif
+
 /* interface declarations for PKCS#11 wrapper functions */
 CK_RV p11prov_module_new(P11PROV_CTX *ctx, const char *path,
                          const char *init_args, P11PROV_MODULE **_mctx);
