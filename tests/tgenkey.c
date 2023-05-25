@@ -54,6 +54,7 @@ static void check_keys(OSSL_STORE_CTX *store)
             privkey = OSSL_STORE_INFO_get1_PKEY(info);
             break;
         }
+        OSSL_STORE_INFO_free(info);
     }
 
     if (pubkey == NULL) {
@@ -140,8 +141,11 @@ static void gen_keys(const char *key_type, const char *label, unsigned char *id,
         fprintf(stderr, "Failed to set store search filter\n");
         exit(EXIT_FAILURE);
     }
+    OSSL_STORE_SEARCH_free(search);
 
     check_keys(store);
+
+    OSSL_STORE_close(store);
 }
 
 int main(int argc, char *argv[])

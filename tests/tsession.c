@@ -42,6 +42,7 @@ int main(int argc, char *argv[])
             prikey = OSSL_STORE_INFO_get1_PKEY(info);
             break;
         }
+        OSSL_STORE_INFO_free(info);
     }
 
     if (pubkey == NULL) {

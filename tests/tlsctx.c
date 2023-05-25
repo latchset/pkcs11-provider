@@ -42,5 +42,7 @@ int main(int argc, char *argv[])
 
     fprintf(stderr, "SSL Context works!\n");
 
+    SSL_CTX_free(ctx);
+
     exit(EXIT_SUCCESS);
 }

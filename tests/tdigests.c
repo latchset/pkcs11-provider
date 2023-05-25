@@ -40,6 +40,7 @@ int main(int argc, char *argv[])
         pk11md = EVP_MD_fetch(NULL, digest, propq);
         if (!pk11md) {
             fprintf(stderr, "%s: Unsupported by pkcs11 token\n", digest);
+            EVP_MD_free(osslmd);
             continue;
         }
         pk11prov = EVP_MD_get0_provider(pk11md);
@@ -48,6 +49,8 @@ int main(int argc, char *argv[])
         if (strcmp(provname, "pkcs11") != 0) {
             fprintf(stderr, "%s: Not a pkcs11 method, provider=%s\n", digest,
                     provname);
+            EVP_MD_free(osslmd);
+            EVP_MD_free(pk11md);
             continue;
         }
 
