@@ -65,6 +65,7 @@ static EVP_PKEY *gen_key(void)
     EVP_PKEY_CTX_set_params(ctx, params);
 
     ret = EVP_PKEY_generate(ctx, &key);
+    EVP_PKEY_CTX_free(ctx);
     if (ret != 1) {
         PRINTERROSSL("Failed to generate key\n");
         exit(EXIT_FAILURE);
@@ -102,6 +103,7 @@ static void sign_op(EVP_PKEY *key, pid_t pid)
     EVP_MD_CTX_free(sign_md);
 
     if (pid == 0) {
+        EVP_PKEY_free(key);
         PRINTERR("Child Done\n");
         exit(EXIT_SUCCESS);
     }
@@ -137,6 +139,7 @@ static void fork_sign_op(EVP_PKEY *key)
     }
 
     ret = EVP_DigestSignFinal(sign_md, sig, &size);
+    EVP_MD_CTX_free(sign_md);
 
     if (pid == 0) {
         /* child */
@@ -145,12 +148,14 @@ static void fork_sign_op(EVP_PKEY *key)
             PRINTERR("Child failed to fail!\n");
             exit(EXIT_FAILURE);
         }
+        EVP_PKEY_free(key);
         PRINTERR("Child Done\n");
         fflush(stderr);
         exit(EXIT_SUCCESS);
     } else {
         int status;
 
+        EVP_PKEY_free(key);
         /* parent */
         if (ret != 1) {
             PRINTERROSSL("Failed to EVP_DigestSignFinal-ize\n");
@@ -163,7 +168,6 @@ static void fork_sign_op(EVP_PKEY *key)
             exit(EXIT_FAILURE);
         }
     }
-    EVP_MD_CTX_free(sign_md);
 }
 
 int main(int argc, char *argv[])

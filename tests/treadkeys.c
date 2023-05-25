@@ -56,6 +56,7 @@ int main(int argc, char *argv[])
             prikey = OSSL_STORE_INFO_get1_PKEY(info);
             break;
         }
+        OSSL_STORE_INFO_free(info);
     }
 
     if (pubkey == NULL) {
@@ -63,10 +64,14 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     test_group_name(pubkey);
+    EVP_PKEY_free(pubkey);
 
     if (prikey == NULL) {
         fprintf(stderr, "Failed to load private key\n");
         exit(EXIT_FAILURE);
     }
-    test_group_name(pubkey);
+    test_group_name(prikey);
+    EVP_PKEY_free(prikey);
+
+    OSSL_STORE_close(store);
 }
