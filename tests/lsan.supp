@@ -1,0 +1,6 @@
+#leak:p11prov_module_init
+#leak:p11prov_obj_from_handle
+# The SoftHSM leaks memory during performing the Ed25519 signatures
+leak:/usr/lib/softhsm/libsofthsm2.so
+# and this is the path on Fedora
+leak:/usr/lib64/pkcs11/libsofthsm2.so

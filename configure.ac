@@ -73,6 +73,29 @@ AC_ARG_WITH([openssl],
       )
   ])
 
+address_sanitizer_path="no"
+AC_MSG_CHECKING(for --with-address-sanitizer)
+AC_ARG_WITH(address_sanitizer,
+  AS_HELP_STRING([--with-address-sanitizer=yes|path_to_libasan.so],
+                 [Enable Address Sanitizer @<:@default=no@:>@]),
+  [
+      address_sanitizer_path=${withval}
+      CFLAGS="-fsanitize=address -fno-omit-frame-pointer $CFLAGS"
+      LDFLAGS="-fsanitize=address $LDFLAGS"
+  ],
+  [
+      address_sanitizer_path="no"
+  ])
+AS_IF([test "x$address_sanitizer_path" != "xno"],
+      [AS_IF([test "x$address_sanitizer_path" == "xyes"],
+             [address_sanitizer_path=`realpath $($CC -print-file-name=libasan.so)`],
+             [])],
+      [])
+
+AC_MSG_RESULT($address_sanitizer_path)
+AM_CONDITIONAL([ADDRESS_SANITIZER], [test x${address_sanitizer_path} != xno])
+AC_SUBST(ADDRESS_SANITIZER_PATH, "$address_sanitizer_path")
+
 AC_SUBST([SHARED_EXT], $(eval echo "${shrext_cmds}"))
 
 # Check whether we have a p11-kit to use as a default PKCS#11 module
