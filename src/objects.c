@@ -858,7 +858,7 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
             return CKR_ARGUMENTS_BAD;
         }
 
-        /* do this at the end as it often won't be a supported attributed */
+        /* do this at the end as it often won't be a supported attribute */
         ret = p11prov_token_sup_attr(ctx, obj->slotid, GET_ATTR,
                                      CKA_ALLOWED_MECHANISMS,
                                      &token_supports_allowed_mechs);
