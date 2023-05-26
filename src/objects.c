@@ -1096,6 +1096,7 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
     /* FIXME: How do we refresh attrs? What happens if a pointer
      * to an attr value was saved somewhere? Freeing ->attrs would
      * cause use-after-free issues */
+    p11prov_obj_free(tmp);
     obj->raf = false;
 }
 
