@@ -520,10 +520,15 @@ CK_ULONG p11prov_obj_get_key_size(P11PROV_OBJ *obj)
     return CK_UNAVAILABLE_INFORMATION;
 }
 
-void p11prov_obj_to_reference(P11PROV_OBJ *obj, void **reference,
-                              size_t *reference_sz)
+void p11prov_obj_to_store_reference(P11PROV_OBJ *obj, void **reference,
+                                    size_t *reference_sz)
 {
-    *reference = p11prov_obj_ref_no_cache(obj);
+    /* The store context keeps reference to this object so we will not free
+     * it while the store context is alive. When the applications wants to
+     * reference the object, it will get its own reference through
+     * p11prov_common_load(). After closing the store, the user should
+     * not be able to use this reference anymore. */
+    *reference = obj;
     *reference_sz = sizeof(P11PROV_OBJ);
 }
 

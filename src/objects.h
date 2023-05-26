@@ -24,8 +24,8 @@ CK_ATTRIBUTE *p11prov_obj_get_attr(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type);
 CK_KEY_TYPE p11prov_obj_get_key_type(P11PROV_OBJ *obj);
 CK_ULONG p11prov_obj_get_key_bit_size(P11PROV_OBJ *obj);
 CK_ULONG p11prov_obj_get_key_size(P11PROV_OBJ *obj);
-void p11prov_obj_to_reference(P11PROV_OBJ *obj, void **reference,
-                              size_t *reference_sz);
+void p11prov_obj_to_store_reference(P11PROV_OBJ *obj, void **reference,
+                                    size_t *reference_sz);
 P11PROV_OBJ *p11prov_obj_from_reference(const void *reference,
                                         size_t reference_sz);
 P11PROV_CTX *p11prov_obj_get_prov_ctx(P11PROV_OBJ *obj);
