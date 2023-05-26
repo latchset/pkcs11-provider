@@ -1363,7 +1363,9 @@ static CK_RV get_all_from_cert(P11PROV_OBJ *crt, CK_ATTRIBUTE *attrs, int num)
             rv = CKR_GENERAL_ERROR;
             goto done;
         }
-        params[i].data = OPENSSL_zalloc(params[i].return_size);
+        /* allocate one more byte as null terminator to avoid buffer overruns
+         * when this is converted to the OSSL_PARAM as utf8 string */
+        params[i].data = OPENSSL_zalloc(params[i].return_size + 1);
         if (!params[i].data) {
             rv = CKR_HOST_MEMORY;
             goto done;
