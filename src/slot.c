@@ -325,7 +325,7 @@ void p11prov_free_slots(P11PROV_SLOTS_CTX *sctx)
                                strlen(sctx->slots[i]->cached_pin));
         }
         OPENSSL_free(sctx->slots[i]->login_info);
-        OPENSSL_cleanse(sctx->slots[i], sizeof(P11PROV_SLOT));
+        OPENSSL_clear_free(sctx->slots[i], sizeof(P11PROV_SLOT));
     }
     OPENSSL_free(sctx->slots);
     OPENSSL_free(sctx);
