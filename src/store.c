@@ -375,7 +375,7 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
         default:
             return RET_OSSL_ERR;
         }
-        p11prov_obj_to_reference(obj, &reference, &reference_sz);
+        p11prov_obj_to_store_reference(obj, &reference, &reference_sz);
         break;
     case CKO_CERTIFICATE:
         object_type = OSSL_OBJECT_CERT;
