@@ -76,8 +76,8 @@ static void p11prov_hkdf_reset(void *ctx)
         hkdfctx->session = NULL;
     }
 
-    OPENSSL_cleanse(hkdfctx->params.pSalt, hkdfctx->params.ulSaltLen);
-    OPENSSL_cleanse(hkdfctx->params.pInfo, hkdfctx->params.ulInfoLen);
+    OPENSSL_clear_free(hkdfctx->params.pSalt, hkdfctx->params.ulSaltLen);
+    OPENSSL_clear_free(hkdfctx->params.pInfo, hkdfctx->params.ulInfoLen);
 
     /* zero all */
     memset(hkdfctx, 0, sizeof(*hkdfctx));
@@ -272,6 +272,7 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
         hkdfctx->key = p11prov_create_secret_key(
             hkdfctx->provctx, hkdfctx->session, true, secret, secret_len);
+        OPENSSL_clear_free(secret, secret_len);
         if (hkdfctx->key == NULL) {
             return RET_OSSL_ERR;
         }
