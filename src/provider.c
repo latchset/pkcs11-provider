@@ -1493,7 +1493,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
     } else {
         ctx->cache_sessions = MAX_CACHE_SESSIONS;
     }
-    P11PROV_debug("Cache Sessions: %lu", ctx->cache_sessions);
+    P11PROV_debug("Cache Sessions: %d", ctx->cache_sessions);
 
     /* PAY ATTENTION: do this as the last thing */
     if (cfg[P11PROV_CFG_LOAD_BEHAVIOR] != NULL
