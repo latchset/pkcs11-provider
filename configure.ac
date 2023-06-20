@@ -60,6 +60,7 @@ AC_ARG_WITH([openssl],
       CFLAGS="-I$OPENSSL_DIR/include $CFLAGS"
       LDFLAGS="-L${libcrypto_path} ${LDFLAGS}"
       LIBS="$LIBS -L${libcrypto_path}"
+      CRYPTO_LIBS="-lcrypto"
       OPENSSL_LIBS="-lcrypto -lssl"
       AC_MSG_WARN([Custom openssl located in $OPENSSL_DIR is used, lib version check is skipped])
   ],
