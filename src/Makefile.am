@@ -57,7 +57,7 @@ EXTRA_DIST = \
 	$(NULL)
 
 pkcs11_la_CFLAGS = $(AM_CFLAGS) $(OPENSSL_CFLAGS) -Wall -Werror
-pkcs11_la_LIBADD = $(OPENSSL_LIBS)
+pkcs11_la_LIBADD = $(CRYPTO_LIBS)
 
 pkcs11_la_LDFLAGS = \
 	$(AM_LDFLAGS) -module \
