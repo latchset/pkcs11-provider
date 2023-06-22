@@ -1,7 +1,7 @@
 ACLOCAL_AMFLAGS = -Im4
 
 SUBDIRS = src tests docs
-dist_doc_DATA = README
+dist_doc_DATA = README.md
 
 check-style:
 	@lines=`git diff -U0 --no-color --relative origin/main | clang-format-diff -p1 |wc -l`; \
