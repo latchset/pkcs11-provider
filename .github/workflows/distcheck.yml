@@ -46,5 +46,5 @@ jobs:
       if: ${{ matrix.name == 'fedora' }}
       run: |
         mkdir -p rpmbuild/SOURCES
-        cp pkcs11-provider*tar.gz rpmbuild/SOURCES/
+        cp pkcs11-provider*tar.xz rpmbuild/SOURCES/
         rpmbuild --define "_topdir $PWD/rpmbuild" -ba packaging/pkcs11-provider.spec

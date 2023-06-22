@@ -1,10 +1,10 @@
 Name:          pkcs11-provider
 Version:       0.1
-Release:       1%{dist}
+Release:       1%{?dist}
 Summary:       A PKCS#11 provider for OpenSSL 3.0+
 License:       Apache-2.0
 URL:           https://github.com/latchset/pkcs11-provider
-Source:        pkcs11-provider-%{version}.tar.gz
+Source0:       %{url}/releases/download/v%{version}/%{name}-%{version}.tar.xz
 
 BuildRequires: openssl-devel >= 3.0.5
 BuildRequires: gcc
@@ -24,6 +24,7 @@ BuildRequires: p11-kit-server
 BuildRequires: gnutls-utils
 BuildRequires: xz
 BuildRequires: expect
+BuildRequires: make
 
 
 %description
@@ -55,7 +56,7 @@ make check || if [ $? -ne 0 ]; then cat tests/*.log; exit 1; fi;
 %files
 %license COPYING
 %{_mandir}/man7/*
-%doc README
+%doc README.md
 %{_libdir}/ossl-modules/pkcs11.so
 
 
