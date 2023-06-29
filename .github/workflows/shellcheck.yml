@@ -1,0 +1,40 @@
+---
+name: Shellcheck
+permissions: {}
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          additional_files: >-
+            tbasic
+            tcerts
+            tdemoca
+            tdigest
+            tecc
+            tecdh
+            tedwards
+            test-wrapper
+            thkdf
+            toaepsha2
+            tpubkey
+            trand
+            trsapss
+            ttls
+            turi
+          check_together: 'yes'
+        env:
+          # The expressions in the ossl macro are not expanded
+          # We use tests as default source path
+          SHELLCHECK_OPTS: -e SC2016 -P tests
