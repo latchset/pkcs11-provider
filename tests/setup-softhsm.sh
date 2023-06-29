@@ -2,7 +2,7 @@
 # Copyright (C) 2022 Jakub Jelen <jjelen@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-source ${TESTSSRCDIR}/helpers.sh
+source "${TESTSSRCDIR}/helpers.sh"
 
 if ! command -v softhsm2-util &> /dev/null
 then
@@ -19,7 +19,6 @@ if [ "$(uname)" == "Darwin" ]; then
     certtool=$(type -p gnutls-certtool)
 else
     certtool=$(type -p certtool)
-    sed_backup=""
 fi
 if [ -z "$certtool" ]; then
     echo "Missing GnuTLS certtool (on macOS, commonly installed as gnutls-certtool)"
@@ -89,7 +88,7 @@ mkdir ${TMPPDIR}
 
 PINVALUE="12345678"
 PINFILE="${PWD}/pinfile.txt"
-echo ${PINVALUE} > ${PINFILE}
+echo ${PINVALUE} > "${PINFILE}"
 
 #RANDOM data
 SEEDFILE="${TMPPDIR}/noisefile.bin"
@@ -134,7 +133,7 @@ KEYID='0000'
 URIKEYID="%00%00"
 CACRT="${TMPPDIR}/CAcert"
 CACRTN="caCert"
-let "SERIAL+=1"
+((SERIAL+=1))
 pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="${CACRTN}" --id="$KEYID"
 "${certtool}" --generate-self-signed --outfile="${CACRT}.crt" \
@@ -152,7 +151,7 @@ ca_sign() {
     LABEL=$2
     CN=$3
     KEYID=$4
-    let "SERIAL+=1"
+    ((SERIAL+=1))
     sed -e "s|cn = .*|cn = $CN|g" \
         -e "s|serial = .*|serial = $SERIAL|g" \
         -e "/^ca$/d" \
@@ -164,7 +163,7 @@ ca_sign() {
         --load-pubkey "pkcs11:object=$LABEL;type=public" --outder \
         --load-ca-certificate "${CACRT}.crt" --inder \
         --load-ca-privkey="pkcs11:object=$CACRTN;type=private"
-    pkcs11-tool --write-object "${CRT}.crt" --type=cert --id=$KEYID \
+    pkcs11-tool --write-object "${CRT}.crt" --type=cert --id="$KEYID" \
         --label="$LABEL" --module="$P11LIB"
 
 }
@@ -254,7 +253,6 @@ EDPRIURI="pkcs11:type=private;id=${URIKEYID}"
 EDCRTURI="pkcs11:type=cert;object=${EDCRTN}"
 
 title LINE "ED25519 PKCS11 URIS"
-echo "${EDBASEURIWITHPIN}"
 echo "${EDBASEURI}"
 echo "${EDPUBURI}"
 echo "${EDPRIURI}"
@@ -323,7 +321,7 @@ sed -e "s|@libtoollibs[@]|${LIBSPATH}|g" \
     -e "s|@SHARED_EXT@|${SHARED_EXT}|g" \
     -e "s|##QUIRKS|pkcs11-module-quirks = no-deinit|g" \
     -e "/pkcs11-module-init-args/d" \
-    ${TESTSSRCDIR}/openssl.cnf.in > ${OPENSSL_CONF}
+    "${TESTSSRCDIR}/openssl.cnf.in" > "${OPENSSL_CONF}"
 
 title LINE "Export test variables to ${TMPPDIR}/testvars"
 cat >> ${TMPPDIR}/testvars <<DBGSCRIPT

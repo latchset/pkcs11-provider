@@ -2,12 +2,12 @@
 # Copyright (C) 2022 Simo Sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-source ${TESTSSRCDIR}/helpers.sh
+source "${TESTSSRCDIR}/helpers.sh"
 
 title PARA "HKDF Derivation"
-HKDF_HEX_SECRET=ffeeddccbbaa
-HKDF_HEX_SALT=ffeeddccbbaa
-HKDF_HEX_INFO=ffeeddccbbaa
+export HKDF_HEX_SECRET=ffeeddccbbaa
+export HKDF_HEX_SALT=ffeeddccbbaa
+export HKDF_HEX_INFO=ffeeddccbbaa
 ossl '
 pkeyutl -derive -kdf HKDF -kdflen 48
                 -pkeyopt md:SHA256
@@ -25,11 +25,11 @@ pkeyutl -derive -kdf HKDF -kdflen 48
                 -pkeyopt hexsalt:${HKDF_HEX_SALT}
                 -pkeyopt hexinfo:${HKDF_HEX_INFO}
                 -out ${TMPPDIR}/hkdf1-out.bin'
-diff ${TMPPDIR}/hkdf1-out-pkcs11.bin ${TMPPDIR}/hkdf1-out.bin
+diff "${TMPPDIR}/hkdf1-out-pkcs11.bin" "${TMPPDIR}/hkdf1-out.bin"
 
-HKDF_HEX_SECRET=6dc3bcf529a350e0423befb3deef8aef78d912c4f1dc3e6e52bf61f681e40904
-HKDF_SALT="I'm a Salt!"
-HKDF_INFO="And I'm an Info?"
+export HKDF_HEX_SECRET=6dc3bcf529a350e0423befb3deef8aef78d912c4f1dc3e6e52bf61f681e40904
+export HKDF_SALT="I'm a Salt!"
+export HKDF_INFO="And I'm an Info?"
 ossl '
 pkeyutl -derive -kdf HKDF -kdflen 48
                 -pkeyopt md:SHA256
@@ -47,4 +47,4 @@ pkeyutl -derive -kdf HKDF -kdflen 48
                 -pkeyopt salt:"${HKDF_SALT}"
                 -pkeyopt info:"${HKDF_INFO}"
                 -out ${TMPPDIR}/hkdf2-out.bin'
-diff ${TMPPDIR}/hkdf2-out-pkcs11.bin ${TMPPDIR}/hkdf2-out.bin
+diff "${TMPPDIR}/hkdf2-out-pkcs11.bin" "${TMPPDIR}/hkdf2-out.bin"

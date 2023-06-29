@@ -2,7 +2,7 @@
 # Copyright (C) 2022 Simo Sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-source ${TESTSSRCDIR}/helpers.sh
+source "${TESTSSRCDIR}/helpers.sh"
 
 if ! command -v certutil &> /dev/null
 then
@@ -20,7 +20,7 @@ mkdir ${TMPPDIR}
 
 PINVALUE="12345678"
 PINFILE="${PWD}/pinfile.txt"
-echo ${PINVALUE} > ${PINFILE}
+echo ${PINVALUE} > "${PINFILE}"
 
 #RANDOM data
 SEEDFILE="${TMPPDIR}/noisefile.bin"
@@ -38,14 +38,14 @@ mkdir ${TOKDIR}
 SERIAL=0
 
 title LINE "Creating new NSS Database"
-certutil -N -d ${TOKDIR} -f ${PINFILE}
+certutil -N -d "${TOKDIR}" -f "${PINFILE}"
 
 title LINE "Creating new Self Sign CA"
-let "SERIAL+=1"
+((SERIAL+=1))
 certutil -S -s "CN=Issuer" -n selfCA -x -t "C,C,C" \
-    -m ${SERIAL} -1 -2 -5 --keyUsage certSigning,crlSigning \
+    -m "${SERIAL}" -1 -2 -5 --keyUsage certSigning,crlSigning \
     --nsCertType sslCA,smimeCA,objectSigningCA \
-    -f ${PINFILE} -d ${TOKDIR} -z ${SEEDFILE} >/dev/null 2>&1 <<CERTSCRIPT
+    -f "${PINFILE}" -d "${TOKDIR}" -z "${SEEDFILE}" >/dev/null 2>&1 <<CERTSCRIPT
 y
 
 n
@@ -55,18 +55,18 @@ CERTSCRIPT
 TSTCRT="${TMPPDIR}/testcert"
 TSTCRTN="testCert"
 title LINE  "Creating Certificate request for 'My Test Cert'"
-certutil -R -s "CN=My Test Cert, O=PKCS11 Provider" -o ${TSTCRT}.req \
-            -d ${TOKDIR} -f ${PINFILE} -z ${SEEDFILE} >/dev/null 2>&1
-let "SERIAL+=1"
-certutil -C -m ${SERIAL} -i ${TSTCRT}.req -o ${TSTCRT}.crt -c selfCA \
-            -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
-certutil -A -n ${TSTCRTN} -i ${TSTCRT}.crt -t "u,u,u" -d ${TOKDIR} \
-            -f ${PINFILE} >/dev/null 2>&1
+certutil -R -s "CN=My Test Cert, O=PKCS11 Provider" -o "${TSTCRT}.req" \
+            -d "${TOKDIR}" -f "${PINFILE}" -z "${SEEDFILE}" >/dev/null 2>&1
+((SERIAL+=1))
+certutil -C -m "${SERIAL}" -i "${TSTCRT}.req" -o "${TSTCRT}.crt" -c selfCA \
+            -d "${TOKDIR}" -f "${PINFILE}" >/dev/null 2>&1
+certutil -A -n "${TSTCRTN}" -i "${TSTCRT}.crt" -t "u,u,u" -d "${TOKDIR}" \
+            -f "${PINFILE}" >/dev/null 2>&1
 
-KEYID=`certutil -K -d ${TOKDIR} -f ${PINFILE} |grep "${TSTCRTN}"| cut -b 15-54`
+KEYID=$(certutil -K -d "${TOKDIR}" -f "${PINFILE}" |grep "${TSTCRTN}"| cut -b 15-54)
 URIKEYID=""
 for (( i=0; i<${#KEYID}; i+=2 )); do
-    line=`echo "${KEYID:$i:2}"`
+    line="${KEYID:$i:2}"
     URIKEYID="$URIKEYID%$line"
 done
 
@@ -89,17 +89,17 @@ ECCRT="${TMPPDIR}/eccert"
 ECCRTN="ecCert"
 title LINE  "Creating Certificate request for 'My EC Cert'"
 certutil -R -s "CN=My EC Cert, O=PKCS11 Provider" -k ec -q nistp256 \
-            -o ${ECCRT}.req -d ${TOKDIR} -f ${PINFILE} -z ${SEEDFILE} >/dev/null 2>&1
-let "SERIAL+=1"
-certutil -C -m ${SERIAL} -i ${ECCRT}.req -o ${ECCRT}.crt -c selfCA \
-            -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
-certutil -A -n ${ECCRTN} -i ${ECCRT}.crt -t "u,u,u" \
-            -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
+            -o "${ECCRT}.req" -d "${TOKDIR}" -f "${PINFILE}" -z "${SEEDFILE}" >/dev/null 2>&1
+((SERIAL+=1))
+certutil -C -m "${SERIAL}" -i "${ECCRT}.req" -o "${ECCRT}.crt" -c selfCA \
+            -d "${TOKDIR}" -f "${PINFILE}" >/dev/null 2>&1
+certutil -A -n "${ECCRTN}" -i "${ECCRT}.crt" -t "u,u,u" \
+            -d "${TOKDIR}" -f "${PINFILE}" >/dev/null 2>&1
 
-KEYID=`certutil -K -d ${TOKDIR} -f ${PINFILE} |grep "${ECCRTN}"| cut -b 15-54`
+KEYID=$(certutil -K -d "${TOKDIR}" -f "${PINFILE}" |grep "${ECCRTN}"| cut -b 15-54)
 URIKEYID=""
 for (( i=0; i<${#KEYID}; i+=2 )); do
-    line=`echo "${KEYID:$i:2}"`
+    line="${KEYID:$i:2}"
     URIKEYID="$URIKEYID%$line"
 done
 
@@ -113,18 +113,18 @@ title LINE  "Creating Certificate request for 'My Peer EC Cert'"
 ECPEERCRT="${TMPPDIR}/ecpeercert"
 ECPEERCRTN="ecPeerCert"
 certutil -R -s "CN=My Peer EC Cert, O=PKCS11 Provider" \
-            -k ec -q nistp256 -o ${ECPEERCRT}.req \
-            -d ${TOKDIR} -f ${PINFILE} -z ${SEEDFILE} >/dev/null 2>&1
-let "SERIAL+=1"
-certutil -C -m ${SERIAL} -i ${ECPEERCRT}.req -o ${ECPEERCRT}.crt \
-            -c selfCA -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
-certutil -A -n ${ECPEERCRTN} -i ${ECPEERCRT}.crt -t "u,u,u" \
-            -d ${TOKDIR} -f ${PINFILE} >/dev/null 2>&1
+            -k ec -q nistp256 -o "${ECPEERCRT}.req" \
+            -d "${TOKDIR}" -f "${PINFILE}" -z "${SEEDFILE}" >/dev/null 2>&1
+((SERIAL+=1))
+certutil -C -m "${SERIAL}" -i "${ECPEERCRT}.req" -o "${ECPEERCRT}.crt" \
+            -c selfCA -d "${TOKDIR}" -f "${PINFILE}" >/dev/null 2>&1
+certutil -A -n "${ECPEERCRTN}" -i "${ECPEERCRT}.crt" -t "u,u,u" \
+            -d "${TOKDIR}" -f "${PINFILE}" >/dev/null 2>&1
 
-KEYID=`certutil -K -d ${TOKDIR} -f ${PINFILE} |grep "${ECPEERCRTN}"| cut -b 15-54`
+KEYID=$(certutil -K -d "${TOKDIR}" -f "${PINFILE}" |grep "${ECPEERCRTN}"| cut -b 15-54)
 URIKEYID=""
 for (( i=0; i<${#KEYID}; i+=2 )); do
-    line=`echo "${KEYID:$i:2}"`
+    line="${KEYID:$i:2}"
     URIKEYID="$URIKEYID%$line"
 done
 
@@ -147,8 +147,8 @@ echo ""
 
 title PARA "Show contents of softoken"
 echo " ----------------------------------------------------------------------------------------------------"
-certutil -L -d ${TOKDIR}
-certutil -K -d ${TOKDIR} -f ${PINFILE}
+certutil -L -d "${TOKDIR}"
+certutil -K -d "${TOKDIR}" -f "${PINFILE}"
 echo " ----------------------------------------------------------------------------------------------------"
 
 title PARA "Output configurations"
@@ -160,10 +160,10 @@ sed -e "s|@libtoollibs[@]|${LIBSPATH}|g" \
     -e "s|@testsblddir@|${TESTBLDDIR}|g" \
     -e "s|@testsdir[@]|${BASEDIR}/${TMPPDIR}|g" \
     -e "s|@SHARED_EXT@|${SHARED_EXT}|g" \
-    ${TESTSSRCDIR}/openssl.cnf.in > ${OPENSSL_CONF}
+    "${TESTSSRCDIR}/openssl.cnf.in" > "${OPENSSL_CONF}"
 
 title LINE "Export tests variables to ${TMPPDIR}/testvars"
-cat > ${TMPPDIR}/testvars <<DBGSCRIPT
+cat > "${TMPPDIR}/testvars" <<DBGSCRIPT
 export PKCS11_PROVIDER_DEBUG="file:${BASEDIR}/${TMPPDIR}/p11prov-debug.log"
 export PKCS11_PROVIDER_MODULE="${SOFTOKNPATH%%/}/libsoftokn3${SHARED_EXT}"
 export OPENSSL_CONF="${OPENSSL_CONF}"

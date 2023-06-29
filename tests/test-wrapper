@@ -2,19 +2,18 @@
 # Copyright (C) 2022 Simo sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-TEST_PATH=$(dirname ${1})
-BNAME=$(basename ${1})
+TEST_PATH=$(dirname "${1}")
+BNAME=$(basename "${1}")
 
+# the test name is {TEST_NAME}-{TOKEN_DRIVER}.t
 # split extension
-TEST_EXT=(${BNAME//./ })
-NAME=${TEST_EXT[0]}
-TEST_PARAMS=(${NAME//-/ })
+NAME=${BNAME%.*}
+TEST_NAME=${NAME%-*}
+TOKEN_DRIVER=${NAME#*-}
 
-TEST_NAME=${TEST_PARAMS[0]}
-TOKEN_DRIVER=${TEST_PARAMS[1]}
-
-if [ -f "./tmp.${TOKEN_DRIVER}/testvars" ];  then
-    source ./tmp.${TOKEN_DRIVER}/testvars
+if [ -f "./tmp.${TOKEN_DRIVER}/testvars" ]; then
+    # shellcheck source=/dev/null # we do not care about linting this source
+    source "./tmp.${TOKEN_DRIVER}/testvars"
 else
     exit 77 # token not configured, skip
 fi
@@ -30,7 +29,7 @@ else
 fi
 
 # Run the tests under valgrind with appropriate flags
-if [ -n "$VALGRIND" -a -n "$LOG_COMPILER" ]; then
+if [ -n "$VALGRIND" ] && [ -n "$LOG_COMPILER" ]; then
     CHECKER="$LOG_COMPILER"
 fi
 

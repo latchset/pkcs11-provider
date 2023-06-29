@@ -2,10 +2,10 @@
 # Copyright (C) 2022 Simo Sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-source ${TESTSSRCDIR}/helpers.sh
+source "${TESTSSRCDIR}/helpers.sh"
 
 title PARA "Raw Sign check error"
-dd if=/dev/urandom of=${TMPPDIR}/64Brandom.bin bs=64 count=1 >/dev/null 2>&1
+dd if=/dev/urandom of="${TMPPDIR}/64Brandom.bin" bs=64 count=1 >/dev/null 2>&1
 FAIL=0
 ossl '
 pkeyutl -sign -inkey "${BASEURI}"
@@ -69,7 +69,7 @@ pkeyutl -verify -inkey "${PUBURI}"
 
 
 SECRETFILE=${TMPPDIR}/rsasecret.txt
-echo "Super Secret" > ${SECRETFILE}
+echo "Super Secret" > "${SECRETFILE}"
 
 title LINE "RSA basic encrypt and decrypt"
 ossl '
@@ -80,13 +80,13 @@ ossl '
 pkeyutl -decrypt -inkey "${PRIURI}"
                  -in ${SECRETFILE}.enc
                  -out ${SECRETFILE}.dec'
-diff ${SECRETFILE} ${SECRETFILE}.dec
+diff "${SECRETFILE}" "${SECRETFILE}.dec"
 
 title PARA "Test Disallow Public Export"
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
-sed "s/#pkcs11-module-allow-export/pkcs11-module-allow-export = 1/" ${OPENSSL_CONF} > ${OPENSSL_CONF}.noexport
+sed "s/#pkcs11-module-allow-export/pkcs11-module-allow-export = 1/" "${OPENSSL_CONF}" > "${OPENSSL_CONF}.noexport"
 OPENSSL_CONF=${OPENSSL_CONF}.noexport
-ossl 'pkey -in $PUBURI -pubin -pubout -text' $helper_emit
+ossl 'pkey -in $PUBURI -pubin -pubout -text' "$helper_emit"
 output="$helper_output"
 FAIL=0
 echo "$output" | grep "^PKCS11 RSA Public Key (2048 bits)" > /dev/null 2>&1 || FAIL=1
@@ -107,7 +107,7 @@ if [ $FAIL -ne 0 ]; then
     exit 1
 fi
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
-rm -f ${OPENSSL_CONF}.noexport
+rm -f "${OPENSSL_CONF}.noexport"
 
 title PARA "Test CSR generation from RSA private keys"
 ossl '
@@ -117,7 +117,7 @@ req -in ${TMPPDIR}/rsa_csr.pem -verify -noout'
 
 title PARA "Test fetching public keys without PIN in config files"
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
-sed "s/^pkcs11-module-token-pin.*$/##nopin/" ${OPENSSL_CONF} > ${OPENSSL_CONF}.nopin
+sed "s/^pkcs11-module-token-pin.*$/##nopin/" "${OPENSSL_CONF}" > "${OPENSSL_CONF}.nopin"
 OPENSSL_CONF=${OPENSSL_CONF}.nopin
 ossl 'pkey -in $PUBURI -pubin -pubout -out ${TMPPDIR}/rsa.pub.nopin.pem'
 ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${TMPPDIR}/ec.pub.nopin.pem'
@@ -127,10 +127,10 @@ ossl 'pkey -in $BASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/rsa.pub.uripin.pem
 ossl 'pkey -in $ECBASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/ec.pub.uripin.pem'
 
 title PARA "Test prompting without PIN in config files"
-output=`expect -c "spawn -noecho $CHECKER openssl pkey -in \"${PRIURI}\" -text -noout;
+output=$(expect -c "spawn -noecho $CHECKER openssl pkey -in \"${PRIURI}\" -text -noout;
                    expect \"Enter pass phrase for PKCS#11 Token (Slot *:\";
                    send \"${PINVALUE}\r\";
-                   expect \"Key ID:\";"`
+                   expect \"Key ID:\";")
 echo "$output" | grep "Enter pass phrase for PKCS#11 Token (Slot .*):" > /dev/null 2>&1 || FAIL=1
 if [ $FAIL -eq 0 ]; then
     echo "$output" | grep "PKCS11 RSA Public Key" > /dev/null 2>&1 || FAIL=2
@@ -150,13 +150,14 @@ if [ $FAIL -ne 0 ]; then
 fi
 
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
-rm -f ${OPENSSL_CONF}.nopin
+rm -f "${OPENSSL_CONF}.nopin"
 
 title PARA "Test PIN caching"
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
-sed "s/^pkcs11-module-token-pin.*$/pkcs11-module-cache-pins = cache/" ${OPENSSL_CONF} > ${OPENSSL_CONF}.pincaching
+sed "s/^pkcs11-module-token-pin.*$/pkcs11-module-cache-pins = cache/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.pincaching"
 OPENSSL_CONF=${OPENSSL_CONF}.pincaching
-$CHECKER ${TESTBLDDIR}/pincache
+$CHECKER "${TESTBLDDIR}/pincache"
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
 
