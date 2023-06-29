@@ -611,7 +611,7 @@ static CK_RV pre_process_ec_key_data(P11PROV_OBJ *key)
     const unsigned char *val;
     CK_BYTE *buffer;
     int buffer_size;
-    const char *curve_name;
+    const char *curve_name = NULL;
     int curve_nid;
     ASN1_OCTET_STRING *octet;
 
@@ -635,14 +635,12 @@ static CK_RV pre_process_ec_key_data(P11PROV_OBJ *key)
         }
 
         curve_nid = EC_GROUP_get_curve_name(group);
-        if (curve_nid == NID_undef) {
-            EC_GROUP_free(group);
-            return CKR_KEY_INDIGESTIBLE;
-        }
-        curve_name = OSSL_EC_curve_nid2name(curve_nid);
-        if (curve_name == NULL) {
-            EC_GROUP_free(group);
-            return CKR_KEY_INDIGESTIBLE;
+        if (curve_nid != NID_undef) {
+            curve_name = OSSL_EC_curve_nid2name(curve_nid);
+            if (curve_name == NULL) {
+                EC_GROUP_free(group);
+                return CKR_KEY_INDIGESTIBLE;
+            }
         }
         key->data.key.bit_size = EC_GROUP_order_bits(group);
         key->data.key.size = (key->data.key.bit_size + 7) / 8;
@@ -678,14 +676,16 @@ static CK_RV pre_process_ec_key_data(P11PROV_OBJ *key)
                   buffer_size);
     key->numattrs++;
 
-    buffer_size = strlen(curve_name) + 1;
-    buffer = (CK_BYTE *)OPENSSL_strdup(curve_name);
-    if (!buffer) {
-        return CKR_HOST_MEMORY;
+    if (curve_name != NULL) {
+        buffer_size = strlen(curve_name) + 1;
+        buffer = (CK_BYTE *)OPENSSL_strdup(curve_name);
+        if (!buffer) {
+            return CKR_HOST_MEMORY;
+        }
+        CKATTR_ASSIGN(key->attrs[key->numattrs], CKA_P11PROV_CURVE_NAME, buffer,
+                      buffer_size);
+        key->numattrs++;
     }
-    CKATTR_ASSIGN(key->attrs[key->numattrs], CKA_P11PROV_CURVE_NAME, buffer,
-                  buffer_size);
-    key->numattrs++;
 
     attr = p11prov_obj_get_attr(key, CKA_EC_POINT);
     if (!attr) {
@@ -1555,53 +1555,246 @@ const char *p11prov_obj_get_ec_group_name(P11PROV_OBJ *obj)
     return (const char *)attr->pValue;
 }
 
+static int ossl_param_construct_bn(P11PROV_CTX *provctx, OSSL_PARAM *param,
+                                   const char *key, const BIGNUM *val)
+{
+    size_t bsize;
+    void *buf;
+
+    if (BN_is_negative(val)) {
+        P11PROV_raise(provctx, CKR_GENERAL_ERROR,
+                      "Negative big numbers are unsupported for %s", key);
+        return 0;
+    }
+
+    bsize = (size_t)BN_num_bytes(val);
+    /* We make sure that at least one byte is used, so zero is properly set */
+    if (bsize == 0) {
+        bsize++;
+    }
+
+    buf = OPENSSL_malloc(bsize);
+    if (buf == NULL) {
+        P11PROV_raise(provctx, CKR_HOST_MEMORY, "Allocating data for %s", key);
+        return 0;
+    }
+
+    if (BN_bn2nativepad(val, buf, bsize) < 0) {
+        return 0;
+    }
+
+    *param = OSSL_PARAM_construct_BN(key, buf, bsize);
+    return 1;
+}
+
+static int ec_group_explicit_to_params(P11PROV_OBJ *obj, const EC_GROUP *group,
+                                       OSSL_PARAM *params, int *nparam,
+                                       BN_CTX *bnctx)
+{
+    int fid;
+    const char *field_type;
+    BIGNUM *p, *a, *b;
+    const BIGNUM *order, *cofactor;
+    const EC_POINT *generator;
+    point_conversion_form_t genform;
+    size_t bsize;
+    void *buf;
+    unsigned char *seed;
+    size_t seed_len;
+
+    fid = EC_GROUP_get_field_type(group);
+    if (fid == NID_X9_62_prime_field) {
+        field_type = SN_X9_62_prime_field;
+    } else if (fid == NID_X9_62_characteristic_two_field) {
+        field_type = SN_X9_62_characteristic_two_field;
+    } else {
+        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Invalid EC field");
+        return RET_OSSL_ERR;
+    }
+
+    params[(*nparam)++] = OSSL_PARAM_construct_utf8_string(
+        OSSL_PKEY_PARAM_EC_FIELD_TYPE, (char *)field_type, 0);
+
+    p = BN_CTX_get(bnctx);
+    a = BN_CTX_get(bnctx);
+    b = BN_CTX_get(bnctx);
+    if (b == NULL) {
+        return RET_OSSL_ERR;
+    }
+
+    if (!EC_GROUP_get_curve(group, p, a, b, bnctx)) {
+        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Invalid curve");
+        return RET_OSSL_ERR;
+    }
+
+    if (!ossl_param_construct_bn(obj->ctx, &params[(*nparam)++],
+                                 OSSL_PKEY_PARAM_EC_P, p)
+        || !ossl_param_construct_bn(obj->ctx, &params[(*nparam)++],
+                                    OSSL_PKEY_PARAM_EC_A, a)
+        || !ossl_param_construct_bn(obj->ctx, &params[(*nparam)++],
+                                    OSSL_PKEY_PARAM_EC_B, b)) {
+        return RET_OSSL_ERR;
+    }
+
+    order = EC_GROUP_get0_order(group);
+    if (order == NULL) {
+        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Invalid group order");
+        return RET_OSSL_ERR;
+    }
+    if (!ossl_param_construct_bn(obj->ctx, &params[(*nparam)++],
+                                 OSSL_PKEY_PARAM_EC_ORDER, order)) {
+        return RET_OSSL_ERR;
+    }
+
+    generator = EC_GROUP_get0_generator(group);
+    genform = EC_GROUP_get_point_conversion_form(group);
+    if (generator == NULL) {
+        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Invalid group generator");
+        return RET_OSSL_ERR;
+    }
+    bsize = EC_POINT_point2oct(group, generator, genform, NULL, 0, bnctx);
+    buf = OPENSSL_malloc(bsize);
+    if (buf == NULL) {
+        return RET_OSSL_ERR;
+    }
+    bsize = EC_POINT_point2oct(group, generator, genform, buf, bsize, bnctx);
+    params[(*nparam)++] = OSSL_PARAM_construct_octet_string(
+        OSSL_PKEY_PARAM_EC_GENERATOR, buf, bsize);
+
+    cofactor = EC_GROUP_get0_cofactor(group);
+    if (cofactor == NULL) {
+        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Invalid group cofactor");
+        return RET_OSSL_ERR;
+    }
+    if (!ossl_param_construct_bn(obj->ctx, &params[(*nparam)++],
+                                 OSSL_PKEY_PARAM_EC_COFACTOR, cofactor)) {
+        return RET_OSSL_ERR;
+    }
+
+    seed = EC_GROUP_get0_seed(group);
+    seed_len = EC_GROUP_get_seed_len(group);
+    if (seed != NULL && seed_len > 0) {
+        params[(*nparam)++] = OSSL_PARAM_construct_octet_string(
+            OSSL_PKEY_PARAM_EC_SEED, seed, seed_len);
+    }
+
+    return RET_OSSL_OK;
+}
+
+/* Common:
+ *   CKA_P11PROV_PUB_KEY     -> OSSL_PKEY_PARAM_PUB_KEY
+ * Named curves:
+ *   CKA_P11PROV_CURVE_NAME  -> OSSL_PKEY_PARAM_GROUP_NAME
+ * Explicit curves:
+ *   CKA_EC_PARAMS           -> OSSL_PKEY_PARAM_EC_FIELD_TYPE,
+ *                              OSSL_PKEY_PARAM_EC_A,
+ *                              OSSL_PKEY_PARAM_EC_B,
+ *                              OSSL_PKEY_PARAM_EC_P,
+ *                              OSSL_PKEY_PARAM_EC_GENERATOR,
+ *                              OSSL_PKEY_PARAM_EC_ORDER,
+ *                              OSSL_PKEY_PARAM_EC_COFACTOR,
+ *                              OSSL_PKEY_PARAM_EC_SEED
+ */
 #define EC_MAX_PUB_ATTRS 2
+#define EC_MAX_OSSL_PARAMS 9
 int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
                                      void *cb_arg)
 {
     CK_ATTRIBUTE attrs[EC_MAX_PUB_ATTRS] = { 0 };
-    OSSL_PARAM params[EC_MAX_PUB_ATTRS + 1] = { 0 };
+    OSSL_PARAM params[EC_MAX_OSSL_PARAMS + 1] = { 0 };
     CK_KEY_TYPE key_type;
-    int n = 0;
+    int nattr = 0;
+    int nparam = 0;
     CK_RV rv;
     int ret;
+    EC_GROUP *group = NULL;
+    int curve_nid = NID_undef;
 
     key_type = p11prov_obj_get_key_type(obj);
     switch (key_type) {
     case CKK_EC:
-        attrs[0].type = CKA_P11PROV_CURVE_NAME;
-        attrs[1].type = CKA_P11PROV_PUB_KEY;
-        n = 2;
+        attrs[0].type = CKA_P11PROV_CURVE_NID;
+        nattr = 1;
+        rv = get_public_attrs(obj, attrs, 1);
+        if (rv != CKR_OK) {
+            P11PROV_raise(obj->ctx, rv, "Failed to get EC key curve nid");
+            return RET_OSSL_ERR;
+        }
+        curve_nid = *(int *)attrs[0].pValue;
+        OPENSSL_free(attrs[0].pValue);
+        attrs[0].type = CKA_P11PROV_PUB_KEY;
+        if (curve_nid == NID_undef) {
+            attrs[1].type = CKA_EC_PARAMS;
+        } else {
+            attrs[1].type = CKA_P11PROV_CURVE_NAME;
+        }
+        nattr = 2;
         break;
     case CKK_EC_EDWARDS:
         attrs[0].type = CKA_P11PROV_PUB_KEY;
-        n = 1;
+        nattr = 1;
         break;
     default:
         return RET_OSSL_ERR;
     }
 
-    rv = get_public_attrs(obj, attrs, n);
+    rv = get_public_attrs(obj, attrs, nattr);
     if (rv != CKR_OK) {
         P11PROV_raise(obj->ctx, rv, "Failed to get public key attributes");
         return RET_OSSL_ERR;
     }
 
-    n = 0;
+    params[nparam] = OSSL_PARAM_construct_octet_string(
+        OSSL_PKEY_PARAM_PUB_KEY, attrs[0].pValue, attrs[0].ulValueLen);
+    nparam++;
     if (key_type == CKK_EC) {
-        params[n] = OSSL_PARAM_construct_utf8_string(
-            OSSL_PKEY_PARAM_GROUP_NAME, attrs[n].pValue, attrs[n].ulValueLen);
-        n++;
+        if (curve_nid == NID_undef) {
+            BN_CTX *bnctx;
+
+            /* in d2i functions 'in' is overwritten to return the remainder of
+             * the buffer after parsing, so we always need to avoid passing in
+             * our pointer holders, to avoid having them clobbered */
+            const unsigned char *val = attrs[1].pValue;
+            group = d2i_ECPKParameters(NULL, &val, attrs[1].ulValueLen);
+            if (group == NULL) {
+                ret = RET_OSSL_ERR;
+                goto done;
+            }
+            bnctx = BN_CTX_new_ex(p11prov_ctx_get_libctx(obj->ctx));
+            if (bnctx == NULL) {
+                ret = RET_OSSL_ERR;
+                goto done;
+            }
+            BN_CTX_start(bnctx);
+            ret =
+                ec_group_explicit_to_params(obj, group, params, &nparam, bnctx);
+            BN_CTX_end(bnctx);
+            BN_CTX_free(bnctx);
+            if (ret != RET_OSSL_OK) {
+                goto done;
+            }
+        } else {
+            params[nparam] = OSSL_PARAM_construct_utf8_string(
+                OSSL_PKEY_PARAM_GROUP_NAME, attrs[1].pValue,
+                attrs[1].ulValueLen);
+            nparam++;
+        }
     }
-    params[n] = OSSL_PARAM_construct_octet_string(
-        OSSL_PKEY_PARAM_PUB_KEY, attrs[n].pValue, attrs[n].ulValueLen);
-    n++;
-    params[n] = OSSL_PARAM_construct_end();
+    params[nparam] = OSSL_PARAM_construct_end();
 
     ret = cb_fn(params, cb_arg);
 
+done:
     /* must be freed after callback */
-    for (int i = 0; i < n; i++) {
+    EC_GROUP_free(group);
+    for (int i = 0; i < nparam; i++) {
+        if (strcmp(params[i].key, OSSL_PKEY_PARAM_PUB_KEY)
+            && strcmp(params[i].key, OSSL_PKEY_PARAM_GROUP_NAME)
+            && strcmp(params[i].key, OSSL_PKEY_PARAM_EC_FIELD_TYPE)) {
+            OPENSSL_free(params[i].data);
+        }
+    }
+    for (int i = 0; i < nattr; i++) {
         OPENSSL_free(attrs[i].pValue);
     }
     return ret;
