@@ -466,17 +466,24 @@ const OSSL_DISPATCH p11prov_rsa_encoder_spki_pem_functions[] = {
 /* ECDSA */
 
 struct ecdsa_key_point {
-    ASN1_OBJECT *curve;
+    union {
+        ASN1_OBJECT *object;
+        ASN1_STRING *sequence;
+    } curve;
     unsigned char *octet;
+    int curve_type;
     size_t octet_len;
 };
 
 static void ecdsa_key_point_free(struct ecdsa_key_point *k)
 {
-    if (k->curve) {
-        ASN1_OBJECT_free(k->curve);
-        k->curve = NULL;
+    if (k->curve_type == V_ASN1_SEQUENCE) {
+        ASN1_STRING_free(k->curve.sequence);
+    } else if (k->curve_type == V_ASN1_OBJECT) {
+        ASN1_OBJECT_free(k->curve.object);
     }
+    k->curve.object = NULL;
+    k->curve_type = V_ASN1_UNDEF;
     if (k->octet) {
         OPENSSL_free(k->octet);
         k->octet = NULL;
@@ -490,15 +497,34 @@ static int p11prov_ec_set_keypoint_data(const OSSL_PARAM *params, void *key)
     const OSSL_PARAM *p;
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_GROUP_NAME);
-    if (!p) {
-        return RET_OSSL_ERR;
-    }
-    if (p->data_type != OSSL_PARAM_UTF8_STRING) {
-        return RET_OSSL_ERR;
-    }
-    keypoint->curve = OBJ_txt2obj(p->data, 0);
-    if (!keypoint->curve) {
-        return RET_OSSL_ERR;
+    if (p) {
+        if (p->data_type != OSSL_PARAM_UTF8_STRING) {
+            return RET_OSSL_ERR;
+        }
+        keypoint->curve.object = OBJ_txt2obj(p->data, 0);
+        if (!keypoint->curve.object) {
+            return RET_OSSL_ERR;
+        }
+        keypoint->curve_type = V_ASN1_OBJECT;
+    } else {
+        EC_GROUP *group = EC_GROUP_new_from_params(params, NULL, NULL);
+        if (!group) {
+            return RET_OSSL_ERR;
+        }
+        ASN1_STRING *pstr = NULL;
+        pstr = ASN1_STRING_new();
+        if (pstr == NULL) {
+            EC_GROUP_free(group);
+            return RET_OSSL_ERR;
+        }
+        pstr->length = i2d_ECPKParameters(group, &pstr->data);
+        EC_GROUP_free(group);
+        if (pstr->length <= 0) {
+            ASN1_STRING_free(pstr);
+            return RET_OSSL_ERR;
+        }
+        keypoint->curve.sequence = pstr;
+        keypoint->curve_type = V_ASN1_SEQUENCE;
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PUB_KEY);
@@ -537,8 +563,8 @@ static X509_PUBKEY *p11prov_ec_pubkey_to_x509(P11PROV_OBJ *key)
     }
 
     ret = X509_PUBKEY_set0_param(pubkey, OBJ_nid2obj(NID_X9_62_id_ecPublicKey),
-                                 V_ASN1_OBJECT, keypoint.curve, keypoint.octet,
-                                 keypoint.octet_len);
+                                 keypoint.curve_type, keypoint.curve.object,
+                                 keypoint.octet, keypoint.octet_len);
     if (ret != RET_OSSL_OK) {
         ecdsa_key_point_free(&keypoint);
         X509_PUBKEY_free(pubkey);
