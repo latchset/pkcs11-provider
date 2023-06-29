@@ -11,6 +11,7 @@ BuildRequires: gcc
 BuildRequires: autoconf-archive
 BuildRequires: automake
 BuildRequires: libtool
+BuildRequires: make
 # for tests
 BuildRequires: nss-devel
 BuildRequires: nss-softokn
@@ -24,7 +25,6 @@ BuildRequires: p11-kit-server
 BuildRequires: gnutls-utils
 BuildRequires: xz
 BuildRequires: expect
-BuildRequires: make
 
 
 %description
