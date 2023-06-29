@@ -1,8 +1,9 @@
+---
 name: Distribution checks
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   distcheck:
@@ -19,32 +20,33 @@ jobs:
             container: debian:sid
     container: ${{ matrix.container }}
     steps:
-    - name: Install Dependencies
-      run: |
-          if [ -f /etc/fedora-release ]; then
-            dnf -y install git gcc automake libtool expect \
-              pkgconf-pkg-config autoconf-archive openssl-devel openssl xz \
-              nss-softokn nss-tools nss-softokn-devel \
-              softhsm opensc p11-kit-devel p11-kit-server \
-              rpm-build nss-devel gnutls-utils
-          elif [ -f /etc/debian_version ]; then
-            apt-get -q update
-            apt-get -yq install git gcc make automake expect \
-              libtool pkg-config autoconf-archive libssl-dev openssl xz-utils \
-              libnss3 libnss3-tools libnss3-dev \
-              softhsm opensc p11-kit libp11-kit-dev p11-kit-modules gnutls-bin
-          fi
-    - name: Checkout Repository
-      uses: actions/checkout@v3
-    - name: Setup
-      run: |
-        autoreconf -fiv
-        ./configure
-    - name: Distcheck
-      run: make distcheck
-    - name: RPM Build
-      if: ${{ matrix.name == 'fedora' }}
-      run: |
-        mkdir -p rpmbuild/SOURCES
-        cp pkcs11-provider*tar.xz rpmbuild/SOURCES/
-        rpmbuild --define "_topdir $PWD/rpmbuild" -ba packaging/pkcs11-provider.spec
+      - name: Install Dependencies
+        run: |
+            if [ -f /etc/fedora-release ]; then
+              dnf -y install git gcc automake libtool expect \
+                pkgconf-pkg-config autoconf-archive openssl-devel openssl xz \
+                nss-softokn nss-tools nss-softokn-devel \
+                softhsm opensc p11-kit-devel p11-kit-server \
+                rpm-build nss-devel gnutls-utils
+            elif [ -f /etc/debian_version ]; then
+              apt-get -q update
+              apt-get -yq install git gcc make automake expect \
+                libtool pkg-config autoconf-archive libssl-dev openssl \
+                xz-utils libnss3 libnss3-tools libnss3-dev \
+                softhsm opensc p11-kit libp11-kit-dev p11-kit-modules gnutls-bin
+            fi
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      - name: Setup
+        run: |
+          autoreconf -fiv
+          ./configure
+      - name: Distcheck
+        run: make distcheck
+      - name: RPM Build
+        if: ${{ matrix.name == 'fedora' }}
+        run: |
+          mkdir -p rpmbuild/SOURCES
+          cp pkcs11-provider*tar.xz rpmbuild/SOURCES/
+          rpmbuild --define "_topdir $PWD/rpmbuild" -ba \
+              packaging/pkcs11-provider.spec

@@ -1,10 +1,11 @@
+---
 name: Build
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build:
@@ -23,63 +24,63 @@ jobs:
             container: debian:sid
     container: ${{ matrix.container }}
     steps:
-    - name: Install Dependencies
-      run: |
-          if [ -f /etc/fedora-release ]; then
-            dnf -y install git ${{ matrix.compiler }} automake libtool \
-              pkgconf-pkg-config autoconf-archive openssl-devel openssl \
-              diffutils expect valgrind
-            if [ "${{ matrix.token }}" = "softokn" ]; then
-              dnf -y install nss-softokn nss-tools nss-softokn-devel
-            elif [ "${{ matrix.token }}" = "softhsm" ]; then
-              dnf -y install softhsm opensc p11-kit-devel p11-kit-server \
-                gnutls-utils
+      - name: Install Dependencies
+        run: |
+            if [ -f /etc/fedora-release ]; then
+              dnf -y install git ${{ matrix.compiler }} automake libtool \
+                pkgconf-pkg-config autoconf-archive openssl-devel openssl \
+                diffutils expect valgrind
+              if [ "${{ matrix.token }}" = "softokn" ]; then
+                dnf -y install nss-softokn nss-tools nss-softokn-devel
+              elif [ "${{ matrix.token }}" = "softhsm" ]; then
+                dnf -y install softhsm opensc p11-kit-devel p11-kit-server \
+                  gnutls-utils
+              fi
+            elif [ -f /etc/debian_version ]; then
+              apt-get -q update
+              apt-get -yq install git ${{ matrix.compiler }} make automake \
+                libtool pkg-config autoconf-archive libssl-dev openssl expect \
+                valgrind procps
+              if [ "${{ matrix.token }}" = "softokn" ]; then
+                apt-get -yq install libnss3 libnss3-tools libnss3-dev
+              elif [ "${{ matrix.token }}" = "softhsm" ]; then
+                apt-get -yq install softhsm opensc p11-kit libp11-kit-dev \
+                  p11-kit-modules gnutls-bin
+              fi
             fi
-          elif [ -f /etc/debian_version ]; then
-            apt-get -q update
-            apt-get -yq install git ${{ matrix.compiler }} make automake \
-              libtool pkg-config autoconf-archive libssl-dev openssl expect \
-              valgrind procps
-            if [ "${{ matrix.token }}" = "softokn" ]; then
-              apt-get -yq install libnss3 libnss3-tools libnss3-dev
-            elif [ "${{ matrix.token }}" = "softhsm" ]; then
-              apt-get -yq install softhsm opensc p11-kit libp11-kit-dev \
-                p11-kit-modules gnutls-bin
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      - name: Setup
+        run: |
+          autoreconf -fiv
+          CC=${{ matrix.compiler }} ./configure
+      - name: Build and Test
+        run: make check
+      - uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: Test logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
+          path: |
+            tests/*.log
+            tests/openssl.cnf
+            tests/tmp.${{ matrix.token }}/p11prov-debug.log
+            tests/tmp.${{ matrix.token }}/testvars
+            config.log
+      - name: Run tests with valgrind
+        run: |
+            if [ "${{ matrix.compiler }}" = "gcc" ]; then
+              make check-valgrind-memcheck
             fi
-          fi
-    - name: Checkout Repository
-      uses: actions/checkout@v3
-    - name: Setup
-      run: |
-        autoreconf -fiv
-        CC=${{ matrix.compiler }} ./configure
-    - name: Build and Test
-      run: make check
-    - uses: actions/upload-artifact@v3
-      if: failure()
-      with:
-        name: Test logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
-        path: |
-          tests/*.log
-          tests/openssl.cnf
-          tests/tmp.${{ matrix.token }}/p11prov-debug.log
-          tests/tmp.${{ matrix.token }}/testvars
-          config.log
-    - name: Run tests with valgrind
-      run: |
-          if [ "${{ matrix.compiler }}" = "gcc" ]; then
-            make check-valgrind-memcheck
-          fi
-    - uses: actions/upload-artifact@v3
-      if: failure()
-      with:
-        name: Test valgrind logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
-        path: |
-          tests/*.log
-          tests/openssl.cnf
-          tests/tmp.${{ matrix.token }}/p11prov-debug.log
-          tests/tmp.${{ matrix.token }}/testvars
-          config.log
+      - uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: Test valgrind logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
+          path: |
+            tests/*.log
+            tests/openssl.cnf
+            tests/tmp.${{ matrix.token }}/p11prov-debug.log
+            tests/tmp.${{ matrix.token }}/testvars
+            config.log
   build-macos:
     name: CI with software token
     runs-on: ${{ matrix.os }}
@@ -89,45 +90,45 @@ jobs:
         os: [macos-12]
         token: [softokn, softhsm]
     steps:
-    - name: Install Dependencies
-      run: |
-        brew update
-        brew install \
-          autoconf-archive \
-          automake \
-          libtool \
-          openssl@3 \
-          pkg-config
-        if [ "${{ matrix.token }}" = "softokn" ]; then
-          brew install nss
-        elif [ "${{ matrix.token }}" = "softhsm" ]; then
+      - name: Install Dependencies
+        run: |
+          brew update
           brew install \
-            opensc \
-            p11-kit \
-            softhsm
-        fi
-    - name: Checkout Repository
-      uses: actions/checkout@v3
-    - name: Setup
-      run: |
-        export PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig
-        export PATH=$(brew --prefix openssl@3)/bin:$PATH
+            autoconf-archive \
+            automake \
+            libtool \
+            openssl@3 \
+            pkg-config
+          if [ "${{ matrix.token }}" = "softokn" ]; then
+            brew install nss
+          elif [ "${{ matrix.token }}" = "softhsm" ]; then
+            brew install \
+              opensc \
+              p11-kit \
+              softhsm
+          fi
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      - name: Setup
+        run: |
+          export PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig
+          export PATH=$(brew --prefix openssl@3)/bin:$PATH
 
-        autoreconf -fiv
-        CC=clang ./configure
-    - name: Build and Test
-      run: |
-        export PATH=$(brew --prefix openssl@3)/bin:$PATH
+          autoreconf -fiv
+          CC=clang ./configure
+      - name: Build and Test
+        run: |
+          export PATH=$(brew --prefix openssl@3)/bin:$PATH
 
-        make -j$(sysctl -n hw.ncpu || echo 2)
-        make check
-    - uses: actions/upload-artifact@v3
-      if: failure()
-      with:
-        name: Test logs on macOS-12 with ${{ matrix.token }}
-        path: |
-          tests/*.log
-          tests/openssl.cnf
-          tests/tmp.${{ matrix.token }}/p11prov-debug.log
-          tests/tmp.${{ matrix.token }}/testvars
-          config.log
+          make -j$(sysctl -n hw.ncpu || echo 2)
+          make check
+      - uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: Test logs on macOS-12 with ${{ matrix.token }}
+          path: |
+            tests/*.log
+            tests/openssl.cnf
+            tests/tmp.${{ matrix.token }}/p11prov-debug.log
+            tests/tmp.${{ matrix.token }}/testvars
+            config.log

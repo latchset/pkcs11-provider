@@ -1,8 +1,9 @@
+---
 name: Scan Build
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build:
@@ -10,26 +11,26 @@ jobs:
     runs-on: ubuntu-22.04
     container: fedora:latest
     steps:
-    - name: Install Dependencies
-      run: |
-        dnf -y install $COMPILER automake libtool pkgconf-pkg-config autoconf-archive \
-              git openssl-devel clang-analyzer
-    - uses: actions/checkout@v3
-      name: Checkout Repository
-    - name: Setup
-      run: |
-        autoreconf -fiv
-        ./configure
-    - name: Scan Build
-      run: |
-        scan-build --html-title="PKCS#11 Provider ($GITHUB_SHA)" \
-                  --keep-cc \
-                  --status-bugs \
-                  --keep-going \
-                  -o scan-build.reports make
-    - uses: actions/upload-artifact@v3
-      if: failure()
-      with:
-        name: Scan Build logs
-        path: |
-          scan-build.reports/
+      - name: Install Dependencies
+        run: |
+          dnf -y install $COMPILER automake libtool pkgconf-pkg-config \
+              autoconf-archive git openssl-devel clang-analyzer
+      - uses: actions/checkout@v3
+        name: Checkout Repository
+      - name: Setup
+        run: |
+          autoreconf -fiv
+          ./configure
+      - name: Scan Build
+        run: |
+          scan-build --html-title="PKCS#11 Provider ($GITHUB_SHA)" \
+                    --keep-cc \
+                    --status-bugs \
+                    --keep-going \
+                    -o scan-build.reports make
+      - uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: Scan Build logs
+          path: |
+            scan-build.reports/
