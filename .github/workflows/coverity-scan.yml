@@ -1,10 +1,11 @@
+---
 name: Coverity Scan
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   schedule:
-    - cron:  '41 3 * * 0'
+    - cron: '41 3 * * 0'
 
 jobs:
   coverity:
@@ -12,29 +13,30 @@ jobs:
     runs-on: ubuntu-22.04
     container: fedora:latest
     steps:
-    - name: Install Dependencies
-      run: |
-          dnf -y install git gcc automake libtool pkgconf-pkg-config \
-              autoconf-archive openssl-devel openssl \
-              nss-softokn nss-tools nss-softokn-devel
-    - name: Checkout Repository
-      uses: actions/checkout@v3
-    - name: Setup
-      run: |
-        autoreconf -fiv
-        ./configure
-    - name: Check for changes
-      run: |
-          echo "RUN_COV=0" >> $GITHUB_ENV;
-          git config --global --add safe.directory /__w/pkcs11-provider/pkcs11-provider
-          DIFF=`git log --since=1week | wc -l`
-          if [ x${DIFF} != "x0" ]; then
-            echo "RUN_COV=1" >> $GITHUB_ENV;
-          fi
-    - name: Coverity Scan
-      if: env.RUN_COV == 1
-      uses: vapier/coverity-scan-action@v1
-      with:
-        project: "PKCS%2311+Provider"
-        email: ${{ secrets.COVERITY_SCAN_EMAIL }}
-        token: ${{ secrets.COVERITY_SCAN_TOKEN }}
+      - name: Install Dependencies
+        run: |
+            dnf -y install git gcc automake libtool pkgconf-pkg-config \
+                autoconf-archive openssl-devel openssl \
+                nss-softokn nss-tools nss-softokn-devel
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      - name: Setup
+        run: |
+          autoreconf -fiv
+          ./configure
+      - name: Check for changes
+        run: |
+            echo "RUN_COV=0" >> $GITHUB_ENV;
+            git config --global --add safe.directory \
+                /__w/pkcs11-provider/pkcs11-provider
+            DIFF=`git log --since=1week | wc -l`
+            if [ x${DIFF} != "x0" ]; then
+              echo "RUN_COV=1" >> $GITHUB_ENV;
+            fi
+      - name: Coverity Scan
+        if: env.RUN_COV == 1
+        uses: vapier/coverity-scan-action@v1
+        with:
+          project: "PKCS%2311+Provider"
+          email: ${{ secrets.COVERITY_SCAN_EMAIL }}
+          token: ${{ secrets.COVERITY_SCAN_TOKEN }}
