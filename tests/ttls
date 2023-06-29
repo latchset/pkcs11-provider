@@ -2,7 +2,7 @@
 # Copyright (C) 2023 Simo Sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-source ${TESTSSRCDIR}/helpers.sh
+source "${TESTSSRCDIR}/helpers.sh"
 
 SLEEP=0.5
 # with valgrind/asan, it might take a bit longer
@@ -14,28 +14,29 @@ title PARA "Test SSL_CTX creation"
 $CHECKER ./tlsctx
 
 title PARA "Test an actual TLS connection"
-rm -f ${TMPPDIR}/s_server_input
-rm -f ${TMPPDIR}/s_server_output
+rm -f "${TMPPDIR}/s_server_input"
+rm -f "${TMPPDIR}/s_server_output"
 
 # Set up command fifo
-mkfifo ${TMPPDIR}/s_server_input
-exec 3<>${TMPPDIR}/s_server_input
+mkfifo "${TMPPDIR}/s_server_input"
+exec 3<>"${TMPPDIR}/s_server_input"
 
-#Make sure we terminate programs if test fails in the middle
+# Make sure we terminate programs if test fails in the middle
+# shellcheck disable=SC2317  # Shellcheck for some reason does not follow trap
 kill_children_print() {
     kill_children
     echo "Server output:"
-    cat ${TMPPDIR}/s_server_output
+    cat "${TMPPDIR}/s_server_output"
 }
 trap kill_children_print EXIT
 PORT=23456
-$CHECKER openssl s_server -accept ${PORT} -key ${PRIURI} -cert ${CRTURI} <&3 &
+$CHECKER openssl s_server -accept "${PORT}" -key "${PRIURI}" -cert "${CRTURI}" <&3 &
 
 sleep $SLEEP
 
 # The client will error when the server drops the connection
 set +e
-$CHECKER openssl s_client -connect localhost:${PORT} -quiet > ${TMPPDIR}/s_server_output &
+$CHECKER openssl s_client -connect "localhost:${PORT}" -quiet > "${TMPPDIR}/s_server_output" &
 set -e
 
 # Wait to make sure client is connected
@@ -51,10 +52,10 @@ echo "Q" >&3
 
 # Tear down command fifo
 exec 3>&-
-rm -f ${TMPPDIR}/s_server_input
+rm -f "${TMPPDIR}/s_server_input"
 
 echo "Check message was successfully delivered over TLS"
-grep " TLS SUCCESSFUL " ${TMPPDIR}/s_server_output
+grep " TLS SUCCESSFUL " "${TMPPDIR}/s_server_output"
 
 title PARA "Kill any remaining children and wait for them"
 kill_children

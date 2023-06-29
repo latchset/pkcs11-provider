@@ -2,11 +2,12 @@
 # Copyright (C) 2023 Simo Sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-source ${TESTSSRCDIR}/helpers.sh
+source "${TESTSSRCDIR}/helpers.sh"
 
 title PARA "Test PKCS11 RNG"
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
-sed -e "s/#MORECONF/random = random\n\n[random]\nrandom = PKCS11-RAND/" ${OPENSSL_CONF} > ${OPENSSL_CONF}.failrandom
+sed -e "s/#MORECONF/random = random\n\n[random]\nrandom = PKCS11-RAND/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.failrandom"
 OPENSSL_CONF=${OPENSSL_CONF}.failrandom
 
 FAIL=0
@@ -17,8 +18,9 @@ if [ $FAIL -eq 0 ]; then
 fi
 
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
-sed -e "s/#pkcs11-module-load-behavior/pkcs11-module-load-behavior = early/" ${OPENSSL_CONF}.failrandom > ${OPENSSL_CONF}.random
-OPENSSL_CONF=${OPENSSL_CONF}.random
+sed -e "s/#pkcs11-module-load-behavior/pkcs11-module-load-behavior = early/" \
+    "${OPENSSL_CONF}.failrandom" > "${OPENSSL_CONF}.random"
+OPENSSL_CONF="${OPENSSL_CONF}.random"
 
 ossl 'rand 1'
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}

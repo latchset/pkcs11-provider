@@ -2,19 +2,19 @@
 # Copyright (C) 2022 Simo Sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-source ${TESTSSRCDIR}/helpers.sh
+source "${TESTSSRCDIR}/helpers.sh"
 
 DEMOCA="${TMPPDIR}/demoCA"
 
 title PARA "Set up demoCA"
-mkdir -p ${DEMOCA}/newcerts ${DEMOCA}/private
-if [ ! -e ${DEMOCA}/serial ]; then
-    echo "01" > ${DEMOCA}/serial
+mkdir -p "${DEMOCA}/newcerts" "${DEMOCA}/private"
+if [ ! -e "${DEMOCA}/serial" ]; then
+    echo "01" > "${DEMOCA}/serial"
 fi
-touch ${DEMOCA}/index.txt
+touch "${DEMOCA}/index.txt"
 
 title PARA "Generating CA cert if needed"
-if [ ! -e ${DEMOCA}/cacert.pem ]; then
+if [ ! -e "${DEMOCA}/cacert.pem" ]; then
     ossl 'req -batch -noenc -x509 -new -key ${PRIURI} -out ${DEMOCA}/cacert.pem'
 fi
 
@@ -47,9 +47,9 @@ PORT=12345
 trap kill_children EXIT
 #Unclear why but w/o -rmd sha1 this fails
 #call this without wrapper otherwise we have issues killing it later ...
-$CHECKER openssl ocsp -index ${DEMOCA}/index.txt -rsigner \
-    ${DEMOCA}/ocspSigning.pem -rkey ${PRIURI} -CA ${DEMOCA}/cacert.pem \
-    -rmd sha1 -port ${PORT} -text &
+$CHECKER openssl ocsp -index "${DEMOCA}/index.txt" -rsigner \
+    "${DEMOCA}/ocspSigning.pem" -rkey "${PRIURI}" -CA "${DEMOCA}/cacert.pem" \
+    -rmd sha1 -port "${PORT}" -text &
 sleep 0.5
 # with valgrind, it might take a bit longer
 if [ -n "$VALGRIND" ]; then
@@ -61,7 +61,7 @@ ocsp -CAfile ${DEMOCA}/cacert.pem -issuer ${DEMOCA}/cacert.pem
      -url http://127.0.0.1:${PORT}' $helper_emit
 output="$helper_output"
 FAIL=0
-echo $output | grep ": good" > /dev/null 2>&1 || FAIL=1
+echo "$output" | grep ": good" > /dev/null 2>&1 || FAIL=1
 if [ $FAIL -eq 1 ]; then
     echo "The OCSP response failed"
     echo

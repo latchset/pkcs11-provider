@@ -2,10 +2,10 @@
 # Copyright (C) 2022 Simo Sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-source ${TESTSSRCDIR}/helpers.sh
+source "${TESTSSRCDIR}/helpers.sh"
 
 SECRETFILE=${TMPPDIR}/rsa-oaep-secret.txt
-echo "Super Secret" > ${SECRETFILE}
+echo "Super Secret" > "${SECRETFILE}"
 title PARA "Encrypt and decrypt with RSA OAEP"
 # Let openssl encrypt by importing the public key
 ossl '
@@ -23,4 +23,4 @@ pkeyutl -decrypt -inkey "${PRIURI}"
                  -pkeyopt mgf1-digest:sha256
                  -in ${SECRETFILE}.enc
                  -out ${SECRETFILE}.dec'
-diff ${SECRETFILE} ${SECRETFILE}.dec
+diff "${SECRETFILE}" "${SECRETFILE}.dec"

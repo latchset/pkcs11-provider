@@ -2,13 +2,13 @@
 # Copyright (C) 2022 Simo Sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-source ${TESTSSRCDIR}/helpers.sh
+source "${TESTSSRCDIR}/helpers.sh"
 
 title PARA "Check we can fetch certifiatce objects"
 
 ossl '
 x509 -in ${CRTURI} -subject -out ${TMPPDIR}/crt-subj.txt'
-DATA=$(cat ${TMPPDIR}/crt-subj.txt | sed -e 's/\ =\ /=/g')
+DATA=$(sed -e 's/\ =\ /=/g' "${TMPPDIR}/crt-subj.txt")
 CHECK="subject=O=PKCS11 Provider, CN=My Test Cert"
 if [[ ! ${DATA} =~ ${CHECK} ]]; then
     echo "Cert not found looking for ${CHECK}"
@@ -17,7 +17,7 @@ fi
 
 ossl '
 x509 -in ${ECCRTURI} -subject -out ${TMPPDIR}/eccrt-subj.txt'
-DATA=$(cat ${TMPPDIR}/eccrt-subj.txt | sed -e 's/\ =\ /=/g')
+DATA=$(sed -e 's/\ =\ /=/g' "${TMPPDIR}/eccrt-subj.txt")
 CHECK="subject=O=PKCS11 Provider, CN=My EC Cert"
 if [[ ! ${DATA} =~ ${CHECK} ]]; then
     echo "Cert not found looking for ${CHECK}"
@@ -36,7 +36,7 @@ ossl '
 storeutl -certs -subject "${subj}"
                 -out ${TMPPDIR}/storeutl-crt-subj.txt
                 pkcs11:type=cert'
-DATA=$(cat ${TMPPDIR}/storeutl-crt-subj.txt)
+DATA=$(cat "${TMPPDIR}/storeutl-crt-subj.txt")
 if [[ ! ${DATA} =~ "Total found: 1" ]]; then
     echo "Cert not found matching by subject=${subj}"
     exit 1
