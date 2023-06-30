@@ -15,7 +15,11 @@ if [ $FAIL -ne 0 ]; then
 fi
 
 URISonly=$(echo "$helper_output" | grep "^URI")
-mapfile -t URIS <<< "${URISonly//URI /}"
+# poor mans mapfile for bash 3 on macos
+declare -a URIS
+while read -r var; do
+    URIS+=("$var")
+done <<< "${URISonly//URI /}"
 
 title PARA "Check returned URIs work to find objects"
 for uri in "${URIS[@]}"; do
