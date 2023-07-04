@@ -67,6 +67,12 @@ AC_ARG_WITH([openssl],
   [
       # Checks for libraries.
       PKG_CHECK_MODULES(
+        [CRYPTO],
+        [libcrypto >= 3.0.7],
+        ,
+        [AC_MSG_ERROR([libcrypto >= 3.0.7 is required])]
+      )
+      PKG_CHECK_MODULES(
         [OPENSSL],
         [libcrypto >= 3.0.7, libssl],
         ,
