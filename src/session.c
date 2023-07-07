@@ -677,6 +677,12 @@ done:
     return ret;
 }
 
+static bool check_skip_login(P11PROV_CTX *ctx, P11PROV_SLOT *slot)
+{
+    return p11prov_ctx_login_behavior(ctx) != PUBKEY_LOGIN_ALWAYS
+           && !p11prov_slot_check_req_login(slot);
+}
+
 /* There are three possible ways to call this function.
  * 1. One shot call on a specific slot
  *      slotid must point to a specific slot number
@@ -734,7 +740,7 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
         if (ret != CKR_OK) {
             goto done;
         }
-        if (reqlogin) {
+        if (reqlogin && !check_skip_login(provctx, slot)) {
             ret = slot_login(slot, uri, pw_cb, pw_cbarg, NULL);
             if (ret != CKR_OK) {
                 goto done;
@@ -768,7 +774,7 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                 /* keep going */
                 continue;
             }
-            if (reqlogin) {
+            if (reqlogin && !check_skip_login(provctx, slot)) {
                 ret = slot_login(slot, uri, pw_cb, pw_cbarg, NULL);
                 if (ret != CKR_OK) {
                     /* keep going */
