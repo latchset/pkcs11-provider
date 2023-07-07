@@ -28,5 +28,6 @@ CK_RV p11prov_slot_set_bad_pin(P11PROV_SLOT *slot, const char *bad_pin);
 const char *p11prov_slot_get_cached_pin(P11PROV_SLOT *slot);
 CK_RV p11prov_slot_set_cached_pin(P11PROV_SLOT *slot, const char *cached_pin);
 P11PROV_SESSION_POOL *p11prov_slot_get_session_pool(P11PROV_SLOT *slot);
+bool p11prov_slot_check_req_login(P11PROV_SLOT *slot);
 
 #endif /* _SLOT_H */

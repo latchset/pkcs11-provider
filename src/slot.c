@@ -516,3 +516,8 @@ P11PROV_SESSION_POOL *p11prov_slot_get_session_pool(P11PROV_SLOT *slot)
 {
     return slot->pool;
 }
+
+bool p11prov_slot_check_req_login(P11PROV_SLOT *slot)
+{
+    return slot->token.flags & CKF_LOGIN_REQUIRED;
+}
