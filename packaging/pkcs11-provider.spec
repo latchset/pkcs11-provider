@@ -1,5 +1,5 @@
 Name:          pkcs11-provider
-Version:       0.1
+Version:       0.2
 Release:       1%{?dist}
 Summary:       A PKCS#11 provider for OpenSSL 3.0+
 License:       Apache-2.0
