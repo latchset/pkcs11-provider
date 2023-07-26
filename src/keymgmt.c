@@ -689,9 +689,8 @@ static int p11prov_rsa_get_params(void *keydata, OSSL_PARAM params[])
     }
 
     modulus = p11prov_obj_get_attr(key, CKA_MODULUS);
-    if (modulus == NULL) {
-        ret = RET_OSSL_ERR;
-        return ret;
+    if (!modulus) {
+        return RET_OSSL_ERR;
     }
 
     p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_BITS);
@@ -726,6 +725,40 @@ static int p11prov_rsa_get_params(void *keydata, OSSL_PARAM params[])
             return ret;
         }
     }
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_RSA_N);
+    if (p) {
+        if (p->data_type != OSSL_PARAM_UNSIGNED_INTEGER) {
+            return RET_OSSL_ERR;
+        }
+        p->return_size = modulus->ulValueLen;
+        if (p->data) {
+            if (p->data_size < modulus->ulValueLen) {
+                return RET_OSSL_ERR;
+            }
+            byteswap_buf(modulus->pValue, p->data, modulus->ulValueLen);
+            p->data_size = modulus->ulValueLen;
+        }
+    }
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_RSA_E);
+    if (p) {
+        CK_ATTRIBUTE *exp;
+
+        if (p->data_type != OSSL_PARAM_UNSIGNED_INTEGER) {
+            return RET_OSSL_ERR;
+        }
+        exp = p11prov_obj_get_attr(key, CKA_PUBLIC_EXPONENT);
+        if (!exp) {
+            return RET_OSSL_ERR;
+        }
+        p->return_size = exp->ulValueLen;
+        if (p->data) {
+            if (p->data_size < exp->ulValueLen) {
+                return RET_OSSL_ERR;
+            }
+            byteswap_buf(exp->pValue, p->data, exp->ulValueLen);
+            p->data_size = exp->ulValueLen;
+        }
+    }
 
     return RET_OSSL_OK;
 }
@@ -737,8 +770,8 @@ static const OSSL_PARAM *p11prov_rsa_gettable_params(void *provctx)
         OSSL_PARAM_int(OSSL_PKEY_PARAM_SECURITY_BITS, NULL),
         OSSL_PARAM_int(OSSL_PKEY_PARAM_MAX_SIZE, NULL),
         OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_DEFAULT_DIGEST, NULL, 0),
-        /* OSSL_PKEY_PARAM_RSA_N,
-         * OSSL_PKEY_PARAM_RSA_E, */
+        OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_N, NULL, 0),
+        OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_E, NULL, 0),
         /* PKCS#11 does not have restrictions associated to keys so
          * we can't support OSSL_PKEY_PARAM_MANDATORY_DIGEST yet */
         OSSL_PARAM_END,
