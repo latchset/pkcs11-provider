@@ -4,6 +4,7 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
+#include <openssl/core_names.h>
 #include <openssl/evp.h>
 #include <openssl/store.h>
 #include <openssl/rand.h>
@@ -28,7 +29,7 @@ static void hexify(char *out, unsigned char *byte, size_t len)
     out[len * 3] = '\0';
 }
 
-static void check_keys(OSSL_STORE_CTX *store)
+static void check_keys(OSSL_STORE_CTX *store, const char *key_type)
 {
     OSSL_STORE_INFO *info;
     EVP_PKEY *pubkey = NULL;
@@ -65,6 +66,29 @@ static void check_keys(OSSL_STORE_CTX *store)
     if (privkey == NULL) {
         fprintf(stderr, "Failed to load private key\n");
         exit(EXIT_FAILURE);
+    }
+
+    /* check we can get pub params from key */
+    if (strcmp(key_type, "RSA") == 0) {
+        BIGNUM *tmp = NULL;
+        int ret;
+
+        ret = EVP_PKEY_get_bn_param(pubkey, OSSL_PKEY_PARAM_RSA_E, &tmp);
+        if (ret != 1) {
+            fprintf(stderr, "Failed to get E param from public key");
+            exit(EXIT_FAILURE);
+        } else {
+            BN_free(tmp);
+            tmp = NULL;
+        }
+        ret = EVP_PKEY_get_bn_param(pubkey, OSSL_PKEY_PARAM_RSA_N, &tmp);
+        if (ret != 1) {
+            fprintf(stderr, "Failed to get N param from public key");
+            exit(EXIT_FAILURE);
+        } else {
+            BN_free(tmp);
+            tmp = NULL;
+        }
     }
 
     EVP_PKEY_free(privkey);
@@ -120,7 +144,7 @@ static void gen_keys(const char *key_type, const char *label, unsigned char *id,
     }
     free(uri);
 
-    check_keys(store);
+    check_keys(store, key_type);
 
     OSSL_STORE_close(store);
 
@@ -143,7 +167,7 @@ static void gen_keys(const char *key_type, const char *label, unsigned char *id,
     }
     OSSL_STORE_SEARCH_free(search);
 
-    check_keys(store);
+    check_keys(store, key_type);
 
     OSSL_STORE_close(store);
 }
