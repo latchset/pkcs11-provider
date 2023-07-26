@@ -89,6 +89,26 @@ static void check_keys(OSSL_STORE_CTX *store, const char *key_type)
             BN_free(tmp);
             tmp = NULL;
         }
+    } else if (strcmp(key_type, "EC") == 0) {
+        BIGNUM *tmp = NULL;
+        int ret;
+
+        ret = EVP_PKEY_get_bn_param(pubkey, OSSL_PKEY_PARAM_EC_PUB_X, &tmp);
+        if (ret != 1) {
+            fprintf(stderr, "Failed to get X param from public key");
+            exit(EXIT_FAILURE);
+        } else {
+            BN_free(tmp);
+            tmp = NULL;
+        }
+        ret = EVP_PKEY_get_bn_param(pubkey, OSSL_PKEY_PARAM_EC_PUB_Y, &tmp);
+        if (ret != 1) {
+            fprintf(stderr, "Failed to get Y param from public key");
+            exit(EXIT_FAILURE);
+        } else {
+            BN_free(tmp);
+            tmp = NULL;
+        }
     }
 
     EVP_PKEY_free(privkey);

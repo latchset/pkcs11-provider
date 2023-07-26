@@ -51,6 +51,8 @@ const char *p11prov_obj_get_ec_group_name(P11PROV_OBJ *obj);
 int p11prov_obj_export_public_key(P11PROV_OBJ *obj, CK_KEY_TYPE key_type,
                                   bool search_related, OSSL_CALLBACK *cb_fn,
                                   void *cb_arg);
+int p11prov_obj_get_ec_public_x_y(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub_x,
+                                  CK_ATTRIBUTE **pub_y);
 
 #define ED25519 "ED25519"
 #define ED25519_BIT_SIZE 256
