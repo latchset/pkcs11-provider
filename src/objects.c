@@ -1504,8 +1504,8 @@ static CK_RV get_public_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int num)
  * overlapping memory areas */
 
 #define RSA_PUB_ATTRS 2
-int p11prov_obj_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
-                                      void *cb_arg)
+static int p11prov_obj_export_public_rsa_key(P11PROV_OBJ *obj,
+                                             OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
     CK_ATTRIBUTE attrs[RSA_PUB_ATTRS] = { 0 };
     OSSL_PARAM params[RSA_PUB_ATTRS + 1];
@@ -1697,8 +1697,8 @@ static int ec_group_explicit_to_params(P11PROV_OBJ *obj, const EC_GROUP *group,
  */
 #define EC_MAX_PUB_ATTRS 2
 #define EC_MAX_OSSL_PARAMS 9
-int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
-                                     void *cb_arg)
+static int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj,
+                                            OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
     CK_ATTRIBUTE attrs[EC_MAX_PUB_ATTRS] = { 0 };
     OSSL_PARAM params[EC_MAX_OSSL_PARAMS + 1] = { 0 };
@@ -1798,4 +1798,41 @@ done:
         OPENSSL_free(attrs[i].pValue);
     }
     return ret;
+}
+
+int p11prov_obj_export_public_key(P11PROV_OBJ *obj, CK_KEY_TYPE key_type,
+                                  bool search_related, OSSL_CALLBACK *cb_fn,
+                                  void *cb_arg)
+{
+    if (obj == NULL) {
+        return RET_OSSL_ERR;
+    }
+
+    if (obj->class != CKO_PRIVATE_KEY && obj->class != CKO_PUBLIC_KEY) {
+        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Invalid Object Class");
+        return RET_OSSL_ERR;
+    }
+
+    if (key_type != CK_UNAVAILABLE_INFORMATION) {
+        if (key_type != obj->data.key.type) {
+            P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Invalid Key Type");
+            return RET_OSSL_ERR;
+        }
+    }
+
+    if (!search_related && obj->class != CKO_PUBLIC_KEY) {
+        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Not a public Key");
+        return RET_OSSL_ERR;
+    }
+
+    switch (obj->data.key.type) {
+    case CKK_RSA:
+        return p11prov_obj_export_public_rsa_key(obj, cb_fn, cb_arg);
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+        return p11prov_obj_export_public_ec_key(obj, cb_fn, cb_arg);
+    default:
+        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Unsupported key type");
+        return RET_OSSL_ERR;
+    }
 }

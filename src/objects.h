@@ -47,11 +47,10 @@ CK_RV p11prov_derive_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
 CK_RV p11prov_obj_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                                  P11PROV_OBJ *obj, CK_ATTRIBUTE *template,
                                  CK_ULONG tsize);
-int p11prov_obj_export_public_rsa_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
-                                      void *cb_arg);
-int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
-                                     void *cb_arg);
 const char *p11prov_obj_get_ec_group_name(P11PROV_OBJ *obj);
+int p11prov_obj_export_public_key(P11PROV_OBJ *obj, CK_KEY_TYPE key_type,
+                                  bool search_related, OSSL_CALLBACK *cb_fn,
+                                  void *cb_arg);
 
 #define ED25519 "ED25519"
 #define ED25519_BIT_SIZE 256
