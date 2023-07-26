@@ -154,6 +154,7 @@ static CK_RV p11prov_interface_init(P11PROV_MODULE *mctx)
 {
     /* Try to get 3.0 interface by default */
     P11PROV_INTERFACE *intf;
+    CK_UTF8CHAR_PTR intf_name = (CK_UTF8CHAR_PTR) "PKCS 11";
     CK_VERSION version = { 3, 0 };
     CK_INTERFACE *ck_interface;
     CK_RV ret;
@@ -174,7 +175,7 @@ static CK_RV p11prov_interface_init(P11PROV_MODULE *mctx)
         intf->GetInterface = p11prov_NO_GetInterface;
     }
 
-    ret = intf->GetInterface(NULL, &version, &ck_interface, 0);
+    ret = intf->GetInterface(intf_name, &version, &ck_interface, 0);
     if (ret != CKR_OK && ret != CKR_FUNCTION_NOT_SUPPORTED) {
         /* retry without asking for specific version */
         ret = intf->GetInterface(NULL, NULL, &ck_interface, 0);
