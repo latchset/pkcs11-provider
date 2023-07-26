@@ -1192,6 +1192,48 @@ static int p11prov_ec_get_params(void *keydata, OSSL_PARAM params[])
             return ret;
         }
     }
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_EC_PUB_X);
+    if (p) {
+        CK_ATTRIBUTE *pub_x;
+
+        if (p->data_type != OSSL_PARAM_UNSIGNED_INTEGER) {
+            return RET_OSSL_ERR;
+        }
+        ret = p11prov_obj_get_ec_public_x_y(key, &pub_x, NULL);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+
+        p->return_size = pub_x->ulValueLen;
+        if (p->data) {
+            if (p->data_size < pub_x->ulValueLen) {
+                return RET_OSSL_ERR;
+            }
+            memcpy(p->data, pub_x->pValue, pub_x->ulValueLen);
+            p->data_size = pub_x->ulValueLen;
+        }
+    }
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_EC_PUB_Y);
+    if (p) {
+        CK_ATTRIBUTE *pub_y;
+
+        if (p->data_type != OSSL_PARAM_UNSIGNED_INTEGER) {
+            return RET_OSSL_ERR;
+        }
+        ret = p11prov_obj_get_ec_public_x_y(key, NULL, &pub_y);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+
+        p->return_size = pub_y->ulValueLen;
+        if (p->data) {
+            if (p->data_size < pub_y->ulValueLen) {
+                return RET_OSSL_ERR;
+            }
+            memcpy(p->data, pub_y->pValue, pub_y->ulValueLen);
+            p->data_size = pub_y->ulValueLen;
+        }
+    }
 
     return RET_OSSL_OK;
 }
@@ -1204,6 +1246,8 @@ static const OSSL_PARAM *p11prov_ec_gettable_params(void *provctx)
         OSSL_PARAM_int(OSSL_PKEY_PARAM_MAX_SIZE, NULL),
         OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_DEFAULT_DIGEST, NULL, 0),
+        OSSL_PARAM_BN(OSSL_PKEY_PARAM_EC_PUB_X, NULL, 0),
+        OSSL_PARAM_BN(OSSL_PKEY_PARAM_EC_PUB_Y, NULL, 0),
         /*
          * OSSL_PKEY_PARAM_ENCODED_PUBLIC_KEY
          * OSSL_PKEY_PARAM_EC_DECODED_FROM_EXPLICIT_PARAM
@@ -1221,8 +1265,6 @@ static const OSSL_PARAM *p11prov_ec_gettable_params(void *provctx)
          * OSSL_PKEY_PARAM_PRIV_KEY
          * OSSL_PKEY_PARAM_USE_COFACTOR_ECDH
          * OSSL_PKEY_PARAM_EC_INCLUDE_PUBLIC
-         * OSSL_PKEY_PARAM_EC_PUB_X
-         * OSSL_PKEY_PARAM_EC_PUB_Y
          */
         OSSL_PARAM_END,
     };

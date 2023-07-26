@@ -3,6 +3,7 @@
 
 #include "provider.h"
 #include <string.h>
+#include <openssl/bn.h>
 #include <openssl/ec.h>
 #include <openssl/x509.h>
 #include <openssl/obj_mac.h>
@@ -11,6 +12,8 @@
 #define CKA_P11PROV_CURVE_NAME CKA_P11PROV_BASE + 1
 #define CKA_P11PROV_CURVE_NID CKA_P11PROV_BASE + 2
 #define CKA_P11PROV_PUB_KEY CKA_P11PROV_BASE + 3
+#define CKA_P11PROV_PUB_KEY_X CKA_P11PROV_BASE + 4
+#define CKA_P11PROV_PUB_KEY_Y CKA_P11PROV_BASE + 5
 
 struct p11prov_key {
     CK_KEY_TYPE type;
@@ -1835,4 +1838,153 @@ int p11prov_obj_export_public_key(P11PROV_OBJ *obj, CK_KEY_TYPE key_type,
         P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Unsupported key type");
         return RET_OSSL_ERR;
     }
+}
+
+int p11prov_obj_get_ec_public_x_y(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub_x,
+                                  CK_ATTRIBUTE **pub_y)
+{
+    const unsigned char *val;
+    void *tmp_ptr;
+    CK_ATTRIBUTE *ec_params;
+    CK_ATTRIBUTE *pub_key;
+    EC_POINT *pub_point = NULL;
+    EC_GROUP *group = NULL;
+    CK_ATTRIBUTE *a_x;
+    CK_ATTRIBUTE *a_y;
+    BN_CTX *bnctx = NULL;
+    BIGNUM *x;
+    BIGNUM *y;
+    int len;
+    int ret;
+
+    if (!obj) {
+        return RET_OSSL_ERR;
+    }
+
+    if (obj->class != CKO_PRIVATE_KEY && obj->class != CKO_PUBLIC_KEY) {
+        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Invalid Object Class");
+        return RET_OSSL_ERR;
+    }
+
+    if (obj->data.key.type != CKK_EC) {
+        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Unsupported key type");
+        return RET_OSSL_ERR;
+    }
+
+    /* See if we have cached attributes first */
+    a_x = p11prov_obj_get_attr(obj, CKA_P11PROV_PUB_KEY_X);
+    a_y = p11prov_obj_get_attr(obj, CKA_P11PROV_PUB_KEY_Y);
+    if (a_x && a_y) {
+        if (pub_x) {
+            *pub_x = a_x;
+        }
+        if (pub_y) {
+            *pub_y = a_y;
+        }
+        return RET_OSSL_OK;
+    }
+
+    ec_params = p11prov_obj_get_attr(obj, CKA_EC_PARAMS);
+    if (!ec_params) {
+        return RET_OSSL_ERR;
+    }
+    pub_key = p11prov_obj_get_attr(obj, CKA_P11PROV_PUB_KEY);
+    if (!pub_key) {
+        return RET_OSSL_ERR;
+    }
+
+    bnctx = BN_CTX_new();
+    if (!bnctx) {
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+    /* prevent modification of the attribute pointer */
+    val = ec_params->pValue;
+    group = d2i_ECPKParameters(NULL, &val, ec_params->ulValueLen);
+    if (!group) {
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+
+    x = BN_CTX_get(bnctx);
+    y = BN_CTX_get(bnctx);
+    if (!y) {
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+
+    pub_point = EC_POINT_new(group);
+    if (!pub_point) {
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+
+    ret = EC_POINT_oct2point(group, pub_point, pub_key->pValue,
+                             pub_key->ulValueLen, bnctx);
+    if (ret != RET_OSSL_OK) {
+        goto done;
+    }
+
+    ret = EC_POINT_get_affine_coordinates(group, pub_point, x, y, bnctx);
+    if (ret != RET_OSSL_OK) {
+        goto done;
+    }
+
+    /* cache values */
+    tmp_ptr =
+        OPENSSL_realloc(obj->attrs, sizeof(CK_ATTRIBUTE) * (obj->numattrs + 2));
+    if (!tmp_ptr) {
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+    obj->attrs = tmp_ptr;
+
+    /* do x */
+    a_x = &obj->attrs[obj->numattrs];
+    a_x->type = CKA_P11PROV_PUB_KEY_X;
+    a_x->ulValueLen = BN_num_bytes(x);
+    a_x->pValue = OPENSSL_malloc(a_x->ulValueLen);
+    if (!a_x->pValue) {
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+    len = BN_bn2nativepad(x, a_x->pValue, a_x->ulValueLen);
+    if (len == -1) {
+        OPENSSL_free(a_x->pValue);
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+    obj->numattrs++;
+
+    /* do y */
+    a_y = &obj->attrs[obj->numattrs];
+    a_y->type = CKA_P11PROV_PUB_KEY_Y;
+    a_y->ulValueLen = BN_num_bytes(y);
+    a_y->pValue = OPENSSL_malloc(a_y->ulValueLen);
+    if (!a_y->pValue) {
+        OPENSSL_free(a_y->pValue);
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+    len = BN_bn2nativepad(y, a_y->pValue, a_y->ulValueLen);
+    if (len == -1) {
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+    obj->numattrs++;
+
+    if (pub_x) {
+        *pub_x = a_x;
+    }
+    if (pub_y) {
+        *pub_y = a_y;
+    }
+
+    ret = RET_OSSL_OK;
+
+done:
+    EC_POINT_free(pub_point);
+    EC_GROUP_free(group);
+    BN_CTX_free(bnctx);
+    return ret;
 }
