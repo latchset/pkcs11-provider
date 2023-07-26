@@ -440,10 +440,28 @@ static int p11prov_store_export_object(void *loaderctx, const void *reference,
                                        size_t reference_sz,
                                        OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
+    P11PROV_CTX *ctx = NULL;
+    P11PROV_OBJ *obj = NULL;
+
     P11PROV_debug("store (%p) export object %p, %zu", loaderctx, reference,
                   reference_sz);
 
-    return RET_OSSL_ERR;
+    obj = p11prov_obj_from_reference(reference, reference_sz);
+    if (!obj) {
+        return RET_OSSL_ERR;
+    }
+    ctx = p11prov_obj_get_prov_ctx(obj);
+    if (!ctx) {
+        return RET_OSSL_ERR;
+    }
+
+    if (p11prov_ctx_allow_export(ctx) & DISALLOW_EXPORT_PUBLIC) {
+        return RET_OSSL_ERR;
+    }
+
+    /* we can only export public bits, so that's all we do */
+    return p11prov_obj_export_public_key(obj, CK_UNAVAILABLE_INFORMATION, false,
+                                         cb_fn, cb_arg);
 }
 
 static const OSSL_PARAM *p11prov_store_settable_ctx_params(void *provctx)

@@ -130,8 +130,8 @@ static int p11prov_rsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
 
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         BIO_printf(out, "PKCS11 RSA Public Key (%lu bits)\n", keysize);
-        ret = p11prov_obj_export_public_rsa_key(
-            key, p11prov_rsa_print_public_key, out);
+        ret = p11prov_obj_export_public_key(key, CKK_RSA, true,
+                                            p11prov_rsa_print_public_key, out);
         if (ret != RET_OSSL_OK) {
             BIO_printf(out, "[Error: Failed to decode public key data]\n");
         }
@@ -219,8 +219,8 @@ static P11PROV_RSA_PUBKEY *p11prov_rsa_pubkey_to_asn1(P11PROV_OBJ *key)
         return NULL;
     }
 
-    ret = p11prov_obj_export_public_rsa_key(key, p11prov_rsa_set_asn1key_data,
-                                            asn1key);
+    ret = p11prov_obj_export_public_key(key, CKK_RSA, true,
+                                        p11prov_rsa_set_asn1key_data, asn1key);
 
     if (ret != RET_OSSL_OK) {
         P11PROV_RSA_PUBKEY_free(asn1key);
@@ -549,8 +549,8 @@ static X509_PUBKEY *p11prov_ec_pubkey_to_x509(P11PROV_OBJ *key)
     X509_PUBKEY *pubkey;
     int ret;
 
-    ret = p11prov_obj_export_public_ec_key(key, p11prov_ec_set_keypoint_data,
-                                           &keypoint);
+    ret = p11prov_obj_export_public_key(
+        key, CKK_EC, true, p11prov_ec_set_keypoint_data, &keypoint);
     if (ret != RET_OSSL_OK) {
         ecdsa_key_point_free(&keypoint);
         return NULL;
@@ -779,8 +779,8 @@ static int p11prov_ec_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
 
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         BIO_printf(out, "PKCS11 EC Public Key (%lu bits)\n", keysize);
-        ret = p11prov_obj_export_public_ec_key(key, p11prov_ec_print_public_key,
-                                               out);
+        ret = p11prov_obj_export_public_key(key, CKK_EC, true,
+                                            p11prov_ec_print_public_key, out);
         if (ret != RET_OSSL_OK) {
             BIO_printf(out, "[Error: Failed to decode public key data]\n");
         }

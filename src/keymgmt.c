@@ -604,7 +604,7 @@ static int p11prov_rsa_export(void *keydata, int selection,
 
     /* if anything else is asked for we can't provide it, so be strict */
     if ((class == CKO_PUBLIC_KEY) || (selection & ~(PUBLIC_PARAMS)) == 0) {
-        return p11prov_obj_export_public_rsa_key(key, cb_fn, cb_arg);
+        return p11prov_obj_export_public_key(key, CKK_RSA, true, cb_fn, cb_arg);
     }
 
     return RET_OSSL_ERR;
@@ -1074,7 +1074,7 @@ static int p11prov_ec_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
 
     /* this will return the public EC_POINT as well as DOMAIN_PARAMTERS */
     if ((class == CKO_PUBLIC_KEY) || (selection & ~(PUBLIC_PARAMS)) == 0) {
-        return p11prov_obj_export_public_ec_key(key, cb_fn, cb_arg);
+        return p11prov_obj_export_public_key(key, CKK_EC, true, cb_fn, cb_arg);
     }
 
     return RET_OSSL_ERR;
@@ -1347,7 +1347,8 @@ static int p11prov_ed_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
 
     /* this will return the public EC_POINT */
     if ((class == CKO_PUBLIC_KEY) || (selection & ~(PUBLIC_PARAMS)) == 0) {
-        return p11prov_obj_export_public_ec_key(key, cb_fn, cb_arg);
+        return p11prov_obj_export_public_key(key, CKK_EC_EDWARDS, true, cb_fn,
+                                             cb_arg);
     }
 
     return RET_OSSL_ERR;
