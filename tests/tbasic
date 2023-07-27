@@ -107,7 +107,6 @@ if [ $FAIL -ne 0 ]; then
     exit 1
 fi
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
-rm -f "${OPENSSL_CONF}.noexport"
 
 title PARA "Test CSR generation from RSA private keys"
 ossl '
@@ -150,12 +149,25 @@ if [ $FAIL -ne 0 ]; then
 fi
 
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
-rm -f "${OPENSSL_CONF}.nopin"
 
-title PARA "Test EVP_PKEY_eq on public RSA key"
-$CHECKER ./tcmpkeys $PUBURI ${TMPPDIR}/rsa.pub.uripin.pem
-title PARA "Test EVP_PKEY_eq on public EC key"
-$CHECKER ./tcmpkeys $ECPUBURI ${TMPPDIR}/ec.pub.uripin.pem
+title PARA "Test EVP_PKEY_eq on public RSA key both on token"
+$CHECKER ./tcmpkeys "$PUBURI" "$PUBURI"
+title PARA "Test EVP_PKEY_eq on public EC key both on token"
+$CHECKER ./tcmpkeys "$ECPUBURI" "$ECPUBURI"
+
+title PARA "Test EVP_PKEY_eq on public RSA key via import"
+$CHECKER ./tcmpkeys "$PUBURI" "${TMPPDIR}"/rsa.pub.uripin.pem
+title PARA "Test EVP_PKEY_eq on public EC key via import"
+$CHECKER ./tcmpkeys "$ECPUBURI" "${TMPPDIR}"/ec.pub.uripin.pem
+
+title PARA "Test EVP_PKEY_eq with key exporting disabled"
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+OPENSSL_CONF=${OPENSSL_CONF}.noexport
+title PARA "Test RSA key"
+$CHECKER ./tcmpkeys "$PUBURI" "$PUBURI"
+title PARA "Test EC key"
+$CHECKER ./tcmpkeys "$ECPUBURI" "$ECPUBURI"
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
 title PARA "Test PIN caching"
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
