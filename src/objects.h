@@ -54,6 +54,12 @@ int p11prov_obj_export_public_key(P11PROV_OBJ *obj, CK_KEY_TYPE key_type,
 int p11prov_obj_get_ec_public_x_y(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub_x,
                                   CK_ATTRIBUTE **pub_y);
 
+#define OBJ_CMP_KEY_TYPE 0x00
+#define OBJ_CMP_KEY_PUBLIC 0x01
+#define OBJ_CMP_KEY_PRIVATE 0x02
+int p11prov_obj_key_cmp(P11PROV_OBJ *obj1, P11PROV_OBJ *obj2, CK_KEY_TYPE type,
+                        int cmp_type);
+
 #define ED25519 "ED25519"
 #define ED25519_BIT_SIZE 256
 #define ED25519_BYTE_SIZE ED25519_BIT_SIZE / 8
