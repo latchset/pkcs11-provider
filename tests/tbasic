@@ -152,6 +152,11 @@ fi
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 rm -f "${OPENSSL_CONF}.nopin"
 
+title PARA "Test EVP_PKEY_eq on public RSA key"
+$CHECKER ./tcmpkeys $PUBURI ${TMPPDIR}/rsa.pub.uripin.pem
+title PARA "Test EVP_PKEY_eq on public EC key"
+$CHECKER ./tcmpkeys $ECPUBURI ${TMPPDIR}/ec.pub.uripin.pem
+
 title PARA "Test PIN caching"
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
 sed "s/^pkcs11-module-token-pin.*$/pkcs11-module-cache-pins = cache/" \

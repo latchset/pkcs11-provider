@@ -10,7 +10,7 @@ testssrcdir=@abs_srcdir@
 #VALGRIND_SUPPRESSIONS_FILES = $(top_srcdir)/tests/pkcs11-provider.supp
 VALGRIND_FLAGS = --num-callers=30 -q --keep-debuginfo=yes
 
-check_PROGRAMS = tsession tgenkey tlsctx tdigests treadkeys tfork pincache
+check_PROGRAMS = tsession tgenkey tlsctx tdigests treadkeys tcmpkeys tfork pincache
 
 tsession_SOURCES = tsession.c
 tsession_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
@@ -31,6 +31,10 @@ tdigests_LDADD = $(OPENSSL_LIBS)
 treadkeys_SOURCES = treadkeys.c
 treadkeys_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
 treadkeys_LDADD = $(OPENSSL_LIBS)
+
+tcmpkeys_SOURCES = tcmpkeys.c
+tcmpkeys_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
+tcmpkeys_LDADD = $(OPENSSL_LIBS)
 
 tfork_SOURCES = tfork.c
 tfork_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
