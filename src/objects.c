@@ -1988,3 +1988,173 @@ done:
     BN_CTX_free(bnctx);
     return ret;
 }
+
+static int cmp_attr(P11PROV_OBJ *key1, P11PROV_OBJ *key2,
+                    CK_ATTRIBUTE_TYPE attr)
+{
+    CK_ATTRIBUTE *x1, *x2;
+
+    x1 = p11prov_obj_get_attr(key1, attr);
+    x2 = p11prov_obj_get_attr(key2, attr);
+    if (!x1 || !x2) {
+        return RET_OSSL_ERR;
+    }
+    if (x1->ulValueLen != x2->ulValueLen) {
+        return RET_OSSL_ERR;
+    }
+    if (memcmp(x1->pValue, x2->pValue, x1->ulValueLen) != 0) {
+        return RET_OSSL_ERR;
+    }
+    return RET_OSSL_OK;
+}
+
+int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
+                        int cmp_type)
+{
+    int ret;
+
+    /* immediate shortcircuit if it is the same handle */
+    if (key1->slotid == key2->slotid && key1->handle == key2->handle) {
+        return RET_OSSL_OK;
+    }
+
+    if (key1->class != CKO_PRIVATE_KEY && key1->class != CKO_PUBLIC_KEY) {
+        /* not a key at all */
+        return RET_OSSL_ERR;
+    }
+    if (key2->class != CKO_PRIVATE_KEY && key2->class != CKO_PUBLIC_KEY) {
+        /* not a key at all */
+        return RET_OSSL_ERR;
+    }
+
+    if (type != CK_UNAVAILABLE_INFORMATION && type != key1->data.key.type) {
+        return RET_OSSL_ERR;
+    }
+
+    if (key1->data.key.type != key2->data.key.type) {
+        return RET_OSSL_ERR;
+    }
+
+    if (key1->data.key.bit_size != key2->data.key.bit_size) {
+        return RET_OSSL_ERR;
+    }
+
+    if (cmp_type & OBJ_CMP_KEY_PRIVATE) {
+        if (key1->class != key2->class) {
+            /* can't have private with differing key types */
+            return RET_OSSL_ERR;
+        }
+        if (key1->class != CKO_PRIVATE_KEY) {
+            return RET_OSSL_ERR;
+        }
+    }
+
+    switch (key1->data.key.type) {
+    case CKK_RSA:
+        ret = cmp_attr(key1, key2, CKA_PUBLIC_EXPONENT);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+        if (cmp_type & OBJ_CMP_KEY_PRIVATE) {
+            /* unfortunately we can't really read private attributes
+             * and there is no comparison function int he PKCS11 API.
+             * Generally you do not have 2 identical keys stored in to two
+             * separate objects so the initial shortcircuit that matches if
+             * slotid/handle are identical will often cover this. When that
+             * fails we have no option but to fail for now. */
+            P11PROV_debug("We can't really match private keys");
+            /* OTOH if modulus and exponent match either this is a broken key
+             * or the private key must also match */
+            cmp_type = OBJ_CMP_KEY_PUBLIC;
+        }
+        if (cmp_type & OBJ_CMP_KEY_PUBLIC) {
+            ret = cmp_attr(key1, key2, CKA_MODULUS);
+            if (ret != RET_OSSL_OK) {
+                return ret;
+            }
+        }
+        /* if nothing fails it is a match */
+        return RET_OSSL_OK;
+
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+        ret = cmp_attr(key1, key2, CKA_EC_PARAMS);
+        if (ret != RET_OSSL_OK) {
+            /* If EC_PARAMS do not match it may be due to encoding.
+             * Fall back to slower conversions and compare via EC_GROUP */
+            CK_ATTRIBUTE *ec_p;
+            const unsigned char *val;
+            EC_GROUP *group1 = NULL;
+            EC_GROUP *group2 = NULL;
+            BN_CTX *bnctx = NULL;
+
+            ec_p = p11prov_obj_get_attr(key1, CKA_EC_PARAMS);
+            if (!ec_p) {
+                ret = RET_OSSL_ERR;
+                goto out;
+            }
+            val = ec_p->pValue;
+            group1 = d2i_ECPKParameters(NULL, &val, ec_p->ulValueLen);
+            if (!group1) {
+                ret = RET_OSSL_ERR;
+                goto out;
+            }
+
+            ec_p = p11prov_obj_get_attr(key2, CKA_EC_PARAMS);
+            if (!ec_p) {
+                ret = RET_OSSL_ERR;
+                goto out;
+            }
+            val = ec_p->pValue;
+            group2 = d2i_ECPKParameters(NULL, &val, ec_p->ulValueLen);
+            if (!group2) {
+                ret = RET_OSSL_ERR;
+                goto out;
+            }
+
+            bnctx = BN_CTX_new_ex(p11prov_ctx_get_libctx(key1->ctx));
+            if (!bnctx) {
+                ret = RET_OSSL_ERR;
+                goto out;
+            }
+
+            ret = EC_GROUP_cmp(group1, group2, bnctx);
+            if (ret == 0) {
+                ret = RET_OSSL_OK;
+            } else {
+                ret = RET_OSSL_ERR;
+            }
+
+        out:
+            EC_GROUP_free(group1);
+            EC_GROUP_free(group2);
+            BN_CTX_free(bnctx);
+            if (ret != RET_OSSL_OK) {
+                return ret;
+            }
+        }
+        if (cmp_type & OBJ_CMP_KEY_PRIVATE) {
+            /* unfortunately we can't really read private attributes
+             * and there is no comparison function int he PKCS11 API.
+             * Generally you do not have 2 identical keys stored in to two
+             * separate objects so the initial shortcircuit that matches if
+             * slotid/handle are identical will often cover this. When that
+             * fails we have no option but to fail for now. */
+            P11PROV_debug("We can't really match private keys");
+            /* OTOH if group and pub point match either this is a broken key
+             * or the private key must also match */
+            cmp_type = OBJ_CMP_KEY_PUBLIC;
+        }
+        if (cmp_type & OBJ_CMP_KEY_PUBLIC) {
+            ret = cmp_attr(key1, key2, CKA_P11PROV_PUB_KEY);
+            if (ret != RET_OSSL_OK) {
+                return ret;
+            }
+        }
+        /* if nothing fails it is a match */
+        return RET_OSSL_OK;
+
+    default:
+        return RET_OSSL_ERR;
+    }
+}

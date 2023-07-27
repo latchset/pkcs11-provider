@@ -17,6 +17,7 @@ DISPATCH_KEYMGMT_FN(rsa, gen_settable_params);
 DISPATCH_KEYMGMT_FN(rsa, load);
 DISPATCH_KEYMGMT_FN(rsa, free);
 DISPATCH_KEYMGMT_FN(rsa, has);
+DISPATCH_KEYMGMT_FN(rsa, match);
 DISPATCH_KEYMGMT_FN(rsa, import);
 DISPATCH_KEYMGMT_FN(rsa, import_types);
 DISPATCH_KEYMGMT_FN(rsa, export);
@@ -461,6 +462,27 @@ static void *p11prov_common_load(const void *reference, size_t reference_sz,
     return key;
 }
 
+static int p11prov_common_match(const void *keydata1, const void *keydata2,
+                                CK_KEY_TYPE type, int selection)
+{
+    P11PROV_OBJ *key1 = (P11PROV_OBJ *)keydata1;
+    P11PROV_OBJ *key2 = (P11PROV_OBJ *)keydata2;
+    int cmp_type = OBJ_CMP_KEY_TYPE;
+
+    if (key1 == key2) {
+        return RET_OSSL_OK;
+    }
+
+    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+        cmp_type |= OBJ_CMP_KEY_PUBLIC;
+    }
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
+        cmp_type |= OBJ_CMP_KEY_PRIVATE;
+    }
+
+    return p11prov_obj_key_cmp(key1, key2, type, cmp_type);
+}
+
 /* RSA gen key */
 static void *p11prov_rsa_gen_init(void *provctx, int selection,
                                   const OSSL_PARAM params[])
@@ -573,6 +595,14 @@ static int p11prov_rsa_has(const void *keydata, int selection)
      * if asked for an export (main reason to do this), or other operations */
 
     return RET_OSSL_OK;
+}
+
+static int p11prov_rsa_match(const void *keydata1, const void *keydata2,
+                             int selection)
+{
+    P11PROV_debug("rsa match %p %p %d", keydata1, keydata2, selection);
+
+    return p11prov_common_match(keydata1, keydata2, CKK_RSA, selection);
 }
 
 static int p11prov_rsa_import(void *keydata, int selection,
@@ -789,6 +819,7 @@ const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(rsa, LOAD, load),
     DISPATCH_KEYMGMT_ELEM(rsa, FREE, free),
     DISPATCH_KEYMGMT_ELEM(rsa, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(rsa, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(rsa, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(rsa, IMPORT_TYPES, import_types),
     DISPATCH_KEYMGMT_ELEM(rsa, EXPORT, export),
@@ -933,6 +964,7 @@ DISPATCH_KEYMGMT_FN(ec, gen_settable_params);
 DISPATCH_KEYMGMT_FN(ec, load);
 DISPATCH_KEYMGMT_FN(ec, free);
 DISPATCH_KEYMGMT_FN(ec, has);
+DISPATCH_KEYMGMT_FN(ec, match);
 DISPATCH_KEYMGMT_FN(ec, import);
 DISPATCH_KEYMGMT_FN(ec, import_types);
 DISPATCH_KEYMGMT_FN(ec, export);
@@ -1046,6 +1078,14 @@ static int p11prov_ec_has(const void *keydata, int selection)
      * if asked for an export (main reason to do this), or other operations */
 
     return RET_OSSL_OK;
+}
+
+static int p11prov_ec_match(const void *keydata1, const void *keydata2,
+                            int selection)
+{
+    P11PROV_debug("ec match %p %p %d", keydata1, keydata2, selection);
+
+    return p11prov_common_match(keydata1, keydata2, CKK_EC, selection);
 }
 
 static int p11prov_ec_import(void *keydata, int selection,
@@ -1281,6 +1321,7 @@ const OSSL_DISPATCH p11prov_ec_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ec, LOAD, load),
     DISPATCH_KEYMGMT_ELEM(ec, FREE, free),
     DISPATCH_KEYMGMT_ELEM(ec, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(ec, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(ec, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(ec, IMPORT_TYPES, import_types),
     DISPATCH_KEYMGMT_ELEM(ec, EXPORT, export),
@@ -1295,6 +1336,7 @@ DISPATCH_KEYMGMT_FN(ed25519, gen_init);
 DISPATCH_KEYMGMT_FN(ed448, gen_init);
 DISPATCH_KEYMGMT_FN(ed, gen_settable_params);
 DISPATCH_KEYMGMT_FN(ed, load);
+DISPATCH_KEYMGMT_FN(ed, match);
 DISPATCH_KEYMGMT_FN(ed, import_types);
 DISPATCH_KEYMGMT_FN(ed, export);
 DISPATCH_KEYMGMT_FN(ed, export_types);
@@ -1368,6 +1410,14 @@ static void *p11prov_ed_load(const void *reference, size_t reference_sz)
 {
     P11PROV_debug("ed load %p, %ld", reference, reference_sz);
     return p11prov_common_load(reference, reference_sz, CKK_EC_EDWARDS);
+}
+
+static int p11prov_ed_match(const void *keydata1, const void *keydata2,
+                            int selection)
+{
+    P11PROV_debug("ed match %p %p %d", keydata1, keydata2, selection);
+
+    return p11prov_common_match(keydata1, keydata2, CKK_EC_EDWARDS, selection);
 }
 
 static int p11prov_ed_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
@@ -1541,6 +1591,7 @@ const OSSL_DISPATCH p11prov_ed25519_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ed, LOAD, load),
     DISPATCH_KEYMGMT_ELEM(ec, FREE, free),
     DISPATCH_KEYMGMT_ELEM(ec, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(ed, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(ec, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(ed, IMPORT_TYPES, import_types),
     DISPATCH_KEYMGMT_ELEM(ed, EXPORT, export),
@@ -1564,6 +1615,7 @@ const OSSL_DISPATCH p11prov_ed448_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ed, LOAD, load),
     DISPATCH_KEYMGMT_ELEM(ec, FREE, free),
     DISPATCH_KEYMGMT_ELEM(ec, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(ed, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(ec, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(ed, IMPORT_TYPES, import_types),
     DISPATCH_KEYMGMT_ELEM(ed, EXPORT, export),
