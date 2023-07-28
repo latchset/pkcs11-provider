@@ -608,8 +608,38 @@ static int p11prov_rsa_match(const void *keydata1, const void *keydata2,
 static int p11prov_rsa_import(void *keydata, int selection,
                               const OSSL_PARAM params[])
 {
-    P11PROV_debug("rsa import %p", keydata);
-    return RET_OSSL_ERR;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
+    CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
+    CK_RV rv;
+
+    P11PROV_debug("rsa import %p", key);
+
+    if (!key) {
+        return RET_OSSL_ERR;
+    }
+
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
+        class = CKO_PRIVATE_KEY;
+    }
+
+    /* NOTE: the following is needed because of bug:
+     * https://github.com/openssl/openssl/issues/21596
+     * it can be removed once we can depend on a recent enough version
+     * after it is fixed */
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
+        const OSSL_PARAM *p;
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_D);
+        if (!p) {
+            /* not really a private key */
+            class = CKO_PUBLIC_KEY;
+        }
+    }
+
+    rv = p11prov_obj_import_key(key, CKK_RSA, class, params);
+    if (rv != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
+    return RET_OSSL_OK;
 }
 
 #define PUBLIC_PARAMS \
@@ -640,7 +670,8 @@ static int p11prov_rsa_export(void *keydata, int selection,
     return RET_OSSL_ERR;
 }
 
-static const OSSL_PARAM p11prov_rsa_key_types[] = {
+#define RSA_KEY_ATTRS_SIZE 2
+static const OSSL_PARAM p11prov_rsa_key_types[RSA_KEY_ATTRS_SIZE + 1] = {
     OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_N, NULL, 0),
     OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_E, NULL, 0),
     OSSL_PARAM_END,
@@ -985,7 +1016,8 @@ static void *p11prov_ec_new(void *provctx)
         return NULL;
     }
 
-    return NULL;
+    return p11prov_obj_new(provctx, CK_UNAVAILABLE_INFORMATION,
+                           CK_INVALID_HANDLE, CK_UNAVAILABLE_INFORMATION);
 }
 
 static void *p11prov_ec_gen_init(void *provctx, int selection,
@@ -1091,8 +1123,38 @@ static int p11prov_ec_match(const void *keydata1, const void *keydata2,
 static int p11prov_ec_import(void *keydata, int selection,
                              const OSSL_PARAM params[])
 {
-    P11PROV_debug("ec import %p", keydata);
-    return RET_OSSL_ERR;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
+    CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
+    CK_RV rv;
+
+    P11PROV_debug("ec import %p", key);
+
+    if (!key) {
+        return RET_OSSL_ERR;
+    }
+
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
+        class = CKO_PRIVATE_KEY;
+    }
+
+    /* NOTE: the following is needed because of bug:
+     * https://github.com/openssl/openssl/issues/21596
+     * it can be removed once we can depend on a recent enough version
+     * after it is fixed */
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
+        const OSSL_PARAM *p;
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+        if (!p) {
+            /* not really a private key */
+            class = CKO_PUBLIC_KEY;
+        }
+    }
+
+    rv = p11prov_obj_import_key(key, CKK_EC, class, params);
+    if (rv != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
+    return RET_OSSL_OK;
 }
 
 static int p11prov_ec_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,

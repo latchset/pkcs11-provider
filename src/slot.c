@@ -458,6 +458,33 @@ CK_RV p11prov_slot_get_obj_pool(P11PROV_CTX *ctx, CK_SLOT_ID id,
     return ret;
 }
 
+CK_RV p11prov_slot_find_obj_pool(P11PROV_CTX *ctx, slot_pool_callback cb,
+                                 void *cb_ctx)
+{
+    P11PROV_SLOT *slot = NULL;
+    P11PROV_SLOTS_CTX *sctx;
+    bool found = false;
+    CK_RV ret;
+
+    ret = p11prov_take_slots(ctx, &sctx);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+
+    for (int s = 0; s < sctx->num; s++) {
+        slot = sctx->slots[s];
+        if (slot->objects) {
+            found = cb(cb_ctx, slot->objects);
+        }
+        if (found) {
+            break;
+        }
+    }
+
+    p11prov_return_slots(sctx);
+    return CKR_OK;
+}
+
 CK_SLOT_ID p11prov_slot_get_slot_id(P11PROV_SLOT *slot)
 {
     return slot->id;

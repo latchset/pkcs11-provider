@@ -5,6 +5,7 @@
 #include <string.h>
 #include <openssl/bn.h>
 #include <openssl/ec.h>
+#include <openssl/core.h>
 #include <openssl/x509.h>
 #include <openssl/obj_mac.h>
 #include "platform/endian.h"
@@ -215,6 +216,11 @@ static void obj_rm_from_pool(P11PROV_OBJ *obj)
     P11PROV_OBJ_POOL *pool;
     CK_RV ret;
 
+    if (obj->slotid == CK_UNAVAILABLE_INFORMATION) {
+        /* a mock object */
+        return;
+    }
+
     ret = p11prov_slot_get_obj_pool(obj->ctx, obj->slotid, &pool);
     if (ret != CKR_OK) {
         return;
@@ -261,6 +267,11 @@ P11PROV_OBJ *p11prov_obj_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
     obj->cached = CK_INVALID_HANDLE;
 
     obj->refcnt = 1;
+
+    if (handle == CK_INVALID_HANDLE) {
+        /* mock object, return w/o adding to pool */
+        return obj;
+    }
 
     ret = obj_add_to_pool(obj);
     if (ret != CKR_OK) {
@@ -2157,4 +2168,392 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
     default:
         return RET_OSSL_ERR;
     }
+}
+
+static bool obj_match_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int numattrs)
+{
+    CK_ATTRIBUTE *x;
+    for (int i = 0; i < numattrs; i++) {
+        x = p11prov_obj_get_attr(obj, attrs[i].type);
+        if (!x) {
+            return false;
+        }
+        if (x->ulValueLen != attrs[i].ulValueLen) {
+            return false;
+        }
+        if (memcmp(x->pValue, attrs[i].pValue, x->ulValueLen) != 0) {
+            return false;
+        }
+    }
+    /* match found */
+    return true;
+}
+
+#define MAX_ATTRS_SIZE 3
+struct pool_find_ctx {
+    CK_KEY_TYPE type;
+    CK_OBJECT_CLASS class;
+    CK_ULONG key_size;
+    CK_ULONG bit_size;
+    CK_ATTRIBUTE attrs[MAX_ATTRS_SIZE];
+    int numattrs;
+    P11PROV_OBJ *found;
+};
+
+static bool pool_find_callback(void *pctx, P11PROV_OBJ_POOL *pool)
+{
+    struct pool_find_ctx *ctx = (struct pool_find_ctx *)pctx;
+    P11PROV_OBJ *obj;
+    CK_RV ret;
+
+    if (!pool) {
+        return false;
+    }
+
+    ret = MUTEX_LOCK(pool);
+    if (ret != CKR_OK) {
+        return false;
+    }
+
+    /* LOCKED SECTION ------------- */
+    for (int i = 0; i < pool->num; i++) {
+        obj = pool->objects[i];
+        if (!obj) {
+            continue;
+        }
+        if (obj->class != ctx->class) {
+            continue;
+        }
+        if (obj->data.key.type != ctx->type) {
+            continue;
+        }
+        if (obj->data.key.bit_size != ctx->bit_size) {
+            continue;
+        }
+        if (obj_match_attrs(obj, ctx->attrs, ctx->numattrs)) {
+            ctx->found = obj;
+            break;
+        }
+    }
+
+    (void)MUTEX_UNLOCK(pool);
+    /* ------------- LOCKED SECTION */
+
+    return (ctx->found != NULL);
+}
+
+static CK_RV param_to_attr(P11PROV_CTX *ctx, const OSSL_PARAM params[],
+                           const char *param_key, CK_ATTRIBUTE *dst,
+                           CK_ATTRIBUTE_TYPE type, bool byteswap)
+{
+    const OSSL_PARAM *p;
+    CK_ATTRIBUTE tmp;
+    CK_RV rv;
+
+    p = OSSL_PARAM_locate_const(params, param_key);
+    if (!p) {
+        P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s", param_key);
+        return CKR_KEY_INDIGESTIBLE;
+    }
+    tmp.type = type;
+    tmp.ulValueLen = p->data_size;
+    tmp.pValue = p->data;
+    rv = p11prov_copy_attr(dst, &tmp);
+    if (rv != CKR_OK) {
+        P11PROV_raise(ctx, CKR_HOST_MEMORY, "No space for %s", param_key);
+        return CKR_HOST_MEMORY;
+    }
+    if (byteswap) {
+        byteswap_buf(dst->pValue, dst->pValue, dst->ulValueLen);
+    }
+    return CKR_OK;
+}
+
+static CK_RV prep_rsa_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
+                           struct pool_find_ctx *findctx)
+{
+    CK_RV rv;
+
+    if (findctx->numattrs != MAX_ATTRS_SIZE) {
+        return CKR_ARGUMENTS_BAD;
+    }
+    findctx->numattrs = 0;
+
+    rv = param_to_attr(ctx, params, OSSL_PKEY_PARAM_RSA_N, &findctx->attrs[0],
+                       CKA_MODULUS, true);
+    if (rv != CKR_OK) {
+        return rv;
+    }
+    findctx->numattrs++;
+
+    rv = param_to_attr(ctx, params, OSSL_PKEY_PARAM_RSA_E, &findctx->attrs[1],
+                       CKA_PUBLIC_EXPONENT, true);
+    if (rv != CKR_OK) {
+        return rv;
+    }
+    findctx->numattrs++;
+
+    findctx->key_size = findctx->attrs[0].ulValueLen;
+    findctx->bit_size = findctx->key_size * 8;
+
+    return CKR_OK;
+}
+
+static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
+                          struct pool_find_ctx *findctx)
+{
+    EC_GROUP *group = NULL;
+    OSSL_PARAM tmp;
+    const char *curve_name = NULL;
+    int curve_nid;
+    CK_RV rv;
+
+    if (findctx->numattrs != MAX_ATTRS_SIZE) {
+        return CKR_ARGUMENTS_BAD;
+    }
+    findctx->numattrs = 0;
+
+    rv = param_to_attr(ctx, params, OSSL_PKEY_PARAM_PUB_KEY, &findctx->attrs[0],
+                       CKA_P11PROV_PUB_KEY, false);
+    if (rv != CKR_OK) {
+        return rv;
+    }
+    findctx->numattrs++;
+
+    group = EC_GROUP_new_from_params(params, p11prov_ctx_get_libctx(ctx), NULL);
+    if (!group) {
+        P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Unable to decode ec group");
+        rv = CKR_KEY_INDIGESTIBLE;
+        goto done;
+    }
+
+    curve_nid = EC_GROUP_get_curve_name(group);
+    if (curve_nid != NID_undef) {
+        curve_name = OSSL_EC_curve_nid2name(curve_nid);
+        if (!curve_name) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Unknown curve");
+            rv = CKR_KEY_INDIGESTIBLE;
+            goto done;
+        }
+    }
+    tmp.key = "EC Group";
+    tmp.data = &curve_nid;
+    tmp.data_size = sizeof(curve_nid);
+    rv = param_to_attr(ctx, &tmp, tmp.key, &findctx->attrs[findctx->numattrs],
+                       CKA_P11PROV_CURVE_NID, false);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+    findctx->numattrs++;
+
+    if (curve_name != NULL) {
+        tmp.key = "EC Curve Name";
+        tmp.data = (void *)curve_name;
+        tmp.data_size = strlen(curve_name) + 1;
+        rv = param_to_attr(ctx, &tmp, tmp.key,
+                           &findctx->attrs[findctx->numattrs],
+                           CKA_P11PROV_CURVE_NAME, false);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        findctx->numattrs++;
+    }
+
+    findctx->bit_size = EC_GROUP_order_bits(group);
+    findctx->key_size = (findctx->bit_size + 7) / 8;
+    rv = CKR_OK;
+
+done:
+    EC_GROUP_free(group);
+    return rv;
+}
+
+static CK_RV return_dup_key(P11PROV_OBJ *dst, P11PROV_OBJ *src)
+{
+    CK_RV rv;
+
+    dst->slotid = src->slotid;
+    dst->handle = src->handle;
+    dst->class = src->class;
+    dst->cka_copyable = src->cka_copyable;
+    dst->cka_token = src->cka_token;
+    dst->data.key = src->data.key;
+
+    dst->attrs = OPENSSL_malloc(sizeof(CK_ATTRIBUTE) * src->numattrs);
+    if (!dst->attrs) {
+        rv = CKR_HOST_MEMORY;
+        P11PROV_raise(dst->ctx, rv, "Failed allocation");
+        return rv;
+    }
+    dst->numattrs = 0;
+    for (int i = 0; i < src->numattrs; i++) {
+        rv = p11prov_copy_attr(&dst->attrs[i], &src->attrs[i]);
+        if (rv != CKR_OK) {
+            rv = CKR_HOST_MEMORY;
+            P11PROV_raise(dst->ctx, rv, "Failed attr copy");
+            return rv;
+        }
+        dst->numattrs++;
+    }
+
+    return CKR_OK;
+}
+
+static CK_RV fix_ec_key_import(P11PROV_OBJ *key, int allocattrs)
+{
+    CK_ATTRIBUTE *pub;
+    ASN1_OCTET_STRING oct;
+    unsigned char *der = NULL;
+    int len;
+
+    if (key->numattrs >= allocattrs) {
+        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR,
+                      "Too many attributes?? %d >= %d", key->numattrs,
+                      allocattrs);
+        return CKR_GENERAL_ERROR;
+    }
+
+    pub = p11prov_obj_get_attr(key, CKA_P11PROV_PUB_KEY);
+    if (!pub) {
+        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE, "No public key found");
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    oct.data = pub->pValue;
+    oct.length = pub->ulValueLen;
+    oct.flags = 0;
+
+    len = i2d_ASN1_OCTET_STRING(&oct, &der);
+    if (len < 0) {
+        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
+                      "Failure to encode EC point to DER");
+        return CKR_KEY_INDIGESTIBLE;
+    }
+    key->attrs[key->numattrs].type = CKA_EC_POINT;
+    key->attrs[key->numattrs].pValue = der;
+    key->attrs[key->numattrs].ulValueLen = len;
+    key->numattrs++;
+
+    /* TODO: EC_PARAMS */
+
+    return CKR_OK;
+}
+
+CK_RV p11prov_obj_import_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
+                             CK_OBJECT_CLASS class, const OSSL_PARAM params[])
+{
+    P11PROV_CTX *ctx;
+    struct pool_find_ctx findctx = {
+        .type = type,
+        .class = class,
+        .bit_size = 0,
+        .attrs = { { 0 } },
+        .numattrs = MAX_ATTRS_SIZE,
+        .found = NULL,
+    };
+    int allocattrs = 0;
+    CK_RV rv;
+
+    /* This operation available only on new objects, can't import over an
+     * existing one */
+    if (key->class != CK_UNAVAILABLE_INFORMATION) {
+        P11PROV_raise(key->ctx, CKR_ARGUMENTS_BAD, "Non empty object");
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    if (class != CKO_PUBLIC_KEY) {
+        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
+                      "Only public keys are supported");
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    ctx = p11prov_obj_get_prov_ctx(key);
+    if (!ctx) {
+        return CKR_GENERAL_ERROR;
+    }
+
+    switch (type) {
+    case CKK_RSA:
+        rv = prep_rsa_find(ctx, params, &findctx);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        allocattrs = RSA_ATTRS_NUM;
+        break;
+
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+        rv = prep_ec_find(ctx, params, &findctx);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        allocattrs = EC_ATTRS_NUM;
+        break;
+
+    default:
+        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
+                      "Unsupported key type: %08lx", type);
+        rv = CKR_KEY_INDIGESTIBLE;
+        goto done;
+    }
+
+    if (allocattrs < findctx.numattrs) {
+        allocattrs = findctx.numattrs;
+    }
+
+    /* A common case with openssl is the request to import a key we already
+     * actually have on the token. This happens because OpenSSL is greedy
+     * and tries to export keys to its default provider before it even knows
+     * what kind of operation it needs to do. Sometimes the operation ends up
+     * being something that needs to be performed on the token. So try to see
+     * if we already have this key */
+    rv = p11prov_slot_find_obj_pool(ctx, pool_find_callback, &findctx);
+    if (rv != CKR_OK) {
+        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR, "Failed to search pools");
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    if (findctx.found) {
+        rv = return_dup_key(key, findctx.found);
+        goto done;
+    }
+
+    /*
+     * FIXME:
+     * For things like ECDH we can get away with a mock objects that just holds
+     * data for now, but is not backed by an actual handle and key in the token.
+     * Once this is not sufficient, we'll probably need to change functions to
+     * pass in a valid session when requesting a handle from an object, so that
+     * the key can be imported on the fly in the correct slot at the time the
+     * operation needs to be performed.
+     */
+
+    /* move data */
+    key->class = findctx.class;
+    key->data.key.type = findctx.type;
+    key->data.key.size = findctx.key_size;
+    key->data.key.bit_size = findctx.bit_size;
+    key->attrs = OPENSSL_malloc(sizeof(CK_ATTRIBUTE) * allocattrs);
+    if (!key->attrs) {
+        P11PROV_raise(key->ctx, CKR_HOST_MEMORY, "Failed allocation");
+        rv = CKR_HOST_MEMORY;
+        goto done;
+    }
+    for (int i = 0; i < findctx.numattrs; i++) {
+        key->attrs[i] = findctx.attrs[i];
+        findctx.attrs[i].pValue = NULL;
+    }
+    key->numattrs = findctx.numattrs;
+    findctx.numattrs = 0;
+
+    if (type == CKK_EC || type == CKK_EC_EDWARDS) {
+        rv = fix_ec_key_import(key, allocattrs);
+    }
+
+done:
+    for (int i = 0; i < findctx.numattrs; i++) {
+        OPENSSL_free(findctx.attrs[i].pValue);
+    }
+    return rv;
 }
