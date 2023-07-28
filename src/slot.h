@@ -19,6 +19,9 @@ int p11prov_check_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID id,
                             CK_MECHANISM_TYPE mechtype);
 CK_RV p11prov_slot_get_obj_pool(P11PROV_CTX *provctx, CK_SLOT_ID id,
                                 P11PROV_OBJ_POOL **pool);
+typedef bool (*slot_pool_callback)(void *, P11PROV_OBJ_POOL *);
+CK_RV p11prov_slot_find_obj_pool(P11PROV_CTX *ctx, slot_pool_callback cb,
+                                 void *cb_ctx);
 CK_SLOT_ID p11prov_slot_get_slot_id(P11PROV_SLOT *slot);
 CK_SLOT_INFO *p11prov_slot_get_slot(P11PROV_SLOT *slot);
 CK_TOKEN_INFO *p11prov_slot_get_token(P11PROV_SLOT *slot);

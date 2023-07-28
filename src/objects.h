@@ -60,6 +60,9 @@ int p11prov_obj_get_ec_public_x_y(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub_x,
 int p11prov_obj_key_cmp(P11PROV_OBJ *obj1, P11PROV_OBJ *obj2, CK_KEY_TYPE type,
                         int cmp_type);
 
+CK_RV p11prov_obj_import_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
+                             CK_OBJECT_CLASS class, const OSSL_PARAM params[]);
+
 #define ED25519 "ED25519"
 #define ED25519_BIT_SIZE 256
 #define ED25519_BYTE_SIZE ED25519_BIT_SIZE / 8

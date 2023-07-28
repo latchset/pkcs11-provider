@@ -2,9 +2,34 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdlib.h>
+#include <openssl/err.h>
 #include <openssl/store.h>
 #include <openssl/core_names.h>
+
+static void ossl_err_print(void)
+{
+    bool first = true;
+    unsigned long err = 0;
+    while (true) {
+        const char *file, *func, *data;
+        int line;
+        err = ERR_get_error_all(&file, &line, &func, &data, NULL);
+        if (err == 0) break;
+
+        char buf[1024];
+        ERR_error_string_n(err, buf, sizeof(buf));
+
+        const char *fmt =
+            first ? ": %s (in function %s in %s:%d): %s\n"
+                  : "  caused by: %s (in function %s in %s:%d): %s\n";
+        fprintf(stderr, fmt, buf, func, file, line, data);
+
+        first = false;
+    }
+    if (first) fprintf(stderr, "\n");
+}
 
 static EVP_PKEY *load_key(const char *uri)
 {
@@ -15,6 +40,7 @@ static EVP_PKEY *load_key(const char *uri)
     store = OSSL_STORE_open(uri, NULL, NULL, NULL, NULL);
     if (store == NULL) {
         fprintf(stderr, "Failed to open store: %s\n", uri);
+        ossl_err_print();
         exit(EXIT_FAILURE);
     }
 
@@ -40,6 +66,7 @@ static EVP_PKEY *load_key(const char *uri)
 
     if (key == NULL) {
         fprintf(stderr, "Failed to load key from URI: %s\n", uri);
+        ossl_err_print();
         exit(EXIT_FAILURE);
     }
     OSSL_STORE_close(store);
