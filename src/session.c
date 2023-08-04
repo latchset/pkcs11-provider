@@ -12,6 +12,7 @@ struct p11prov_session {
 
     CK_SLOT_ID slotid;
     CK_SESSION_HANDLE session;
+    CK_STATE state;
     CK_FLAGS flags;
 
     pthread_mutex_t lock;
@@ -61,6 +62,7 @@ static CK_RV token_session_callback(CK_SESSION_HANDLE hSession,
 #define SLEEP 50000
 static CK_RV token_session_open(P11PROV_SESSION *session, CK_FLAGS flags)
 {
+    CK_SESSION_INFO session_info;
     uint64_t startime = 0;
     CK_RV ret;
 
@@ -78,11 +80,20 @@ static CK_RV token_session_open(P11PROV_SESSION *session, CK_FLAGS flags)
     if (ret != CKR_OK) {
         session->session = CK_INVALID_HANDLE;
         session->flags = DEFLT_SESSION_FLAGS;
+        session->state = CK_UNAVAILABLE_INFORMATION;
         return ret;
     }
 
     session->flags = flags;
-    return CKR_OK;
+
+    /* get current state */
+    ret = p11prov_GetSessionInfo(session->provctx, session->session,
+                                 &session_info);
+    if (ret == CKR_OK) {
+        session->flags = session_info.flags;
+        session->state = session_info.state;
+    }
+    return ret;
 }
 
 static void token_session_close(P11PROV_SESSION *session)
@@ -93,6 +104,7 @@ static void token_session_close(P11PROV_SESSION *session)
         /* regardless of the result the session is gone */
         session->session = CK_INVALID_HANDLE;
         session->flags = DEFLT_SESSION_FLAGS;
+        session->state = CK_UNAVAILABLE_INFORMATION;
     }
 }
 
@@ -183,6 +195,7 @@ void p11prov_session_pool_fork_reset(P11PROV_SESSION_POOL *pool)
 
             session->session = CK_INVALID_HANDLE;
             session->flags = DEFLT_SESSION_FLAGS;
+            session->state = CK_UNAVAILABLE_INFORMATION;
             session->in_use = false;
             session->cb = NULL;
             session->cbarg = NULL;
@@ -228,6 +241,7 @@ static CK_RV session_new_bare(P11PROV_SESSION_POOL *pool,
     session->slotid = pool->slotid;
     session->session = CK_INVALID_HANDLE;
     session->flags = DEFLT_SESSION_FLAGS;
+    session->state = CK_UNAVAILABLE_INFORMATION;
     session->pool = pool;
 
     ret = MUTEX_INIT(session);
@@ -289,8 +303,7 @@ static CK_RV session_new(P11PROV_SESSION_POOL *pool, P11PROV_SESSION **_session)
     return CKR_OK;
 }
 
-static CK_RV session_check(P11PROV_SESSION *session, CK_FLAGS flags,
-                           CK_STATE *state)
+static CK_RV session_check(P11PROV_SESSION *session, CK_FLAGS flags)
 {
     CK_SESSION_INFO session_info;
     int ret;
@@ -313,21 +326,19 @@ static CK_RV session_check(P11PROV_SESSION *session, CK_FLAGS flags,
     ret = p11prov_GetSessionInfo(session->provctx, session->session,
                                  &session_info);
     if (ret == CKR_OK) {
-        if (state) {
-            *state = session_info.state;
-        }
+        session->state = session_info.state;
         if (flags == session_info.flags) {
-            return ret;
+            return CKR_OK;
         }
         (void)p11prov_CloseSession(session->provctx, session->session);
-        session->session = CK_INVALID_HANDLE;
         /* tell the caller that the session was closed so they can
          * keep up with accounting */
-        return CKR_SESSION_CLOSED;
+        ret = CKR_SESSION_CLOSED;
     }
 
     /* session has been closed elsewhere, or otherwise unusable */
     session->session = CK_INVALID_HANDLE;
+    session->state = CK_UNAVAILABLE_INFORMATION;
     return ret;
 }
 
@@ -509,6 +520,19 @@ static CK_RV check_slot(P11PROV_CTX *ctx, P11PROV_SLOT *slot, P11PROV_URI *uri,
     return CKR_OK;
 }
 
+static bool is_login_state(CK_STATE state)
+{
+    switch (state) {
+    case CKS_RO_USER_FUNCTIONS:
+    case CKS_RW_USER_FUNCTIONS:
+    case CKS_RW_SO_FUNCTIONS:
+        return true;
+    default:
+        break;
+    }
+    return false;
+}
+
 static CK_RV fetch_session(P11PROV_SESSION_POOL *pool, CK_FLAGS flags,
                            bool login_session, P11PROV_SESSION **_session)
 {
@@ -526,7 +550,11 @@ static CK_RV fetch_session(P11PROV_SESSION_POOL *pool, CK_FLAGS flags,
         ret = MUTEX_LOCK(pool->login_session);
         if (ret == CKR_OK) {
             if (pool->login_session->in_use) {
-                ret = CKR_CANT_LOCK;
+                if (is_login_state(pool->login_session->state)) {
+                    ret = CKR_USER_ALREADY_LOGGED_IN;
+                } else {
+                    ret = CKR_CANT_LOCK;
+                }
             } else {
                 session = pool->login_session;
                 session->in_use = true;
@@ -611,25 +639,23 @@ static CK_RV slot_login(P11PROV_SLOT *slot, P11PROV_URI *uri,
     P11PROV_SESSION_POOL *pool = p11prov_slot_get_session_pool(slot);
     P11PROV_SESSION *session = NULL;
     CK_FLAGS flags = DEFLT_SESSION_FLAGS;
-    CK_STATE state = CKS_RO_PUBLIC_SESSION;
     int num_open_sessions = 0;
     CK_RV ret;
 
     /* try to get a login_session */
     ret = fetch_session(pool, flags, true, &session);
+    if (ret == CKR_USER_ALREADY_LOGGED_IN && _session == NULL) {
+        P11PROV_debug("A login session already exists");
+        return CKR_OK;
+    }
     if (ret != CKR_OK) {
         P11PROV_raise(pool->provctx, ret, "Failed to fetch a login_session");
         return ret;
     }
 
     /* we acquired the session, check that it is ok */
-    ret = session_check(session, session->flags, &state);
-    if (ret == CKR_OK) {
-        if (state != CKS_RO_PUBLIC_SESSION) {
-            /* we seem to have a valid logged in session */
-            goto done;
-        }
-    } else {
+    ret = session_check(session, session->flags);
+    if (ret != CKR_OK) {
         num_open_sessions--;
     }
 
@@ -642,7 +668,12 @@ static CK_RV slot_login(P11PROV_SLOT *slot, P11PROV_URI *uri,
         }
     }
 
-    ret = token_login(session, uri, pw_cb, pw_cbarg, slot);
+    if (is_login_state(session->state)) {
+        /* we seem to already have a valid logged in session */
+        ret = CKR_OK;
+    } else {
+        ret = token_login(session, uri, pw_cb, pw_cbarg, slot);
+    }
 
 done:
     /* lock the pool only if needed */
@@ -824,7 +855,7 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
 
     ret = fetch_session(pool, flags, false, &session);
     if (ret == CKR_OK) {
-        ret = session_check(session, flags, NULL);
+        ret = session_check(session, flags);
         if (ret != CKR_OK) {
             num_open_sessions--;
             ret = CKR_OK;
