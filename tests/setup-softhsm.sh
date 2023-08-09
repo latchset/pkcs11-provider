@@ -318,6 +318,7 @@ else
     pkcs11-tool --write-object="${TESTSSRCDIR}/explicit_ec.pub.der" --type=pubkey --login --pin=$PINVALUE \
         --module="$P11LIB" --label="${ECXCRTN}" --id="$KEYID"
 
+    ECXBASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
     ECXBASEURI="pkcs11:id=${URIKEYID}"
     ECXPUBURI="pkcs11:type=public;id=${URIKEYID}"
     ECXPRIURI="pkcs11:type=private;id=${URIKEYID}"
@@ -401,6 +402,7 @@ DBGSCRIPT
 if [ -n "${ECXBASEURI}" ]; then
     cat >> ${TMPPDIR}/testvars <<DBGSCRIPT
 
+export ECXBASEURIWITHPIN="${ECXBASEURIWITHPIN}"
 export ECXBASEURI="${ECXBASEURI}"
 export ECXPUBURI="${ECXPUBURI}"
 export ECXPRIURI="${ECXPRIURI}"
