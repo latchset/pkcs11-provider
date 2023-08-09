@@ -13,6 +13,7 @@ tests/*.trs
 tests/pincache
 tests/tfork
 tests/tlsctx
+tests/tcmpkeys
 
 /pkcs11-provider-?.?/
 /pkcs11-provider-?.?.tar.?z
