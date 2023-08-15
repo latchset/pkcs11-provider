@@ -1,0 +1,28 @@
+#!/bin/bash -e
+# Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+MESSAGEFILE=${TMPPDIR}/cms-message.txt
+echo "CMS Test Message" > "${MESSAGEFILE}"
+
+title PARA "Encrypt CMS with EC"
+ossl '
+cms -encrypt -in "${MESSAGEFILE}"
+             -out "${TMPPDIR}/cms-message.ec.enc"
+             -aes-256-cbc
+             -recip ${ECCRTURI}
+             -binary'
+
+title PARA "Decrypt CMS with EC"
+ossl '
+cms -decrypt -in "${TMPPDIR}/cms-message.ec.enc"
+             -out "${TMPPDIR}/cms-message.ec.dec"
+             -inkey ${ECPRIURI}
+             -recip ${ECCRTURI}
+             -binary'
+
+cmp "${MESSAGEFILE}" "${TMPPDIR}/cms-message.ec.dec"
+
+exit 0
