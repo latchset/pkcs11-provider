@@ -96,6 +96,10 @@ static void store_fetch(struct p11prov_store_ctx *ctx,
         || login_behavior == PUBKEY_LOGIN_ALWAYS) {
         login = true;
     }
+    if (p11prov_uri_get_class(ctx->parsed_uri) == CKO_PUBLIC_KEY
+        && login_behavior != PUBKEY_LOGIN_ALWAYS) {
+        login = false;
+    }
 
     /* error stack mark so we can unwind in case of repeat to avoid
      * returning bogus errors */
