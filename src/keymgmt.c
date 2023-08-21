@@ -1003,6 +1003,8 @@ DISPATCH_KEYMGMT_FN(ec, export_types);
 DISPATCH_KEYMGMT_FN(ec, query_operation_name);
 DISPATCH_KEYMGMT_FN(ec, get_params);
 DISPATCH_KEYMGMT_FN(ec, gettable_params);
+DISPATCH_KEYMGMT_FN(ec, set_params);
+DISPATCH_KEYMGMT_FN(ec, settable_params);
 
 static void *p11prov_ec_new(void *provctx)
 {
@@ -1373,6 +1375,40 @@ static const OSSL_PARAM *p11prov_ec_gettable_params(void *provctx)
     return params;
 }
 
+static int p11prov_ec_set_params(void *keydata, const OSSL_PARAM params[])
+{
+    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
+    const OSSL_PARAM *p;
+
+    P11PROV_debug("ec set params %p", keydata);
+
+    if (key == NULL) {
+        return RET_OSSL_ERR;
+    }
+
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_ENCODED_PUBLIC_KEY);
+    if (p) {
+        if (p->data_type != OSSL_PARAM_OCTET_STRING) {
+            return RET_OSSL_ERR;
+        }
+        if (p11prov_obj_set_ec_encoded_public_key(key, p->data, p->data_size)
+            != CKR_OK) {
+            return RET_OSSL_ERR;
+        }
+    }
+
+    return RET_OSSL_OK;
+}
+
+static const OSSL_PARAM *p11prov_ec_settable_params(void *provctx)
+{
+    static const OSSL_PARAM params[] = {
+        OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_ENCODED_PUBLIC_KEY, NULL, 0),
+        OSSL_PARAM_END,
+    };
+    return params;
+}
+
 const OSSL_DISPATCH p11prov_ec_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ec, NEW, new),
     DISPATCH_KEYMGMT_ELEM(ec, GEN_INIT, gen_init),
@@ -1391,6 +1427,8 @@ const OSSL_DISPATCH p11prov_ec_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ec, QUERY_OPERATION_NAME, query_operation_name),
     DISPATCH_KEYMGMT_ELEM(ec, GET_PARAMS, get_params),
     DISPATCH_KEYMGMT_ELEM(ec, GETTABLE_PARAMS, gettable_params),
+    DISPATCH_KEYMGMT_ELEM(ec, SET_PARAMS, set_params),
+    DISPATCH_KEYMGMT_ELEM(ec, SETTABLE_PARAMS, settable_params),
     { 0, NULL },
 };
 

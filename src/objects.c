@@ -2557,3 +2557,65 @@ done:
     }
     return rv;
 }
+
+CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
+                                            const void *pubkey,
+                                            size_t pubkey_len)
+{
+    CK_RV rv;
+    CK_ATTRIBUTE *pub;
+    CK_ATTRIBUTE *ecpoint;
+    CK_ATTRIBUTE new_pub;
+    ASN1_OCTET_STRING oct;
+    unsigned char *der = NULL;
+    int len;
+
+    if (key->handle != CK_INVALID_HANDLE) {
+        /*
+         * not a mock object, cannot set public key to a token object backed by
+         * an actual handle
+         */
+        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
+                      "Cannot change public key of a token object");
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    pub = p11prov_obj_get_attr(key, CKA_P11PROV_PUB_KEY);
+    if (!pub) {
+        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE, "No public key found");
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    ecpoint = p11prov_obj_get_attr(key, CKA_EC_POINT);
+    if (!ecpoint) {
+        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE, "No public key found");
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    OPENSSL_free(pub->pValue);
+    memset(pub, 0, sizeof(CK_ATTRIBUTE));
+    new_pub.type = CKA_P11PROV_PUB_KEY;
+    new_pub.pValue = (CK_VOID_PTR)pubkey;
+    new_pub.ulValueLen = (CK_ULONG)pubkey_len;
+    rv = p11prov_copy_attr(pub, &new_pub);
+    if (rv != CKR_OK) {
+        return rv;
+    }
+
+    oct.data = (unsigned char *)pubkey;
+    oct.length = (int)pubkey_len;
+    oct.flags = 0;
+
+    len = i2d_ASN1_OCTET_STRING(&oct, &der);
+    if (len < 0) {
+        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
+                      "Failure to encode EC point to DER");
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    OPENSSL_free(ecpoint->pValue);
+    ecpoint->pValue = der;
+    ecpoint->ulValueLen = len;
+
+    return CKR_OK;
+}
