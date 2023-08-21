@@ -2019,6 +2019,69 @@ static int cmp_attr(P11PROV_OBJ *key1, P11PROV_OBJ *key2,
     return RET_OSSL_OK;
 }
 
+static int cmp_public_key_values(P11PROV_OBJ *pub_key1, P11PROV_OBJ *pub_key2)
+{
+    int ret;
+
+    switch (pub_key1->data.key.type) {
+    case CKK_RSA:
+        ret = cmp_attr(pub_key1, pub_key2, CKA_MODULUS);
+        break;
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+        ret = cmp_attr(pub_key1, pub_key2, CKA_P11PROV_PUB_KEY);
+        break;
+    default:
+        ret = RET_OSSL_ERR;
+    }
+
+    return ret;
+}
+
+static int match_public_keys(P11PROV_OBJ *key1, P11PROV_OBJ *key2)
+{
+    P11PROV_OBJ *pub_key, *assoc_pub_key;
+    P11PROV_OBJ *priv_key;
+    int ret = RET_OSSL_ERR;
+
+    if (key1->class == CKO_PUBLIC_KEY && key2->class == CKO_PUBLIC_KEY) {
+        /* both keys are public, match directly their public values */
+        return cmp_public_key_values(key1, key2);
+    }
+
+    /* one of the keys or both are private */
+    if (key1->class == CKO_PUBLIC_KEY && key2->class == CKO_PRIVATE_KEY) {
+        pub_key = key1;
+        priv_key = key2;
+    } else if (key1->class == CKO_PRIVATE_KEY
+               && key2->class == CKO_PUBLIC_KEY) {
+        pub_key = key2;
+        priv_key = key1;
+    } else {
+        P11PROV_debug("We can't really match private keys");
+        return RET_OSSL_ERR;
+    }
+
+    assoc_pub_key =
+        find_associated_obj(priv_key->ctx, priv_key, CKO_PUBLIC_KEY);
+    if (!assoc_pub_key) {
+        P11PROV_raise(priv_key->ctx, CKR_GENERAL_ERROR,
+                      "Could not find associated public key object");
+        return RET_OSSL_ERR;
+    }
+
+    if (assoc_pub_key->data.key.type != pub_key->data.key.type) {
+        goto done;
+    }
+
+    ret = cmp_public_key_values(pub_key, assoc_pub_key);
+
+done:
+    p11prov_obj_free(assoc_pub_key);
+
+    return ret;
+}
+
 int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
                         int cmp_type)
 {
@@ -2078,14 +2141,7 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
              * or the private key must also match */
             cmp_type = OBJ_CMP_KEY_PUBLIC;
         }
-        if (cmp_type & OBJ_CMP_KEY_PUBLIC) {
-            ret = cmp_attr(key1, key2, CKA_MODULUS);
-            if (ret != RET_OSSL_OK) {
-                return ret;
-            }
-        }
-        /* if nothing fails it is a match */
-        return RET_OSSL_OK;
+        break;
 
     case CKK_EC:
     case CKK_EC_EDWARDS:
@@ -2156,18 +2212,21 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
              * or the private key must also match */
             cmp_type = OBJ_CMP_KEY_PUBLIC;
         }
-        if (cmp_type & OBJ_CMP_KEY_PUBLIC) {
-            ret = cmp_attr(key1, key2, CKA_P11PROV_PUB_KEY);
-            if (ret != RET_OSSL_OK) {
-                return ret;
-            }
-        }
-        /* if nothing fails it is a match */
-        return RET_OSSL_OK;
+        break;
 
     default:
         return RET_OSSL_ERR;
     }
+
+    if (cmp_type & OBJ_CMP_KEY_PUBLIC) {
+        ret = match_public_keys(key1, key2);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+
+    /* if nothing fails it is a match */
+    return RET_OSSL_OK;
 }
 
 static bool obj_match_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int numattrs)
@@ -2189,7 +2248,7 @@ static bool obj_match_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int numattrs)
     return true;
 }
 
-#define MAX_ATTRS_SIZE 3
+#define MAX_ATTRS_SIZE 4
 struct pool_find_ctx {
     CK_KEY_TYPE type;
     CK_OBJECT_CLASS class;
@@ -2306,6 +2365,8 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
     OSSL_PARAM tmp;
     const char *curve_name = NULL;
     int curve_nid;
+    unsigned char *ecparams = NULL;
+    int len;
     CK_RV rv;
 
     if (findctx->numattrs != MAX_ATTRS_SIZE) {
@@ -2359,11 +2420,28 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
         findctx->numattrs++;
     }
 
+    len = i2d_ECPKParameters(group, &ecparams);
+    if (len < 0) {
+        P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Failed to encode EC params");
+        rv = CKR_KEY_INDIGESTIBLE;
+        goto done;
+    }
+    tmp.key = "EC Params";
+    tmp.data = ecparams;
+    tmp.data_size = len;
+    rv = param_to_attr(ctx, &tmp, tmp.key, &findctx->attrs[findctx->numattrs],
+                       CKA_EC_PARAMS, false);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+    findctx->numattrs++;
+
     findctx->bit_size = EC_GROUP_order_bits(group);
     findctx->key_size = (findctx->bit_size + 7) / 8;
     rv = CKR_OK;
 
 done:
+    OPENSSL_free(ecparams);
     EC_GROUP_free(group);
     return rv;
 }
@@ -2433,8 +2511,6 @@ static CK_RV fix_ec_key_import(P11PROV_OBJ *key, int allocattrs)
     key->attrs[key->numattrs].pValue = der;
     key->attrs[key->numattrs].ulValueLen = len;
     key->numattrs++;
-
-    /* TODO: EC_PARAMS */
 
     return CKR_OK;
 }
