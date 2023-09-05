@@ -139,7 +139,7 @@ static void *p11prov_common_gen_init(void *provctx, int selection,
     unsigned char def_e[] = { 0x01, 0x00, 0x01 };
     int ret;
 
-    P11PROV_debug("rsa gen_init %p", provctx);
+    P11PROV_debug("common gen_init %p", provctx);
 
     ret = p11prov_ctx_status(provctx);
     if (ret != CKR_OK) {
