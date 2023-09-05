@@ -107,9 +107,7 @@ struct key_generator {
 
     CK_KEY_TYPE type;
 
-    char *label;
-    CK_BYTE *id;
-    CK_ULONG id_len;
+    P11PROV_URI *uri;
 
     CK_MECHANISM mechanism;
 
@@ -205,22 +203,23 @@ static int p11prov_common_gen_set_params(void *genctx,
         return RET_OSSL_OK;
     }
 
-    p = OSSL_PARAM_locate_const(params, P11PROV_PARAM_KEY_LABEL);
+    p = OSSL_PARAM_locate_const(params, P11PROV_PARAM_URI);
     if (p) {
-        ret = OSSL_PARAM_get_utf8_string(p, &ctx->label, 0);
-        if (ret != RET_OSSL_OK) {
-            return ret;
+        if (p->data_type != OSSL_PARAM_UTF8_STRING) {
+            return RET_OSSL_ERR;
+        }
+        if (!p->data || p->data_size == 0) {
+            return RET_OSSL_ERR;
+        }
+        if (ctx->uri) {
+            p11prov_uri_free(ctx->uri);
+        }
+        ctx->uri = p11prov_parse_uri(ctx->provctx, (const char *)p->data);
+        if (!ctx->uri) {
+            return RET_OSSL_ERR;
         }
     }
-    p = OSSL_PARAM_locate_const(params, P11PROV_PARAM_KEY_ID);
-    if (p) {
-        size_t id_len;
-        ret = OSSL_PARAM_get_octet_string(p, (void **)&ctx->id, 0, &id_len);
-        if (ret != RET_OSSL_OK) {
-            return ret;
-        }
-        ctx->id_len = id_len;
-    }
+
     switch (ctx->type) {
     case CKK_RSA:
         p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_BITS);
@@ -343,17 +342,21 @@ static void *p11prov_common_gen(struct key_generator *ctx,
 {
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     CK_BYTE id[16];
-    CK_BYTE_PTR id_ptr;
-    CK_ULONG id_len;
     CK_OBJECT_HANDLE privkey;
     CK_OBJECT_HANDLE pubkey;
     P11PROV_SESSION *session = NULL;
     CK_SESSION_HANDLE sh;
     P11PROV_OBJ *key = NULL;
+    CK_ATTRIBUTE cka_id = { 0 };
+    CK_ATTRIBUTE label = { 0 };
     CK_RV ret;
 
-    /* FIXME: how do we get a URI to select the right slot ? */
-    ret = p11prov_get_session(ctx->provctx, &slotid, NULL, NULL,
+    if (ctx->uri) {
+        cka_id = p11prov_uri_get_id(ctx->uri);
+        label = p11prov_uri_get_label(ctx->uri);
+    }
+
+    ret = p11prov_get_session(ctx->provctx, &slotid, NULL, ctx->uri,
                               ctx->mechanism.mechanism, NULL, NULL, true, true,
                               &session);
     if (ret != CKR_OK) {
@@ -368,36 +371,25 @@ static void *p11prov_common_gen(struct key_generator *ctx,
 
     sh = p11prov_session_handle(session);
 
-    if (ctx->id_len != 0) {
-        id_ptr = ctx->id;
-        id_len = ctx->id_len;
-    } else {
+    if (cka_id.ulValueLen == 0) {
         /* generate unique id for the key */
         ret = p11prov_GenerateRandom(ctx->provctx, sh, id, sizeof(id));
         if (ret != CKR_OK) {
             p11prov_return_session(session);
             return NULL;
         }
-        id_ptr = id;
-        id_len = 16;
+        cka_id.type = CKA_ID;
+        cka_id.pValue = id;
+        cka_id.ulValueLen = 16;
     }
-    pubkey_template[pubtsize].type = CKA_ID;
-    pubkey_template[pubtsize].pValue = id_ptr;
-    pubkey_template[pubtsize].ulValueLen = id_len;
+    pubkey_template[pubtsize] = cka_id;
     pubtsize++;
-    privkey_template[privtsize].type = CKA_ID;
-    privkey_template[privtsize].pValue = id_ptr;
-    privkey_template[privtsize].ulValueLen = id_len;
+    privkey_template[privtsize] = cka_id;
     privtsize++;
-    if (ctx->label) {
-        CK_ULONG len = strlen(ctx->label);
-        pubkey_template[pubtsize].type = CKA_LABEL;
-        pubkey_template[pubtsize].pValue = ctx->label;
-        pubkey_template[pubtsize].ulValueLen = len;
+    if (label.ulValueLen != 0) {
+        pubkey_template[pubtsize] = label;
         pubtsize++;
-        privkey_template[privtsize].type = CKA_LABEL;
-        privkey_template[privtsize].pValue = ctx->label;
-        privkey_template[privtsize].ulValueLen = len;
+        privkey_template[privtsize] = label;
         privtsize++;
     }
 
@@ -425,12 +417,8 @@ static void p11prov_common_gen_cleanup(void *genctx)
 
     P11PROV_debug("common gen_cleanup %p", genctx);
 
-    if (ctx->label) {
-        OPENSSL_free(ctx->label);
-    }
-    if (ctx->id) {
-        OPENSSL_clear_free(ctx->id, ctx->id_len);
-    }
+    p11prov_uri_free(ctx->uri);
+
     if (ctx->type == CKK_RSA) {
         if (ctx->data.rsa.allowed_types_size) {
             OPENSSL_free(ctx->data.rsa.allowed_types);
@@ -536,8 +524,7 @@ static const OSSL_PARAM *p11prov_rsa_gen_settable_params(void *genctx,
                                                          void *provctx)
 {
     static OSSL_PARAM p11prov_rsa_params[] = {
-        OSSL_PARAM_utf8_string(P11PROV_PARAM_KEY_LABEL, NULL, 0),
-        OSSL_PARAM_octet_string(P11PROV_PARAM_KEY_ID, NULL, 0),
+        OSSL_PARAM_utf8_string(P11PROV_PARAM_URI, NULL, 0),
         OSSL_PARAM_size_t(OSSL_PKEY_PARAM_RSA_BITS, NULL),
         OSSL_PARAM_size_t(OSSL_PKEY_PARAM_RSA_PRIMES, NULL),
         OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_E, NULL, 0),
@@ -952,8 +939,7 @@ static const OSSL_PARAM *p11prov_rsapss_gen_settable_params(void *genctx,
                                                             void *provctx)
 {
     static OSSL_PARAM p11prov_rsapss_params[] = {
-        OSSL_PARAM_utf8_string(P11PROV_PARAM_KEY_LABEL, NULL, 0),
-        OSSL_PARAM_octet_string(P11PROV_PARAM_KEY_ID, NULL, 0),
+        OSSL_PARAM_utf8_string(P11PROV_PARAM_URI, NULL, 0),
         OSSL_PARAM_size_t(OSSL_PKEY_PARAM_RSA_BITS, NULL),
         OSSL_PARAM_size_t(OSSL_PKEY_PARAM_RSA_PRIMES, NULL),
         OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_E, NULL, 0),
@@ -1071,8 +1057,7 @@ static const OSSL_PARAM *p11prov_ec_gen_settable_params(void *genctx,
                                                         void *provctx)
 {
     static OSSL_PARAM p11prov_ec_params[] = {
-        OSSL_PARAM_utf8_string(P11PROV_PARAM_KEY_LABEL, NULL, 0),
-        OSSL_PARAM_octet_string(P11PROV_PARAM_KEY_ID, NULL, 0),
+        OSSL_PARAM_utf8_string(P11PROV_PARAM_URI, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, NULL, 0),
         OSSL_PARAM_END,
     };
@@ -1499,8 +1484,7 @@ static const OSSL_PARAM *p11prov_ed_gen_settable_params(void *genctx,
                                                         void *provctx)
 {
     static OSSL_PARAM p11prov_ed_params[] = {
-        OSSL_PARAM_utf8_string(P11PROV_PARAM_KEY_LABEL, NULL, 0),
-        OSSL_PARAM_octet_string(P11PROV_PARAM_KEY_ID, NULL, 0),
+        OSSL_PARAM_utf8_string(P11PROV_PARAM_URI, NULL, 0),
         OSSL_PARAM_END,
     };
     return p11prov_ed_params;
