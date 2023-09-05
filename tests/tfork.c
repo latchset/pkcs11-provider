@@ -24,12 +24,33 @@
         fflush(stderr); \
     } while (0)
 
+static void hexify(char *out, unsigned char *byte, size_t len)
+{
+    char c[2], s;
+
+    for (size_t i = 0; i < len; i++) {
+        out[i * 3] = '%';
+        c[0] = byte[i] >> 4;
+        c[1] = byte[i] & 0x0f;
+        for (int j = 0; j < 2; j++) {
+            if (c[j] < 0x0A) {
+                s = '0';
+            } else {
+                s = 'a' - 10;
+            }
+            out[i * 3 + 1 + j] = c[j] + s;
+        }
+    }
+    out[len * 3] = '\0';
+}
+
 static EVP_PKEY *gen_key(void)
 {
-    char label[] = "##########: Fork Test Key";
     unsigned char id[16];
+    char idhex[16 * 3 + 1];
+    char *uri;
     size_t rsa_bits = 3072;
-    OSSL_PARAM params[5];
+    OSSL_PARAM params[3];
     EVP_PKEY_CTX *ctx;
     EVP_PKEY *key = NULL;
     int miniid;
@@ -42,13 +63,17 @@ static EVP_PKEY *gen_key(void)
         exit(EXIT_FAILURE);
     }
 
+    hexify(idhex, id, 16);
     miniid = (id[0] << 24) + (id[1] << 16) + (id[2] << 8) + id[3];
-    snprintf(label, 10, "%08x", miniid);
+    ret = asprintf(&uri, "pkcs11:object=Fork-Test-%08x;id=%s", miniid, idhex);
+    if (ret == -1) {
+        fprintf(stderr, "Failed to allocate uri\n");
+        exit(EXIT_FAILURE);
+    }
 
-    params[0] = OSSL_PARAM_construct_utf8_string("pkcs11_key_label", label, 0);
-    params[1] = OSSL_PARAM_construct_octet_string("pkcs11_key_id", id, 16);
-    params[2] = OSSL_PARAM_construct_size_t("rsa_keygen_bits", &rsa_bits);
-    params[3] = OSSL_PARAM_construct_end();
+    params[0] = OSSL_PARAM_construct_utf8_string("pkcs11_uri", uri, 0);
+    params[1] = OSSL_PARAM_construct_size_t("rsa_keygen_bits", &rsa_bits);
+    params[2] = OSSL_PARAM_construct_end();
 
     ctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", "provider=pkcs11");
     if (ctx == NULL) {
@@ -71,6 +96,7 @@ static EVP_PKEY *gen_key(void)
         exit(EXIT_FAILURE);
     }
 
+    free(uri);
     return key;
 }
 
