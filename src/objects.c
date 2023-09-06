@@ -364,7 +364,7 @@ static void cache_key(P11PROV_OBJ *obj)
     }
 
     ret = p11prov_take_login_session(obj->ctx, obj->slotid, &session);
-    if (ret != CKR_OK) {
+    if (ret != CKR_OK || session == NULL) {
         P11PROV_debug("Failed to get login session. Error %lx", ret);
         return;
     }
