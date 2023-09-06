@@ -121,6 +121,7 @@ static void fork_child(void)
         if (ctx_pool.contexts[i]->status == P11PROV_INITIALIZED) {
             /* can't re-init in the fork handler, mark it */
             ctx_pool.contexts[i]->status = P11PROV_NEEDS_REINIT;
+            p11prov_module_mark_reinit(ctx_pool.contexts[i]->module);
             p11prov_slot_fork_reset(ctx_pool.contexts[i]->slots);
         }
     }
