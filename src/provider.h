@@ -58,6 +58,7 @@
 #define P11PROV_DESCS_RAND "PKCS11 Random Generator"
 
 #define P11PROV_PARAM_URI "pkcs11_uri"
+#define P11PROV_PARAM_KEY_USAGE "pkcs11_key_usage"
 #define P11PROV_PARAM_SLOT_ID "pkcs11_slot_id"
 
 typedef struct p11prov_ctx P11PROV_CTX;

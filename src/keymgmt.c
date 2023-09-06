@@ -108,6 +108,7 @@ struct key_generator {
     CK_KEY_TYPE type;
 
     P11PROV_URI *uri;
+    char *key_usage;
 
     CK_MECHANISM mechanism;
 
@@ -217,6 +218,17 @@ static int p11prov_common_gen_set_params(void *genctx,
         ctx->uri = p11prov_parse_uri(ctx->provctx, (const char *)p->data);
         if (!ctx->uri) {
             return RET_OSSL_ERR;
+        }
+    }
+
+    p = OSSL_PARAM_locate_const(params, P11PROV_PARAM_KEY_USAGE);
+    if (p) {
+        if (p->data_type != OSSL_PARAM_UTF8_STRING) {
+            return RET_OSSL_ERR;
+        }
+        ret = OSSL_PARAM_get_utf8_string(p, &ctx->key_usage, 0);
+        if (ret != RET_OSSL_OK) {
+            return ret;
         }
     }
 
@@ -334,6 +346,112 @@ static CK_RV common_gen_callback(void *cbarg)
     return CKR_OK;
 }
 
+/* Common attributes that may currently be added to the template
+ * CKA_ID
+ * CKA_LABEL
+ */
+#define COMMON_TMPL_SIZE 2
+
+const CK_BBOOL val_true = CK_TRUE;
+const CK_BBOOL val_false = CK_FALSE;
+#define DISCARD_CONST(x) (void *)(x)
+
+static void set_bool_val(CK_ATTRIBUTE *attr, bool val)
+{
+    if (val) {
+        attr->pValue = DISCARD_CONST(&val_true);
+    } else {
+        attr->pValue = DISCARD_CONST(&val_false);
+    }
+}
+
+static void common_key_usage_set_attrs(CK_ATTRIBUTE *template, int tsize,
+                                       bool enc, bool sig, bool der, bool wrap)
+{
+    for (int i = 0; i < tsize; i++) {
+        switch (template[i].type) {
+        case CKA_ENCRYPT:
+        case CKA_DECRYPT:
+            set_bool_val(&template[i], enc);
+            break;
+        case CKA_VERIFY:
+        case CKA_VERIFY_RECOVER:
+        case CKA_SIGN:
+        case CKA_SIGN_RECOVER:
+            set_bool_val(&template[i], sig);
+            break;
+        case CKA_DERIVE:
+            set_bool_val(&template[i], der);
+            break;
+        case CKA_WRAP:
+        case CKA_UNWRAP:
+            set_bool_val(&template[i], wrap);
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+/*
+ * Takes a Key Usage string, which must be a space separated list of tokens.
+ * The tokens are the Key usage flag names as defined in ISO/IEC 9594-8 (X.509)
+ * Only the following tokens are recognized:
+ *  - dataEncipherment
+ *  - digitalSignature
+ *  - keyAgreement
+ *  - keyEncipherment
+ * uses: Table 25 from pkcs#11 3.1 spec for mappings for public keys
+ * and an analogous mapping for private keys
+ */
+static CK_RV common_key_usage_to_tmpl(struct key_generator *ctx,
+                                      CK_ATTRIBUTE *pubtmpl,
+                                      CK_ATTRIBUTE *privtmpl, int pubtsize,
+                                      int privtsize)
+{
+    const char *str = NULL;
+    size_t len = 0;
+    bool enc = false;
+    bool sig = false;
+    bool der = false;
+    bool wrap = false;
+
+    if (!ctx->key_usage) {
+        /* leave defaults as set by templates */
+        return CKR_OK;
+    }
+
+    str = ctx->key_usage;
+    len = strlen(ctx->key_usage);
+    while (str) {
+        const char *tok = str;
+        size_t toklen = len;
+        const char *p = strchr(str, ' ');
+        if (p) {
+            toklen = p - str;
+            len -= toklen + 1;
+            p += 1;
+        }
+        str = p;
+        if (strncmp(tok, "dataEncipherment", toklen) == 0) {
+            enc = true;
+        } else if (strncmp(tok, "digitalSignature", toklen) == 0) {
+            sig = true;
+        } else if (strncmp(tok, "keyAgreement", toklen) == 0) {
+            der = true;
+        } else if (strncmp(tok, "keyEncipherment", toklen) == 0) {
+            wrap = true;
+        } else {
+            return CKR_ARGUMENTS_BAD;
+        }
+    }
+
+    common_key_usage_set_attrs(pubtmpl, pubtsize, enc, sig, der, wrap);
+    common_key_usage_set_attrs(privtmpl, privtsize, enc, sig, der, wrap);
+
+    return CKR_OK;
+}
+
 static void *p11prov_common_gen(struct key_generator *ctx,
                                 CK_ATTRIBUTE *pubkey_template,
                                 CK_ATTRIBUTE *privkey_template, int pubtsize,
@@ -350,6 +468,13 @@ static void *p11prov_common_gen(struct key_generator *ctx,
     CK_ATTRIBUTE cka_id = { 0 };
     CK_ATTRIBUTE label = { 0 };
     CK_RV ret;
+
+    ret = common_key_usage_to_tmpl(ctx, pubkey_template, privkey_template,
+                                   pubtsize, privtsize);
+    if (ret != CKR_OK) {
+        P11PROV_raise(ctx->provctx, ret, "Failed to map Key Usage");
+        return NULL;
+    }
 
     if (ctx->uri) {
         cka_id = p11prov_uri_get_id(ctx->uri);
@@ -417,6 +542,7 @@ static void p11prov_common_gen_cleanup(void *genctx)
 
     P11PROV_debug("common gen_cleanup %p", genctx);
 
+    OPENSSL_free(ctx->key_usage);
     p11prov_uri_free(ctx->uri);
 
     if (ctx->type == CKK_RSA) {
@@ -483,29 +609,27 @@ static void *p11prov_rsa_gen_init(void *provctx, int selection,
 static void *p11prov_rsa_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
     struct key_generator *ctx = (struct key_generator *)genctx;
-    CK_BBOOL val_true = CK_TRUE;
-    /* CK_BBOOL val_false = CK_FALSE; */
 
     /* always leave space for CKA_ID and CKA_LABEL */
 #define RSA_PUBKEY_TMPL_SIZE 6
-    CK_ATTRIBUTE pubkey_template[RSA_PUBKEY_TMPL_SIZE + 2] = {
-        { CKA_ENCRYPT, &val_true, sizeof(val_true) },
-        { CKA_VERIFY, &val_true, sizeof(val_true) },
-        { CKA_WRAP, &val_true, sizeof(val_true) },
-        { CKA_TOKEN, &val_true, sizeof(CK_BBOOL) },
+    CK_ATTRIBUTE pubkey_template[RSA_PUBKEY_TMPL_SIZE + COMMON_TMPL_SIZE] = {
+        { CKA_ENCRYPT, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_VERIFY, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_WRAP, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_TOKEN, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
         { CKA_MODULUS_BITS, &ctx->data.rsa.modulus_bits,
           sizeof(ctx->data.rsa.modulus_bits) },
         { CKA_PUBLIC_EXPONENT, &ctx->data.rsa.exponent,
           ctx->data.rsa.exponent_size },
     };
 #define RSA_PRIVKEY_TMPL_SIZE 6
-    CK_ATTRIBUTE privkey_template[RSA_PRIVKEY_TMPL_SIZE + 2] = {
-        { CKA_TOKEN, &val_true, sizeof(CK_BBOOL) },
-        { CKA_PRIVATE, &val_true, sizeof(CK_BBOOL) },
-        { CKA_SENSITIVE, &val_true, sizeof(CK_BBOOL) },
-        { CKA_DECRYPT, &val_true, sizeof(CK_BBOOL) },
-        { CKA_SIGN, &val_true, sizeof(CK_BBOOL) },
-        { CKA_UNWRAP, &val_true, sizeof(CK_BBOOL) },
+    CK_ATTRIBUTE privkey_template[RSA_PRIVKEY_TMPL_SIZE + COMMON_TMPL_SIZE] = {
+        { CKA_TOKEN, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_PRIVATE, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_SENSITIVE, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_DECRYPT, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_SIGN, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_UNWRAP, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
         /* TODO?
          * CKA_SUBJECT
          * CKA_COPYABLE = true ?
@@ -1019,26 +1143,24 @@ static void *p11prov_ec_gen_init(void *provctx, int selection,
 static void *p11prov_ec_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
     struct key_generator *ctx = (struct key_generator *)genctx;
-    CK_BBOOL val_true = CK_TRUE;
-    /* CK_BBOOL val_false = CK_FALSE; */
 
     /* always leave space for CKA_ID and CKA_LABEL */
 #define EC_PUBKEY_TMPL_SIZE 5
-    CK_ATTRIBUTE pubkey_template[EC_PUBKEY_TMPL_SIZE + 2] = {
-        { CKA_TOKEN, &val_true, sizeof(CK_BBOOL) },
-        { CKA_DERIVE, &val_true, sizeof(val_true) },
-        { CKA_VERIFY, &val_true, sizeof(val_true) },
-        { CKA_WRAP, &val_true, sizeof(val_true) },
+    CK_ATTRIBUTE pubkey_template[EC_PUBKEY_TMPL_SIZE + COMMON_TMPL_SIZE] = {
+        { CKA_TOKEN, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_DERIVE, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_VERIFY, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_WRAP, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
         { CKA_EC_PARAMS, (CK_BYTE *)ctx->data.ec.ec_params,
           ctx->data.ec.ec_params_size },
     };
 #define EC_PRIVKEY_TMPL_SIZE 6
-    CK_ATTRIBUTE privkey_template[EC_PRIVKEY_TMPL_SIZE + 2] = {
-        { CKA_TOKEN, &val_true, sizeof(CK_BBOOL) },
-        { CKA_PRIVATE, &val_true, sizeof(CK_BBOOL) },
-        { CKA_SENSITIVE, &val_true, sizeof(CK_BBOOL) },
-        { CKA_SIGN, &val_true, sizeof(CK_BBOOL) },
-        { CKA_UNWRAP, &val_true, sizeof(CK_BBOOL) },
+    CK_ATTRIBUTE privkey_template[EC_PRIVKEY_TMPL_SIZE + COMMON_TMPL_SIZE] = {
+        { CKA_TOKEN, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_PRIVATE, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_SENSITIVE, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_SIGN, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_UNWRAP, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
         /* TODO?
          * CKA_SUBJECT
          * CKA_COPYABLE = true ?
