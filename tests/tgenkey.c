@@ -82,6 +82,34 @@ static void check_ec_key(EVP_PKEY *pubkey)
     }
 }
 
+static void check_eddsa_key(EVP_PKEY *pubkey)
+{
+    unsigned char *tmp = NULL;
+    size_t len = 0;
+    int ret;
+
+    ret = EVP_PKEY_get_octet_string_param(pubkey, OSSL_PKEY_PARAM_PUB_KEY, NULL,
+                                          0, &len);
+    if (ret != 1) {
+        fprintf(stderr, "Failed to get public key size");
+        exit(EXIT_FAILURE);
+    }
+    tmp = malloc(len);
+    if (tmp == NULL) {
+        fprintf(stderr, "Failed to allocate memory for public key");
+        exit(EXIT_FAILURE);
+    }
+    ret = EVP_PKEY_get_octet_string_param(pubkey, OSSL_PKEY_PARAM_PUB_KEY, tmp,
+                                          len, NULL);
+    if (ret != 1) {
+        fprintf(stderr, "Failed to get public key");
+        exit(EXIT_FAILURE);
+    } else {
+        free(tmp);
+        tmp = NULL;
+    }
+}
+
 static void check_keys(OSSL_STORE_CTX *store, const char *key_type)
 {
     OSSL_STORE_INFO *info;
@@ -126,6 +154,8 @@ static void check_keys(OSSL_STORE_CTX *store, const char *key_type)
         check_rsa_key(pubkey);
     } else if (strcmp(key_type, "EC") == 0) {
         check_ec_key(pubkey);
+    } else if (strcmp(key_type, "ED25519") == 0) {
+        check_eddsa_key(pubkey);
     }
 
     EVP_PKEY_free(privkey);
@@ -181,6 +211,8 @@ static void gen_keys(const char *key_type, const char *label, const char *idhex,
         check_rsa_key(key);
     } else if (strcmp(key_type, "EC") == 0) {
         check_ec_key(key);
+    } else if (strcmp(key_type, "ED25519") == 0) {
+        check_eddsa_key(key);
     }
 
     EVP_PKEY_free(key);
@@ -442,9 +474,36 @@ int main(int argc, char *argv[])
                                                  (char *)bad_usage, 0);
 
     gen_keys("RSA", label, idhex, params, true);
-
     free(label);
     free(uri);
+
+    char *p11lib = getenv("P11LIB");
+    if (p11lib != NULL && strstr(p11lib, "softhsm") != NULL) {
+        /* Check Ed25519 keys if supported */
+        ret = RAND_bytes(id, 16);
+        if (ret != 1) {
+            fprintf(stderr, "Failed to set generate key id\n");
+            exit(EXIT_FAILURE);
+        }
+        miniid = (id[0] << 24) + (id[1] << 16) + (id[2] << 8) + id[3];
+        ret = asprintf(&label, "Test-Ed-gen-%08x", miniid);
+        if (ret == -1) {
+            fprintf(stderr, "Failed to make label");
+            exit(EXIT_FAILURE);
+        }
+        hexify(idhex, id, 16);
+        ret = asprintf(&uri, "pkcs11:object=%s;id=%s", label, idhex);
+        if (ret == -1) {
+            fprintf(stderr, "Failed to make label");
+            exit(EXIT_FAILURE);
+        }
+        params[0] = OSSL_PARAM_construct_utf8_string("pkcs11_uri", uri, 0);
+        params[1] = OSSL_PARAM_construct_end();
+
+        gen_keys("ED25519", label, idhex, params, false);
+        free(label);
+        free(uri);
+    }
 
     fprintf(stderr, "ALL A-OK!");
     exit(EXIT_SUCCESS);
