@@ -121,11 +121,13 @@ OPENSSL_CONF=${OPENSSL_CONF}.nopin
 ossl 'pkey -in $PUBURI -pubin -pubout -out ${TMPPDIR}/rsa.pub.nopin.pem'
 ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${TMPPDIR}/ec.pub.nopin.pem'
 [[ -n $ECXPUBURI ]] && ossl 'pkey -in $ECXPUBURI -pubin -pubout -out ${TMPPDIR}/ecx.pub.nopin.pem'
+[[ -n $EDPUBURI ]] && ossl 'pkey -in $EDPUBURI -pubin -pubout -out ${TMPPDIR}/ed.pub.nopin.pem'
 
 title PARA "Test fetching public keys with a PIN in URI"
 ossl 'pkey -in $BASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/rsa.pub.uripin.pem'
 ossl 'pkey -in $ECBASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/ec.pub.uripin.pem'
 [[ -n $ECXBASEURIWITHPIN ]] && ossl 'pkey -in $ECXBASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/ecx.pub.uripin.pem'
+[[ -n $EDBASEURIWITHPIN ]] && ossl 'pkey -in $EDBASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/ed.pub.uripin.pem'
 
 title PARA "Test prompting without PIN in config files"
 output=$(expect -c "spawn -noecho $CHECKER openssl pkey -in \"${PRIURI}\" -text -noout;
