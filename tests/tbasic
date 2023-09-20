@@ -153,9 +153,10 @@ fi
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
 title PARA "Test EVP_PKEY_eq on public RSA key both on token"
+# shellcheck disable=SC2153 # PUBURIs is assigned
 $CHECKER ./tcmpkeys "$PUBURI" "$PUBURI"
 title PARA "Test EVP_PKEY_eq on public EC key both on token"
-# shellcheck disable=SC2153 # ECURIs and ECXURIs are not spelling errors
+# shellcheck disable=SC2153 # ECURIs and ECXURIs are assigned
 $CHECKER ./tcmpkeys "$ECPUBURI" "$ECPUBURI"
 if [[ -n $ECXPUBURI ]]; then
     title PARA "Test EVP_PKEY_eq on public explicit EC key both on token"
@@ -186,7 +187,7 @@ if [[ -n $ECXPUBURI ]]; then
     title PARA "Test EVP_PKEY_eq on public explicit EC key via import"
     $CHECKER ./tcmpkeys "$ECXPUBURI" "${TMPPDIR}"/ecx.pub.uripin.pem
     title PARA "Match private explicit EC key against public key"
-    # shellcheck disable=SC2153 # ECURIs and ECXURIs are not spelling errors
+    # shellcheck disable=SC2153 # ECURIs and ECXURIs are assigned
     $CHECKER ./tcmpkeys "$ECXPRIURI" "${TMPPDIR}"/ecx.pub.uripin.pem
     title PARA "Match private explicit EC key against public key (commutativity)"
     $CHECKER ./tcmpkeys "${TMPPDIR}"/ecx.pub.uripin.pem "$ECXPRIURI"
