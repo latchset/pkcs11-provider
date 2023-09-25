@@ -464,7 +464,8 @@ static void *p11prov_common_gen(struct key_generator *ctx,
     CK_OBJECT_HANDLE pubkey;
     P11PROV_SESSION *session = NULL;
     CK_SESSION_HANDLE sh;
-    P11PROV_OBJ *key = NULL;
+    P11PROV_OBJ *pub_key = NULL;
+    P11PROV_OBJ *priv_key = NULL;
     CK_ATTRIBUTE cka_id = { 0 };
     CK_ATTRIBUTE label = { 0 };
     CK_RV ret;
@@ -526,14 +527,27 @@ static void *p11prov_common_gen(struct key_generator *ctx,
         return NULL;
     }
 
-    ret = p11prov_obj_from_handle(ctx->provctx, session, privkey, &key);
+    ret = p11prov_obj_from_handle(ctx->provctx, session, pubkey, &pub_key);
+    if (ret != CKR_OK) {
+        p11prov_return_session(session);
+        return NULL;
+    }
+
+    ret = p11prov_obj_from_handle(ctx->provctx, session, privkey, &priv_key);
+    if (ret != CKR_OK) {
+        p11prov_return_session(session);
+        return NULL;
+    }
+
+    ret = p11prov_merge_pub_attrs_into_priv(pub_key, priv_key);
     if (ret != CKR_OK) {
         p11prov_return_session(session);
         return NULL;
     }
 
     p11prov_return_session(session);
-    return key;
+    p11prov_obj_free(pub_key);
+    return priv_key;
 }
 
 static void p11prov_common_gen_cleanup(void *genctx)
