@@ -2695,3 +2695,111 @@ CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
 
     return CKR_OK;
 }
+
+CK_RV p11prov_obj_copy_specific_attr(P11PROV_OBJ *pub_key,
+                                     P11PROV_OBJ *priv_key,
+                                     CK_ATTRIBUTE_TYPE type)
+{
+    CK_ATTRIBUTE *attr = NULL;
+    CK_RV ret = CKR_OK;
+
+    if (!pub_key || !priv_key) {
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    attr = p11prov_obj_get_attr(pub_key, type);
+    if (!attr) {
+        P11PROV_debug("Failed to fetch the specific attribute");
+        return CKR_GENERAL_ERROR;
+    }
+
+    ret = p11prov_copy_attr(&priv_key->attrs[priv_key->numattrs], attr);
+    if (ret != CKR_OK) {
+        P11PROV_raise(priv_key->ctx, ret, "Failed attr copy");
+        return CKR_GENERAL_ERROR;
+    }
+    priv_key->numattrs++;
+
+    return ret;
+}
+
+/*
+ *Copy attributes from public key to private key
+ *so that the public key can be reconstructed from
+ *a private key directly.
+ */
+#define RSA_PRIV_ATTRS_NUM 2
+
+#define EC_PRIV_ATTRS_NUM 3
+CK_RV p11prov_merge_pub_attrs_into_priv(P11PROV_OBJ *pub_key,
+                                        P11PROV_OBJ *priv_key)
+{
+    CK_RV ret = CKR_OK;
+
+    if (!pub_key || !priv_key) {
+        P11PROV_debug(
+            "Empty keys. Cannot copy public key attributes into private key");
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    switch (pub_key->data.key.type) {
+    case CKK_RSA:
+        priv_key->attrs = OPENSSL_realloc(
+            priv_key->attrs,
+            (priv_key->numattrs + RSA_PRIV_ATTRS_NUM) * sizeof(CK_ATTRIBUTE));
+        if (!priv_key->attrs) {
+            ret = CKR_HOST_MEMORY;
+            P11PROV_raise(priv_key->ctx, ret, "Failed allocation");
+            return ret;
+        }
+
+        ret = p11prov_obj_copy_specific_attr(pub_key, priv_key, CKA_MODULUS);
+        if (ret != CKR_OK) {
+            goto err;
+        }
+
+        ret = p11prov_obj_copy_specific_attr(pub_key, priv_key,
+                                             CKA_PUBLIC_EXPONENT);
+        if (ret != CKR_OK) {
+            goto err;
+        }
+        break;
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+        priv_key->attrs = OPENSSL_realloc(
+            priv_key->attrs,
+            (priv_key->numattrs + EC_PRIV_ATTRS_NUM) * sizeof(CK_ATTRIBUTE));
+        if (!priv_key->attrs) {
+            ret = CKR_HOST_MEMORY;
+            P11PROV_raise(priv_key->ctx, ret, "Failed allocation");
+            return ret;
+        }
+
+        ret = p11prov_obj_copy_specific_attr(pub_key, priv_key, CKA_EC_POINT);
+        if (ret != CKR_OK) {
+            goto err;
+        }
+
+        ret = p11prov_obj_copy_specific_attr(pub_key, priv_key, CKA_EC_PARAMS);
+        if (ret != CKR_OK) {
+            goto err;
+        }
+
+        ret = p11prov_obj_copy_specific_attr(pub_key, priv_key,
+                                             CKA_P11PROV_PUB_KEY);
+        if (ret != CKR_OK) {
+            goto err;
+        }
+        break;
+    default:
+        /* unknown key type, we can't copy public key attributes */
+        P11PROV_debug("Unsupported key type (%lu)", pub_key->data.key.type);
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    return ret;
+
+err:
+    P11PROV_raise(priv_key->ctx, ret, "Failed attr copy");
+    return CKR_GENERAL_ERROR;
+}

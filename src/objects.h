@@ -67,6 +67,13 @@ CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
                                             const void *pubkey,
                                             size_t pubkey_len);
 
+CK_RV p11prov_obj_copy_specific_attr(P11PROV_OBJ *pub_key,
+                                     P11PROV_OBJ *priv_key,
+                                     CK_ATTRIBUTE_TYPE type);
+
+CK_RV p11prov_merge_pub_attrs_into_priv(P11PROV_OBJ *pub_key,
+                                        P11PROV_OBJ *priv_key);
+
 #define ED25519 "ED25519"
 #define ED25519_BIT_SIZE 256
 #define ED25519_BYTE_SIZE ED25519_BIT_SIZE / 8
