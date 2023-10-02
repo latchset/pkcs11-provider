@@ -501,8 +501,7 @@ static void *p11prov_common_gen(struct key_generator *ctx,
         /* generate unique id for the key */
         ret = p11prov_GenerateRandom(ctx->provctx, sh, id, sizeof(id));
         if (ret != CKR_OK) {
-            p11prov_return_session(session);
-            return NULL;
+            goto done;
         }
         cka_id.type = CKA_ID;
         cka_id.pValue = id;
@@ -523,28 +522,26 @@ static void *p11prov_common_gen(struct key_generator *ctx,
                                   pubkey_template, pubtsize, privkey_template,
                                   privtsize, &pubkey, &privkey);
     if (ret != CKR_OK) {
-        p11prov_return_session(session);
-        return NULL;
+        goto done;
     }
 
     ret = p11prov_obj_from_handle(ctx->provctx, session, pubkey, &pub_key);
     if (ret != CKR_OK) {
-        p11prov_return_session(session);
-        return NULL;
+        goto done;
     }
 
     ret = p11prov_obj_from_handle(ctx->provctx, session, privkey, &priv_key);
     if (ret != CKR_OK) {
-        p11prov_return_session(session);
-        return NULL;
+        goto done;
     }
 
     ret = p11prov_merge_pub_attrs_into_priv(pub_key, priv_key);
-    if (ret != CKR_OK) {
-        p11prov_return_session(session);
-        return NULL;
-    }
 
+done:
+    if (ret != CKR_OK) {
+        p11prov_obj_free(priv_key);
+        priv_key = NULL;
+    }
     p11prov_return_session(session);
     p11prov_obj_free(pub_key);
     return priv_key;
