@@ -1839,7 +1839,7 @@ const OSSL_DISPATCH p11prov_ed25519_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ed, GETTABLE_PARAMS, gettable_params),
     DISPATCH_KEYMGMT_ELEM(ed, SET_PARAMS, set_params),
     DISPATCH_KEYMGMT_ELEM(ed, SETTABLE_PARAMS, settable_params),
-    /* TODO: match, validate, dup? */
+    /* TODO: validate, dup? */
     { 0, NULL },
 };
 
@@ -1863,7 +1863,7 @@ const OSSL_DISPATCH p11prov_ed448_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ed, GETTABLE_PARAMS, gettable_params),
     DISPATCH_KEYMGMT_ELEM(ed, SET_PARAMS, set_params),
     DISPATCH_KEYMGMT_ELEM(ed, SETTABLE_PARAMS, settable_params),
-    /* TODO: match, validate, dup? */
+    /* TODO: validate, dup? */
     { 0, NULL },
 };
 
