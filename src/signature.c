@@ -775,6 +775,7 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
     CK_SESSION_HANDLE sess;
     CK_SLOT_ID slotid;
     bool reqlogin = false;
+    bool always_auth = false;
     CK_RV ret;
 
     P11PROV_debug("called (sigctx=%p, digest_op=%s)", sigctx,
@@ -836,6 +837,15 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
     default:
         P11PROV_raise(sigctx->provctx, ret,
                       "Failed to open session on slot %lu", slotid);
+    }
+
+    if (reqlogin) {
+        always_auth =
+            p11prov_obj_get_bool(sigctx->key, CKA_ALWAYS_AUTHENTICATE, false);
+    }
+
+    if (always_auth) {
+        ret = p11prov_context_specific_login(session, NULL, NULL, NULL);
     }
 
 done:
