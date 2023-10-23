@@ -21,6 +21,7 @@ CK_SLOT_ID p11prov_obj_get_slotid(P11PROV_OBJ *obj);
 CK_OBJECT_HANDLE p11prov_obj_get_handle(P11PROV_OBJ *obj);
 CK_OBJECT_CLASS p11prov_obj_get_class(P11PROV_OBJ *obj);
 CK_ATTRIBUTE *p11prov_obj_get_attr(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type);
+bool p11prov_obj_get_bool(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type, bool def);
 CK_KEY_TYPE p11prov_obj_get_key_type(P11PROV_OBJ *obj);
 CK_ULONG p11prov_obj_get_key_bit_size(P11PROV_OBJ *obj);
 CK_ULONG p11prov_obj_get_key_size(P11PROV_OBJ *obj);

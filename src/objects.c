@@ -498,6 +498,35 @@ CK_ATTRIBUTE *p11prov_obj_get_attr(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type)
     return NULL;
 }
 
+bool p11prov_obj_get_bool(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type, bool def)
+{
+    CK_ATTRIBUTE *attr = NULL;
+
+    if (!obj) {
+        return def;
+    }
+
+    for (int i = 0; i < obj->numattrs; i++) {
+        if (obj->attrs[i].type == type) {
+            attr = &obj->attrs[i];
+        }
+    }
+
+    if (!attr || !attr->pValue) {
+        return def;
+    }
+
+    if (attr->ulValueLen == sizeof(CK_BBOOL)) {
+        if (*((CK_BBOOL *)attr->pValue) == CK_FALSE) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    return def;
+}
+
 CK_KEY_TYPE p11prov_obj_get_key_type(P11PROV_OBJ *obj)
 {
     if (obj) {
@@ -566,8 +595,9 @@ P11PROV_CTX *p11prov_obj_get_prov_ctx(P11PROV_OBJ *obj)
 
 /* CKA_ID
  * CKA_LABEL
+ * CKA_ALWAYS_AUTHENTICATE
  * CKA_ALLOWED_MECHANISMS see p11prov_obj_from_handle() */
-#define BASE_KEY_ATTRS_NUM 3
+#define BASE_KEY_ATTRS_NUM 4
 
 #define RSA_ATTRS_NUM (BASE_KEY_ATTRS_NUM + 2)
 static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
@@ -588,6 +618,7 @@ static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     FA_SET_BUF_ALLOC(attrs, num, CKA_PUBLIC_EXPONENT, true);
     FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
     FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
     ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
     if (ret != CKR_OK) {
         /* free any allocated memory */
@@ -745,6 +776,7 @@ static CK_RV fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     }
     FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
     FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
     ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
     if (ret != CKR_OK) {
         /* free any allocated memory */
