@@ -245,6 +245,7 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     CK_OBJECT_HANDLE handle;
     CK_ULONG out_size = *outlen;
     int result = RET_OSSL_ERR;
+    bool always_auth = false;
     CK_RV ret;
 
     P11PROV_debug("decrypt (ctx=%p)", ctx);
@@ -294,6 +295,15 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
             ERR_raise(ERR_LIB_PROV, PROV_R_ILLEGAL_OR_UNSUPPORTED_PADDING_MODE);
         }
         goto endsess;
+    }
+
+    always_auth =
+        p11prov_obj_get_bool(encctx->key, CKA_ALWAYS_AUTHENTICATE, false);
+    if (always_auth) {
+        ret = p11prov_context_specific_login(session, NULL, NULL, NULL);
+        if (ret != CKR_OK) {
+            goto endsess;
+        }
     }
 
     /* Special handling against PKCS#1 1.5 side channel leaking */

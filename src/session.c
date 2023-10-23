@@ -390,7 +390,7 @@ CK_SLOT_ID p11prov_session_slotid(P11PROV_SESSION *session)
 /* returns a locked login_session if _session is not NULL */
 static CK_RV token_login(P11PROV_SESSION *session, P11PROV_URI *uri,
                          OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg,
-                         struct p11prov_slot *slot)
+                         struct p11prov_slot *slot, CK_USER_TYPE user_type)
 {
     char cb_pin[MAX_PIN_LENGTH + 1] = { 0 };
     size_t cb_pin_len = 0;
@@ -452,7 +452,7 @@ static CK_RV token_login(P11PROV_SESSION *session, P11PROV_URI *uri,
 
     P11PROV_debug("Attempt Login on session %lu", session->session);
     /* Supports only USER login sessions for now */
-    ret = p11prov_Login(session->provctx, session->session, CKU_USER, pin,
+    ret = p11prov_Login(session->provctx, session->session, user_type, pin,
                         pinlen);
     if (ret == CKR_USER_ALREADY_LOGGED_IN) {
         ret = CKR_OK;
@@ -478,6 +478,31 @@ static CK_RV token_login(P11PROV_SESSION *session, P11PROV_URI *uri,
 
 done:
     OPENSSL_cleanse(cb_pin, cb_pin_len);
+    return ret;
+}
+
+CK_RV p11prov_context_specific_login(P11PROV_SESSION *session, P11PROV_URI *uri,
+                                     OSSL_PASSPHRASE_CALLBACK *pw_cb,
+                                     void *pw_cbarg)
+{
+    P11PROV_SLOTS_CTX *sctx = NULL;
+    P11PROV_SLOT *slot = NULL;
+    CK_RV ret;
+
+    ret = p11prov_take_slots(session->provctx, &sctx);
+    if (ret != CKR_OK) {
+        return CKR_GENERAL_ERROR;
+    }
+
+    slot = p11prov_get_slot_by_id(sctx, p11prov_session_slotid(session));
+    if (!slot) {
+        ret = CKR_GENERAL_ERROR;
+    }
+
+    ret =
+        token_login(session, uri, pw_cb, pw_cbarg, slot, CKU_CONTEXT_SPECIFIC);
+
+    p11prov_return_slots(sctx);
     return ret;
 }
 
@@ -689,7 +714,7 @@ static CK_RV slot_login(P11PROV_SLOT *slot, P11PROV_URI *uri,
         /* we seem to already have a valid logged in session */
         ret = CKR_OK;
     } else {
-        ret = token_login(session, uri, pw_cb, pw_cbarg, slot);
+        ret = token_login(session, uri, pw_cb, pw_cbarg, slot, CKU_USER);
     }
 
 done:
