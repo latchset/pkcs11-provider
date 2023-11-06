@@ -148,16 +148,13 @@ if test "$P11_MODULE_PATH" != "" ; then
 fi
 
 # Checks for header files.
-AC_CHECK_HEADERS([string.h dlfcn.h])
+AC_CHECK_HEADERS([dlfcn.h], , [AC_MSG_ERROR([<dlfcn.h> is not found])])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_HEADER_STDBOOL
 AC_C_BIGENDIAN
 AC_C_INLINE
 AC_TYPE_SIZE_T
-
-# Checks for library functions.
-AC_CHECK_FUNCS([strpbrk])
 
 AC_CONFIG_FILES([
 	Makefile
