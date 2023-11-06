@@ -153,13 +153,13 @@ fi
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
 title PARA "Test EVP_PKEY_eq on public RSA key both on token"
-$CHECKER ./tcmpkeys "$PUBURI" "$PUBURI"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$PUBURI" "$PUBURI"
 title PARA "Test EVP_PKEY_eq on public EC key both on token"
 # shellcheck disable=SC2153 # ECURIs and ECXURIs are not spelling errors
-$CHECKER ./tcmpkeys "$ECPUBURI" "$ECPUBURI"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECPUBURI" "$ECPUBURI"
 if [[ -n $ECXPUBURI ]]; then
     title PARA "Test EVP_PKEY_eq on public explicit EC key both on token"
-    $CHECKER ./tcmpkeys "$ECXPUBURI" "$ECXPUBURI"
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECXPUBURI" "$ECXPUBURI"
 fi
 
 # It's important to test the commutative property since in the
@@ -168,40 +168,40 @@ fi
 # in the second case it's the other way around.
 
 title PARA "Test EVP_PKEY_eq on public RSA key via import"
-$CHECKER ./tcmpkeys "$PUBURI" "${TMPPDIR}"/rsa.pub.uripin.pem
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$PUBURI" "${TMPPDIR}"/rsa.pub.uripin.pem
 title PARA "Match private RSA key against public key"
-$CHECKER ./tcmpkeys "$PRIURI" "${TMPPDIR}"/rsa.pub.uripin.pem
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$PRIURI" "${TMPPDIR}"/rsa.pub.uripin.pem
 title PARA "Match private RSA key against public key (commutativity)"
-$CHECKER ./tcmpkeys "${TMPPDIR}"/rsa.pub.uripin.pem "$PRIURI"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/rsa.pub.uripin.pem "$PRIURI"
 
 title PARA "Test EVP_PKEY_eq on public EC key via import"
-$CHECKER ./tcmpkeys "$ECPUBURI" "${TMPPDIR}"/ec.pub.uripin.pem
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECPUBURI" "${TMPPDIR}"/ec.pub.uripin.pem
 title PARA "Match private EC key against public key"
-$CHECKER ./tcmpkeys "$ECPRIURI" "${TMPPDIR}"/ec.pub.uripin.pem
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECPRIURI" "${TMPPDIR}"/ec.pub.uripin.pem
 title PARA "Match private EC key against public key (commutativity)"
-$CHECKER ./tcmpkeys "${TMPPDIR}"/ec.pub.uripin.pem "$ECPRIURI"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/ec.pub.uripin.pem "$ECPRIURI"
 
 if [[ -n $ECXPUBURI ]]; then
     echo "ECXPUBURI is $ECXPUBURI"
     title PARA "Test EVP_PKEY_eq on public explicit EC key via import"
-    $CHECKER ./tcmpkeys "$ECXPUBURI" "${TMPPDIR}"/ecx.pub.uripin.pem
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECXPUBURI" "${TMPPDIR}"/ecx.pub.uripin.pem
     title PARA "Match private explicit EC key against public key"
     # shellcheck disable=SC2153 # ECURIs and ECXURIs are not spelling errors
-    $CHECKER ./tcmpkeys "$ECXPRIURI" "${TMPPDIR}"/ecx.pub.uripin.pem
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECXPRIURI" "${TMPPDIR}"/ecx.pub.uripin.pem
     title PARA "Match private explicit EC key against public key (commutativity)"
-    $CHECKER ./tcmpkeys "${TMPPDIR}"/ecx.pub.uripin.pem "$ECXPRIURI"
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/ecx.pub.uripin.pem "$ECXPRIURI"
 fi
 
 title PARA "Test EVP_PKEY_eq with key exporting disabled"
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
 OPENSSL_CONF=${OPENSSL_CONF}.noexport
 title PARA "Test RSA key"
-$CHECKER ./tcmpkeys "$PUBURI" "$PUBURI"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$PUBURI" "$PUBURI"
 title PARA "Test EC key"
-$CHECKER ./tcmpkeys "$ECPUBURI" "$ECPUBURI"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECPUBURI" "$ECPUBURI"
 if [[ -n $ECXPUBURI ]]; then
     title PARA "Test explicit EC key"
-    $CHECKER ./tcmpkeys "$ECXPUBURI" "$ECXPUBURI"
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECXPUBURI" "$ECXPUBURI"
 fi
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
