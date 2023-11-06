@@ -340,7 +340,7 @@ TSTCRTN="ecCert3"
 
 pkcs11-tool --keypairgen --key-type="EC:secp521r1" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="${TSTCRTN}" --id="$KEYID" --always-auth
-ca_sign $TSTCRT $TSTCRTN "My EC Cert 3" $KEYID
+ca_sign "$TSTCRT" $TSTCRTN "My EC Cert 3" $KEYID
 
 ECBASE3URIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECBASE3URI="pkcs11:id=${URIKEYID}"

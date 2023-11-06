@@ -1,6 +1,7 @@
 EXTRA_DIST = openssl.cnf.in \
 	lsan.supp \
-	explicit_ec.key.der explicit_ec.pub.der
+	explicit_ec.key.der explicit_ec.pub.der \
+	meson.build
 
 libspath=@abs_top_builddir@/src/.libs
 testsblddir=@abs_top_builddir@/tests
