@@ -54,3 +54,5 @@ MAINTAINERCLEANFILES = \
 	m4/* \
 	missing \
 	test-driver
+
+EXTRA_DIST = meson.build
