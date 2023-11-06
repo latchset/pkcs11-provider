@@ -29,11 +29,8 @@ Copyright: (C) 2022 Simo Sorce <simo@redhat.com>
 License: Apache-2.0
 
 #
-# OASIS Open PKCS#11 headers
+# Public Domain PKCS#11 headers
 #
-
-Files: src/oasis/pkcs11.h
-       src/oasis/pkcs11f.h
-       src/oasis/pkcs11t.h
-Copyright: (c) OASIS Open 2016-2019. All Rights Reserved.
-License: LicenseRef-OASIS-IPR
+Files: src/pkcs11.h
+Copyright: 2023 Public Domain
+License: LicenseRef-Public-Domain-PKCS11-Headers

@@ -10,9 +10,6 @@ noinst_HEADERS = \
 	kdf.h \
 	keymgmt.h \
 	interface.h \
-	oasis/pkcs11.h \
-	oasis/pkcs11f.h \
-	oasis/pkcs11t.h \
 	objects.h \
 	pkcs11.h \
 	platform/endian.h \
