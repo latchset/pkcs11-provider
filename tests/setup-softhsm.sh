@@ -79,33 +79,33 @@ find_softhsm \
 
 title SECTION "Set up testing system"
 
-TMPPDIR="tmp.softhsm"
+TMPPDIR="${TESTBLDDIR}/tmp.softhsm"
 
-if [ -d ${TMPPDIR} ]; then
-    rm -fr ${TMPPDIR}
+if [ -d "${TMPPDIR}" ]; then
+    rm -fr "${TMPPDIR}"
 fi
-mkdir ${TMPPDIR}
+mkdir "${TMPPDIR}"
 
 PINVALUE="12345678"
-PINFILE="${PWD}/pinfile.txt"
+PINFILE="${TMPPDIR}/pinfile.txt"
 echo ${PINVALUE} > "${PINFILE}"
 
 #RANDOM data
 SEEDFILE="${TMPPDIR}/noisefile.bin"
-dd if=/dev/urandom of=${SEEDFILE} bs=2048 count=1 >/dev/null 2>&1
+dd if=/dev/urandom of="${SEEDFILE}" bs=2048 count=1 >/dev/null 2>&1
 RAND64FILE="${TMPPDIR}/64krandom.bin"
-dd if=/dev/urandom of=${RAND64FILE} bs=2048 count=32 >/dev/null 2>&1
+dd if=/dev/urandom of="${RAND64FILE}" bs=2048 count=32 >/dev/null 2>&1
 
 # Create brand new tokens and certs
 TOKDIR="$TMPPDIR/tokens"
-if [ -d ${TOKDIR} ]; then
-    rm -fr ${TOKDIR}
+if [ -d "${TOKDIR}" ]; then
+    rm -fr "${TOKDIR}"
 fi
-mkdir ${TOKDIR}
+mkdir "${TOKDIR}"
 
 # Create SoftHSM configuration file
 cat >"$TMPPDIR/softhsm.conf" <<EOF
-directories.tokendir = $PWD/$TOKDIR
+directories.tokendir = $TOKDIR
 objectstore.backend = file
 log.level = DEBUG
 EOF
@@ -113,7 +113,7 @@ EOF
 export SOFTHSM2_CONF=$TMPPDIR/softhsm.conf
 
 # prepare certtool configuration
-cat >> ${TMPPDIR}/cert.cfg <<HEREDOC
+cat >> "${TMPPDIR}/cert.cfg" <<HEREDOC
 ca
 cn = "Issuer"
 serial = 1
@@ -137,14 +137,14 @@ CACRTN="caCert"
 pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="${CACRTN}" --id="$KEYID"
 "${certtool}" --generate-self-signed --outfile="${CACRT}.crt" \
-	--template=${TMPPDIR}/cert.cfg --provider="$P11LIB" \
+	--template="${TMPPDIR}/cert.cfg" --provider="$P11LIB" \
         --load-privkey "pkcs11:object=$CACRTN;type=private" \
         --load-pubkey "pkcs11:object=$CACRTN;type=public" --outder
 pkcs11-tool --write-object "${CACRT}.crt" --type=cert --id=$KEYID \
         --label="$CACRTN" --module="$P11LIB"
 
 # the organization identification is not in the CA
-echo 'organization = "PKCS11 Provider"' >> ${TMPPDIR}/cert.cfg
+echo 'organization = "PKCS11 Provider"' >> "${TMPPDIR}/cert.cfg"
 
 ca_sign() {
     CRT=$1
@@ -158,7 +158,7 @@ ca_sign() {
         "${sed_inplace[@]}" \
         "${TMPPDIR}/cert.cfg"
     "${certtool}" --generate-certificate --outfile="${CRT}.crt" \
-        --template=${TMPPDIR}/cert.cfg --provider="$P11LIB" \
+        --template="${TMPPDIR}/cert.cfg" --provider="$P11LIB" \
 	--load-privkey "pkcs11:object=$LABEL;type=private" \
         --load-pubkey "pkcs11:object=$LABEL;type=public" --outder \
         --load-ca-certificate "${CACRT}.crt" --inder \
@@ -177,7 +177,7 @@ TSTCRTN="testCert"
 
 pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="${TSTCRTN}" --id="$KEYID"
-ca_sign $TSTCRT $TSTCRTN "My Test Cert" $KEYID
+ca_sign "$TSTCRT" $TSTCRTN "My Test Cert" $KEYID
 
 BASEURIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 BASEURI="pkcs11:id=${URIKEYID}"
@@ -201,7 +201,7 @@ ECCRTN="ecCert"
 
 pkcs11-tool --keypairgen --key-type="EC:secp256r1" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="${ECCRTN}" --id="$KEYID"
-ca_sign $ECCRT $ECCRTN "My EC Cert" $KEYID
+ca_sign "$ECCRT" $ECCRTN "My EC Cert" $KEYID
 
 ECBASEURIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECBASEURI="pkcs11:id=${URIKEYID}"
@@ -216,7 +216,7 @@ ECPEERCRTN="ecPeerCert"
 
 pkcs11-tool --keypairgen --key-type="EC:secp256r1" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="$ECPEERCRTN" --id="$KEYID"
-ca_sign $ECPEERCRT $ECPEERCRTN "My Peer EC Cert" $KEYID
+ca_sign "$ECPEERCRT" $ECPEERCRTN "My Peer EC Cert" $KEYID
 
 ECPEERBASEURIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECPEERBASEURI="pkcs11:id=${URIKEYID}"
@@ -245,7 +245,7 @@ EDCRTN="edCert"
 
 pkcs11-tool --keypairgen --key-type="EC:edwards25519" --login --pin=$PINVALUE --module="$P11LIB" \
 	--label="${EDCRTN}" --id="$KEYID"
-ca_sign $EDCRT $EDCRTN "My ED25519 Cert" $KEYID
+ca_sign "$EDCRT" $EDCRTN "My ED25519 Cert" $KEYID
 
 EDBASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
 EDBASEURI="pkcs11:id=${URIKEYID}"
@@ -269,7 +269,7 @@ TSTCRTN="testCert2"
 
 pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="${TSTCRTN}" --id="$KEYID"
-ca_sign $TSTCRT $TSTCRTN "My Test Cert 2" $KEYID
+ca_sign "$TSTCRT" $TSTCRTN "My Test Cert 2" $KEYID
 pkcs11-tool --delete-object --type pubkey --id 0005 --module="$P11LIB"
 
 BASE2URIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
@@ -292,7 +292,7 @@ TSTCRTN="ecCert2"
 
 pkcs11-tool --keypairgen --key-type="EC:secp384r1" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="${TSTCRTN}" --id="$KEYID"
-ca_sign $TSTCRT $TSTCRTN "My EC Cert 2" $KEYID
+ca_sign "$TSTCRT" $TSTCRTN "My EC Cert 2" $KEYID
 pkcs11-tool --delete-object --type pubkey --id 0006 --module="$P11LIB"
 
 ECBASE2URIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
@@ -362,34 +362,34 @@ pkcs11-tool -O --login --pin=$PINVALUE --module="$P11LIB"
 echo " ----------------------------------------------------------------------------------------------------"
 
 title PARA "Output configurations"
-BASEDIR=$(pwd)
-OPENSSL_CONF=${BASEDIR}/${TMPPDIR}/openssl.cnf
+OPENSSL_CONF=${TMPPDIR}/openssl.cnf
 
 title LINE "Generate openssl config file"
-sed -e "s|@libtoollibs[@]|${LIBSPATH}|g" \
+sed -e "s|@libtoollibs@|${LIBSPATH}|g" \
     -e "s|@testsblddir@|${TESTBLDDIR}|g" \
-    -e "s|@testsdir[@]|${BASEDIR}/${TMPPDIR}|g" \
+    -e "s|@testsdir@|${TMPPDIR}|g" \
     -e "s|@SHARED_EXT@|${SHARED_EXT}|g" \
+    -e "s|@PINFILE@|${PINFILE}|g" \
     -e "s|##QUIRKS|pkcs11-module-quirks = no-deinit|g" \
     -e "/pkcs11-module-init-args/d" \
     "${TESTSSRCDIR}/openssl.cnf.in" > "${OPENSSL_CONF}"
 
 title LINE "Export test variables to ${TMPPDIR}/testvars"
-cat >> ${TMPPDIR}/testvars <<DBGSCRIPT
+cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
 export P11LIB=${P11LIB}
 export P11KITCLIENTPATH=${P11KITCLIENTPATH}
 export PKCS11_PROVIDER_MODULE=${P11LIB}
-export PKCS11_PROVIDER_DEBUG="file:${BASEDIR}/${TMPPDIR}/p11prov-debug.log"
+export PKCS11_PROVIDER_DEBUG="file:${TMPPDIR}/p11prov-debug.log"
 export OPENSSL_CONF="${OPENSSL_CONF}"
-export SOFTHSM2_CONF=${BASEDIR}/${TMPPDIR}/softhsm.conf
+export SOFTHSM2_CONF=${TMPPDIR}/softhsm.conf
 export TESTSSRCDIR="${TESTSSRCDIR}"
 export TESTBLDDIR="${TESTBLDDIR}"
 
-export TOKDIR="${BASEDIR}/${TOKDIR}"
-export TMPPDIR="${BASEDIR}/${TMPPDIR}"
+export TOKDIR="${TOKDIR}"
+export TMPPDIR="${TMPPDIR}"
 export PINVALUE="${PINVALUE}"
-export SEEDFILE="${BASEDIR}/${TMPPDIR}/noisefile.bin"
-export RAND64FILE="${BASEDIR}/${TMPPDIR}/64krandom.bin"
+export SEEDFILE="${TMPPDIR}/noisefile.bin"
+export RAND64FILE="${TMPPDIR}/64krandom.bin"
 
 export BASEURIWITHPIN="${BASEURIWITHPIN}"
 export BASEURI="${BASEURI}"
@@ -433,7 +433,7 @@ export ECCRT3URI="${ECCRT3URI}"
 DBGSCRIPT
 
 if [ -n "${ECXBASEURI}" ]; then
-    cat >> ${TMPPDIR}/testvars <<DBGSCRIPT
+    cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
 
 export ECXBASEURIWITHPIN="${ECXBASEURIWITHPIN}"
 export ECXBASEURI="${ECXBASEURI}"
@@ -442,7 +442,7 @@ export ECXPRIURI="${ECXPRIURI}"
 DBGSCRIPT
 fi
 
-cat >> ${TMPPDIR}/testvars <<DBGSCRIPT
+cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
 
 # for listing the separate pkcs11 calls
 #export PKCS11SPY="${PKCS11_PROVIDER_MODULE}"

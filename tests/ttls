@@ -5,7 +5,7 @@
 source "${TESTSSRCDIR}/helpers.sh"
 
 title PARA "Test SSL_CTX creation"
-$CHECKER ./tlsctx
+$CHECKER "${TESTBLDDIR}/tlsctx"
 
 title PARA "Test an actual TLS connection"
 

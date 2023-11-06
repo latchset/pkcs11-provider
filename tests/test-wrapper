@@ -2,8 +2,11 @@
 # Copyright (C) 2022 Simo sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
-TEST_PATH=$(dirname "${1}")
+DNAME=$(dirname "${1}")
 BNAME=$(basename "${1}")
+
+: "${TEST_PATH=$DNAME}"
+: "${TESTBLDDIR=.}"
 
 # the test name is {TEST_NAME}-{TOKEN_DRIVER}.t
 # split extension
@@ -11,21 +14,21 @@ NAME=${BNAME%.*}
 TEST_NAME=${NAME%-*}
 TOKEN_DRIVER=${NAME#*-}
 
-if [ -f "./tmp.${TOKEN_DRIVER}/testvars" ]; then
+if [ -f "${TESTBLDDIR}/tmp.${TOKEN_DRIVER}/testvars" ]; then
     # shellcheck source=/dev/null # we do not care about linting this source
-    source "./tmp.${TOKEN_DRIVER}/testvars"
+    source "${TESTBLDDIR}/tmp.${TOKEN_DRIVER}/testvars"
 else
     exit 77 # token not configured, skip
 fi
 
 # some tests are compiled, others are just distributed scripts
 # so we need to check both the current tests build dir and the
-# source tests dir in the out-of-source buils case (used by
+# source tests dir in the out-of-source build case (used by
 # make distcheck for example)
 if [ -f "${TEST_PATH}/t${TEST_NAME}" ]; then
     COMMAND="${TEST_PATH}/t${TEST_NAME}"
 else
-    COMMAND="./t${TEST_NAME}"
+    COMMAND="${TESTBLDDIR}/t${TEST_NAME}"
 fi
 
 # Run the tests under valgrind with appropriate flags
