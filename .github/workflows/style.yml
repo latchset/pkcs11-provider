@@ -37,10 +37,10 @@ jobs:
           run-clang-tidy \
             -checks=-*,readability-braces-around-statements \
             -config "{WarningsAsErrors: '*'}" \
-            -header-filter "src/oasis" \
+            -header-filter "src/pkcs11.h" \
             -quiet
       - name: Check the Style
         run: make check-style || (make check-style-show; exit -1)
       - name: Check spelling
         run: codespell --ignore-words-list="sorce,clen,adin" *.md Makefile.am \
-            configure.ac src tests -S src/oasis
+            configure.ac src tests -S src/pkcs11.h

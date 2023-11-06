@@ -4,7 +4,7 @@ SUBDIRS = src tests docs
 dist_doc_DATA = README.md
 
 check-style:
-	@lines=`git diff -U0 --no-color --relative origin/main | clang-format-diff -p1 |wc -l`; \
+	@lines=`git diff -U0 --no-color --relative origin/main -- ':!src/pkcs11.h' | clang-format-diff -p1 |wc -l`; \
 	if [ "$$lines" != "0" ]; then \
 		echo "Coding Style issues detected"; \
 		exit 1; \
@@ -13,10 +13,10 @@ check-style:
 	fi
 
 check-style-show:
-	git diff -U0 --no-color --relative origin/main | clang-format-diff -p1
+	git diff -U0 --no-color --relative origin/main -- ':!src/pkcs11.h' | clang-format-diff -p1
 
 check-style-fix:
-	git diff -U0 --no-color --relative origin/main | clang-format-diff -i -p1
+	git diff -U0 --no-color --relative origin/main -- ':!src/pkcs11.h' | clang-format-diff -i -p1
 
 generate-code:
 	for pfile in src/*.pre; do \

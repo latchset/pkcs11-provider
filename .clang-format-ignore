@@ -1,2 +1,2 @@
 # Leave third party code untouched
-./src/oasis/*
+./src/pkcs11.h

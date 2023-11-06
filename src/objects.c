@@ -349,7 +349,7 @@ static void cache_key(P11PROV_OBJ *obj)
 
     /* We cache only keys on the token */
     if ((obj->class != CKO_PRIVATE_KEY && obj->class != CKO_PUBLIC_KEY)
-        || obj->cka_token != CK_TRUE || obj->cka_copyable != TRUE) {
+        || obj->cka_token != CK_TRUE || obj->cka_copyable != CK_TRUE) {
         return;
     }
 
