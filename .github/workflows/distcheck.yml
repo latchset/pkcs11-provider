@@ -24,16 +24,20 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
+            if [ "${{ matrix.name }}" = centos ]; then
+              dnf_opts="--enablerepo=crb"
+            fi
             if [ -f /etc/redhat-release ]; then
-              dnf -y install git gcc automake libtool expect \
-                pkgconf-pkg-config autoconf-archive openssl-devel openssl xz \
+              dnf -y install $dnf_opts \
+                git gcc meson expect \
+                pkgconf-pkg-config openssl-devel openssl xz \
                 nss-softokn nss-tools nss-softokn-devel \
                 softhsm opensc p11-kit-devel p11-kit-server \
                 rpm-build nss-devel gnutls-utils
             elif [ -f /etc/debian_version ]; then
               apt-get -q update
-              apt-get -yq install git gcc make automake expect \
-                libtool pkg-config autoconf-archive libssl-dev openssl \
+              apt-get -yq install git gcc meson expect \
+                pkg-config libssl-dev openssl \
                 xz-utils libnss3 libnss3-tools libnss3-dev \
                 softhsm2 opensc p11-kit libp11-kit-dev p11-kit-modules \
                 gnutls-bin
@@ -42,14 +46,17 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup
         run: |
-          autoreconf -fiv
-          ./configure
+          meson setup builddir
       - name: Distcheck
-        run: make distcheck
+        run: |
+          git config --global --add safe.directory \
+              /__w/pkcs11-provider/pkcs11-provider
+          git ls-files meson.build
+          meson dist --no-tests -C builddir
       - name: RPM Build
         if: ${{ matrix.name == 'fedora' }}
         run: |
           mkdir -p rpmbuild/SOURCES
-          cp pkcs11-provider*tar.xz rpmbuild/SOURCES/
+          cp builddir/meson-dist/pkcs11-provider*tar.xz rpmbuild/SOURCES/
           rpmbuild --define "_topdir $PWD/rpmbuild" -ba \
               packaging/pkcs11-provider.spec

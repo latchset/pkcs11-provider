@@ -18,15 +18,16 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-            dnf -y install git gcc automake libtool pkgconf-pkg-config \
-                autoconf-archive openssl-devel openssl \
+            dnf -y install git gcc meson pkgconf-pkg-config \
+                openssl-devel openssl \
                 nss-softokn nss-tools nss-softokn-devel
       - name: Checkout Repository
         uses: actions/checkout@v4
       - name: Setup
         run: |
-          autoreconf -fiv
-          ./configure
+          meson setup builddir
+        env:
+          CC: gcc
       - name: Check for changes
         run: |
             echo "RUN_COV=0" >> $GITHUB_ENV;
@@ -54,8 +55,8 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-            dnf -y install git gcc automake libtool pkgconf-pkg-config \
-                autoconf-archive openssl-devel openssl \
+            dnf -y install git gcc meson pkgconf-pkg-config \
+                openssl-devel openssl \
                 nss-softokn nss-tools nss-softokn-devel \
                 gh
       - name: Find PR
@@ -67,8 +68,9 @@ jobs:
           ref: ${{steps.get-pr.outputs.merge_commit_sha}}
       - name: Setup
         run: |
-          autoreconf -fiv
-          ./configure
+          meson setup builddir
+        env:
+          CC: gcc
       - name: Coverity Scan
         uses: vapier/coverity-scan-action@v1
         with:

@@ -13,14 +13,11 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-          dnf -y install $COMPILER automake libtool pkgconf-pkg-config \
-                autoconf-archive git openssl-devel clang-tools-extra \
+          dnf -y install gcc meson pkgconf-pkg-config \
+                git openssl-devel clang-tools-extra \
                 python3-pip codespell
       - name: Checkout Repository
         uses: actions/checkout@v4
-      - name: Install compiledb
-        run: |
-          pip install compiledb
       - name: Setup
         if: ${{ github.event.pull_request.base.sha }}
         run: |
@@ -29,16 +26,14 @@ jobs:
           git fetch origin main ${{ github.event.pull_request.base.sha }}
       - name: Generate Makefile
         run: |
-          autoreconf -fiv
-          ./configure
-          compiledb make
+          meson setup builddir
       - name: Run Clang Tidy
         run: |
           run-clang-tidy \
             -checks=-*,readability-braces-around-statements \
             -config "{WarningsAsErrors: '*'}" \
             -header-filter "src/pkcs11.h" \
-            -quiet
+            -quiet -p builddir
       - name: Check the Style
         run: make check-style || (make check-style-show; exit -1)
       - name: Check spelling

@@ -34,5 +34,5 @@ pkcs11_provider = shared_module(
   link_depends: [pkcs11_provider_map],
   link_args: pkcs11_provider_ldflags,
   install: true,
-  install_dir: libdir / 'ossl-modules',
+  install_dir: get_option('libdir') / 'ossl-modules',
 )

@@ -13,24 +13,19 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-          dnf -y install $COMPILER automake libtool pkgconf-pkg-config \
-              autoconf-archive git openssl-devel clang-analyzer
+          dnf -y install $COMPILER meson pkgconf-pkg-config \
+              git openssl-devel clang-analyzer
       - uses: actions/checkout@v4
         name: Checkout Repository
       - name: Setup
         run: |
-          autoreconf -fiv
-          ./configure
+          meson setup builddir
       - name: Scan Build
         run: |
-          scan-build --html-title="PKCS#11 Provider ($GITHUB_SHA)" \
-                    --keep-cc \
-                    --status-bugs \
-                    --keep-going \
-                    -o scan-build.reports make
+          SCANBUILD=$PWD/.github/scan-build.sh ninja -C builddir scan-build
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
           name: Scan Build logs
           path: |
-            scan-build.reports/
+            builddir/meson-logs/scanbuild/

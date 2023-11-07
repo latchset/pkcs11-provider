@@ -16,8 +16,8 @@ install_dependencies()
     dnf install -y --skip-broken cmake libcmocka libcmocka-devel softhsm \
       nss-tools gnutls-utils p11-kit p11-kit-devel p11-kit-server opensc \
       softhsm-devel socket_wrapper nss_wrapper uid_wrapper pam_wrapper \
-      priv_wrapper openssh-server zlib-devel git autoconf autoconf-archive \
-      automake libtool openssl-devel gcc g++ libcmocka-devel 
+      priv_wrapper openssh-server zlib-devel git meson \
+      openssl-devel gcc g++ libcmocka-devel 
 }
 
 pkcs11_provider_setup()
@@ -36,10 +36,9 @@ pkcs11_provider_setup()
           "${WORKDIR}"/pkcs11-provider
         pushd "$WORKDIR"/pkcs11-provider
         git checkout "${GIT_REF:-"main"}"
-        autoreconf -fiv
-        ./configure --libdir=/usr/lib64
-        make
-        make install
+        meson setup -Dlibdir=/usr/lib64 builddir
+        meson compile -C builddir
+        meson install -C builddir
         popd
         export PKCS11_MODULE=/usr/lib64/ossl-modules/pkcs11.so
     fi
