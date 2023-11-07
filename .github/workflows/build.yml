@@ -28,9 +28,13 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
+            if [ "${{ matrix.name }}" = centos ]; then
+              dnf_opts="--enablerepo=crb"
+            fi
             if [ -f /etc/redhat-release ]; then
-              dnf -y install git ${{ matrix.compiler }} automake libtool \
-                pkgconf-pkg-config autoconf-archive openssl-devel openssl \
+              dnf -y install $dnf_opts \
+                git ${{ matrix.compiler }} meson \
+                pkgconf-pkg-config openssl-devel openssl \
                 diffutils expect valgrind
               if [ "${{ matrix.token }}" = "softokn" ]; then
                 dnf -y install nss-softokn nss-tools nss-softokn-devel
@@ -40,8 +44,8 @@ jobs:
               fi
             elif [ -f /etc/debian_version ]; then
               apt-get -q update
-              apt-get -yq install git ${{ matrix.compiler }} make automake \
-                libtool pkg-config autoconf-archive libssl-dev openssl expect \
+              apt-get -yq install git ${{ matrix.compiler }} meson \
+                pkg-config libssl-dev openssl expect \
                 valgrind procps
               if [ "${{ matrix.token }}" = "softokn" ]; then
                 apt-get -yq install libnss3 libnss3-tools libnss3-dev
@@ -54,35 +58,34 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup
         run: |
-          autoreconf -fiv
-          CC=${{ matrix.compiler }} ./configure
+          CC=${{ matrix.compiler }} meson setup builddir
       - name: Build and Test
-        run: make check
+        run: |
+          meson compile -C builddir
+          meson test --num-processes 1 -C builddir
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
           name: Test logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
           path: |
-            tests/*.log
-            tests/openssl.cnf
-            tests/tmp.${{ matrix.token }}/p11prov-debug.log
-            tests/tmp.${{ matrix.token }}/testvars
-            config.log
+            builddir/meson-logs/
+            builddir/tests/tmp.${{ matrix.token }}/p11prov-debug.log
+            builddir/tests/tmp.${{ matrix.token }}/testvars
+            builddir/tests/tmp.${{ matrix.token }}/openssl.cnf
       - name: Run tests with valgrind
         run: |
             if [ "${{ matrix.compiler }}" = "gcc" ]; then
-              make check-valgrind-memcheck
+              meson test --num-processes 1 -C builddir --setup=valgrind
             fi
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
           name: Test valgrind logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
           path: |
-            tests/*.log
-            tests/openssl.cnf
-            tests/tmp.${{ matrix.token }}/p11prov-debug.log
-            tests/tmp.${{ matrix.token }}/testvars
-            config.log
+            builddir/meson-logs/
+            builddir/tests/tmp.${{ matrix.token }}/p11prov-debug.log
+            builddir/tests/tmp.${{ matrix.token }}/testvars
+            builddir/tests/tmp.${{ matrix.token }}/openssl.cnf
   build-macos:
     name: CI with software token
     runs-on: ${{ matrix.os }}
@@ -96,9 +99,7 @@ jobs:
         run: |
           brew update
           brew install \
-            autoconf-archive \
-            automake \
-            libtool \
+            meson \
             openssl@3 \
             pkg-config
           if [ "${{ matrix.token }}" = "softokn" ]; then
@@ -116,21 +117,20 @@ jobs:
           export PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig
           export PATH=$(brew --prefix openssl@3)/bin:$PATH
 
-          autoreconf -fiv
-          CC=clang ./configure
+          CC=clang meson setup builddir
       - name: Build and Test
         run: |
           export PATH=$(brew --prefix openssl@3)/bin:$PATH
 
-          make -j$(sysctl -n hw.ncpu || echo 2)
-          make check
+          meson compile -j$(sysctl -n hw.ncpu || echo 2) -C builddir
+          meson test --num-processes 1 -C builddir
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
           name: Test logs on macOS-12 with ${{ matrix.token }}
           path: |
-            tests/*.log
-            tests/openssl.cnf
-            tests/tmp.${{ matrix.token }}/p11prov-debug.log
-            tests/tmp.${{ matrix.token }}/testvars
-            config.log
+            builddir/meson-logs/*
+            builddir/tests/tmp.${{ matrix.token }}/p11prov-debug.log
+            builddir/tests/tmp.${{ matrix.token }}/testvars
+            builddir/tests/tmp.${{ matrix.token }}/openssl.cnf
+

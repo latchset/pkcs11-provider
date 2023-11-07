@@ -22,15 +22,12 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
       - name: Install Build Requirements
-        run: |
-          dnf -y install git autoconf autoconf-archive automake libtool \
-            openssl-devel
+        run: dnf -y install gcc git meson openssl-devel
       - name: Setup, Build and Install pkcs11-provider
         run: |
-          autoreconf -fiv
-          ./configure --libdir=/usr/lib64
-          make
-          make install
+          meson setup -Dlibdir=/usr/lib64 builddir
+          meson compile -C builddir
+          meson install -C builddir
       - name: Test
         run: |
           pushd tests/integration

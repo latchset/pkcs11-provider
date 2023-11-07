@@ -15,10 +15,7 @@ Source2:       https://people.redhat.com/~ssorce/simo_redhat.asc
 
 BuildRequires: openssl-devel >= 3.0.7
 BuildRequires: gcc
-BuildRequires: autoconf-archive
-BuildRequires: automake
-BuildRequires: libtool
-BuildRequires: make
+BuildRequires: meson
 %if %{with gpgcheck}
 BuildRequires: gnupg2
 %endif
@@ -54,18 +51,17 @@ compatible to previous versions as well.
 
 
 %build
-autoreconf -fi
-%configure
-%make_build
+%meson
+%meson_build
 
 
 %install
-%make_install
+%meson_install
 
 
 %check
 # do not run them in parrallel with %{?_smp_mflags}
-make check || if [ $? -ne 0 ]; then cat tests/*.log; exit 1; fi;
+%meson_test --num-processes 1
 
 
 %files

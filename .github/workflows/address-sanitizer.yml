@@ -27,8 +27,8 @@ jobs:
       - name: Install Dependencies
         run: |
           if [ -f /etc/fedora-release ]; then
-            dnf -y install git clang gcc automake libtool pkgconf-pkg-config \
-              autoconf-archive openssl-devel openssl diffutils expect \
+            dnf -y install git clang gcc pkgconf-pkg-config meson \
+              openssl-devel openssl diffutils expect \
               softhsm opensc p11-kit-devel p11-kit-server gnutls-utils \
               nss-softokn nss-tools nss-softokn-devel \
               dnf-command\(debuginfo-install\) libasan
@@ -36,8 +36,8 @@ jobs:
           elif [ -f /etc/debian_version ]; then
             cat .github/sid.debug.list > /etc/apt/sources.list.d/debug.list
             apt-get -q update
-            apt-get -yq install git gcc clang make automake \
-              libtool pkg-config autoconf-archive libssl-dev openssl expect \
+            apt-get -yq install git gcc clang meson \
+              pkg-config libssl-dev openssl expect \
               procps libnss3 libnss3-tools libnss3-dev softhsm2 opensc p11-kit \
               libp11-kit-dev p11-kit-modules gnutls-bin \
               openssl-dbgsym libssl3t64-dbgsym
@@ -47,23 +47,23 @@ jobs:
         # that is not compabitlbe with LD_PRELOAD so we force the absolute path.
         run: |
           if [ -f /etc/fedora-release ]; then
-            autoreconf -fiv
             CC=gcc \
-            ./configure --with-address-sanitizer=/usr/lib64/libasan.so.8.0.0
+            meson setup builddir -Db_sanitize=address -Dpreload_libasan=/usr/lib64/libasan.so.8.0.0
           elif [ -f /etc/debian_version ]; then
-            autoreconf -fiv
             CC=gcc \
-            ./configure --with-address-sanitizer
+            meson setup builddir -Db_sanitize=address -Dpreload_libasan=/usr/lib/x86_64-linux-gnu/libasan.so.8.0.0
           fi
       - name: Build and Test
-        run: make check
+        run: |
+          meson compile -C builddir
+          meson test --num-processes 1 -C builddir
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
           name: Address sanitizer logs on ${{ matrix.name }}
           path: |
-            tests/*.log
-            tests/openssl.cnf
-            tests/tmp.${{ matrix.token }}/p11prov-debug.log
-            tests/tmp.${{ matrix.token }}/testvars
-            config.log
+            builddir/meson-logs/
+            builddir/tests/tmp.${{ matrix.token }}/p11prov-debug.log
+            builddir/tests/tmp.${{ matrix.token }}/testvars
+            builddir/tests/tmp.${{ matrix.token }}/openssl.cnf
+

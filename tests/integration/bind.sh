@@ -22,7 +22,7 @@ install_dependencies()
         releasever="--releasever=40"
     fi
     dnf install -y "$releasever" --skip-broken \
-        autoconf automake autoconf-archive libtool \
+        meson \
         p11-kit httpd mod_ssl openssl-devel gnutls-utils nss-tools \
         p11-kit-devel p11-kit-server opensc softhsm-devel procps-ng \
         openssl util-linux bind9-next opensc
@@ -64,10 +64,9 @@ pkcs11_provider_setup()
             "${WORKDIR}"/pkcs11-provider
         pushd "${WORKDIR}"/pkcs11-provider
         git checkout "${GIT_REF:-"main"}"
-        autoreconf -fiv
-        ./configure --libdir=/usr/lib64
-        make
-        make install
+        meson setup -Dlibdir=/usr/lib64 builddir
+        meson compile -C builddir
+        meson install -C builddir
         popd
         export PKCS11_MODULE=/usr/lib64/ossl-modules/pkcs11.so
     fi
