@@ -128,11 +128,13 @@ PKG_CHECK_EXISTS(
         )]
 )
 
-AC_CHECK_FILE($SOFTOKENDIR/libsoftokn3$SHARED_EXT, [],
-    [AC_CHECK_FILE($SOFTOKENDIR/nss/libsoftokn3$SHARED_EXT,
-        [AC_SUBST([SOFTOKEN_SUBDIR], "nss/")],
-        [AC_MSG_WARN([Softoken library missing, tests will fail!])])
-    ])
+if ! test -f $SOFTOKENDIR/libsoftokn3$SHARED_EXT; then
+    if test -f $SOFTOKENDIR/nss/libsoftokn3$SHARED_EXT; then
+        AC_SUBST([SOFTOKEN_SUBDIR], "nss/")
+    else
+        AC_MSG_WARN([Softoken library missing, tests will fail!])
+    fi
+fi
 
 # find p11-kit-client to separate softhsm openssl context from our tests
 PKG_CHECK_EXISTS([p11-kit-1],
