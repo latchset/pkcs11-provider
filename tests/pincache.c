@@ -90,6 +90,11 @@ int main(int argc, char *argv[])
     int status;
 
     keyuri = getenv("PRIURI");
+    /* optional first argument is a PKCS#11 uri of the key to test.
+     * Default is provided by environment variable BASEURI */
+    if (argc > 1) {
+        keyuri = argv[1];
+    }
     if (!keyuri) {
         fprintf(stderr, "PRIURI not defined\n");
         exit(EXIT_FAILURE);

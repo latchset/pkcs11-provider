@@ -211,6 +211,14 @@ sed "s/^pkcs11-module-token-pin.*$/pkcs11-module-cache-pins = cache/" \
     "${OPENSSL_CONF}" > "${OPENSSL_CONF}.pincaching"
 OPENSSL_CONF=${OPENSSL_CONF}.pincaching
 $CHECKER "${TESTBLDDIR}/pincache"
+
+if [[ -n $ECPRI3URI ]]; then
+    echo "ECPRI3URI is $ECPRI3URI"
+    title PARA "Test the Login is repeated when ALWAYS AUTHENTICATE is set"
+    $CHECKER "${TESTBLDDIR}/pincache" "$EC3PRIURI"
+    # TODO no way to check from logs that this really happen
+fi
+
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
 

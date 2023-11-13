@@ -330,6 +330,30 @@ else
     echo ""
 fi
 
+title PARA "generate EC key pair with ALWAYS AUTHENTICATE flag, self-signed certificate"
+KEYID='0008'
+URIKEYID="%00%08"
+TSTCRT="${TMPPDIR}/eccert3"
+TSTCRTN="ecCert3"
+
+pkcs11-tool --keypairgen --key-type="EC:secp521r1" --login --pin=$PINVALUE \
+	--module="$P11LIB" --label="${TSTCRTN}" --id="$KEYID" --always-auth
+ca_sign $TSTCRT $TSTCRTN "My EC Cert 3" $KEYID
+
+ECBASE3URIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+ECBASE3URI="pkcs11:id=${URIKEYID}"
+ECPUB3URI="pkcs11:type=public;id=${URIKEYID}"
+ECPRI3URI="pkcs11:type=private;id=${URIKEYID}"
+ECCRT3URI="pkcs11:type=cert;object=${TSTCRTN}"
+
+title LINE "EC3 PKCS11 URIS"
+echo "${ECBASE3URIWITHPIN}"
+echo "${ECBASE3URI}"
+echo "${ECPUB3URI}"
+echo "${ECPRI3URI}"
+echo "${ECCRT3URI}"
+echo ""
+
 title PARA "Show contents of softhsm token"
 echo " ----------------------------------------------------------------------------------------------------"
 pkcs11-tool -O --login --pin=$PINVALUE --module="$P11LIB"
@@ -393,10 +417,16 @@ export BASE2URI="${BASE2URI}"
 export PRI2URI="${PRI2URI}"
 export CRT2URI="${CRT2URI}"
 
-export ECBASE2URIWITHPIN="${ECBASEURIWITHPIN}"
+export ECBASE2URIWITHPIN="${ECBASE2URIWITHPIN}"
 export ECBASE2URI="${ECBASE2URI}"
 export ECPRI2URI="${ECPRI2URI}"
 export ECCRT2URI="${ECCRT2URI}"
+
+export ECBASE3URIWITHPIN="${ECBASE3URIWITHPIN}"
+export ECBASE3URI="${ECBASE3URI}"
+export ECPUB3URI="${ECPUB3URI}"
+export ECPRI3URI="${ECPRI3URI}"
+export ECCRT3URI="${ECCRT3URI}"
 DBGSCRIPT
 
 if [ -n "${ECXBASEURI}" ]; then
