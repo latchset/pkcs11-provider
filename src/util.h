@@ -100,4 +100,18 @@ CK_RV p11prov_mutex_destroy(P11PROV_CTX *provctx, pthread_mutex_t *lock,
 
 void p11prov_force_rwlock_reinit(pthread_rwlock_t *lock);
 
+static inline CK_ULONG constant_equal(CK_ULONG a, CK_ULONG b)
+{
+    return ((a ^ b) - 1U) >> (sizeof(CK_ULONG) * 8 - 1);
+}
+
+static inline int constant_select_int(CK_ULONG cond, int a, int b)
+{
+    volatile unsigned int A = (unsigned int)a;
+    volatile unsigned int B = (unsigned int)b;
+    volatile unsigned int mask = -(unsigned int)cond;
+
+    return (int)((A & mask) | (B & ~mask));
+}
+
 #endif /* _UTIL_H */

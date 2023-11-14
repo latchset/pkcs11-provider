@@ -450,3 +450,22 @@ done:
     /* ------------- LOCKED SECTION */
     return ret;
 }
+
+/* This is needed to avoid side channels in the PKCS 1.5 decryption case */
+CK_RV side_channel_free_Decrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                                CK_BYTE_PTR pEncryptedData,
+                                CK_ULONG ulEncryptedDataLen, CK_BYTE_PTR pData,
+                                CK_ULONG_PTR pulDataLen)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    P11PROV_debug("Calling C_Decrypt");
+    /* Must not add any conditionals based on return value, so we just return
+     * straight */
+    return intf->Decrypt(hSession, pEncryptedData, ulEncryptedDataLen, pData,
+                         pulDataLen);
+}
