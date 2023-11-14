@@ -833,10 +833,12 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
         slotid = p11prov_obj_get_slotid(sigctx->key);
 
         ret = mech_fallback_init(sigctx, slotid);
+        goto done;
         break;
     default:
         P11PROV_raise(sigctx->provctx, ret,
                       "Failed to open session on slot %lu", slotid);
+        goto done;
     }
 
     if (reqlogin) {
