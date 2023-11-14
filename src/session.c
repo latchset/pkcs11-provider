@@ -489,6 +489,9 @@ CK_RV p11prov_context_specific_login(P11PROV_SESSION *session, P11PROV_URI *uri,
     P11PROV_SLOT *slot = NULL;
     CK_RV ret;
 
+    P11PROV_debug("Providing context specific login session=%p uri=%p", session,
+                  uri);
+
     ret = p11prov_take_slots(session->provctx, &sctx);
     if (ret != CKR_OK) {
         return CKR_GENERAL_ERROR;
