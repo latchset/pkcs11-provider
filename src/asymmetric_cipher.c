@@ -296,12 +296,26 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
         goto endsess;
     }
 
+    /* Special handling against PKCS#1 1.5 side channel leaking */
+    if (mechanism.mechanism == CKM_RSA_PKCS) {
+        CK_ULONG cond;
+        ret = side_channel_free_Decrypt(encctx->provctx, sess, (void *)in,
+                                        inlen, out, &out_size);
+        /* the error case need to be handled in a side-channel free way, so
+         * conditionals need to be constant time. Always setting outlen is
+         * fine because out_size is initialized to the value of outlen
+         * and the value should not matter in an error condition anyway */
+        *outlen = out_size;
+        cond = constant_equal(ret, CKR_OK);
+        result = constant_select_int(cond, RET_OSSL_OK, RET_OSSL_ERR);
+        goto endsess;
+    }
+
     ret = p11prov_Decrypt(encctx->provctx, sess, (void *)in, inlen, out,
                           &out_size);
     if (ret != CKR_OK) {
         goto endsess;
     }
-
     *outlen = out_size;
     result = RET_OSSL_OK;
 
