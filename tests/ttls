@@ -11,7 +11,7 @@ if [ -n "$CHECKER" ]; then
 fi
 
 title PARA "Test SSL_CTX creation"
-$CHECKER ./tlsctx
+$CHECKER "${TESTBLDDIR}/tlsctx"
 
 title PARA "Test an actual TLS connection"
 rm -f "${TMPPDIR}/s_server_input"

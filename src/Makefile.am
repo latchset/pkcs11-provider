@@ -46,11 +46,13 @@ pkcs11_la_SOURCES = \
 	tls.c \
 	util.c \
 	provider.exports \
+	provider.map \
 	$(NULL)
 
 EXTRA_DIST = \
 	interface.gen.c \
 	encoder.gen.c \
+	meson.build \
 	$(NULL)
 
 pkcs11_la_CFLAGS = $(AM_CFLAGS) $(OPENSSL_CFLAGS) -Wall -Werror

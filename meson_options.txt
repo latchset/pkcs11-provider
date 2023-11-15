@@ -1,0 +1,4 @@
+option('preload_libasan',
+       type: 'string',
+       value: 'no',
+       description: 'Path to libasan.so to preload')

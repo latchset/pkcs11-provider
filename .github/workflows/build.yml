@@ -27,8 +27,8 @@ jobs:
       - name: Install Dependencies
         run: |
             if [ -f /etc/fedora-release ]; then
-              dnf -y install git ${{ matrix.compiler }} automake libtool \
-                pkgconf-pkg-config autoconf-archive openssl-devel openssl \
+              dnf -y install git ${{ matrix.compiler }} meson \
+                pkgconf-pkg-config openssl-devel openssl \
                 diffutils expect valgrind
               if [ "${{ matrix.token }}" = "softokn" ]; then
                 dnf -y install nss-softokn nss-tools nss-softokn-devel
@@ -38,8 +38,8 @@ jobs:
               fi
             elif [ -f /etc/debian_version ]; then
               apt-get -q update
-              apt-get -yq install git ${{ matrix.compiler }} make automake \
-                libtool pkg-config autoconf-archive libssl-dev openssl expect \
+              apt-get -yq install git ${{ matrix.compiler }} meson \
+                pkg-config libssl-dev openssl expect \
                 valgrind procps
               if [ "${{ matrix.token }}" = "softokn" ]; then
                 apt-get -yq install libnss3 libnss3-tools libnss3-dev
@@ -52,10 +52,11 @@ jobs:
         uses: actions/checkout@v3
       - name: Setup
         run: |
-          autoreconf -fiv
-          CC=${{ matrix.compiler }} ./configure
+          CC=${{ matrix.compiler }} meson setup _build
       - name: Build and Test
-        run: make check
+        run: |
+          meson compile -C _build
+          meson test -C _build
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
@@ -69,7 +70,7 @@ jobs:
       - name: Run tests with valgrind
         run: |
             if [ "${{ matrix.compiler }}" = "gcc" ]; then
-              make check-valgrind-memcheck
+              meson test -C _build --setup=valgrind
             fi
       - uses: actions/upload-artifact@v3
         if: failure()

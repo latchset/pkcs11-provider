@@ -11,6 +11,6 @@ sed "s/#pkcs11-module-load-behavior/pkcs11-module-load-behavior = early/" \
 OPENSSL_CONF=${OPENSSL_CONF}.early_load
 
 title PARA "Test Digests support"
-$CHECKER ./tdigests
+$CHECKER "${TESTBLDDIR}/tdigests"
 
 exit 0

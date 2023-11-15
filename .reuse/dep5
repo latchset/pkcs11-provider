@@ -10,16 +10,20 @@ Files: **/Makefile.am
        .github/*
        .gitignore
        Makefile.am
+       meson.build
+       meson_options.txt
        *.md
        configure.ac
-       configure.ac
        src/Makefile.am
+       src/meson.build
        src/provider.exports
+       src/provider.map
        src/*.gen.c
        tests/Makefile.am
        tests/README
        tests/openssl.cnf.in
        tests/explicit_ec.*
+       tests/meson.build
        .clang-format
        .clang-format-ignore
        packaging/pkcs11-provider.spec
