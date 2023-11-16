@@ -22,6 +22,7 @@
 #include <openssl/proverr.h>
 #include <openssl/core_names.h>
 #include <openssl/provider.h>
+#include <openssl/ui.h>
 
 #define UNUSED __attribute__((unused))
 #define RET_OSSL_OK 1
