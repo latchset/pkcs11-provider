@@ -19,6 +19,11 @@ int main(int argc, char *argv[])
     int ret;
 
     baseuri = getenv("BASEURI");
+    /* optional first argument is a PKCS#11 uri of the key to test.
+     * Default is provided by environment variable BASEURI */
+    if (argc > 1) {
+        baseuri = argv[1];
+    }
     if (baseuri == NULL) {
         fprintf(stderr, "No BASEURI\n");
         exit(EXIT_FAILURE);
