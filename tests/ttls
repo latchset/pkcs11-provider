@@ -4,60 +4,59 @@
 
 source "${TESTSSRCDIR}/helpers.sh"
 
-SLEEP=0.5
-# with valgrind/asan, it might take a bit longer
-if [ -n "$CHECKER" ]; then
-    SLEEP=10
-fi
-
 title PARA "Test SSL_CTX creation"
 $CHECKER ./tlsctx
 
 title PARA "Test an actual TLS connection"
-rm -f "${TMPPDIR}/s_server_input"
+
 rm -f "${TMPPDIR}/s_server_output"
+rm -f "${TMPPDIR}/s_server_ready"
+mkfifo "${TMPPDIR}/s_server_ready"
 
-# Set up command fifo
-mkfifo "${TMPPDIR}/s_server_input"
-exec 3<>"${TMPPDIR}/s_server_input"
-
+SERVER_PID=-1
 # Make sure we terminate programs if test fails in the middle
 # shellcheck disable=SC2317  # Shellcheck for some reason does not follow trap
-kill_children_print() {
-    kill_children
+wait_for_server_at_exit() {
+    wait "$1"
     echo "Server output:"
     cat "${TMPPDIR}/s_server_output"
 }
-trap kill_children_print EXIT
+trap 'wait_for_server_at_exit $SERVER_PID;' EXIT
+
 PORT=23456
-$CHECKER openssl s_server -accept "${PORT}" -key "${PRIURI}" -cert "${CRTURI}" <&3 &
 
-sleep $SLEEP
+expect -c "spawn $CHECKER openssl s_server -accept \"${PORT}\" -naccept 1 -key \"${PRIURI}\" -cert \"${CRTURI}\";
+    set timeout 60;
+    expect {
+        \"ACCEPT\" {};
+        default {exit 1;};
+    }
+    set server_ready [open \"${TMPPDIR}/s_server_ready\" w+];
+    puts \$server_ready \"READY\n\";
+    close \$server_ready;
+    expect {
+        \"END SSL SESSION PARAMETERS\" {};
+        default {exit 1;};
+    }
+    send \" TLS SUCCESSFUL \n\"
+    send \"Q\n\"
+    expect {
+        eof {exit 0;};
+        default {exit 1;};
+    }" > "${TMPPDIR}/s_server_output" &
+SERVER_PID=$!
 
-# The client will error when the server drops the connection
-set +e
-$CHECKER openssl s_client -connect "localhost:${PORT}" -quiet > "${TMPPDIR}/s_server_output" &
-set -e
+read -r < "${TMPPDIR}/s_server_ready"
 
-# Wait to make sure client is connected
-sleep $SLEEP
+expect -c "spawn $CHECKER openssl s_client -connect \"localhost:${PORT}\";
+    set timeout 60;
+    expect {
+        \" TLS SUCCESSFUL \" {};
+        default {exit 1;};
+    }
+    expect {
+        eof {exit 0;};
+        default {exit 1;};
+    }"
 
-# Send command to the client
-echo " TLS SUCCESSFUL " >&3
-
-# s_server seem to be confused if Q comes in too early
-sleep $SLEEP
-
-echo "Q" >&3
-
-# Tear down command fifo
-exec 3>&-
-rm -f "${TMPPDIR}/s_server_input"
-
-echo "Check message was successfully delivered over TLS"
-grep " TLS SUCCESSFUL " "${TMPPDIR}/s_server_output"
-
-title PARA "Kill any remaining children and wait for them"
-kill_children
-
-exit 0
+exit 0;
