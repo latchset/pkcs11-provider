@@ -134,7 +134,7 @@ output=$(expect -c "spawn -noecho $CHECKER openssl pkey -in \"${PRIURI}\" -text 
                    expect \"Key ID:\";")
 echo "$output" | grep "Enter pass phrase for PKCS#11 Token (Slot .*):" > /dev/null 2>&1 || FAIL=1
 if [ $FAIL -eq 0 ]; then
-    echo "$output" | grep "PKCS11 RSA Public Key" > /dev/null 2>&1 || FAIL=2
+    echo "$output" | grep "PKCS11 RSA Private Key" > /dev/null 2>&1 || FAIL=2
 fi
 if [ $FAIL -eq 1 ]; then
     echo "Failed to obtain expected prompt"
