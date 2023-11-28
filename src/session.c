@@ -957,22 +957,16 @@ void p11prov_return_session(P11PROV_SESSION *session)
     pool = session->pool;
 
     if (pool) {
-        /* peek at the pool lockless worst case we waste some time */
-        if (pool->open_sessions >= pool->max_cached_sessions) {
-            /* not much we can do if this fails,
-             * but only accounting will be a bit off */
-
-            /* LOCKED SECTION ------------- */
-            if (MUTEX_LOCK(pool) == CKR_OK) {
-                if (pool->open_sessions >= pool->max_cached_sessions
-                    && session != pool->login_session) {
-                    token_session_close(session);
-                    pool->open_sessions--;
-                }
-                (void)MUTEX_UNLOCK(pool);
+        /* LOCKED SECTION ------------- */
+        if (MUTEX_LOCK(pool) == CKR_OK) {
+            if (pool->open_sessions >= pool->max_cached_sessions
+                && session != pool->login_session) {
+                token_session_close(session);
+                pool->open_sessions--;
             }
-            /* ------------- LOCKED SECTION */
+            (void)MUTEX_UNLOCK(pool);
         }
+        /* ------------- LOCKED SECTION */
     }
 
     ret = MUTEX_LOCK(session);
