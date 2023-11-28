@@ -44,7 +44,7 @@ jobs:
               if [ "${{ matrix.token }}" = "softokn" ]; then
                 apt-get -yq install libnss3 libnss3-tools libnss3-dev
               elif [ "${{ matrix.token }}" = "softhsm" ]; then
-                apt-get -yq install softhsm opensc p11-kit libp11-kit-dev \
+                apt-get -yq install softhsm2 opensc p11-kit libp11-kit-dev \
                   p11-kit-modules gnutls-bin
               fi
             fi

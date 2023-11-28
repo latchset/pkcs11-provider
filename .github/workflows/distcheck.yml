@@ -33,7 +33,8 @@ jobs:
               apt-get -yq install git gcc make automake expect \
                 libtool pkg-config autoconf-archive libssl-dev openssl \
                 xz-utils libnss3 libnss3-tools libnss3-dev \
-                softhsm opensc p11-kit libp11-kit-dev p11-kit-modules gnutls-bin
+                softhsm2 opensc p11-kit libp11-kit-dev p11-kit-modules \
+                gnutls-bin
             fi
       - name: Checkout Repository
         uses: actions/checkout@v3

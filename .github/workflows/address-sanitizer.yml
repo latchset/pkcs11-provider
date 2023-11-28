@@ -38,7 +38,7 @@ jobs:
             apt-get -q update
             apt-get -yq install git gcc clang make automake \
               libtool pkg-config autoconf-archive libssl-dev openssl expect \
-              procps libnss3 libnss3-tools libnss3-dev softhsm opensc p11-kit \
+              procps libnss3 libnss3-tools libnss3-dev softhsm2 opensc p11-kit \
               libp11-kit-dev p11-kit-modules gnutls-bin \
               openssl-dbgsym libssl3-dbgsym
           fi
