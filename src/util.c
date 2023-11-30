@@ -320,6 +320,15 @@ done:
     return ret;
 }
 
+#define COPY_STRUCT_MEMBER(dst, src, _name) \
+    if ((src)->_name) { \
+        (dst)->_name = strdup((src)->_name); \
+        if (!(dst)->_name) { \
+            p11prov_uri_free((dst)); \
+            return NULL; \
+        } \
+    }
+
 static void p11prov_uri_free_int(P11PROV_URI *uri)
 {
     OPENSSL_free(uri->library_manufacturer);
@@ -795,14 +804,31 @@ CK_OBJECT_CLASS p11prov_uri_get_class(P11PROV_URI *uri)
     return uri->type;
 }
 
+void p11prov_uri_set_class(P11PROV_URI *uri, CK_OBJECT_CLASS class)
+{
+    uri->type = class;
+}
+
 CK_ATTRIBUTE p11prov_uri_get_id(P11PROV_URI *uri)
 {
     return uri->id;
 }
 
+void p11prov_uri_set_id(P11PROV_URI *uri, CK_ATTRIBUTE *id)
+{
+    OPENSSL_free(uri->id.pValue);
+    p11prov_copy_attr(&uri->id, id);
+}
+
 CK_ATTRIBUTE p11prov_uri_get_label(P11PROV_URI *uri)
 {
     return uri->object;
+}
+
+void p11prov_uri_set_label(P11PROV_URI *uri, CK_ATTRIBUTE *label)
+{
+    OPENSSL_free(uri->object.pValue);
+    p11prov_copy_attr(&uri->object, label);
 }
 
 char *p11prov_uri_get_serial(P11PROV_URI *uri)
@@ -813,6 +839,55 @@ char *p11prov_uri_get_serial(P11PROV_URI *uri)
 char *p11prov_uri_get_pin(P11PROV_URI *uri)
 {
     return uri->pin;
+}
+
+CK_SLOT_ID p11prov_uri_get_slot_id(P11PROV_URI *uri)
+{
+    return uri->slot_id;
+}
+
+void p11prov_uri_set_slot_id(P11PROV_URI *uri, CK_SLOT_ID slot_id)
+{
+    uri->slot_id = slot_id;
+}
+
+P11PROV_URI *p11prov_copy_uri(P11PROV_URI *uri)
+{
+    P11PROV_URI *cu;
+    CK_RV rv;
+
+    cu = OPENSSL_zalloc(sizeof(P11PROV_URI));
+    if (!cu) {
+        return NULL;
+    }
+
+    COPY_STRUCT_MEMBER(cu, uri, library_manufacturer)
+    COPY_STRUCT_MEMBER(cu, uri, library_description)
+    COPY_STRUCT_MEMBER(cu, uri, token)
+    COPY_STRUCT_MEMBER(cu, uri, manufacturer)
+    COPY_STRUCT_MEMBER(cu, uri, model)
+    COPY_STRUCT_MEMBER(cu, uri, serial)
+    COPY_STRUCT_MEMBER(cu, uri, slot_description)
+    COPY_STRUCT_MEMBER(cu, uri, slot_manufacturer)
+    COPY_STRUCT_MEMBER(cu, uri, pin)
+
+    rv = p11prov_copy_attr(&cu->id, &uri->id);
+    if (rv != CKR_OK) {
+        p11prov_uri_free(cu);
+        return NULL;
+    }
+
+    rv = p11prov_copy_attr(&cu->object, &uri->object);
+    if (rv != CKR_OK) {
+        p11prov_uri_free(cu);
+        return NULL;
+    }
+
+    cu->library_version = uri->library_version;
+    cu->slot_id = uri->slot_id;
+    cu->type = uri->type;
+
+    return cu;
 }
 
 CK_RV p11prov_uri_match_token(P11PROV_URI *uri, CK_SLOT_ID slot_id,
