@@ -439,7 +439,7 @@ static CK_RV token_login(P11PROV_SESSION *session, P11PROV_URI *uri,
     bool cache = false;
     CK_RV ret;
 
-    P11PROV_debug("Log into the token session=%p uri=%p slot=%p type=%d",
+    P11PROV_debug("Log into the token session=%p uri=%p slot=%p type=%lu",
                   session, uri, slot, user_type);
 
     token = p11prov_slot_get_token(slot);
