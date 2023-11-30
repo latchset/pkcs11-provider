@@ -559,11 +559,13 @@ CK_RV p11prov_context_specific_login(P11PROV_SESSION *session, P11PROV_URI *uri,
     slot = p11prov_get_slot_by_id(sctx, p11prov_session_slotid(session));
     if (!slot) {
         ret = CKR_GENERAL_ERROR;
+        goto done;
     }
 
     ret =
         token_login(session, uri, pw_cb, pw_cbarg, slot, CKU_CONTEXT_SPECIFIC);
 
+done:
     p11prov_return_slots(sctx);
     return ret;
 }
