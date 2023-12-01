@@ -322,7 +322,7 @@ done:
 
 #define COPY_STRUCT_MEMBER(dst, src, _name) \
     if ((src)->_name) { \
-        (dst)->_name = strdup((src)->_name); \
+        (dst)->_name = OPENSSL_strdup((src)->_name); \
         if (!(dst)->_name) { \
             p11prov_uri_free((dst)); \
             return NULL; \
