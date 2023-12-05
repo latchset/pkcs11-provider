@@ -191,7 +191,12 @@ static void *p11prov_digest_dupctx(void *ctx)
     dctx->session = NULL;
 
     /* NOTE: most tokens will probably return errors trying to do this on digest
-     * sessions */
+     * sessions. If the configuration indicates that GetOperationState will fail
+     * we don't even try to duplicate the context. */
+
+    if (p11prov_ctx_no_operation_state(dctx->provctx)) {
+        goto done;
+    }
 
     ret = p11prov_GetOperationState(dctx->provctx, sess, NULL_PTR, &state_len);
     if (ret != CKR_OK) {

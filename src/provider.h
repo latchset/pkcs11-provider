@@ -115,6 +115,8 @@ enum p11prov_cache_keys {
 int p11prov_ctx_cache_keys(P11PROV_CTX *ctx);
 int p11prov_ctx_cache_sessions(P11PROV_CTX *ctx);
 
+bool p11prov_ctx_no_operation_state(P11PROV_CTX *ctx);
+
 #include "debug.h"
 
 /* Errors */
