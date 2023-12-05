@@ -178,16 +178,22 @@ Example:
 Workarounds that may be needed to deal with some tokens and cannot be
 autodetcted yet are not appropriate defaults.
 
-The only quirk currently implemented is "no-deinit"
-It prevent de-initing when OpenSSL winds down the provider.
+### no-deinit
+It prevents de-initing when OpenSSL winds down the provider.
 NOTE this option may leak memory and may cause some modules to
 misbehave if the application intentionally unloads and reloads them.
+
+### no-operation-state
+OpenSSL by default assumes contexts with operations in flight can be
+easily duplicated. That is only possible if the tokens support getting
+and setting the operation state. If the quirk is enabled the context
+duplication is not performed.
 
 Default: none
 
 Example:
 
-```pkcs11-module-quirks = no-deinit```
+```pkcs11-module-quirks = no-deinit no-operation-state```
 (Disables deinitialization)
 
 
