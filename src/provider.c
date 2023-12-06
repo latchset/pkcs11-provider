@@ -2,6 +2,7 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
+#include "decoder.h"
 #include <pthread.h>
 #include <string.h>
 
@@ -29,6 +30,7 @@ struct p11prov_ctx {
     bool cache_pins;
     int cache_keys;
     int cache_sessions;
+    bool encode_pkey_as_pk11_uri;
     /* TODO: ui_method */
     /* TODO: fork id */
 
@@ -1081,6 +1083,15 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
     ADD_ALGO_EXT(EC, encoder,
                  "provider=pkcs11,output=der,structure=SubjectPublicKeyInfo",
                  p11prov_ec_encoder_spki_der_functions);
+    if (ctx->encode_pkey_as_pk11_uri) {
+        ADD_ALGO_EXT(RSA, encoder,
+                     "provider=pkcs11,output=pem,structure=PrivateKeyInfo",
+                     p11prov_rsa_encoder_priv_key_info_pem_functions);
+        ADD_ALGO_EXT(EC, encoder,
+                     "provider=pkcs11,output=pem,structure=PrivateKeyInfo",
+                     p11prov_ec_encoder_priv_key_info_pem_functions);
+    }
+
     TERM_ALGO(encoder);
 
     /* handle random */
@@ -1119,6 +1130,18 @@ static const OSSL_ALGORITHM p11prov_store[] = {
     { NULL, NULL, NULL, NULL },
 };
 
+static const OSSL_ALGORITHM p11prov_decoders[] = {
+    { "DER", "provider=pkcs11,input=pem",
+      p11prov_pem_decoder_p11prov_der_functions },
+    { P11PROV_NAMES_RSA,
+      "provider=pkcs11,input=der,structure=" P11PROV_DER_STRUCTURE,
+      p11prov_der_decoder_p11prov_rsa_functions },
+    { P11PROV_NAMES_EC,
+      "provider=pkcs11,input=der,structure=" P11PROV_DER_STRUCTURE,
+      p11prov_der_decoder_p11prov_ec_functions },
+    { NULL, NULL, NULL }
+};
+
 static const OSSL_ALGORITHM *
 p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
 {
@@ -1141,6 +1164,8 @@ p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
         return ctx->op_asym_cipher;
     case OSSL_OP_ENCODER:
         return ctx->op_encoder;
+    case OSSL_OP_DECODER:
+        return p11prov_decoders;
     case OSSL_OP_STORE:
         return p11prov_store;
     }
@@ -1301,17 +1326,24 @@ enum p11prov_cfg_enum {
     P11PROV_CFG_CACHE_KEYS,
     P11PROV_CFG_QUIRKS,
     P11PROV_CFG_CACHE_SESSIONS,
+    P11PROV_CFG_ENCODE_PROVIDER_URI_TO_PEM,
     P11PROV_CFG_SIZE,
 };
 
 static struct p11prov_cfg_names {
     const char *name;
 } p11prov_cfg_names[P11PROV_CFG_SIZE] = {
-    { "pkcs11-module-path" },           { "pkcs11-module-init-args" },
-    { "pkcs11-module-token-pin" },      { "pkcs11-module-allow-export" },
-    { "pkcs11-module-login-behavior" }, { "pkcs11-module-load-behavior" },
-    { "pkcs11-module-cache-pins" },     { "pkcs11-module-cache-keys" },
-    { "pkcs11-module-quirks" },         { "pkcs11-module-cache-sessions" },
+    { "pkcs11-module-path" },
+    { "pkcs11-module-init-args" },
+    { "pkcs11-module-token-pin" },
+    { "pkcs11-module-allow-export" },
+    { "pkcs11-module-login-behavior" },
+    { "pkcs11-module-load-behavior" },
+    { "pkcs11-module-cache-pins" },
+    { "pkcs11-module-cache-keys" },
+    { "pkcs11-module-quirks" },
+    { "pkcs11-module-cache-sessions" },
+    { "pkcs11-module-encode-provider-uri-to-pem" },
 };
 
 int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
@@ -1520,6 +1552,15 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         ctx->cache_sessions = MAX_CACHE_SESSIONS;
     }
     P11PROV_debug("Cache Sessions: %d", ctx->cache_sessions);
+
+    if (cfg[P11PROV_CFG_ENCODE_PROVIDER_URI_TO_PEM] != NULL
+        && strcmp(cfg[P11PROV_CFG_ENCODE_PROVIDER_URI_TO_PEM], "true") == 0) {
+        ctx->encode_pkey_as_pk11_uri = true;
+    } else {
+        ctx->encode_pkey_as_pk11_uri = false;
+    }
+    P11PROV_debug("PK11-URI will %sbe written instead of PrivateKeyInfo",
+                  ctx->encode_pkey_as_pk11_uri ? "" : "not ");
 
     /* PAY ATTENTION: do this as the last thing */
     if (cfg[P11PROV_CFG_LOAD_BEHAVIOR] != NULL

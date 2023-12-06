@@ -5,10 +5,12 @@ noinst_HEADERS = \
 	asymmetric_cipher.h \
 	debug.h \
 	encoder.h \
+	decoder.h \
 	digests.h \
 	exchange.h \
 	kdf.h \
 	keymgmt.h \
+	pk11_uri.h \
 	interface.h \
 	objects.h \
 	pkcs11.h \
@@ -30,10 +32,12 @@ pkcs11_la_SOURCES = \
 	asymmetric_cipher.c \
 	debug.c \
 	encoder.c \
+	decoder.c \
 	digests.c \
 	exchange.c \
 	kdf.c \
 	keymgmt.c \
+	pk11_uri.c \
 	interface.c \
 	objects.c \
 	provider.h \
@@ -51,6 +55,7 @@ pkcs11_la_SOURCES = \
 EXTRA_DIST = \
 	interface.gen.c \
 	encoder.gen.c \
+	pk11_uri.gen.c \
 	$(NULL)
 
 pkcs11_la_CFLAGS = $(AM_CFLAGS) $(OPENSSL_CFLAGS) -Wall -Werror

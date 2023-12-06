@@ -67,7 +67,7 @@ dist_check_SCRIPTS = \
 	helpers.sh setup-softhsm.sh setup-softokn.sh softhsm-proxy.sh \
 	test-wrapper tbasic tcerts tecc tecdh tedwards tdemoca thkdf \
 	toaepsha2 trsapss tdigest ttls tpubkey tfork turi trand tecxc \
-	tcms top_state
+	tcms top_state tpem_encoder
 
 test_LIST = \
 	basic-softokn.t basic-softhsm.t \
@@ -90,7 +90,8 @@ test_LIST = \
 	uri-softokn.t uri-softhsm.t \
 	ecxc-softhsm.t \
 	cms-softokn.t \
-	op_state-softhsm.t
+	op_state-softhsm.t \
+	pem_encoder-softokn.t pem_encoder-softhsm.t
 
 .PHONY: $(test_LIST)
 
