@@ -450,6 +450,8 @@ void p11prov_obj_free(P11PROV_OBJ *obj)
     }
     OPENSSL_free(obj->attrs);
 
+    p11prov_uri_free(obj->refresh_uri);
+
     OPENSSL_clear_free(obj, sizeof(P11PROV_OBJ));
 }
 
