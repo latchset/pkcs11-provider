@@ -1,0 +1,25 @@
+#!/bin/bash -e
+# Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+title PARA "OSSL error stack has error from failing C_Get/SetOperationState"
+# We need to configure early loading otherwise no digests are loaded,
+# and all checks are skipped
+sed "s/#pkcs11-module-load-behavior/pkcs11-module-load-behavior = early/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.op_state.early_load"
+OPENSSL_CONF=${OPENSSL_CONF}.op_state.early_load
+
+$CHECKER ./tdigest_dupctx | grep -e "error:.*:pkcs11::reason(84)"
+
+
+title PARA "No error is logged when quirk no-operation-state is enabled"
+sed "s/pkcs11-module-quirks = /pkcs11-module-quirks = no-operation-state /" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.no_op_state"
+OPENSSL_CONF=${OPENSSL_CONF}.no_op_state
+
+title PARA "Test Digests support"
+$CHECKER ./tdigest_dupctx | grep -e "error:.*:lib(0)::reason(0)"
+
+exit 0
