@@ -30,6 +30,7 @@ jobs:
             thkdf
             toaepsha2
             top_state
+            tpem_encoder
             tpubkey
             trand
             trsapss

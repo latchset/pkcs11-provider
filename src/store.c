@@ -3,6 +3,7 @@
 
 #include "provider.h"
 #include <openssl/store.h>
+#include "store.h"
 
 struct p11prov_store_ctx {
     P11PROV_CTX *provctx;
@@ -383,7 +384,7 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
         break;
     case CKO_CERTIFICATE:
         object_type = OSSL_OBJECT_CERT;
-        data_type = (char *)"CERTIFICATE";
+        data_type = (char *)P11PROV_NAME_CERTIFICATE;
         cert = p11prov_obj_get_attr(obj, CKA_VALUE);
         if (cert == NULL) {
             return RET_OSSL_ERR;
@@ -587,6 +588,39 @@ static int p11prov_store_set_ctx_params(void *pctx, const OSSL_PARAM params[])
     }
 
     return RET_OSSL_OK;
+}
+
+int p11prov_store_direct_fetch(void *provctx, const char *uri,
+                               OSSL_CALLBACK *object_cb, void *object_cbarg,
+                               OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
+{
+    int ret = RET_OSSL_OK;
+    p11prov_set_error_mark(provctx);
+
+    struct p11prov_store_ctx *ctx = NULL;
+    ctx = p11prov_store_open(provctx, uri);
+    if (!ctx) {
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+
+    do {
+        int load_ret =
+            p11prov_store_load(ctx, object_cb, object_cbarg, pw_cb, pw_cbarg);
+        if (load_ret != RET_OSSL_OK) {
+            ret = RET_OSSL_ERR;
+        }
+    } while (!p11prov_store_eof(ctx));
+
+done:
+    p11prov_store_ctx_free(ctx);
+
+    if (ret == RET_OSSL_OK) {
+        p11prov_pop_error_to_mark(provctx);
+    } else {
+        p11prov_clear_last_error_mark(provctx);
+    }
+    return ret;
 }
 
 const OSSL_DISPATCH p11prov_store_functions[] = {

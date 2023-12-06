@@ -1,0 +1,149 @@
+#!/bin/bash -e
+# Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+# We need to configure early loading otherwise no digests are loaded,
+# and all checks are skipped
+sed -e "s/#pkcs11-module-encode-provider-uri-to-pem/pkcs11-module-encode-provider-uri-to-pem = true/" \
+    -e "s/#pkcs11-module-load-behavior/pkcs11-module-load-behavior = early/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.encode_to_pem"
+OPENSSL_CONF=${OPENSSL_CONF}.encode_to_pem
+make-uri-pem() {
+    export LC_ALL=C
+
+    URI=$1
+    OUT=$2
+    DESC="${3:-PKCS#11 Provider URI v1.0}"
+
+    DESC_HEX=$(printf '%s' "${DESC}" | od -An -t x1)
+    URI_HEX=$(printf '%s' "${URI}"   | od -An -t x1)
+    PEM_HEX=$(printf '30 82 %04x 1a 82 %04x %s 0c 82 %04x %s'  \
+                     "$((${#URI} + ${#DESC} + 8))" \
+                     "${#DESC}" \
+                     "${DESC_HEX[*]}" \
+                     "${#URI}" \
+                     "${URI_HEX[*]}" \
+                  | tr -d '\r\n\t ' \
+                  | sed -e 's,\(.\{2\}\),\\x\1,g')
+    {
+        echo "-----BEGIN PKCS#11 PROVIDER URI-----"
+        # shellcheck disable=SC2059 # printf should treat variable as format string
+        printf "${PEM_HEX}" | base64
+        echo "-----END PKCS#11 PROVIDER URI-----"
+    }  > "${OUT}"
+}
+
+sign-verify() {
+    PRIV_KEY=$1
+    PUB_KEY=$2
+    FILE=$3
+
+    RANDOM_HEX=$(od -A n -N 15 -t x1 /dev/random)
+    TMP_FILE="${TMPPDIR}/sign-verify-pem-encoder-${RANDOM_HEX// /}.bin"
+
+    $CHECKER openssl pkeyutl -sign -rawin -digest sha256 \
+             -inkey "${PRIV_KEY}" \
+             -in "${FILE}" \
+             -out "${TMP_FILE}"
+
+    $CHECKER openssl pkeyutl -verify -rawin -digest sha256 \
+             -inkey "${PUB_KEY}" \
+             -pubin \
+             -in "${FILE}" \
+             -sigfile "${TMP_FILE}"
+
+    rm "${TMP_FILE}"
+}
+
+RANDOM_HEX=$(od -A n -N 15 -t x1 /dev/random)
+export LABEL_SUFFIX_URI=${RANDOM_HEX// /}
+
+title PARA "Test PEM Encoding RSA support"
+
+make-uri-pem "${PRIURI}" "${TMPPDIR}/priuri-pkey.pem"
+sign-verify "${TMPPDIR}/priuri-pkey.pem" "${PUBURI}" "${TMPPDIR}/64krandom.bin"
+
+export ALGORITHM=rsa
+export ALGORITHM_OPT=rsa_keygen_bits:2048
+ossl '
+genpkey -propquery "provider=pkcs11"
+        -algorithm "${ALGORITHM}" -pkeyopt "${ALGORITHM_OPT}"
+        -pkeyopt "pkcs11_uri:pkcs11:object=Test-PEM-Encode-RSA-${LABEL_SUFFIX_URI}"
+        -out "${TMPPDIR}/rsa-pkey-uri.pem"'
+
+grep -e "-----BEGIN PKCS#11 PROVIDER URI-----" "${TMPPDIR}/rsa-pkey-uri.pem"
+
+sign-verify "${TMPPDIR}/rsa-pkey-uri.pem" \
+            "pkcs11:object=Test-PEM-Encode-RSA-${LABEL_SUFFIX_URI}" \
+            "${TMPPDIR}/64krandom.bin"
+
+title PARA "Test PEM Encoding EC support"
+
+make-uri-pem "${ECPRIURI}" "${TMPPDIR}/ecpriuri-pkey.pem"
+sign-verify "${TMPPDIR}/ecpriuri-pkey.pem" "${ECPUBURI}" "${TMPPDIR}/64krandom.bin"
+
+export ALGORITHM=EC
+export ALGORITHM_OPT=ec_paramgen_curve:prime256v1
+ossl '
+genpkey -propquery "provider=pkcs11"
+        -algorithm "${ALGORITHM}" -pkeyopt "${ALGORITHM_OPT}"
+        -pkeyopt "pkcs11_uri:pkcs11:object=Test-PEM-Encode-EC-${LABEL_SUFFIX_URI}"
+        -out "${TMPPDIR}/ec-pkey-uri.pem"'
+
+grep -e "-----BEGIN PKCS#11 PROVIDER URI-----" "${TMPPDIR}/ec-pkey-uri.pem"
+
+sign-verify "${TMPPDIR}/ec-pkey-uri.pem" \
+            "pkcs11:object=Test-PEM-Encode-EC-${LABEL_SUFFIX_URI}" \
+            "${TMPPDIR}/64krandom.bin"
+
+
+title PARA "Test visible string has to match"
+make-uri-pem "${PRIURI}" "${TMPPDIR}/priuri-wrong-version-key.pem" "PKCS#11 Provider URI v2.0"
+ossl '
+storeutl
+        -out "${TMPPDIR}/storeutl-priuri-wrong-version-key.txt"
+        "${TMPPDIR}/priuri-wrong-version-key.pem"' || :
+DATA=$(cat "${TMPPDIR}/storeutl-priuri-wrong-version-key.txt")
+if [[ ! ${DATA} =~ "Total found: 0" ]]; then
+    echo "Should fail because visible string does not match"
+    exit 1
+fi
+
+make-uri-pem "${PRIURI}" "${TMPPDIR}/priuri-too-long-key.pem" "PKCS#11 Provider URI v1.0-INVALID"
+ossl '
+storeutl
+        -out "${TMPPDIR}/storeutl-priuri-too-long-key.txt"
+        "${TMPPDIR}/priuri-too-long-key.pem"' || :
+DATA=$(cat "${TMPPDIR}/storeutl-priuri-too-long-key.txt")
+if [[ ! ${DATA} =~ "Total found: 0" ]]; then
+    echo "Should fail because visible string does not match"
+    exit 1
+fi
+
+make-uri-pem "${PRIURI}" "${TMPPDIR}/priuri-too-short-key.pem" "PKCS#11 Provider URI v1"
+ossl '
+storeutl
+        -out "${TMPPDIR}/storeutl-priuri-too-short-key.txt"
+        "${TMPPDIR}/priuri-too-short-key.pem"' || :
+DATA=$(cat "${TMPPDIR}/storeutl-priuri-too-short-key.txt")
+if [[ ! ${DATA} =~ "Total found: 0" ]]; then
+    echo "Should fail because visible string does not match"
+    exit 1
+fi
+
+
+title PARA "Test public key is usable"
+make-uri-pem "${PUBURI}" "${TMPPDIR}/puburi-key.pem"
+ossl '
+storeutl
+        -out "${TMPPDIR}/storeutl-puburi-key.txt"
+        "${TMPPDIR}/puburi-key.pem"'
+DATA=$(cat "${TMPPDIR}/storeutl-puburi-key.txt")
+if [[ ! ${DATA} =~ "Total found: 1" ]]; then
+    echo "Should return public key"
+    exit 1
+fi
+
+exit 0

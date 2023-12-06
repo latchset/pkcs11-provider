@@ -57,6 +57,7 @@
 #define P11PROV_DESCS_ED448 "PKCS11 ED448 Implementation"
 #define P11PROV_NAMES_RAND "PKCS11-RAND"
 #define P11PROV_DESCS_RAND "PKCS11 Random Generator"
+#define P11PROV_NAME_CERTIFICATE "CERTIFICATE"
 
 #define P11PROV_PARAM_URI "pkcs11_uri"
 #define P11PROV_PARAM_KEY_USAGE "pkcs11_key_usage"
@@ -156,6 +157,7 @@ int p11prov_pop_error_to_mark(P11PROV_CTX *ctx);
 #include "session.h"
 #include "slot.h"
 #include "random.h"
+#include "pk11_uri.h"
 
 /* TLS */
 int tls_group_capabilities(OSSL_CALLBACK *cb, void *arg);
