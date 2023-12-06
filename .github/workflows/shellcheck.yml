@@ -29,6 +29,7 @@ jobs:
             test-wrapper
             thkdf
             toaepsha2
+            top_state
             tpubkey
             trand
             trsapss

@@ -10,7 +10,7 @@ testssrcdir=@abs_srcdir@
 #VALGRIND_SUPPRESSIONS_FILES = $(top_srcdir)/tests/pkcs11-provider.supp
 VALGRIND_FLAGS = --num-callers=30 -q --keep-debuginfo=yes
 
-check_PROGRAMS = tsession tgenkey tlsctx tdigests treadkeys tcmpkeys tfork pincache
+check_PROGRAMS = tsession tgenkey tlsctx tdigests tdigest_dupctx treadkeys tcmpkeys tfork pincache
 
 tsession_SOURCES = tsession.c
 tsession_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
@@ -27,6 +27,10 @@ tlsctx_LDADD = $(OPENSSL_LIBS)
 tdigests_SOURCES = tdigests.c
 tdigests_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
 tdigests_LDADD = $(OPENSSL_LIBS)
+
+tdigest_dupctx_SOURCES = tdigest_dupctx.c
+tdigest_dupctx_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
+tdigest_dupctx_LDADD = $(OPENSSL_LIBS)
 
 treadkeys_SOURCES = treadkeys.c
 treadkeys_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
@@ -63,7 +67,7 @@ dist_check_SCRIPTS = \
 	helpers.sh setup-softhsm.sh setup-softokn.sh softhsm-proxy.sh \
 	test-wrapper tbasic tcerts tecc tecdh tedwards tdemoca thkdf \
 	toaepsha2 trsapss tdigest ttls tpubkey tfork turi trand tecxc \
-	tcms
+	tcms top_state
 
 test_LIST = \
 	basic-softokn.t basic-softhsm.t \
@@ -85,7 +89,8 @@ test_LIST = \
 	tls-softokn.t tls-softhsm.t \
 	uri-softokn.t uri-softhsm.t \
 	ecxc-softhsm.t \
-	cms-softokn.t
+	cms-softokn.t \
+	op_state-softhsm.t
 
 .PHONY: $(test_LIST)
 
