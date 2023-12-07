@@ -178,25 +178,18 @@ static void *p11prov_digest_dupctx(void *ctx)
     /* This is not really funny. OpenSSL by default assumes contexts with
      * operations in flight can be easily duplicated, with all the
      * cryptographic status and then both context can keep going
-     * independently. We'll try to save/restore state here, but on failure
-     * we just 'move' the the session to the new context and hope there is no
-     * need for the old context which will have no session and just return
-     * errors if an update is attempted. */
+     * independently. We'll try to save/restore state here, but will rarely
+     * succeed */
 
     sess = p11prov_session_handle(dctx->session);
 
-    /* move old session to new context, we swap because often openssl continues
-     * on the duplicated context by default */
-    newctx->session = dctx->session;
-    dctx->session = NULL;
-
     /* NOTE: most tokens will probably return errors trying to do this on digest
      * sessions */
-
     ret = p11prov_GetOperationState(dctx->provctx, sess, NULL_PTR, &state_len);
     if (ret != CKR_OK) {
         goto done;
     }
+
     state = OPENSSL_malloc(state_len);
     if (state == NULL) {
         goto done;
@@ -208,22 +201,23 @@ static void *p11prov_digest_dupctx(void *ctx)
     }
 
     ret =
-        p11prov_get_session(dctx->provctx, &slotid, NULL, NULL, dctx->mechtype,
-                            NULL, NULL, false, false, &dctx->session);
+        p11prov_get_session(newctx->provctx, &slotid, NULL, NULL,
+                            newctx->mechtype, NULL, NULL, false, false,
+                            &newctx->session);
     if (ret != CKR_OK) {
         P11PROV_raise(dctx->provctx, ret, "Failed to open new session");
         goto done;
     }
-    sess = p11prov_session_handle(dctx->session);
+    sess = p11prov_session_handle(newctx->session);
 
-    ret = p11prov_SetOperationState(dctx->provctx, sess, state, state_len,
+    ret = p11prov_SetOperationState(newctx->provctx, sess, state, state_len,
                                     CK_INVALID_HANDLE, CK_INVALID_HANDLE);
-    if (ret != CKR_OK) {
-        p11prov_return_session(dctx->session);
-        dctx->session = NULL;
-    }
 
 done:
+    if (ret != CKR_OK) {
+        p11prov_digest_freectx(newctx);
+        newctx = NULL;
+    }
     OPENSSL_free(state);
     return newctx;
 }
