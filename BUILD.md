@@ -13,7 +13,7 @@ This package requires the following:
 
 The usual command to build are:
 - autoreconf -fi (if needed)
-- ./configure (--with-openssl if needed)
+- ./configure (--with-openssl=/path/to/openssl if needed)
 - make
 - make check
 
