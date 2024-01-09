@@ -118,10 +118,13 @@ static const char slot_desc_fmt[] = "PKCS#11 Token (Slot %lu - %s)";
 CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
 {
     CK_ULONG num;
+    CK_INFO ck_info;
     CK_SLOT_ID *slotid = NULL;
     struct p11prov_slots_ctx *sctx;
     CK_RV ret;
     int err;
+
+    ck_info = p11prov_ctx_get_ck_info(ctx);
 
     sctx = OPENSSL_zalloc(sizeof(P11PROV_SLOTS_CTX));
     if (!sctx) {
@@ -215,7 +218,10 @@ CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
             goto done;
         }
 
-        get_slot_profiles(ctx, slot);
+        /* profiles not available before version 3 */
+        if (ck_info.cryptokiVersion.major >= 3) {
+            get_slot_profiles(ctx, slot);
+        }
         get_slot_mechanisms(ctx, slot);
 
         P11PROV_debug_slot(ctx, slot->id, &slot->slot, &slot->token,

@@ -615,6 +615,15 @@ bool p11prov_ctx_no_operation_state(P11PROV_CTX *ctx)
     return ctx->no_operation_state;
 }
 
+CK_INFO p11prov_ctx_get_ck_info(P11PROV_CTX *ctx)
+{
+    if (!ctx->module) {
+        CK_INFO info = { 0 };
+        return info;
+    }
+    return p11prov_module_ck_info(ctx->module);
+}
+
 static void p11prov_teardown(void *ctx)
 {
     p11prov_ctx_free((P11PROV_CTX *)ctx);
