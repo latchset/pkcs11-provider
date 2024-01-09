@@ -48,6 +48,12 @@ static void check_rsa_key(EVP_PKEY *pubkey)
         fprintf(stderr, "Failed to get N param from public key");
         exit(EXIT_FAILURE);
     } else {
+        int bits;
+        bits = EVP_PKEY_get_bits(pubkey);
+        if (bits < 3072) {
+            fprintf(stderr, "Expected 3072 bits key, got %d\n", bits);
+            exit(EXIT_FAILURE);
+        }
         BN_free(tmp);
         tmp = NULL;
     }
@@ -339,7 +345,8 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     params[0] = OSSL_PARAM_construct_utf8_string("pkcs11_uri", uri, 0);
-    params[1] = OSSL_PARAM_construct_size_t("rsa_keygen_bits", &rsa_bits);
+    params[1] =
+        OSSL_PARAM_construct_size_t(OSSL_PKEY_PARAM_RSA_BITS, &rsa_bits);
     params[2] = OSSL_PARAM_construct_end();
 
     gen_keys("RSA", label, idhex, params, false);
@@ -365,7 +372,8 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     params[0] = OSSL_PARAM_construct_utf8_string("pkcs11_uri", uri, 0);
-    params[1] = OSSL_PARAM_construct_size_t("rsa_keygen_bits", &rsa_bits);
+    params[1] =
+        OSSL_PARAM_construct_size_t(OSSL_PKEY_PARAM_RSA_BITS, &rsa_bits);
     params[2] = OSSL_PARAM_construct_utf8_string("rsa_pss_keygen_md",
                                                  (char *)"SHA256", 0);
     params[3] = OSSL_PARAM_construct_end();
@@ -422,7 +430,8 @@ int main(int argc, char *argv[])
     params[0] = OSSL_PARAM_construct_utf8_string("pkcs11_uri", uri, 0);
     params[1] = OSSL_PARAM_construct_utf8_string("pkcs11_key_usage",
                                                  (char *)key_usage, 0);
-    params[2] = OSSL_PARAM_construct_size_t("rsa_keygen_bits", &rsa_bits);
+    params[2] =
+        OSSL_PARAM_construct_size_t(OSSL_PKEY_PARAM_RSA_BITS, &rsa_bits);
     params[3] = OSSL_PARAM_construct_end();
 
     gen_keys("RSA", label, idhex, params, false);
