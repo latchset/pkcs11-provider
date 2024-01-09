@@ -469,3 +469,8 @@ CK_RV side_channel_free_Decrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     return intf->Decrypt(hSession, pEncryptedData, ulEncryptedDataLen, pData,
                          pulDataLen);
 }
+
+CK_INFO p11prov_module_ck_info(P11PROV_MODULE *mctx)
+{
+    return mctx->ck_info;
+}

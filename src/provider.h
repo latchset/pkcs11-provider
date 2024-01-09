@@ -117,6 +117,8 @@ int p11prov_ctx_cache_sessions(P11PROV_CTX *ctx);
 
 bool p11prov_ctx_no_operation_state(P11PROV_CTX *ctx);
 
+CK_INFO p11prov_ctx_get_ck_info(P11PROV_CTX *ctx);
+
 #include "debug.h"
 
 /* Errors */
