@@ -18,7 +18,7 @@ if [ ! -e "${DEMOCA}/cacert.pem" ]; then
     ossl 'req -batch -noenc -x509 -new -key ${PRIURI} -out ${DEMOCA}/cacert.pem'
 fi
 
-title PARA "Generating a new CSR"
+title PARA "Generating a new CSR with key in file"
 ossl '
 req -batch -noenc -newkey rsa:2048
     -subj "/CN=testing-csr-signing/O=PKCS11 Provider/C=US"
@@ -27,6 +27,39 @@ req -batch -noenc -newkey rsa:2048
 title PARA "Signing the new certificate"
 ossl '
 ca -batch -in ${DEMOCA}/cert.csr -keyfile ${PRIURI} -out ${DEMOCA}/cert.pem'
+
+title PARA "Generating a new CSR with existing RSA key in token"
+ossl '
+req -batch -noenc -new -key ${PRIURI}
+    -subj "/CN=testing-rsa-signing/O=PKCS11 Provider/C=US"
+    -out ${DEMOCA}/cert-rsa.csr'
+
+title PARA "Signing the new RSA key certificate"
+ossl '
+ca -batch -in ${DEMOCA}/cert-rsa.csr -keyfile ${PRIURI} -out ${DEMOCA}/cert.pem'
+
+title PARA "Generating a new CSR with existing EC key in token"
+ossl '
+req -batch -noenc -new -key ${ECPRIURI}
+    -subj "/CN=testing-ec-signing/O=PKCS11 Provider/C=US"
+    -out ${DEMOCA}/cert-ec.csr'
+
+title PARA "Signing the new EC key certificate"
+ossl '
+ca -batch -in ${DEMOCA}/cert-ec.csr -keyfile ${PRIURI} -out ${DEMOCA}/cert.pem'
+
+
+if [[ -n $EDPRIURI ]]; then
+    title PARA "Generating a new CSR with existing ED key in token"
+    ossl '
+    req -batch -noenc -new -key ${EDPRIURI}
+        -subj "/CN=testing-ed-signing/O=PKCS11 Provider/C=US"
+        -out ${DEMOCA}/cert-ed.csr'
+
+    title PARA "Signing the new ED key certificate"
+    ossl '
+    ca -batch -in ${DEMOCA}/cert-ed.csr -keyfile ${PRIURI} -out ${DEMOCA}/cert.pem'
+fi
 
 title PARA "Set up OCSP"
 ossl '
