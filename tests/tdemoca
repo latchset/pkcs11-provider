@@ -80,6 +80,7 @@ PORT=12345
 trap kill_children EXIT
 #Unclear why but w/o -rmd sha1 this fails
 #call this without wrapper otherwise we have issues killing it later ...
+# shellcheck disable=SC2153 # the PRIURI is defined in setup-soft{hsm,okn}
 $CHECKER openssl ocsp -index "${DEMOCA}/index.txt" -rsigner \
     "${DEMOCA}/ocspSigning.pem" -rkey "${PRIURI}" -CA "${DEMOCA}/cacert.pem" \
     -rmd sha1 -port "${PORT}" -text &
