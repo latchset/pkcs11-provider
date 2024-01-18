@@ -2,7 +2,7 @@
 %bcond_with gpgcheck
 
 Name:          pkcs11-provider
-Version:       0.2
+Version:       0.3
 Release:       1%{?dist}
 Summary:       A PKCS#11 provider for OpenSSL 3.0+
 License:       Apache-2.0
