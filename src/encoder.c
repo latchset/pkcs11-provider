@@ -958,3 +958,75 @@ p11prov_common_encoder_priv_key_info_pem_does_selection(void *inctx,
     }
     return RET_OSSL_ERR;
 }
+
+DISPATCH_TEXT_ENCODER_FN(ec_edwards, encode);
+
+static int p11prov_ec_edwards_encoder_encode_text(
+    void *inctx, OSSL_CORE_BIO *cbio, const void *inkey,
+    const OSSL_PARAM key_abstract[], int selection,
+    OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
+{
+    struct p11prov_encoder_ctx *ctx = (struct p11prov_encoder_ctx *)inctx;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)inkey;
+    CK_KEY_TYPE type;
+    CK_ULONG keysize;
+    const char *type_name = "ED25519";
+    char *uri = NULL;
+    BIO *out;
+    int ret;
+
+    P11PROV_debug("EdDSA Text Encoder");
+
+    type = p11prov_obj_get_key_type(key);
+    if (type != CKK_EC_EDWARDS) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid Key Type");
+        return RET_OSSL_ERR;
+    }
+
+    out = BIO_new_from_core_bio(p11prov_ctx_get_libctx(ctx->provctx), cbio);
+    if (!out) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Failed to init BIO");
+        return RET_OSSL_ERR;
+    }
+
+    keysize = p11prov_obj_get_key_bit_size(key);
+    if (keysize == 448) {
+        type_name = "ED448";
+    }
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
+        CK_OBJECT_CLASS class = p11prov_obj_get_class(key);
+        if (class != CKO_PRIVATE_KEY) {
+            return RET_OSSL_ERR;
+        }
+        BIO_printf(out, "PKCS11 %s Private Key (%lu bits)\n", type_name,
+                   keysize);
+        BIO_printf(out, "[Can't export and print private key data]\n");
+    }
+
+    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+        BIO_printf(out, "PKCS11 %s Public Key (%lu bits)\n", type_name,
+                   keysize);
+        ret = p11prov_obj_export_public_key(key, CKK_EC_EDWARDS, true,
+                                            p11prov_ec_print_public_key, out);
+        /* FIXME if we want print in different format */
+        if (ret != RET_OSSL_OK) {
+            BIO_printf(out, "[Error: Failed to decode public key data]\n");
+        }
+    }
+
+    uri = p11prov_key_to_uri(ctx->provctx, key);
+    if (uri) {
+        BIO_printf(out, "URI %s\n", uri);
+    }
+
+    OPENSSL_free(uri);
+    BIO_free(out);
+    return RET_OSSL_OK;
+}
+
+const OSSL_DISPATCH p11prov_ec_edwards_encoder_text_functions[] = {
+    DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
+    DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
+    DISPATCH_TEXT_ENCODER_ELEM(ENCODE, ec_edwards, encode_text),
+    { 0, NULL },
+};
