@@ -9,5 +9,5 @@ compatible to previous versions as well.
 Spec:
 https://docs.oasis-open.org/pkcs11/pkcs11-spec/v3.1/pkcs11-spec-v3.1.html
 
-To report Security Vulenrabilities, please use the "Report a Security
+To report Security Vulnerabilities, please use the "Report a Security
 Vulnerability" template in the issues reporting page.
