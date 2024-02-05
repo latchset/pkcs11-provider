@@ -1,0 +1,59 @@
+---
+name: Integration tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+    P_LIBSSH_DEBUG: /tmp/libssh-provider-debug.log
+
+jobs:
+  build:
+    name: libssh
+    runs-on: ubuntu-22.04
+    container: fedora:latest
+    steps:
+      - name: Install Dependencies
+        run: |
+          dnf -y install gcc g++ git cmake libcmocka libcmocka-devel \
+          autoconf automake autoconf-archive libtool softhsm nss-tools \
+          gnutls-utils p11-kit p11-kit-devel p11-kit-server opensc \
+          softhsm-devel socket_wrapper nss_wrapper uid_wrapper \
+          pam_wrapper priv_wrapper openssh-server zlib-devel
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      - name: Setup, Build and Install pkcs11-provider
+        run: |
+          autoreconf -fiv
+          ./configure --libdir=/usr/lib64
+          make
+          make install
+      - name: Clone, Setup and Build libssh
+        run: |
+          git clone https://gitlab.com/libssh/libssh-mirror.git
+          cd libssh-mirror/
+          mkdir build
+          cd build/
+          cmake \
+            -DUNIT_TESTING=ON \
+            -DCLIENT_TESTING=ON \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DWITH_PKCS11_URI=ON \
+            -DWITH_PKCS11_PROVIDER=ON \
+            -DPKCS11_PROVIDER=/usr/lib64/ossl-modules/pkcs11.so ..
+          make
+      - name: Run libssh pkcs11-provider tests
+        run: |
+          cd libssh-mirror/build
+          ! test -e $P_LIBSSH_DEBUG && \
+            echo "Provider log $P_LIBSSH_DEBUG does not exist yet (expected)"
+          PKCS11_PROVIDER_DEBUG=file:$P_LIBSSH_DEBUG ctest \
+            --output-on-failure -R \
+            '(torture_auth_pkcs11|torture_pki_rsa_uri|torture_pki_ecdsa_uri)' \
+            | tee testout.log 2>&1
+          grep -q "100% tests passed, 0 tests failed out of 3" testout.log
+          test -e $P_LIBSSH_DEBUG && \
+            echo "Provider log $P_LIBSSH_DEBUG exists (expected)"
