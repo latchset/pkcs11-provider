@@ -36,6 +36,7 @@ struct p11prov_ctx {
     bool no_deinit;
     bool no_allowed_mechanisms;
     bool no_operation_state;
+    bool no_session_callbacks;
 
     /* module handles and data */
     P11PROV_MODULE *module;
@@ -613,6 +614,11 @@ int p11prov_ctx_cache_sessions(P11PROV_CTX *ctx)
 bool p11prov_ctx_no_operation_state(P11PROV_CTX *ctx)
 {
     return ctx->no_operation_state;
+}
+
+bool p11prov_ctx_no_session_callbacks(P11PROV_CTX *ctx)
+{
+    return ctx->no_session_callbacks;
 }
 
 CK_INFO p11prov_ctx_get_ck_info(P11PROV_CTX *ctx)
@@ -1473,6 +1479,8 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
                 ctx->no_allowed_mechanisms = true;
             } else if (strncmp(str, "no-operation-state", toklen) == 0) {
                 ctx->no_operation_state = true;
+            } else if (strncmp(str, "no-session-callbacks", toklen) == 0) {
+                ctx->no_session_callbacks = true;
             }
             len -= toklen;
             if (sep) {
