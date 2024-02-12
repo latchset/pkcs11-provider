@@ -189,6 +189,11 @@ easily duplicated. That is only possible if the tokens support getting
 and setting the operation state. If the quirk is enabled the context
 duplication is not performed.
 
+### no-session-callbacks
+Some implementatations of PKCS11 don't allow setting `pApplication` and
+`Notify` callback functions in `C_OpenSession`.
+This option sets NULL values for both callbacks.
+
 Default: none
 
 Example:

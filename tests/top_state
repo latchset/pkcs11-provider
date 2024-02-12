@@ -22,4 +22,11 @@ OPENSSL_CONF=${OPENSSL_CONF}.no_op_state
 title PARA "Test Digests support"
 $CHECKER ./tdigest_dupctx | grep -e "error:.*:lib(0)::reason(0)"
 
+title PARA "No errors occur with no-session-callbacks quirk enabled"
+sed "s/pkcs11-module-quirks = /pkcs11-module-quirks = no-session-callbacks /" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.no_callbacks"
+OPENSSL_CONF=${OPENSSL_CONF}.no_callbacks
+
+$CHECKER ./tdigest_dupctx | grep -e "error:.*:lib(0)::reason(0)"
+
 exit 0

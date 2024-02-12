@@ -67,9 +67,16 @@ static CK_RV token_session_open(P11PROV_SESSION *session, CK_FLAGS flags)
     CK_RV ret;
 
     do {
-        ret = p11prov_OpenSession(session->provctx, session->slotid, flags,
-                                  session, token_session_callback,
-                                  &session->session);
+        if (p11prov_ctx_no_session_callbacks(session->provctx)) {
+            P11PROV_debug("Opening session without callbacks %lu",
+                          session->session);
+            ret = p11prov_OpenSession(session->provctx, session->slotid, flags,
+                                      NULL, NULL, &session->session);
+        } else {
+            ret = p11prov_OpenSession(session->provctx, session->slotid, flags,
+                                      session, token_session_callback,
+                                      &session->session);
+        }
         P11PROV_debug("C_OpenSession ret:%lu (session: %lu)", ret,
                       session->session);
         if (ret != CKR_SESSION_COUNT) {
