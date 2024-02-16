@@ -1081,6 +1081,10 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
     ADD_ALGO_EXT(EC, encoder,
                  "provider=pkcs11,output=der,structure=SubjectPublicKeyInfo",
                  p11prov_ec_encoder_spki_der_functions);
+    ADD_ALGO_EXT(ED25519, encoder, "provider=pkcs11,output=text",
+                 p11prov_ed_encoder_text_functions);
+    ADD_ALGO_EXT(ED448, encoder, "provider=pkcs11,output=text",
+                 p11prov_ed_encoder_text_functions);
     TERM_ALGO(encoder);
 
     /* handle random */

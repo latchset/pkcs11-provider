@@ -1768,6 +1768,27 @@ static int p11prov_ed_get_params(void *keydata, OSSL_PARAM params[])
             return ret;
         }
     }
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_PUB_KEY);
+    if (p) {
+        CK_ATTRIBUTE *pub;
+
+        if (p->data_type != OSSL_PARAM_OCTET_STRING) {
+            return RET_OSSL_ERR;
+        }
+        ret = p11prov_obj_get_ed_pub_key(key, &pub);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+
+        p->return_size = pub->ulValueLen;
+        if (p->data) {
+            if (p->data_size < pub->ulValueLen) {
+                return RET_OSSL_ERR;
+            }
+            memcpy(p->data, pub->pValue, pub->ulValueLen);
+            p->data_size = pub->ulValueLen;
+        }
+    }
 
     return RET_OSSL_OK;
 }
@@ -1775,7 +1796,7 @@ static int p11prov_ed_get_params(void *keydata, OSSL_PARAM params[])
 static const OSSL_PARAM *p11prov_ed_gettable_params(void *provctx)
 {
     static const OSSL_PARAM params[] = {
-        /* TODO: OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_PUB_KEY, NULL, 0), */
+        OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_PUB_KEY, NULL, 0),
         OSSL_PARAM_int(OSSL_PKEY_PARAM_BITS, NULL),
         OSSL_PARAM_int(OSSL_PKEY_PARAM_SECURITY_BITS, NULL),
         OSSL_PARAM_int(OSSL_PKEY_PARAM_MAX_SIZE, NULL),
@@ -1818,7 +1839,7 @@ const OSSL_DISPATCH p11prov_ed25519_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ed, GETTABLE_PARAMS, gettable_params),
     DISPATCH_KEYMGMT_ELEM(ed, SET_PARAMS, set_params),
     DISPATCH_KEYMGMT_ELEM(ed, SETTABLE_PARAMS, settable_params),
-    /* TODO: match, validate, dup? */
+    /* TODO: validate, dup? */
     { 0, NULL },
 };
 
@@ -1842,7 +1863,7 @@ const OSSL_DISPATCH p11prov_ed448_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ed, GETTABLE_PARAMS, gettable_params),
     DISPATCH_KEYMGMT_ELEM(ed, SET_PARAMS, set_params),
     DISPATCH_KEYMGMT_ELEM(ed, SETTABLE_PARAMS, settable_params),
-    /* TODO: match, validate, dup? */
+    /* TODO: validate, dup? */
     { 0, NULL },
 };
 

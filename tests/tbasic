@@ -121,11 +121,13 @@ OPENSSL_CONF=${OPENSSL_CONF}.nopin
 ossl 'pkey -in $PUBURI -pubin -pubout -out ${TMPPDIR}/rsa.pub.nopin.pem'
 ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${TMPPDIR}/ec.pub.nopin.pem'
 [[ -n $ECXPUBURI ]] && ossl 'pkey -in $ECXPUBURI -pubin -pubout -out ${TMPPDIR}/ecx.pub.nopin.pem'
+[[ -n $EDPUBURI ]] && ossl 'pkey -in $EDPUBURI -pubin -pubout -out ${TMPPDIR}/ed.pub.nopin.pem'
 
 title PARA "Test fetching public keys with a PIN in URI"
 ossl 'pkey -in $BASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/rsa.pub.uripin.pem'
 ossl 'pkey -in $ECBASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/ec.pub.uripin.pem'
 [[ -n $ECXBASEURIWITHPIN ]] && ossl 'pkey -in $ECXBASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/ecx.pub.uripin.pem'
+[[ -n $EDBASEURIWITHPIN ]] && ossl 'pkey -in $EDBASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/ed.pub.uripin.pem'
 
 title PARA "Test prompting without PIN in config files"
 output=$(expect -c "spawn -noecho $CHECKER openssl pkey -in \"${PRIURI}\" -text -noout;
@@ -153,13 +155,18 @@ fi
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
 title PARA "Test EVP_PKEY_eq on public RSA key both on token"
+# shellcheck disable=SC2153 # PUBURIs is assigned
 $CHECKER ./tcmpkeys "$PUBURI" "$PUBURI"
 title PARA "Test EVP_PKEY_eq on public EC key both on token"
-# shellcheck disable=SC2153 # ECURIs and ECXURIs are not spelling errors
+# shellcheck disable=SC2153 # ECURIs and ECXURIs are assigned
 $CHECKER ./tcmpkeys "$ECPUBURI" "$ECPUBURI"
 if [[ -n $ECXPUBURI ]]; then
     title PARA "Test EVP_PKEY_eq on public explicit EC key both on token"
     $CHECKER ./tcmpkeys "$ECXPUBURI" "$ECXPUBURI"
+fi
+if [[ -n $EDPUBURI ]]; then
+    title PARA "Test EVP_PKEY_eq on public Edwards key both on token"
+    $CHECKER ./tcmpkeys "$EDPUBURI" "$EDPUBURI"
 fi
 
 # It's important to test the commutative property since in the
@@ -186,10 +193,21 @@ if [[ -n $ECXPUBURI ]]; then
     title PARA "Test EVP_PKEY_eq on public explicit EC key via import"
     $CHECKER ./tcmpkeys "$ECXPUBURI" "${TMPPDIR}"/ecx.pub.uripin.pem
     title PARA "Match private explicit EC key against public key"
-    # shellcheck disable=SC2153 # ECURIs and ECXURIs are not spelling errors
+    # shellcheck disable=SC2153 # ECURIs and ECXURIs are assigned
     $CHECKER ./tcmpkeys "$ECXPRIURI" "${TMPPDIR}"/ecx.pub.uripin.pem
     title PARA "Match private explicit EC key against public key (commutativity)"
     $CHECKER ./tcmpkeys "${TMPPDIR}"/ecx.pub.uripin.pem "$ECXPRIURI"
+fi
+
+if [[ -n $EDPUBURI ]]; then
+    echo "EDPUBURI is $EDPUBURI"
+    title PARA "Test EVP_PKEY_eq on public Edwards key via import"
+    $CHECKER ./tcmpkeys "$EDPUBURI" "${TMPPDIR}"/ed.pub.uripin.pem
+    title PARA "Match private Edwards key against public key"
+    # shellcheck disable=SC2153 # EDPRIURI is assigned
+    $CHECKER ./tcmpkeys "$EDPRIURI" "${TMPPDIR}"/ed.pub.uripin.pem
+    title PARA "Match private Edwards key against public key (commutativity)"
+    $CHECKER ./tcmpkeys "${TMPPDIR}"/ed.pub.uripin.pem "$EDPRIURI"
 fi
 
 title PARA "Test EVP_PKEY_eq with key exporting disabled"
@@ -202,6 +220,10 @@ $CHECKER ./tcmpkeys "$ECPUBURI" "$ECPUBURI"
 if [[ -n $ECXPUBURI ]]; then
     title PARA "Test explicit EC key"
     $CHECKER ./tcmpkeys "$ECXPUBURI" "$ECXPUBURI"
+fi
+if [[ -n $EDPUBURI ]]; then
+    title PARA "Test Edwards key"
+    $CHECKER ./tcmpkeys "$EDPUBURI" "$EDPUBURI"
 fi
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 

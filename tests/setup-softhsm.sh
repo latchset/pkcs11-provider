@@ -247,12 +247,14 @@ pkcs11-tool --keypairgen --key-type="EC:edwards25519" --login --pin=$PINVALUE --
 	--label="${EDCRTN}" --id="$KEYID"
 ca_sign $EDCRT $EDCRTN "My ED25519 Cert" $KEYID
 
+EDBASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
 EDBASEURI="pkcs11:id=${URIKEYID}"
 EDPUBURI="pkcs11:type=public;id=${URIKEYID}"
 EDPRIURI="pkcs11:type=private;id=${URIKEYID}"
 EDCRTURI="pkcs11:type=cert;object=${EDCRTN}"
 
 title LINE "ED25519 PKCS11 URIS"
+echo "${EDBASEURIWITHPIN}"
 echo "${EDBASEURI}"
 echo "${EDPUBURI}"
 echo "${EDPRIURI}"
@@ -407,6 +409,7 @@ export ECPEERPUBURI="${ECPEERPUBURI}"
 export ECPEERPRIURI="${ECPEERPRIURI}"
 export ECPEERCRTURI="${ECPEERCRTURI}"
 
+export EDBASEURIWITHPIN="${EDBASEURIWITHPIN}"
 export EDBASEURI="${EDBASEURI}"
 export EDPUBURI="${EDPUBURI}"
 export EDPRIURI="${EDPRIURI}"
