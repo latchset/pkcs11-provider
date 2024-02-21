@@ -2161,7 +2161,14 @@ static int cmp_public_key_values(P11PROV_OBJ *pub_key1, P11PROV_OBJ *pub_key2)
 
     switch (pub_key1->data.key.type) {
     case CKK_RSA:
+        /* pub_key1 pub_key2 could be CKO_PRIVATE_KEY here but
+         *  nevertheless contain these two attributes
+         */
         ret = cmp_attr(pub_key1, pub_key2, CKA_MODULUS);
+        if (ret == RET_OSSL_ERR) {
+            break;
+        }
+        ret = cmp_attr(pub_key1, pub_key2, CKA_PUBLIC_EXPONENT);
         break;
     case CKK_EC:
     case CKK_EC_EDWARDS:
@@ -2180,8 +2187,13 @@ static int match_public_keys(P11PROV_OBJ *key1, P11PROV_OBJ *key2)
     P11PROV_OBJ *priv_key;
     int ret = RET_OSSL_ERR;
 
-    if (key1->class == CKO_PUBLIC_KEY && key2->class == CKO_PUBLIC_KEY) {
-        /* both keys are public, match directly their public values */
+    if ((key1->class == CKO_PUBLIC_KEY && key2->class == CKO_PUBLIC_KEY)
+        || key1->data.key.type == CKK_RSA) {
+        /* either keys are public, match directly their public values
+         * OR
+         * CKA_RSA keys (private/public) contain CKA_MODULUS / CKA_PUBLIC_EXPONENT
+         * - no need to find_associated_obj
+         */
         return cmp_public_key_values(key1, key2);
     }
 
@@ -2261,10 +2273,6 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
 
     switch (key1->data.key.type) {
     case CKK_RSA:
-        ret = cmp_attr(key1, key2, CKA_PUBLIC_EXPONENT);
-        if (ret != RET_OSSL_OK) {
-            return ret;
-        }
         if (cmp_type & OBJ_CMP_KEY_PRIVATE) {
             /* unfortunately we can't really read private attributes
              * and there is no comparison function int he PKCS11 API.
