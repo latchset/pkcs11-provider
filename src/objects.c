@@ -796,6 +796,12 @@ static CK_RV fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     FA_SET_BUF_ALLOC(attrs, num, CKA_EC_PARAMS, true);
     if (key->class == CKO_PUBLIC_KEY) {
         FA_SET_BUF_ALLOC(attrs, num, CKA_EC_POINT, true);
+    } else {
+        /* known vendor optimization to avoid storing
+         * EC public key on HSM; can avoid
+         * find_associated_obj later
+         */
+        FA_SET_BUF_ALLOC(attrs, num, CKA_EC_POINT, false);
     }
     FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
     FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
@@ -2187,14 +2193,14 @@ static int match_public_keys(P11PROV_OBJ *key1, P11PROV_OBJ *key2)
     P11PROV_OBJ *priv_key;
     int ret = RET_OSSL_ERR;
 
-    if ((key1->class == CKO_PUBLIC_KEY && key2->class == CKO_PUBLIC_KEY)
-        || key1->data.key.type == CKK_RSA) {
-        /* either keys are public, match directly their public values
-         * OR
-         * CKA_RSA keys (private/public) contain CKA_MODULUS / CKA_PUBLIC_EXPONENT
-         * - no need to find_associated_obj
-         */
-        return cmp_public_key_values(key1, key2);
+    /* avoid round-trip to HSM if keys have enough
+     * attributes to do the logical comparison
+     * CKK_RSA: MODULUS / PUBLIC_EXPONENT
+     * CKK_EC: EC_POINT
+     */
+    ret = cmp_public_key_values(key1, key2);
+    if (ret != RET_OSSL_ERR) {
+        return ret;
     }
 
     /* one of the keys or both are private */
