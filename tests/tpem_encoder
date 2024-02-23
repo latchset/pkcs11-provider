@@ -4,6 +4,10 @@
 
 source "${TESTSSRCDIR}/helpers.sh"
 
+# Forward declaration to avoid shellcheck's SC2153 did you mean ...
+: "${PRIURI:?}" "${ECPRIURI:?}" "${EDPRIURI:=}"
+: "${PUBURI:?}" "${ECPUBURI:?}" "${EDPUBURI:=}"
+
 # We need to configure early loading otherwise no digests are loaded,
 # and all checks are skipped
 sed -e "s/#pkcs11-module-encode-provider-uri-to-pem/pkcs11-module-encode-provider-uri-to-pem = true/" \
@@ -39,20 +43,34 @@ sign-verify() {
     PRIV_KEY=$1
     PUB_KEY=$2
     FILE=$3
+    NO_DIGEST=$4
 
     RANDOM_HEX=$(od -A n -N 15 -t x1 /dev/random)
     TMP_FILE="${TMPPDIR}/sign-verify-pem-encoder-${RANDOM_HEX// /}.bin"
 
-    $CHECKER openssl pkeyutl -sign -rawin -digest sha256 \
-             -inkey "${PRIV_KEY}" \
-             -in "${FILE}" \
-             -out "${TMP_FILE}"
+    if [[ -z "${NO_DIGEST}" ]]; then
+        $CHECKER openssl pkeyutl -sign -rawin -digest sha256 \
+                 -inkey "${PRIV_KEY}" \
+                 -in "${FILE}" \
+                 -out "${TMP_FILE}"
 
-    $CHECKER openssl pkeyutl -verify -rawin -digest sha256 \
-             -inkey "${PUB_KEY}" \
-             -pubin \
-             -in "${FILE}" \
-             -sigfile "${TMP_FILE}"
+        $CHECKER openssl pkeyutl -verify -rawin -digest sha256 \
+                 -inkey "${PUB_KEY}" \
+                 -pubin \
+                 -in "${FILE}" \
+                 -sigfile "${TMP_FILE}"
+    else
+        $CHECKER openssl pkeyutl -sign -rawin \
+                 -inkey "${PRIV_KEY}" \
+                 -in "${FILE}" \
+                 -out "${TMP_FILE}"
+
+        $CHECKER openssl pkeyutl -verify -rawin \
+                 -inkey "${PUB_KEY}" \
+                 -pubin \
+                 -in "${FILE}" \
+                 -sigfile "${TMP_FILE}"
+    fi;
 
     rm "${TMP_FILE}"
 }
@@ -98,6 +116,28 @@ sign-verify "${TMPPDIR}/ec-pkey-uri.pem" \
             "pkcs11:object=Test-PEM-Encode-EC-${LABEL_SUFFIX_URI}" \
             "${TMPPDIR}/64krandom.bin"
 
+# Only run ED test if setup created ed key
+if [[ -n "${EDPRIURI}" ]]; then
+    title PARA "Test PEM Encoding ED support"
+
+    make-uri-pem "${EDPRIURI}" "${TMPPDIR}/ed25519priuri-pkey.pem"
+    sign-verify "${TMPPDIR}/ed25519priuri-pkey.pem" "${EDPUBURI}" "${TMPPDIR}/64krandom.bin" "no-digest"
+
+    export ALGORITHM=ED25519
+    ossl '
+    genpkey -propquery "provider=pkcs11"
+            -algorithm "${ALGORITHM}"
+            -pkeyopt "pkcs11_uri:pkcs11:object=Test-PEM-Encode-ED25519-${LABEL_SUFFIX_URI}"
+            -out "${TMPPDIR}/ed25519-pkey-uri.pem"'
+
+    grep -e "-----BEGIN PKCS#11 PROVIDER URI-----" "${TMPPDIR}/ed25519-pkey-uri.pem"
+
+    sign-verify "${TMPPDIR}/ed25519-pkey-uri.pem" \
+                "pkcs11:object=Test-PEM-Encode-ED25519-${LABEL_SUFFIX_URI}" \
+                "${TMPPDIR}/64krandom.bin" "no-digest"
+else
+    title PARA "Skipping Test PEM Encoding ED support"
+fi;
 
 title PARA "Test visible string has to match"
 make-uri-pem "${PRIURI}" "${TMPPDIR}/priuri-wrong-version-key.pem" "PKCS#11 Provider URI v2.0"

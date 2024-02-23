@@ -1090,6 +1090,12 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
         ADD_ALGO_EXT(EC, encoder,
                      "provider=pkcs11,output=pem,structure=PrivateKeyInfo",
                      p11prov_ec_encoder_priv_key_info_pem_functions);
+        ADD_ALGO_EXT(ED25519, encoder,
+                     "provider=pkcs11,output=pem,structure=PrivateKeyInfo",
+                     p11prov_ec_edwards_encoder_priv_key_info_pem_functions);
+        ADD_ALGO_EXT(ED448, encoder,
+                     "provider=pkcs11,output=pem,structure=PrivateKeyInfo",
+                     p11prov_ec_edwards_encoder_priv_key_info_pem_functions);
     }
 
     TERM_ALGO(encoder);
@@ -1139,6 +1145,12 @@ static const OSSL_ALGORITHM p11prov_decoders[] = {
     { P11PROV_NAMES_EC,
       "provider=pkcs11,input=der,structure=" P11PROV_DER_STRUCTURE,
       p11prov_der_decoder_p11prov_ec_functions },
+    { P11PROV_NAMES_ED25519,
+      "provider=pkcs11,input=der,structure=" P11PROV_DER_STRUCTURE,
+      p11prov_der_decoder_p11prov_ed25519_functions },
+    { P11PROV_NAMES_ED448,
+      "provider=pkcs11,input=der,structure=" P11PROV_DER_STRUCTURE,
+      p11prov_der_decoder_p11prov_ed448_functions },
     { NULL, NULL, NULL }
 };
 
