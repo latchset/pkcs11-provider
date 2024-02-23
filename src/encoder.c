@@ -38,6 +38,8 @@ static int p11prov_print_buf(BIO *out, const OSSL_PARAM *p, const char *str,
 DISPATCH_BASE_ENCODER_FN(newctx);
 DISPATCH_BASE_ENCODER_FN(freectx);
 
+DISPATCH_ENCODER_FN(common, priv_key_info, pem, does_selection);
+
 struct p11prov_encoder_ctx {
     P11PROV_CTX *provctx;
 };
@@ -552,15 +554,6 @@ done:
     return ret;
 }
 
-static int p11prov_rsa_encoder_priv_key_info_pem_does_selection(void *inctx,
-                                                                int selection)
-{
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        return RET_OSSL_OK;
-    }
-    return RET_OSSL_ERR;
-}
-
 static int p11prov_rsa_encoder_priv_key_info_pem_encode(
     void *inctx, OSSL_CORE_BIO *cbio, const void *inkey,
     const OSSL_PARAM key_abstract[], int selection,
@@ -573,7 +566,7 @@ static int p11prov_rsa_encoder_priv_key_info_pem_encode(
 const OSSL_DISPATCH p11prov_rsa_encoder_priv_key_info_pem_functions[] = {
     DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
     DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
-    DISPATCH_ENCODER_ELEM(DOES_SELECTION, rsa, priv_key_info, pem,
+    DISPATCH_ENCODER_ELEM(DOES_SELECTION, common, priv_key_info, pem,
                           does_selection),
     DISPATCH_ENCODER_ELEM(ENCODE, rsa, priv_key_info, pem, encode),
     { 0, NULL },
@@ -919,15 +912,6 @@ const OSSL_DISPATCH p11prov_ec_encoder_text_functions[] = {
     { 0, NULL },
 };
 
-static int p11prov_ec_encoder_priv_key_info_pem_does_selection(void *inctx,
-                                                               int selection)
-{
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        return RET_OSSL_OK;
-    }
-    return RET_OSSL_ERR;
-}
-
 static int p11prov_ec_encoder_priv_key_info_pem_encode(
     void *inctx, OSSL_CORE_BIO *cbio, const void *inkey,
     const OSSL_PARAM key_abstract[], int selection,
@@ -940,8 +924,36 @@ static int p11prov_ec_encoder_priv_key_info_pem_encode(
 const OSSL_DISPATCH p11prov_ec_encoder_priv_key_info_pem_functions[] = {
     DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
     DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
-    DISPATCH_ENCODER_ELEM(DOES_SELECTION, ec, priv_key_info, pem,
+    DISPATCH_ENCODER_ELEM(DOES_SELECTION, common, priv_key_info, pem,
                           does_selection),
     DISPATCH_ENCODER_ELEM(ENCODE, ec, priv_key_info, pem, encode),
     { 0, NULL },
 };
+
+static int p11prov_ec_edwards_encoder_priv_key_info_pem_encode(
+    void *inctx, OSSL_CORE_BIO *cbio, const void *inkey,
+    const OSSL_PARAM key_abstract[], int selection,
+    OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
+{
+    return p11prov_encoder_private_key_write_pem(
+        CKK_EC_EDWARDS, inctx, cbio, inkey, key_abstract, selection, cb, cbarg);
+}
+
+const OSSL_DISPATCH p11prov_ec_edwards_encoder_priv_key_info_pem_functions[] = {
+    DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
+    DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
+    DISPATCH_ENCODER_ELEM(DOES_SELECTION, common, priv_key_info, pem,
+                          does_selection),
+    DISPATCH_ENCODER_ELEM(ENCODE, ec_edwards, priv_key_info, pem, encode),
+    { 0, NULL },
+};
+
+static int
+p11prov_common_encoder_priv_key_info_pem_does_selection(void *inctx,
+                                                        int selection)
+{
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
+        return RET_OSSL_OK;
+    }
+    return RET_OSSL_ERR;
+}

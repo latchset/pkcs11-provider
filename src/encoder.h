@@ -38,5 +38,7 @@ extern const OSSL_DISPATCH p11prov_ec_encoder_pkcs1_der_functions[];
 extern const OSSL_DISPATCH p11prov_ec_encoder_pkcs1_pem_functions[];
 extern const OSSL_DISPATCH p11prov_ec_encoder_spki_der_functions[];
 extern const OSSL_DISPATCH p11prov_ec_encoder_priv_key_info_pem_functions[];
+extern const OSSL_DISPATCH
+    p11prov_ec_edwards_encoder_priv_key_info_pem_functions[];
 
 #endif /* _ENCODER_H */

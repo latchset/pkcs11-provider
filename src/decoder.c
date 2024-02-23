@@ -149,38 +149,6 @@ done:
     return ret;
 }
 
-static int p11prov_der_decoder_p11prov_rsa_decode(
-    void *inctx, OSSL_CORE_BIO *cin, int selection, OSSL_CALLBACK *object_cb,
-    void *object_cbarg, OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
-{
-    return p11prov_der_decoder_p11prov_obj_decode(
-        P11PROV_NAME_RSA, inctx, cin, selection, object_cb, object_cbarg, pw_cb,
-        pw_cbarg);
-}
-
-const OSSL_DISPATCH p11prov_der_decoder_p11prov_rsa_functions[] = {
-    DISPATCH_BASE_DECODER_ELEM(NEWCTX, newctx),
-    DISPATCH_BASE_DECODER_ELEM(FREECTX, freectx),
-    DISPATCH_DECODER_ELEM(DECODE, der, p11prov, rsa, decode),
-    { 0, NULL }
-};
-
-static int p11prov_der_decoder_p11prov_ec_decode(
-    void *inctx, OSSL_CORE_BIO *cin, int selection, OSSL_CALLBACK *object_cb,
-    void *object_cbarg, OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
-{
-    return p11prov_der_decoder_p11prov_obj_decode(
-        P11PROV_NAME_EC, inctx, cin, selection, object_cb, object_cbarg, pw_cb,
-        pw_cbarg);
-}
-
-const OSSL_DISPATCH p11prov_der_decoder_p11prov_ec_functions[] = {
-    DISPATCH_BASE_DECODER_ELEM(NEWCTX, newctx),
-    DISPATCH_BASE_DECODER_ELEM(FREECTX, freectx),
-    DISPATCH_DECODER_ELEM(DECODE, der, p11prov, ec, decode),
-    { 0, NULL }
-};
-
 static int p11prov_pem_decoder_p11prov_der_decode(
     void *inctx, OSSL_CORE_BIO *cin, int selection, OSSL_CALLBACK *object_cb,
     void *object_cbarg, OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
@@ -222,9 +190,13 @@ static int p11prov_pem_decoder_p11prov_der_decode(
     return ret;
 }
 
-const OSSL_DISPATCH p11prov_pem_decoder_p11prov_der_functions[] = {
-    DISPATCH_BASE_DECODER_ELEM(NEWCTX, newctx),
-    DISPATCH_BASE_DECODER_ELEM(FREECTX, freectx),
-    DISPATCH_DECODER_ELEM(DECODE, pem, p11prov, der, decode),
-    { 0, NULL }
-};
+P11PROV_DER_COMMON_DECODE_FN(P11PROV_NAME_RSA, rsa)
+P11PROV_DER_COMMON_DECODE_FN(P11PROV_NAME_EC, ec)
+P11PROV_DER_COMMON_DECODE_FN(P11PROV_NAME_ED25519, ed25519)
+P11PROV_DER_COMMON_DECODE_FN(P11PROV_NAME_ED448, ed448)
+
+DISPATCH_DECODER_FN_LIST(pem, p11prov, der);
+DISPATCH_DECODER_FN_LIST(der, p11prov, rsa);
+DISPATCH_DECODER_FN_LIST(der, p11prov, ec);
+DISPATCH_DECODER_FN_LIST(der, p11prov, ed25519);
+DISPATCH_DECODER_FN_LIST(der, p11prov, ed448);
