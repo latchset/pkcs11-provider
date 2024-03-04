@@ -40,7 +40,7 @@ jobs:
               libtool pkg-config autoconf-archive libssl-dev openssl expect \
               procps libnss3 libnss3-tools libnss3-dev softhsm2 opensc p11-kit \
               libp11-kit-dev p11-kit-modules gnutls-bin \
-              openssl-dbgsym libssl3-dbgsym
+              openssl-dbgsym libssl3t64-dbgsym
           fi
       - name: Setup
         # The detection on debian works ok, but on Fedora, we get linker script,
