@@ -207,9 +207,9 @@ void p11prov_debug_slot(P11PROV_CTX *ctx, CK_SLOT_ID slotid, CK_SLOT_INFO *slot,
 
     if (profiles[0] != CKP_INVALID_ID) {
         p11prov_debug(NULL, 0, NULL, "  Available profiles:\n");
-        for (int c = 0; c < 5; c++) {
+        for (int c = 0; c < 5 && profiles[c] != CKP_INVALID_ID; c++) {
             for (int i = 0; profile_ids[i].name != NULL; i++) {
-                if (profiles[c] == slot_flags[i].value) {
+                if (profiles[c] == profile_ids[i].value) {
                     p11prov_debug(NULL, 0, NULL, "    %-35s (%#08lx)",
                                   profile_ids[i].name, profile_ids[i].value);
                 }
