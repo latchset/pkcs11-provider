@@ -246,11 +246,27 @@ void p11prov_slot_fork_prepare(P11PROV_SLOTS_CTX *sctx)
 {
     int err;
 
-    err = pthread_rwlock_wrlock(&sctx->rwlock);
+    /* attempt to get a write lock if possible, but fall back to a mere
+     * read lock if not possible (for example because it would cause
+     * a deadlock).
+     * Holding a write lock here is slightly preferable in case the
+     * application decides to create threads immediately after the fork
+     * within an atfork handler that runs before ours.
+     * Holding a write lock will prevent other threads from grabbing a
+     * read lock before we can reset the locks. However we assume this
+     * scenario to be mostly hypothetical and exceedingly rare given most
+     * forks result in a exec(), and atfork() is also a rarely used
+     * function, so falling back to a read lock to avoid deadlocks is ok
+     * in the vast majority of use cases.
+     */
+    err = pthread_rwlock_trywrlock(&sctx->rwlock);
     if (err != 0) {
-        err = errno;
-        P11PROV_debug("Failed to get slots lock (errno:%d)", err);
-        return;
+        err = pthread_rwlock_rdlock(&sctx->rwlock);
+        if (err != 0) {
+            err = errno;
+            P11PROV_debug("Failed to get slots lock (errno:%d)", err);
+            return;
+        }
     }
 }
 
