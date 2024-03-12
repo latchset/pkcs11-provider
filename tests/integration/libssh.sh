@@ -2,6 +2,7 @@
 # Copyright (C) 2024 Ondrej Moris <omoris@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
+# shellcheck disable=SC1091
 source "../helpers.sh"
 
 BASEDIR=$PWD
@@ -30,10 +31,11 @@ pkcs11_provider_setup()
             exit 1
         fi
     else
-        git clone ${GIT_URL:-"https://github.com/latchset/pkcs11-provider.git"} \
-          ${WORKDIR}/pkcs11-provider
-        pushd $WORKDIR/pkcs11-provider
-        git checkout ${GIT_REF:-"main"}
+        git clone \
+          "${GIT_URL:-"https://github.com/latchset/pkcs11-provider.git"}" \
+          "${WORKDIR}"/pkcs11-provider
+        pushd "$WORKDIR"/pkcs11-provider
+        git checkout "${GIT_REF:-"main"}"
         autoreconf -fiv
         ./configure --libdir=/usr/lib64
         make
@@ -41,7 +43,7 @@ pkcs11_provider_setup()
         popd
         export PKCS11_MODULE=/usr/lib64/ossl-modules/pkcs11.so
     fi
-    test -e $PKCS11_MODULE
+    test -e "$PKCS11_MODULE"
 }
 
 libssh_setup()
@@ -49,17 +51,17 @@ libssh_setup()
     title PRAM "Clone, setup and build libssh"
 
     git clone https://gitlab.com/libssh/libssh-mirror.git \
-      ${WORKDIR}/libssh-mirror
+      "${WORKDIR}"/libssh-mirror
 
-    mkdir ${WORKDIR}/libssh-mirror/build
-    pushd ${WORKDIR}/libssh-mirror/build
+    mkdir "${WORKDIR}"/libssh-mirror/build
+    pushd "${WORKDIR}"/libssh-mirror/build
     cmake \
       -DUNIT_TESTING=ON \
       -DCLIENT_TESTING=ON \
       -DCMAKE_BUILD_TYPE=Debug \
       -DWITH_PKCS11_URI=ON \
       -DWITH_PKCS11_PROVIDER=ON \
-      -DPKCS11_PROVIDER=${PKCS11_MODULE} ..
+      -DPKCS11_PROVIDER="${PKCS11_MODULE}" ..
     make
     popd
 }
@@ -68,7 +70,7 @@ libssh_test()
 {
     title PARAM "Run libssh pkcs11 tests"
 
-    pushd ${WORKDIR}/libssh-mirror/build
+    pushd "${WORKDIR}"/libssh-mirror/build
     PKCS11_PROVIDER_DEBUG=file:$PKCS11_DEBUG_FILE ctest \
       --output-on-failure -R \
       '(torture_auth_pkcs11|torture_pki_rsa_uri|torture_pki_ecdsa_uri)' \
@@ -80,16 +82,17 @@ libssh_test()
     popd
 }
 
+# shellcheck disable=SC2317
 cleanup() 
 {
     title PARA "Clean-up"
 
     title SECTION "$PKCS11_DEBUG_FILE"
-    cat $PKCS11_DEBUG_FILE
+    cat "$PKCS11_DEBUG_FILE"
     title ENDSECTION
 
-    pushd $BASEDIR >/dev/null
-    rm -rf $WORKDIR
+    pushd "$BASEDIR" >/dev/null
+    rm -rf "$WORKDIR"
 
     title LINE "Done"
 }
