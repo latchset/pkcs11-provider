@@ -8,79 +8,30 @@ on:
     branches: ["main"]
 
 jobs:
-  libssh:
+  test:
     runs-on: ubuntu-22.04
-    container: docker.io/dokken/fedora-40
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [libssh, httpd, bind]
+    name: ${{ matrix.test }}
+    container: fedora:rawhide
+    env:
+      PKCS11_MODULE: /usr/lib64/ossl-modules/pkcs11.so
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
       - name: Install Build Requirements
         run: |
           dnf -y install git autoconf autoconf-archive automake libtool \
             openssl-devel
-
       - name: Setup, Build and Install pkcs11-provider
         run: |
           autoreconf -fiv
           ./configure --libdir=/usr/lib64
           make
           make install
-
       - name: Test
         run: |
-          export PKCS11_MODULE=/usr/lib64/ossl-modules/pkcs11.so
           pushd tests/integration
-          bash -e libssh.sh
-
-  httpd:
-    runs-on: ubuntu-22.04
-    # TODO: Change to fedora:latest once F40 is released
-    container: docker.io/dokken/fedora-40
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Install Build Requirements
-        run: |
-          dnf -y install autoconf autoconf-archive automake libtool \
-            openssl-devel
-
-      - name: Setup, Build and Install pkcs11-provider
-        run: |
-          autoreconf -fiv
-          ./configure --libdir=/usr/lib64
-          make
-          make install
-
-      - name: Test
-        run: |
-          export PKCS11_MODULE=/usr/lib64/ossl-modules/pkcs11.so
-          pushd tests/integration
-          bash -e httpd.sh
-
-  bind:
-    runs-on: ubuntu-22.04
-    # TODO: Change to fedora:latest once F40 is released
-    container: docker.io/dokken/fedora-40
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Install Build Requirements
-        run: |
-          dnf -y install autoconf autoconf-archive automake libtool \
-            openssl-devel
-
-      - name: Setup, Build and Install pkcs11-provider
-        run: |
-          autoreconf -fiv
-          ./configure --libdir=/usr/lib64
-          make
-          make install
-
-      - name: Test
-        run: |
-          export PKCS11_MODULE=/usr/lib64/ossl-modules/pkcs11.so
-          pushd tests/integration
-          bash -e bind.sh
+          bash -e ${{ matrix.test }}.sh
