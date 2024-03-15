@@ -1,0 +1,21 @@
+#!/bin/bash -e
+# Copyright (C) 2024 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+title PARA "Regular forking test"
+$CHECKER "${TESTBLDDIR}/tfork"
+
+# MacOS can't compile the fork_deadlock.c test because it lacks
+# some POSIX functions ... so we completely disable the test
+if [ "$(uname)" == "Darwin" ]; then
+    exit 0
+fi
+
+title PARA "Pinless config file to cause prompting callback in fork deadlock test"
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed "s/^pkcs11-module-token-pin.*$/##nopin/" "${OPENSSL_CONF}" > "${OPENSSL_CONF}.nopin"
+OPENSSL_CONF=${OPENSSL_CONF}.nopin
+$CHECKER "${TESTBLDDIR}/tfork_deadlock"
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}

@@ -10,7 +10,8 @@ testssrcdir=@abs_srcdir@
 #VALGRIND_SUPPRESSIONS_FILES = $(top_srcdir)/tests/pkcs11-provider.supp
 VALGRIND_FLAGS = --num-callers=30 -q --keep-debuginfo=yes
 
-check_PROGRAMS = tsession tgenkey tlsctx tdigests tdigest_dupctx treadkeys tcmpkeys tfork pincache
+check_PROGRAMS = tsession tgenkey tlsctx tdigests tdigest_dupctx treadkeys \
+		 tcmpkeys tfork pincache tfork_deadlock
 
 tsession_SOURCES = tsession.c
 tsession_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
@@ -48,6 +49,10 @@ pincache_SOURCES = pincache.c
 pincache_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
 pincache_LDADD = $(OPENSSL_LIBS)
 
+tfork_deadlock_SOURCES = tfork_deadlock.c
+tfork_deadlock_CFLAGS = $(STD_CFLAGS) $(OPENSSL_CFLAGS)
+tfork_deadlock_LDADD = $(OPENSSL_LIBS)
+
 tmp.softokn:
 	LIBSPATH=$(libspath) \
 	TESTSSRCDIR=$(testssrcdir) \
@@ -66,7 +71,7 @@ tmp.softhsm:
 dist_check_SCRIPTS = \
 	helpers.sh setup-softhsm.sh setup-softokn.sh softhsm-proxy.sh \
 	test-wrapper tbasic tcerts tecc tecdh tedwards tdemoca thkdf \
-	toaepsha2 trsapss tdigest ttls tpubkey tfork turi trand tecxc \
+	toaepsha2 trsapss tdigest ttls tpubkey tforking turi trand tecxc \
 	tcms top_state tpem_encoder
 
 test_LIST = \
@@ -78,7 +83,7 @@ test_LIST = \
 	ecdh-softokn.t \
 	democa-softokn.t democa-softhsm.t \
 	digest-softokn.t digest-softhsm.t \
-	fork-softokn.t fork-softhsm.t \
+	forking-softokn.t forking-softhsm.t \
 	oaepsha2-softokn.t \
 	hkdf-softokn.t \
 	rsapss-softokn.t \
