@@ -13,6 +13,7 @@ tests/*.log
 tests/*.trs
 tests/pincache
 tests/tfork
+tests/tfork_deadlock
 tests/tlsctx
 tests/tcmpkeys
 
