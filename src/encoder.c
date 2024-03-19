@@ -470,37 +470,38 @@ static P11PROV_PK11_URI *p11prov_encoder_private_key_to_asn1(P11PROV_CTX *pctx,
                                                              P11PROV_OBJ *key)
 {
     P11PROV_PK11_URI *out = NULL;
+    char *uri = NULL;
+    size_t uri_len;
+    int ret = RET_OSSL_ERR;
 
-    char *uri = p11prov_key_to_uri(pctx, key);
+    uri = p11prov_key_to_uri(pctx, key);
     if (!uri) {
-        goto error;
+        goto done;
     }
 
-    size_t uri_len = strlen(uri);
+    uri_len = strlen(uri);
     P11PROV_debug("uri=%s", uri);
 
     out = P11PROV_PK11_URI_new();
     if (!out) {
-        goto error;
+        goto done;
     }
 
     if (!ASN1_STRING_set(out->desc, P11PROV_DESCS_URI_FILE,
                          sizeof(P11PROV_DESCS_URI_FILE) - 1)) {
-        goto error;
+        goto done;
     }
     if (!ASN1_STRING_set(out->uri, uri, uri_len)) {
-        goto error;
+        goto done;
     }
 
-    goto done;
-
-error:
-    P11PROV_PK11_URI_free(out);
-    out = NULL;
+    ret = RET_OSSL_OK;
 
 done:
-    if (uri) {
-        free(uri);
+    OPENSSL_free(uri);
+    if (ret != RET_OSSL_OK) {
+        P11PROV_PK11_URI_free(out);
+        out = NULL;
     }
     return out;
 }
