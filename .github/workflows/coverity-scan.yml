@@ -2,13 +2,16 @@
 name: Coverity Scan
 
 on:
-  push:
+  pull_request_target:
     branches: ["main"]
+    types:
+      - labeled
   schedule:
     - cron: '41 3 * * 0'
 
 jobs:
-  coverity:
+  scheduled:
+    if: ${{ github.event_name == 'schedule' }}
     name: Coverity Scan
     runs-on: ubuntu-22.04
     container: fedora:latest
@@ -19,7 +22,7 @@ jobs:
                 autoconf-archive openssl-devel openssl \
                 nss-softokn nss-tools nss-softokn-devel
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Setup
         run: |
           autoreconf -fiv
@@ -40,3 +43,42 @@ jobs:
           project: "PKCS%2311+Provider"
           email: ${{ secrets.COVERITY_SCAN_EMAIL }}
           token: ${{ secrets.COVERITY_SCAN_TOKEN }}
+
+  on-labeled-pr:
+    if: ${{ contains(github.event.*.labels.*.name, 'covscan') }}
+    name: Coverity Scan
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    container: fedora:latest
+    steps:
+      - name: Install Dependencies
+        run: |
+            dnf -y install git gcc automake libtool pkgconf-pkg-config \
+                autoconf-archive openssl-devel openssl \
+                nss-softokn nss-tools nss-softokn-devel \
+                gh
+      - name: Find PR
+        uses: suzuki-shunsuke/get-pr-action@v0.1.0
+        id: pr
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{steps.get-pr.outputs.merge_commit_sha}}
+      - name: Setup
+        run: |
+          autoreconf -fiv
+          ./configure
+      - name: Coverity Scan
+        uses: vapier/coverity-scan-action@v1
+        with:
+          project: "PKCS%2311+Provider"
+          email: ${{ secrets.COVERITY_SCAN_EMAIL }}
+          token: ${{ secrets.COVERITY_SCAN_TOKEN }}
+      - name: Remove Label
+        if: always()
+        run: gh pr edit "$NUMBER" --remove-label "covscan"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.number }}
