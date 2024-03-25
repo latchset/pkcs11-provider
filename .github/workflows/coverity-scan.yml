@@ -2,7 +2,7 @@
 name: Coverity Scan
 
 on:
-  pull_request_target:
+  pull_request:
     branches: ["main"]
     types:
       - labeled
@@ -57,7 +57,7 @@ jobs:
             dnf -y install git gcc automake libtool pkgconf-pkg-config \
                 autoconf-archive openssl-devel openssl \
                 nss-softokn nss-tools nss-softokn-devel \
-                gh
+                unzip gh
       - name: Find PR
         uses: suzuki-shunsuke/get-pr-action@v0.1.0
         id: pr
@@ -70,11 +70,13 @@ jobs:
           autoreconf -fiv
           ./configure
       - name: Coverity Scan
-        uses: vapier/coverity-scan-action@v1
+        uses: synopsys-sig/synopsys-action@v1.8.0
         with:
-          project: "PKCS%2311+Provider"
-          email: ${{ secrets.COVERITY_SCAN_EMAIL }}
-          token: ${{ secrets.COVERITY_SCAN_TOKEN }}
+          coverity_url: "https://scan.coverity.com/builds?project=PKCS%2311+Provider"
+          coverity_user: ${{ secrets.COVERITY_SCAN_EMAIL }}
+          coverity_passphrase: ${{ secrets.COVERITY_SCAN_TOKEN }}
+          coverity_prComment_enabled: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Remove Label
         if: always()
         run: gh pr edit "$NUMBER" --remove-label "covscan"
