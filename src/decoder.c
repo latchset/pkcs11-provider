@@ -169,7 +169,7 @@ static int p11prov_pem_decoder_p11prov_der_decode(
         return RET_OSSL_CARRY_ON_DECODING;
     }
 
-    P11PROV_debug("PEM_read_pio (fpos:%u)", BIO_tell(bin));
+    P11PROV_debug("PEM_read_bio (fpos:%u)", BIO_tell(bin));
 
     if (PEM_read_bio(bin, &pem_label, &pem_header, &der_data, &der_len) > 0
         && strcmp(pem_label, P11PROV_PEM_LABEL) == 0) {
