@@ -83,7 +83,7 @@ trap kill_children EXIT
 # shellcheck disable=SC2153 # the PRIURI is defined in setup-soft{hsm,okn}
 $CHECKER openssl ocsp -index "${DEMOCA}/index.txt" -rsigner \
     "${DEMOCA}/ocspSigning.pem" -rkey "${PRIURI}" -CA "${DEMOCA}/cacert.pem" \
-    -rmd sha1 -port "${PORT}" -text &
+    -rmd sha256 -port "${PORT}" -text &
 sleep 0.5
 # with valgrind, it might take a bit longer
 if [ -n "$VALGRIND" ]; then
