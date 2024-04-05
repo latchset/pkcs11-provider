@@ -26,6 +26,7 @@ Files: **/Makefile.am
        docs/*
        tests/lsan.supp
        tools/openssl*.cnf
+       m4/ax_valgrind_check.m4
 Copyright: (C) 2022 Simo Sorce <simo@redhat.com>
 License: Apache-2.0
 
