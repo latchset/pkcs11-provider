@@ -305,8 +305,8 @@ echo "${ECPRI2URI}"
 echo "${ECCRT2URI}"
 echo ""
 
-if [ -f /etc/fedora-release ]; then
-    title PARA "explicit EC unsupported on Fedora"
+if [ -f /etc/redhat-release ]; then
+    title PARA "explicit EC unsupported on Fedora/EL"
 else
     title PARA "generate explicit EC key pair"
     KEYID='0007'

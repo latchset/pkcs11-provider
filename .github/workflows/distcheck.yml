@@ -12,17 +12,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [fedora, debian]
+        name: [fedora, debian, centos]
         include:
           - name: fedora
             container: fedora:latest
           - name: debian
             container: debian:sid
+          - name: centos
+            container: quay.io/centos/centos:stream9
     container: ${{ matrix.container }}
     steps:
       - name: Install Dependencies
         run: |
-            if [ -f /etc/fedora-release ]; then
+            if [ -f /etc/redhat-release ]; then
               dnf -y install git gcc automake libtool expect \
                 pkgconf-pkg-config autoconf-archive openssl-devel openssl xz \
                 nss-softokn nss-tools nss-softokn-devel \

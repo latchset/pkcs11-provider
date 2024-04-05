@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [fedora, debian]
+        name: [fedora, debian, centos]
         compiler: [gcc, clang]
         token: [softokn, softhsm]
         include:
@@ -22,11 +22,13 @@ jobs:
             container: fedora:latest
           - name: debian
             container: debian:sid
+          - name: centos
+            container: quay.io/centos/centos:stream9
     container: ${{ matrix.container }}
     steps:
       - name: Install Dependencies
         run: |
-            if [ -f /etc/fedora-release ]; then
+            if [ -f /etc/redhat-release ]; then
               dnf -y install git ${{ matrix.compiler }} automake libtool \
                 pkgconf-pkg-config autoconf-archive openssl-devel openssl \
                 diffutils expect valgrind
