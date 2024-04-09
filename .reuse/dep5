@@ -6,20 +6,15 @@ Source: https://github.com/latchset/pkcs11-provider/
 #
 # Build system, data files from tests, and misc cruft
 #
-Files: **/Makefile.am
-       .github/*
+Files: .github/*
        .gitignore
-       Makefile.am
+       Makefile
        meson.build
        meson_options.txt
        *.md
-       configure.ac
-       src/Makefile.am
        src/meson.build
-       src/provider.exports
        src/provider.map
        src/*.gen.c
-       tests/Makefile.am
        tests/README
        tests/openssl.cnf.in
        tests/explicit_ec.*
@@ -30,7 +25,6 @@ Files: **/Makefile.am
        docs/*
        tests/lsan.supp
        tools/openssl*.cnf
-       m4/ax_valgrind_check.m4
 Copyright: (C) 2022 Simo Sorce <simo@redhat.com>
 License: Apache-2.0
 

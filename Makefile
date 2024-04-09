@@ -1,7 +1,4 @@
-ACLOCAL_AMFLAGS = -Im4
-
-SUBDIRS = src tests docs
-dist_doc_DATA = README.md
+.PHONY: check-style check-style-show check-style-fix generate-code generate-docs
 
 check-style:
 	@lines=`git diff -U0 --no-color --relative origin/main -- ':!src/pkcs11.h' | clang-format-diff -p1 |wc -l`; \
@@ -37,22 +34,3 @@ generate-docs:
 		manfile=`echo $${mdfile} | sed s/\.md//`; \
 		pandoc --standalone --to man $${mdfile} -o $${manfile}; \
 	done
-
-DISTCLEANFILES = \
-	*~
-
-MAINTAINERCLEANFILES = \
-	Makefile.in \
-	aclocal.m4 \
-	ar-lib compile \
-	config.guess \
-	config.sub \
-	configure \
-	depcomp \
-	install-sh \
-	ltmain.sh \
-	m4/* \
-	missing \
-	test-driver
-
-EXTRA_DIST = meson.build
