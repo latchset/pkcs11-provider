@@ -21,36 +21,6 @@ tests/tcmpkeys
 /pkcs11-provider-?.?.tar.?z
 
 # generic ignore patterns (c, autotools, etc)
-INSTALL
-Makefile
-Makefile.in
-aclocal.m4
-ar-lib
-autom4te.cache/
-compile
-compile_commands.json
-config.guess
-config.log
-config.status
-config.sub
-configure
-depcomp
-install-sh
-libtool
-ltmain.sh
-m4/libtool.m4
-m4/ltoptions.m4
-m4/ltsugar.m4
-m4/ltversion.m4
-m4/lt~obsolete.m4
-missing
-src/config.h
-src/config.h.in
-src/stamp-h1
-.deps/
-.libs/
-*.la
-*.lo
 *.o
 *~
 test-driver
