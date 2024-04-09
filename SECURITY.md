@@ -15,6 +15,6 @@ This table will specify which versions are supported:
 ## Reporting a Vulnerability
 
 To report security vulnerabilities please either select the "Report
-a vulnerability" teplate from the "New issue" workflow, or email
+a vulnerability" template from the "New issue" workflow, or email
 simo@redhat.com directly.
 Please DO NOT open a generic issue for security vulnerabilities.
