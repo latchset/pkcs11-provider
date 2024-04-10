@@ -12,7 +12,7 @@ on:
 jobs:
   scheduled:
     if: ${{ github.event_name == 'schedule' }}
-    name: Coverity Scan
+    name: Recurrent Coverity Scan
     runs-on: ubuntu-22.04
     container: fedora:latest
     steps:
@@ -46,7 +46,7 @@ jobs:
 
   on-labeled-pr:
     if: ${{ contains(github.event.*.labels.*.name, 'covscan') }}
-    name: Coverity Scan
+    name: Coverity Scan on PR
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
