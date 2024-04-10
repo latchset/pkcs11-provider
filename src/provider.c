@@ -1158,29 +1158,39 @@ static const OSSL_ALGORITHM *
 p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
 {
     P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
-    *no_cache = 0;
     switch (operation_id) {
     case OSSL_OP_DIGEST:
+        *no_cache = ctx->status == P11PROV_UNINITIALIZED ? 1 : 0;
         return ctx->op_digest;
     case OSSL_OP_KDF:
+        *no_cache = ctx->status == P11PROV_UNINITIALIZED ? 1 : 0;
         return ctx->op_kdf;
     case OSSL_OP_RAND:
+        *no_cache = ctx->status == P11PROV_UNINITIALIZED ? 1 : 0;
         return ctx->op_random;
     case OSSL_OP_KEYMGMT:
+        *no_cache = 0;
         return p11prov_keymgmt;
     case OSSL_OP_KEYEXCH:
+        *no_cache = ctx->status == P11PROV_UNINITIALIZED ? 1 : 0;
         return ctx->op_exchange;
     case OSSL_OP_SIGNATURE:
+        *no_cache = ctx->status == P11PROV_UNINITIALIZED ? 1 : 0;
         return ctx->op_signature;
     case OSSL_OP_ASYM_CIPHER:
+        *no_cache = ctx->status == P11PROV_UNINITIALIZED ? 1 : 0;
         return ctx->op_asym_cipher;
     case OSSL_OP_ENCODER:
+        *no_cache = ctx->status == P11PROV_UNINITIALIZED ? 1 : 0;
         return ctx->op_encoder;
     case OSSL_OP_DECODER:
+        *no_cache = 0;
         return p11prov_decoders;
     case OSSL_OP_STORE:
+        *no_cache = 0;
         return p11prov_store;
     }
+    *no_cache = 0;
     return NULL;
 }
 
