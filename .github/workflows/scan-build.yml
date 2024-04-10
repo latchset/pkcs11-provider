@@ -15,7 +15,7 @@ jobs:
         run: |
           dnf -y install $COMPILER automake libtool pkgconf-pkg-config \
               autoconf-archive git openssl-devel clang-analyzer
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         name: Checkout Repository
       - name: Setup
         run: |

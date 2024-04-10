@@ -23,7 +23,7 @@ jobs:
     container: ${{ matrix.container }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Dependencies
         run: |
           if [ -f /etc/fedora-release ]; then
