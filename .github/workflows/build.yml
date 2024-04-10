@@ -51,7 +51,7 @@ jobs:
               fi
             fi
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Setup
         run: |
           autoreconf -fiv
@@ -110,7 +110,7 @@ jobs:
               softhsm
           fi
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Setup
         run: |
           export PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig

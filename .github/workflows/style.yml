@@ -17,7 +17,7 @@ jobs:
                 autoconf-archive git openssl-devel clang-tools-extra \
                 python3-pip codespell
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install compiledb
         run: |
           pip install compiledb
