@@ -52,6 +52,12 @@ libssl = dependency('libssl', version: '>= 3.0.7')
 host_system = host_machine.system()
 if host_system == 'windows'
   shlext = '.dll'
+elif host_system == 'darwin'
+  # On macOS, loadable modules typically use .so as filename extension, but
+  # both NSS softokn and OpenSSL providers ignore this rule and use .dylib for
+  # loadable modules anyway. Note that p11-kit correctly uses .so, though, so
+  # be careful when using this variable, as it might not be correct on macOS.
+  shlext = '.dylib'
 else
   shlext = '.so'
 endif
