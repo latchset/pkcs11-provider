@@ -179,7 +179,7 @@ pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="${TSTCRTN}" --id="$KEYID"
 ca_sign $TSTCRT $TSTCRTN "My Test Cert" $KEYID
 
-BASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+BASEURIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 BASEURI="pkcs11:id=${URIKEYID}"
 PUBURI="pkcs11:type=public;id=${URIKEYID}"
 PRIURI="pkcs11:type=private;id=${URIKEYID}"
@@ -203,7 +203,7 @@ pkcs11-tool --keypairgen --key-type="EC:secp256r1" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="${ECCRTN}" --id="$KEYID"
 ca_sign $ECCRT $ECCRTN "My EC Cert" $KEYID
 
-ECBASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+ECBASEURIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECBASEURI="pkcs11:id=${URIKEYID}"
 ECPUBURI="pkcs11:type=public;id=${URIKEYID}"
 ECPRIURI="pkcs11:type=private;id=${URIKEYID}"
@@ -218,7 +218,7 @@ pkcs11-tool --keypairgen --key-type="EC:secp256r1" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="$ECPEERCRTN" --id="$KEYID"
 ca_sign $ECPEERCRT $ECPEERCRTN "My Peer EC Cert" $KEYID
 
-ECPEERBASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+ECPEERBASEURIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECPEERBASEURI="pkcs11:id=${URIKEYID}"
 ECPEERPUBURI="pkcs11:type=public;id=${URIKEYID}"
 ECPEERPRIURI="pkcs11:type=private;id=${URIKEYID}"
@@ -270,7 +270,7 @@ pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE \
 ca_sign $TSTCRT $TSTCRTN "My Test Cert 2" $KEYID
 pkcs11-tool --delete-object --type pubkey --id 0005 --module="$P11LIB"
 
-BASE2URIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+BASE2URIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 BASE2URI="pkcs11:id=${URIKEYID}"
 PRI2URI="pkcs11:type=private;id=${URIKEYID}"
 CRT2URI="pkcs11:type=cert;object=${TSTCRTN}"
@@ -293,7 +293,7 @@ pkcs11-tool --keypairgen --key-type="EC:secp384r1" --login --pin=$PINVALUE \
 ca_sign $TSTCRT $TSTCRTN "My EC Cert 2" $KEYID
 pkcs11-tool --delete-object --type pubkey --id 0006 --module="$P11LIB"
 
-ECBASE2URIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+ECBASE2URIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECBASE2URI="pkcs11:id=${URIKEYID}"
 ECPRI2URI="pkcs11:type=private;id=${URIKEYID}"
 ECCRT2URI="pkcs11:type=cert;object=${TSTCRTN}"
@@ -318,7 +318,7 @@ else
     pkcs11-tool --write-object="${TESTSSRCDIR}/explicit_ec.pub.der" --type=pubkey --login --pin=$PINVALUE \
         --module="$P11LIB" --label="${ECXCRTN}" --id="$KEYID"
 
-    ECXBASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+    ECXBASEURIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
     ECXBASEURI="pkcs11:id=${URIKEYID}"
     ECXPUBURI="pkcs11:type=public;id=${URIKEYID}"
     ECXPRIURI="pkcs11:type=private;id=${URIKEYID}"
@@ -340,7 +340,7 @@ pkcs11-tool --keypairgen --key-type="EC:secp521r1" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="${TSTCRTN}" --id="$KEYID" --always-auth
 ca_sign $TSTCRT $TSTCRTN "My EC Cert 3" $KEYID
 
-ECBASE3URIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+ECBASE3URIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECBASE3URI="pkcs11:id=${URIKEYID}"
 ECPUB3URI="pkcs11:type=public;id=${URIKEYID}"
 ECPRI3URI="pkcs11:type=private;id=${URIKEYID}"

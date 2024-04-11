@@ -70,7 +70,7 @@ for (( i=0; i<${#KEYID}; i+=2 )); do
     URIKEYID="$URIKEYID%$line"
 done
 
-BASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+BASEURIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 BASEURI="pkcs11:id=${URIKEYID}"
 PUBURI="pkcs11:type=public;id=${URIKEYID}"
 PRIURI="pkcs11:type=private;id=${URIKEYID}"
@@ -103,7 +103,7 @@ for (( i=0; i<${#KEYID}; i+=2 )); do
     URIKEYID="$URIKEYID%$line"
 done
 
-ECBASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+ECBASEURIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECBASEURI="pkcs11:id=${URIKEYID}"
 ECPUBURI="pkcs11:type=public;id=${URIKEYID}"
 ECPRIURI="pkcs11:type=private;id=${URIKEYID}"
