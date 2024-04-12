@@ -536,13 +536,13 @@ int main(int argc, char *argv[])
             miniid = (id[0] << 24) + (id[1] << 16) + (id[2] << 8) + id[3];
             ret = asprintf(&label, "Test-Ed-gen-%08x", miniid);
             if (ret == -1) {
-                fprintf(stderr, "Failed to make label");
+                fprintf(stderr, "Failed to make label\n");
                 exit(EXIT_FAILURE);
             }
             hexify(idhex, id, 16);
             ret = asprintf(&uri, "pkcs11:object=%s;id=%s", label, idhex);
             if (ret == -1) {
-                fprintf(stderr, "Failed to make label");
+                fprintf(stderr, "Failed to make label\n");
                 exit(EXIT_FAILURE);
             }
             params[0] = OSSL_PARAM_construct_utf8_string("pkcs11_uri", uri, 0);
