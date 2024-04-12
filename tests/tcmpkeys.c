@@ -44,6 +44,16 @@ static EVP_PKEY *load_key(const char *uri)
         exit(EXIT_FAILURE);
     }
 
+    if (strncmp(uri, "pkcs11:", 7)) {
+        /* This is a workaround for OpenSSL < 3.2.0 where the code fails
+         * to correctly source public keys unless explicitly requested
+         * via an expect hint */
+        if (OSSL_STORE_expect(store, OSSL_STORE_INFO_PUBKEY) != 1) {
+            fprintf(stderr, "Failed to expect Public Key File\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+
     for (info = OSSL_STORE_load(store); info != NULL;
          info = OSSL_STORE_load(store)) {
         int type = OSSL_STORE_INFO_get_type(info);

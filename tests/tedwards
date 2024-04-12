@@ -39,4 +39,11 @@ req -new -batch -key "${EDPRIURI}" -out ${TMPPDIR}/ed25519_csr.pem'
 ossl '
 req -in ${TMPPDIR}/ed25519_csr.pem -verify -noout'
 
+title PARA "Test EVP_PKEY_eq on public ED key via import"
+$CHECKER ./tcmpkeys "$EDPUBURI" "${TMPPDIR}"/edout.pub
+title PARA "Match private ED key against public key"
+$CHECKER ./tcmpkeys "$EDPRIURI" "${TMPPDIR}"/edout.pub
+title PARA "Match private ED key against public key (commutativity)"
+$CHECKER ./tcmpkeys "${TMPPDIR}"/edout.pub "$EDPRIURI"
+
 exit 0
