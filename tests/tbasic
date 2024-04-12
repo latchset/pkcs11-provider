@@ -268,4 +268,16 @@ if [[ -n $ECBASE3URI ]]; then
 fi
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
+title PARA "Test Key generation"
+output=$("${TESTBLDDIR}"/tgenkey "RSA,RSA-PSS,EC,RSAKeyUsage" 2>&1)
+FAIL=0
+echo "$output" | grep "Performed tests: 4" || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
 exit 0
