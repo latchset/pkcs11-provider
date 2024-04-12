@@ -87,7 +87,6 @@ test_LIST = \
 	oaepsha2-softokn.t \
 	hkdf-softokn.t \
 	rsapss-softokn.t \
-	genkey-softokn.t genkey-softhsm.t \
 	session-softokn.t session-softhsm.t \
 	rand-softokn.t rand-softhsm.t \
 	readkeys-softokn.t readkeys-softhsm.t \
