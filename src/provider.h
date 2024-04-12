@@ -116,7 +116,7 @@ enum p11prov_cache_keys {
 int p11prov_ctx_cache_keys(P11PROV_CTX *ctx);
 int p11prov_ctx_cache_sessions(P11PROV_CTX *ctx);
 
-bool p11prov_ctx_no_operation_state(P11PROV_CTX *ctx);
+bool p11prov_ctx_is_call_blocked(P11PROV_CTX *ctx, uint64_t mask);
 bool p11prov_ctx_no_session_callbacks(P11PROV_CTX *ctx);
 
 CK_INFO p11prov_ctx_get_ck_info(P11PROV_CTX *ctx);

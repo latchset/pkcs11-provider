@@ -9,6 +9,10 @@ CK_RV p11prov_Initialize(P11PROV_CTX *ctx, CK_VOID_PTR pInitArgs)
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_Initialize)) {
+        P11PROV_debug("C_%s is blocked", "Initialize");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "Initialize");
     ret = intf->Initialize(pInitArgs);
@@ -28,6 +32,10 @@ CK_RV p11prov_Finalize(P11PROV_CTX *ctx, CK_VOID_PTR pReserved)
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_Finalize)) {
+        P11PROV_debug("C_%s is blocked", "Finalize");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "Finalize");
     ret = intf->Finalize(pReserved);
@@ -46,6 +54,10 @@ CK_RV p11prov_GetInfo(P11PROV_CTX *ctx, CK_INFO_PTR pInfo)
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetInfo)) {
+        P11PROV_debug("C_%s is blocked", "GetInfo");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "GetInfo");
@@ -68,6 +80,10 @@ CK_RV p11prov_GetInterface(P11PROV_CTX *ctx, CK_UTF8CHAR_PTR pInterfaceName,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetInterface)) {
+        P11PROV_debug("C_%s is blocked", "GetInterface");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "GetInterface");
     ret = intf->GetInterface(pInterfaceName, pVersion, ppInterface, flags);
@@ -87,6 +103,10 @@ CK_RV p11prov_GetFunctionList(P11PROV_CTX *ctx,
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetFunctionList)) {
+        P11PROV_debug("C_%s is blocked", "GetFunctionList");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "GetFunctionList");
@@ -108,6 +128,10 @@ CK_RV p11prov_GetSlotList(P11PROV_CTX *ctx, CK_BBOOL tokenPresent,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetSlotList)) {
+        P11PROV_debug("C_%s is blocked", "GetSlotList");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "GetSlotList");
     ret = intf->GetSlotList(tokenPresent, pSlotList, pulCount);
@@ -128,6 +152,10 @@ CK_RV p11prov_GetSlotInfo(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetSlotInfo)) {
+        P11PROV_debug("C_%s is blocked", "GetSlotInfo");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "GetSlotInfo");
     ret = intf->GetSlotInfo(slotID, pInfo);
@@ -147,6 +175,10 @@ CK_RV p11prov_GetTokenInfo(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetTokenInfo)) {
+        P11PROV_debug("C_%s is blocked", "GetTokenInfo");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "GetTokenInfo");
@@ -169,6 +201,10 @@ CK_RV p11prov_GetMechanismList(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetMechanismList)) {
+        P11PROV_debug("C_%s is blocked", "GetMechanismList");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "GetMechanismList");
     ret = intf->GetMechanismList(slotID, pMechanismList, pulCount);
@@ -189,6 +225,10 @@ CK_RV p11prov_GetMechanismInfo(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetMechanismInfo)) {
+        P11PROV_debug("C_%s is blocked", "GetMechanismInfo");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "GetMechanismInfo");
@@ -211,6 +251,10 @@ CK_RV p11prov_OpenSession(P11PROV_CTX *ctx, CK_SLOT_ID slotID, CK_FLAGS flags,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_OpenSession)) {
+        P11PROV_debug("C_%s is blocked", "OpenSession");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "OpenSession");
     ret = intf->OpenSession(slotID, flags, pApplication, Notify, phSession);
@@ -229,6 +273,10 @@ CK_RV p11prov_CloseSession(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession)
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_CloseSession)) {
+        P11PROV_debug("C_%s is blocked", "CloseSession");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "CloseSession");
@@ -250,6 +298,10 @@ CK_RV p11prov_GetSessionInfo(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetSessionInfo)) {
+        P11PROV_debug("C_%s is blocked", "GetSessionInfo");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "GetSessionInfo");
     ret = intf->GetSessionInfo(hSession, pInfo);
@@ -270,6 +322,10 @@ CK_RV p11prov_GetOperationState(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetOperationState)) {
+        P11PROV_debug("C_%s is blocked", "GetOperationState");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "GetOperationState");
@@ -295,6 +351,10 @@ CK_RV p11prov_SetOperationState(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_SetOperationState)) {
+        P11PROV_debug("C_%s is blocked", "SetOperationState");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "SetOperationState");
     ret =
@@ -318,6 +378,10 @@ CK_RV p11prov_Login(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_Login)) {
+        P11PROV_debug("C_%s is blocked", "Login");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "Login");
     ret = intf->Login(hSession, userType, pPin, ulPinLen);
@@ -338,6 +402,10 @@ CK_RV p11prov_CreateObject(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_CreateObject)) {
+        P11PROV_debug("C_%s is blocked", "CreateObject");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "CreateObject");
@@ -360,6 +428,10 @@ CK_RV p11prov_CopyObject(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_CopyObject)) {
+        P11PROV_debug("C_%s is blocked", "CopyObject");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "CopyObject");
     ret = intf->CopyObject(hSession, hObject, pTemplate, ulCount, phNewObject);
@@ -379,6 +451,10 @@ CK_RV p11prov_DestroyObject(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DestroyObject)) {
+        P11PROV_debug("C_%s is blocked", "DestroyObject");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "DestroyObject");
@@ -401,6 +477,10 @@ CK_RV p11prov_GetAttributeValue(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetAttributeValue)) {
+        P11PROV_debug("C_%s is blocked", "GetAttributeValue");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "GetAttributeValue");
     ret = intf->GetAttributeValue(hSession, hObject, pTemplate, ulCount);
@@ -422,6 +502,10 @@ CK_RV p11prov_SetAttributeValue(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_SetAttributeValue)) {
+        P11PROV_debug("C_%s is blocked", "SetAttributeValue");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "SetAttributeValue");
     ret = intf->SetAttributeValue(hSession, hObject, pTemplate, ulCount);
@@ -441,6 +525,10 @@ CK_RV p11prov_FindObjectsInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_FindObjectsInit)) {
+        P11PROV_debug("C_%s is blocked", "FindObjectsInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "FindObjectsInit");
@@ -464,6 +552,10 @@ CK_RV p11prov_FindObjects(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_FindObjects)) {
+        P11PROV_debug("C_%s is blocked", "FindObjects");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "FindObjects");
     ret =
@@ -484,6 +576,10 @@ CK_RV p11prov_FindObjectsFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession)
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_FindObjectsFinal)) {
+        P11PROV_debug("C_%s is blocked", "FindObjectsFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "FindObjectsFinal");
     ret = intf->FindObjectsFinal(hSession);
@@ -503,6 +599,10 @@ CK_RV p11prov_EncryptInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_EncryptInit)) {
+        P11PROV_debug("C_%s is blocked", "EncryptInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "EncryptInit");
@@ -526,6 +626,10 @@ CK_RV p11prov_Encrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_Encrypt)) {
+        P11PROV_debug("C_%s is blocked", "Encrypt");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "Encrypt");
     ret = intf->Encrypt(hSession, pData, ulDataLen, pEncryptedData,
@@ -546,6 +650,10 @@ CK_RV p11prov_DecryptInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DecryptInit)) {
+        P11PROV_debug("C_%s is blocked", "DecryptInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "DecryptInit");
@@ -568,6 +676,10 @@ CK_RV p11prov_Decrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_Decrypt)) {
+        P11PROV_debug("C_%s is blocked", "Decrypt");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "Decrypt");
     ret = intf->Decrypt(hSession, pEncryptedData, ulEncryptedDataLen, pData,
@@ -589,6 +701,10 @@ CK_RV p11prov_DigestInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DigestInit)) {
+        P11PROV_debug("C_%s is blocked", "DigestInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "DigestInit");
     ret = intf->DigestInit(hSession, pMechanism);
@@ -608,6 +724,10 @@ CK_RV p11prov_DigestUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DigestUpdate)) {
+        P11PROV_debug("C_%s is blocked", "DigestUpdate");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "DigestUpdate");
@@ -629,6 +749,10 @@ CK_RV p11prov_DigestFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DigestFinal)) {
+        P11PROV_debug("C_%s is blocked", "DigestFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "DigestFinal");
     ret = intf->DigestFinal(hSession, pDigest, pulDigestLen);
@@ -648,6 +772,10 @@ CK_RV p11prov_SignInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_SignInit)) {
+        P11PROV_debug("C_%s is blocked", "SignInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "SignInit");
@@ -670,6 +798,10 @@ CK_RV p11prov_Sign(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_Sign)) {
+        P11PROV_debug("C_%s is blocked", "Sign");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "Sign");
     ret = intf->Sign(hSession, pData, ulDataLen, pSignature, pulSignatureLen);
@@ -689,6 +821,10 @@ CK_RV p11prov_SignUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_SignUpdate)) {
+        P11PROV_debug("C_%s is blocked", "SignUpdate");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "SignUpdate");
@@ -710,6 +846,10 @@ CK_RV p11prov_SignFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_SignFinal)) {
+        P11PROV_debug("C_%s is blocked", "SignFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "SignFinal");
     ret = intf->SignFinal(hSession, pSignature, pulSignatureLen);
@@ -729,6 +869,10 @@ CK_RV p11prov_VerifyInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_VerifyInit)) {
+        P11PROV_debug("C_%s is blocked", "VerifyInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "VerifyInit");
@@ -751,6 +895,10 @@ CK_RV p11prov_Verify(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_Verify)) {
+        P11PROV_debug("C_%s is blocked", "Verify");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "Verify");
     ret = intf->Verify(hSession, pData, ulDataLen, pSignature, ulSignatureLen);
@@ -771,6 +919,10 @@ CK_RV p11prov_VerifyUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_VerifyUpdate)) {
+        P11PROV_debug("C_%s is blocked", "VerifyUpdate");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "VerifyUpdate");
     ret = intf->VerifyUpdate(hSession, pPart, ulPartLen);
@@ -790,6 +942,10 @@ CK_RV p11prov_VerifyFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_VerifyFinal)) {
+        P11PROV_debug("C_%s is blocked", "VerifyFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "VerifyFinal");
@@ -813,6 +969,10 @@ CK_RV p11prov_GenerateKeyPair(
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GenerateKeyPair)) {
+        P11PROV_debug("C_%s is blocked", "GenerateKeyPair");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "GenerateKeyPair");
@@ -839,6 +999,10 @@ CK_RV p11prov_DeriveKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DeriveKey)) {
+        P11PROV_debug("C_%s is blocked", "DeriveKey");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "DeriveKey");
     ret = intf->DeriveKey(hSession, pMechanism, hBaseKey, pTemplate,
@@ -860,6 +1024,10 @@ CK_RV p11prov_SeedRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
     }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_SeedRandom)) {
+        P11PROV_debug("C_%s is blocked", "SeedRandom");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "SeedRandom");
     ret = intf->SeedRandom(hSession, pSeed, ulSeedLen);
@@ -879,6 +1047,10 @@ CK_RV p11prov_GenerateRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     if (!intf) {
         P11PROV_raise(ctx, ret, "Can't get module interfaces");
         return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GenerateRandom)) {
+        P11PROV_debug("C_%s is blocked", "GenerateRandom");
+        return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
                   "GenerateRandom");
