@@ -10,6 +10,10 @@ BEGIN:
         P11PROV_raise(ctx, ret, "Can't get module interfaces"); \
         return ret; \
     } \
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_##name)) { \
+        P11PROV_debug("C_%s is blocked", #name); \
+        return CKR_FUNCTION_NOT_SUPPORTED; \
+    } \
     P11PROV_debug("Calling C_" #name);
 #define IMPL_CALL_EPILOG(name) \
     if (ret != CKR_OK) { \

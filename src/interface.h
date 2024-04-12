@@ -135,4 +135,63 @@ CK_RV side_channel_free_Decrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
 
 CK_INFO p11prov_module_ck_info(P11PROV_MODULE *mctx);
 
+/* The following defines are needed for a generic mask for any of the functions
+ * we generate via interface.pre, however there is no need to assign a blocking
+ * value until we'll have a configuration option that allows to set blocks, so
+ * most of these are defined to 0 which won't block anything.
+ * Additionally we reserve the lower 4 bits to future "group" blocking. For
+ * example we may introduce a way to block all the PCS#11 v3 function calls to
+ * simulate a 2.40 token */
+#define P11PROV_BLOCK_Initialize 0b0000000000000000
+#define P11PROV_BLOCK_Finalize 0b0000000000000000
+#define P11PROV_BLOCK_GetInfo 0b0000000000000000
+#define P11PROV_BLOCK_GetFunctionList 0b0000000000000000
+#define P11PROV_BLOCK_GetSlotList 0b0000000000000000
+#define P11PROV_BLOCK_GetSlotInfo 0b0000000000000000
+#define P11PROV_BLOCK_GetTokenInfo 0b0000000000000000
+#define P11PROV_BLOCK_GetMechanismList 0b0000000000000000
+#define P11PROV_BLOCK_GetMechanismInfo 0b0000000000000000
+#define P11PROV_BLOCK_OpenSession 0b0000000000000000
+#define P11PROV_BLOCK_CloseSession 0b0000000000000000
+#define P11PROV_BLOCK_GetSessionInfo 0b0000000000000000
+#define P11PROV_BLOCK_GetOperationState 0b0000000000001000
+#define P11PROV_BLOCK_SetOperationState 0b0000000000001000
+#define P11PROV_BLOCK_Login 0b0000000000000000
+#define P11PROV_BLOCK_Logout 0b0000000000000000
+#define P11PROV_BLOCK_CreateObject 0b0000000000000000
+#define P11PROV_BLOCK_CopyObject 0b0000000000000000
+#define P11PROV_BLOCK_DestroyObject 0b0000000000000000
+#define P11PROV_BLOCK_GetAttributeValue 0b0000000000000000
+#define P11PROV_BLOCK_SetAttributeValue 0b0000000000000000
+#define P11PROV_BLOCK_FindObjectsInit 0b0000000000000000
+#define P11PROV_BLOCK_FindObjects 0b0000000000000000
+#define P11PROV_BLOCK_FindObjectsFinal 0b0000000000000000
+#define P11PROV_BLOCK_EncryptInit 0b0000000000000000
+#define P11PROV_BLOCK_Encrypt 0b0000000000000000
+#define P11PROV_BLOCK_EncryptUpdate 0b0000000000000000
+#define P11PROV_BLOCK_EncryptFinal 0b0000000000000000
+#define P11PROV_BLOCK_DecryptInit 0b0000000000000000
+#define P11PROV_BLOCK_Decrypt 0b0000000000000000
+#define P11PROV_BLOCK_DecryptUpdate 0b0000000000000000
+#define P11PROV_BLOCK_DecryptFinal 0b0000000000000000
+#define P11PROV_BLOCK_DigestInit 0b0000000000000000
+#define P11PROV_BLOCK_Digest 0b0000000000000000
+#define P11PROV_BLOCK_DigestUpdate 0b0000000000000000
+#define P11PROV_BLOCK_DigestKey 0b0000000000000000
+#define P11PROV_BLOCK_DigestFinal 0b0000000000000000
+#define P11PROV_BLOCK_SignInit 0b0000000000000000
+#define P11PROV_BLOCK_Sign 0b0000000000000000
+#define P11PROV_BLOCK_SignUpdate 0b0000000000000000
+#define P11PROV_BLOCK_SignFinal 0b0000000000000000
+#define P11PROV_BLOCK_VerifyInit 0b0000000000000000
+#define P11PROV_BLOCK_Verify 0b0000000000000000
+#define P11PROV_BLOCK_VerifyUpdate 0b0000000000000000
+#define P11PROV_BLOCK_VerifyFinal 0b0000000000000000
+#define P11PROV_BLOCK_GenerateKeyPair 0b0000000000000000
+#define P11PROV_BLOCK_DeriveKey 0b0000000000000000
+#define P11PROV_BLOCK_SeedRandom 0b0000000000000000
+#define P11PROV_BLOCK_GenerateRandom 0b0000000000000000
+/* 3.x  functions: */
+#define P11PROV_BLOCK_GetInterface 0b0000000000000000
+
 #endif /* _INTERFACE_H */
