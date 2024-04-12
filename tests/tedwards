@@ -46,4 +46,16 @@ $CHECKER ./tcmpkeys "$EDPRIURI" "${TMPPDIR}"/edout.pub
 title PARA "Match private ED key against public key (commutativity)"
 $CHECKER ./tcmpkeys "${TMPPDIR}"/edout.pub "$EDPRIURI"
 
+title PARA "Test Key generation"
+output=$("${TESTBLDDIR}"/tgenkey "ED25519" 2>&1 || true)
+FAIL=0
+echo "$output" | grep "Performed tests: 1" || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
 exit 0
