@@ -1870,7 +1870,6 @@ static int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj,
     switch (key_type) {
     case CKK_EC:
         attrs[0].type = CKA_P11PROV_CURVE_NID;
-        nattr = 1;
         rv = get_public_attrs(obj, attrs, 1);
         if (rv != CKR_OK) {
             P11PROV_raise(obj->ctx, rv, "Failed to get EC key curve nid");
