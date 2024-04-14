@@ -16,7 +16,9 @@ static void ossl_err_print(void)
         const char *file, *func, *data;
         int line;
         err = ERR_get_error_all(&file, &line, &func, &data, NULL);
-        if (err == 0) break;
+        if (err == 0) {
+            break;
+        }
 
         char buf[1024];
         ERR_error_string_n(err, buf, sizeof(buf));
@@ -28,7 +30,9 @@ static void ossl_err_print(void)
 
         first = false;
     }
-    if (first) fprintf(stderr, "\n");
+    if (first) {
+        fprintf(stderr, "\n");
+    }
 }
 
 static EVP_PKEY *load_key(const char *uri)
