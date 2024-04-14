@@ -165,7 +165,6 @@ static CK_RV p11prov_interface_init(P11PROV_MODULE *mctx)
         return CKR_HOST_MEMORY;
     }
 
-    ret = CKR_FUNCTION_NOT_SUPPORTED;
     intf->GetInterface = dlsym(mctx->dlhandle, "C_GetInterface");
     if (!intf->GetInterface) {
         char *err = dlerror();
