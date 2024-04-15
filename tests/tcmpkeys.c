@@ -44,7 +44,7 @@ static EVP_PKEY *load_key(const char *uri)
         exit(EXIT_FAILURE);
     }
 
-    if (strncmp(uri, "pkcs11:", 7)) {
+    if (strncmp(uri, "pkcs11:", 7) && strstr(uri, "type=private") == NULL) {
         /* This is a workaround for OpenSSL < 3.2.0 where the code fails
          * to correctly source public keys unless explicitly requested
          * via an expect hint */
