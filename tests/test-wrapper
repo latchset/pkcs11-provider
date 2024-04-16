@@ -47,5 +47,10 @@ for option in "${TEST_PARAMS[@]}"; do
     fi
 done
 
+LOGFILE="${TESTBLDDIR}/${TEST_NAME}.${TOKEN_DRIVER}.log"
+
 echo "Executing ${COMMAND}"
-${COMMAND}
+(
+  set -o pipefail
+  ${COMMAND} | tee "${LOGFILE}"
+)
