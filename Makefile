@@ -1,8 +1,10 @@
 .PHONY: all check check-style check-style-show check-style-fix clean generate-code generate-docs
 
 all:
-	meson setup builddir
-	meson compile -C builddir
+	if [ ! -d "builddir" ]; then \
+		meson setup builddir; \
+	fi; \
+	meson compile -C builddir pkcs11
 
 check:
 	meson test -C builddir
