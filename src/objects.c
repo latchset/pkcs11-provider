@@ -1997,7 +1997,7 @@ int p11prov_obj_get_ed_pub_key(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub)
 {
     CK_ATTRIBUTE *a;
 
-    P11PROV_debug("get ed pubkey %p", *obj);
+    P11PROV_debug("get ed pubkey %p", obj);
 
     if (!obj) {
         return RET_OSSL_ERR;
