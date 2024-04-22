@@ -1,4 +1,14 @@
-.PHONY: check-style check-style-show check-style-fix generate-code generate-docs
+.PHONY: all check check-style check-style-show check-style-fix clean generate-code generate-docs
+
+all:
+	meson setup builddir
+	meson compile -C builddir
+
+check:
+	meson test -C builddir
+
+clean:
+	rm -rf builddir
 
 check-style:
 	@lines=`git diff -U0 --no-color --relative origin/main -- ':!src/pkcs11.h' | clang-format-diff -p1 |wc -l`; \
