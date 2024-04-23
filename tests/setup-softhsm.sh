@@ -179,14 +179,16 @@ pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="${TSTCRTN}" --id="$KEYID"
 ca_sign "$TSTCRT" $TSTCRTN "My Test Cert" $KEYID
 
-BASEURIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
 BASEURI="pkcs11:id=${URIKEYID}"
 PUBURI="pkcs11:type=public;id=${URIKEYID}"
 PRIURI="pkcs11:type=private;id=${URIKEYID}"
 CRTURI="pkcs11:type=cert;object=${TSTCRTN}"
 
 title LINE "RSA PKCS11 URIS"
-echo "${BASEURIWITHPIN}"
+echo "${BASEURIWITHPINVALUE}"
+echo "${BASEURIWITHPINSOURCE}"
 echo "${BASEURI}"
 echo "${PUBURI}"
 echo "${PRIURI}"
@@ -203,7 +205,8 @@ pkcs11-tool --keypairgen --key-type="EC:secp256r1" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="${ECCRTN}" --id="$KEYID"
 ca_sign "$ECCRT" $ECCRTN "My EC Cert" $KEYID
 
-ECBASEURIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+ECBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+ECBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
 ECBASEURI="pkcs11:id=${URIKEYID}"
 ECPUBURI="pkcs11:type=public;id=${URIKEYID}"
 ECPRIURI="pkcs11:type=private;id=${URIKEYID}"
@@ -218,19 +221,22 @@ pkcs11-tool --keypairgen --key-type="EC:secp256r1" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="$ECPEERCRTN" --id="$KEYID"
 ca_sign "$ECPEERCRT" $ECPEERCRTN "My Peer EC Cert" $KEYID
 
-ECPEERBASEURIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+ECPEERBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+ECPEERBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
 ECPEERBASEURI="pkcs11:id=${URIKEYID}"
 ECPEERPUBURI="pkcs11:type=public;id=${URIKEYID}"
 ECPEERPRIURI="pkcs11:type=private;id=${URIKEYID}"
 ECPEERCRTURI="pkcs11:type=cert;object=${ECPEERCRTN}"
 
 title LINE "EC PKCS11 URIS"
-echo "${ECBASEURIWITHPIN}"
+echo "${ECBASEURIWITHPINVALUE}"
+echo "${ECBASEURIWITHPINSOURCE}"
 echo "${ECBASEURI}"
 echo "${ECPUBURI}"
 echo "${ECPRIURI}"
 echo "${ECCRTURI}"
-echo "${ECPEERBASEURIWITHPIN}"
+echo "${ECPEERBASEURIWITHPINVALUE}"
+echo "${ECPEERBASEURIWITHPINSOURCE}"
 echo "${ECPEERBASEURI}"
 echo "${ECPEERPUBURI}"
 echo "${ECPEERPRIURI}"
@@ -247,14 +253,16 @@ pkcs11-tool --keypairgen --key-type="EC:edwards25519" --login --pin=$PINVALUE --
 	--label="${EDCRTN}" --id="$KEYID"
 ca_sign "$EDCRT" $EDCRTN "My ED25519 Cert" $KEYID
 
-EDBASEURIWITHPIN="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+EDBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+EDBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
 EDBASEURI="pkcs11:id=${URIKEYID}"
 EDPUBURI="pkcs11:type=public;id=${URIKEYID}"
 EDPRIURI="pkcs11:type=private;id=${URIKEYID}"
 EDCRTURI="pkcs11:type=cert;object=${EDCRTN}"
 
 title LINE "ED25519 PKCS11 URIS"
-echo "${EDBASEURIWITHPIN}"
+echo "${EDBASEURIWITHPINVALUE}"
+echo "${EDBASEURIWITHPINSOURCE}"
 echo "${EDBASEURI}"
 echo "${EDPUBURI}"
 echo "${EDPRIURI}"
@@ -272,13 +280,15 @@ pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE \
 ca_sign "$TSTCRT" $TSTCRTN "My Test Cert 2" $KEYID
 pkcs11-tool --delete-object --type pubkey --id 0005 --module="$P11LIB"
 
-BASE2URIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+BASE2URIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+BASE2URIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=${PINFILE}"
 BASE2URI="pkcs11:id=${URIKEYID}"
 PRI2URI="pkcs11:type=private;id=${URIKEYID}"
 CRT2URI="pkcs11:type=cert;object=${TSTCRTN}"
 
 title LINE "RSA2 PKCS11 URIS"
-echo "${BASE2URIWITHPIN}"
+echo "${BASE2URIWITHPINVALUE}"
+echo "${BASE2URIWITHPINSOURCE}"
 echo "${BASE2URI}"
 echo "${PRI2URI}"
 echo "${CRT2URI}"
@@ -295,13 +305,15 @@ pkcs11-tool --keypairgen --key-type="EC:secp384r1" --login --pin=$PINVALUE \
 ca_sign "$TSTCRT" $TSTCRTN "My EC Cert 2" $KEYID
 pkcs11-tool --delete-object --type pubkey --id 0006 --module="$P11LIB"
 
-ECBASE2URIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+ECBASE2URIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+ECBASE2URIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file${PINFILE}"
 ECBASE2URI="pkcs11:id=${URIKEYID}"
 ECPRI2URI="pkcs11:type=private;id=${URIKEYID}"
 ECCRT2URI="pkcs11:type=cert;object=${TSTCRTN}"
 
 title LINE "EC2 PKCS11 URIS"
-echo "${ECBASE2URIWITHPIN}"
+echo "${ECBASE2URIWITHPINVALUE}"
+echo "${ECBASE2URIWITHPINSOURCE}"
 echo "${ECBASE2URI}"
 echo "${ECPRI2URI}"
 echo "${ECCRT2URI}"
@@ -320,7 +332,8 @@ else
     pkcs11-tool --write-object="${TESTSSRCDIR}/explicit_ec.pub.der" --type=pubkey --login --pin=$PINVALUE \
         --module="$P11LIB" --label="${ECXCRTN}" --id="$KEYID"
 
-    ECXBASEURIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+    ECXBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+    ECXBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
     ECXBASEURI="pkcs11:id=${URIKEYID}"
     ECXPUBURI="pkcs11:type=public;id=${URIKEYID}"
     ECXPRIURI="pkcs11:type=private;id=${URIKEYID}"
@@ -342,14 +355,16 @@ pkcs11-tool --keypairgen --key-type="EC:secp521r1" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="${TSTCRTN}" --id="$KEYID" --always-auth
 ca_sign "$TSTCRT" $TSTCRTN "My EC Cert 3" $KEYID
 
-ECBASE3URIWITHPIN="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+ECBASE3URIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+ECBASE3URIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
 ECBASE3URI="pkcs11:id=${URIKEYID}"
 ECPUB3URI="pkcs11:type=public;id=${URIKEYID}"
 ECPRI3URI="pkcs11:type=private;id=${URIKEYID}"
 ECCRT3URI="pkcs11:type=cert;object=${TSTCRTN}"
 
 title LINE "EC3 PKCS11 URIS"
-echo "${ECBASE3URIWITHPIN}"
+echo "${ECBASE3URIWITHPINVALUE}"
+echo "${ECBASE3URIWITHPINSOURCE}"
 echo "${ECBASE3URI}"
 echo "${ECPUB3URI}"
 echo "${ECPRI3URI}"
@@ -391,41 +406,48 @@ export PINVALUE="${PINVALUE}"
 export SEEDFILE="${TMPPDIR}/noisefile.bin"
 export RAND64FILE="${TMPPDIR}/64krandom.bin"
 
-export BASEURIWITHPIN="${BASEURIWITHPIN}"
+export BASEURIWITHPINVALUE="${BASEURIWITHPINVALUE}"
+export BASEURIWITHPINSOURCE="${BASEURIWITHPINSOURCE}"
 export BASEURI="${BASEURI}"
 export PUBURI="${PUBURI}"
 export PRIURI="${PRIURI}"
 export CRTURI="${CRTURI}"
 
-export ECBASEURIWITHPIN="${ECBASEURIWITHPIN}"
+export ECBASEURIWITHPINVALUE="${ECBASEURIWITHPINVALUE}"
+export ECBASEURIWITHPINSOURCE="${ECBASEURIWITHPINSOURCE}"
 export ECBASEURI="${ECBASEURI}"
 export ECPUBURI="${ECPUBURI}"
 export ECPRIURI="${ECPRIURI}"
 export ECCRTURI="${ECCRTURI}"
 
-export ECPEERBASEURIWITHPIN="${ECPEERBASEURIWITHPIN}"
+export ECPEERBASEURIWITHPINVALUE="${ECPEERBASEURIWITHPINVALUE}"
+export ECPEERBASEURIWITHPINSOURCE="${ECPEERBASEURIWITHPINSOURCE}"
 export ECPEERBASEURI="${ECPEERBASEURI}"
 export ECPEERPUBURI="${ECPEERPUBURI}"
 export ECPEERPRIURI="${ECPEERPRIURI}"
 export ECPEERCRTURI="${ECPEERCRTURI}"
 
-export EDBASEURIWITHPIN="${EDBASEURIWITHPIN}"
+export EDBASEURIWITHPINVALUE="${EDBASEURIWITHPINVALUE}"
+export EDBASEURIWITHPINSOURCE="${EDBASEURIWITHPINSOURCE}"
 export EDBASEURI="${EDBASEURI}"
 export EDPUBURI="${EDPUBURI}"
 export EDPRIURI="${EDPRIURI}"
 export EDCRTURI="${EDCRTURI}"
 
-export BASE2URIWITHPIN="${BASEURIWITHPIN}"
+export BASE2URIWITHPINVALUE="${BASEURIWITHPINVALUE}"
+export BASE2URIWITHPINSOURCE="${BASEURIWITHPINSOURCE}"
 export BASE2URI="${BASE2URI}"
 export PRI2URI="${PRI2URI}"
 export CRT2URI="${CRT2URI}"
 
-export ECBASE2URIWITHPIN="${ECBASE2URIWITHPIN}"
+export ECBASE2URIWITHPINVALUE="${ECBASE2URIWITHPINVALUE}"
+export ECBASE2URIWITHPINSOURCE="${ECBASE2URIWITHPINSOURCE}"
 export ECBASE2URI="${ECBASE2URI}"
 export ECPRI2URI="${ECPRI2URI}"
 export ECCRT2URI="${ECCRT2URI}"
 
-export ECBASE3URIWITHPIN="${ECBASE3URIWITHPIN}"
+export ECBASE3URIWITHPINVALUE="${ECBASE3URIWITHPINVALUE}"
+export ECBASE3URIWITHPINSOURCE="${ECBASE3URIWITHPINSOURCE}"
 export ECBASE3URI="${ECBASE3URI}"
 export ECPUB3URI="${ECPUB3URI}"
 export ECPRI3URI="${ECPRI3URI}"
@@ -435,7 +457,8 @@ DBGSCRIPT
 if [ -n "${ECXBASEURI}" ]; then
     cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
 
-export ECXBASEURIWITHPIN="${ECXBASEURIWITHPIN}"
+export ECXBASEURIWITHPINVALUE="${ECXBASEURIWITHPINVALUE}"
+export ECXBASEURIWITHPINSOURCE="${ECXBASEURIWITHPINSOURCE}"
 export ECXBASEURI="${ECXBASEURI}"
 export ECXPUBURI="${ECXPUBURI}"
 export ECXPRIURI="${ECXPRIURI}"

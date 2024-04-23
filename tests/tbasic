@@ -124,10 +124,16 @@ ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${TMPPDIR}/ec.pub.nopin.pem'
 [[ -n $EDPUBURI ]] && ossl 'pkey -in $EDPUBURI -pubin -pubout -out ${TMPPDIR}/ed.pub.nopin.pem'
 
 title PARA "Test fetching public keys with a PIN in URI"
-ossl 'pkey -in $BASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/rsa.pub.uripin.pem'
-ossl 'pkey -in $ECBASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/ec.pub.uripin.pem'
-[[ -n $ECXBASEURIWITHPIN ]] && ossl 'pkey -in $ECXBASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/ecx.pub.uripin.pem'
-[[ -n $EDBASEURIWITHPIN ]] && ossl 'pkey -in $EDBASEURIWITHPIN -pubin -pubout -out ${TMPPDIR}/ed.pub.uripin.pem'
+ossl 'pkey -in $BASEURIWITHPINVALUE -pubin -pubout -out ${TMPPDIR}/rsa.pub.uripin.pem'
+ossl 'pkey -in $ECBASEURIWITHPINVALUE -pubin -pubout -out ${TMPPDIR}/ec.pub.uripin.pem'
+[[ -n $ECXBASEURIWITHPINVALUE ]] && ossl 'pkey -in $ECXBASEURIWITHPINVALUE -pubin -pubout -out ${TMPPDIR}/ecx.pub.uripin.pem'
+[[ -n $EDBASEURIWITHPINVALUE ]] && ossl 'pkey -in $EDBASEURIWITHPINVALUE -pubin -pubout -out ${TMPPDIR}/ed.pub.uripin.pem'
+
+title PARA "Test fetching public keys with a PIN source in URI"
+ossl 'pkey -in $BASEURIWITHPINSOURCE -pubin -pubout -out ${TMPPDIR}/rsa.pub.uripinsource.pem'
+ossl 'pkey -in $ECBASEURIWITHPINSOURCE -pubin -pubout -out ${TMPPDIR}/ec.pub.uripinsource.pem'
+[[ -n $ECXBASEURIWITHPINSOURCE ]] && ossl 'pkey -in $ECXBASEURIWITHPINSOURCE -pubin -pubout -out ${TMPPDIR}/ecx.pub.uripinsource.pem'
+[[ -n $EDBASEURIWITHPINSOURCE ]] && ossl 'pkey -in $EDBASEURIWITHPINSOURCE -pubin -pubout -out ${TMPPDIR}/ed.pub.uripinsource.pem'
 
 title PARA "Test prompting without PIN in config files"
 output=$(expect -c "spawn -noecho $CHECKER openssl pkey -in \"${PRIURI}\" -text -noout;
@@ -172,27 +178,36 @@ fi
 
 title PARA "Test EVP_PKEY_eq on public RSA key via import"
 $CHECKER "${TESTBLDDIR}/tcmpkeys" "$PUBURI" "${TMPPDIR}"/rsa.pub.uripin.pem
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$PUBURI" "${TMPPDIR}"/rsa.pub.uripinsource.pem
 title PARA "Match private RSA key against public key"
 $CHECKER "${TESTBLDDIR}/tcmpkeys" "$PRIURI" "${TMPPDIR}"/rsa.pub.uripin.pem
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$PRIURI" "${TMPPDIR}"/rsa.pub.uripinsource.pem
 title PARA "Match private RSA key against public key (commutativity)"
 $CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/rsa.pub.uripin.pem "$PRIURI"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/rsa.pub.uripinsource.pem "$PRIURI"
 
 title PARA "Test EVP_PKEY_eq on public EC key via import"
 $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECPUBURI" "${TMPPDIR}"/ec.pub.uripin.pem
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECPUBURI" "${TMPPDIR}"/ec.pub.uripinsource.pem
 title PARA "Match private EC key against public key"
 $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECPRIURI" "${TMPPDIR}"/ec.pub.uripin.pem
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECPRIURI" "${TMPPDIR}"/ec.pub.uripinsource.pem
 title PARA "Match private EC key against public key (commutativity)"
 $CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/ec.pub.uripin.pem "$ECPRIURI"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/ec.pub.uripinsource.pem "$ECPRIURI"
 
 if [[ -n $ECXPUBURI ]]; then
     echo "ECXPUBURI is $ECXPUBURI"
     title PARA "Test EVP_PKEY_eq on public explicit EC key via import"
     $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECXPUBURI" "${TMPPDIR}"/ecx.pub.uripin.pem
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECXPUBURI" "${TMPPDIR}"/ecx.pub.uripinsource.pem
     title PARA "Match private explicit EC key against public key"
     # shellcheck disable=SC2153 # ECURIs and ECXURIs are assigned
     $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECXPRIURI" "${TMPPDIR}"/ecx.pub.uripin.pem
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ECXPRIURI" "${TMPPDIR}"/ecx.pub.uripinsource.pem
     title PARA "Match private explicit EC key against public key (commutativity)"
     $CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/ecx.pub.uripin.pem "$ECXPRIURI"
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/ecx.pub.uripinsource.pem "$ECXPRIURI"
 fi
 
 title PARA "Test EVP_PKEY_eq with key exporting disabled"
