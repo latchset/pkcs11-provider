@@ -30,25 +30,20 @@ if nss_softokn.found()
   endif
 endif
 
-softoken_conf = custom_target(
-  'generate softoken configuration',
-  output: 'tmp.softokn.log',
-  env: conf_env,
-  command: [
-    find_program('setup-softokn.sh'),
-  ],
-  capture: true,
-)
+test_setup = {
+  'setup_softokn': {'suite': 'softokn', 'exe': find_program('setup-softokn.sh')},
+  'setup_softhsm': {'suite': 'softhsm', 'exe': find_program('setup-softhsm.sh')},
+}
 
-softhsm_conf = custom_target(
-  'generate softhsm configuration',
-  output: 'tmp.softhsm.log',
-  env: conf_env,
-  command: [
-    find_program('setup-softhsm.sh'),
-  ],
-  capture: true,
-)
+foreach name, targs : test_setup
+  test(
+    name,
+    targs.get('exe'),
+    suite: targs.get('suite'),
+    env: conf_env,
+    is_parallel: false,
+  )
+endforeach
 
 test_env = environment({
   'TEST_PATH': meson.current_source_dir(),
@@ -148,7 +143,6 @@ foreach t, extra_args : tests
       test_wrapper,
       args: '@0@-@1@.t'.format(t, suite),
       suite: suite,
-      depends: [softoken_conf, softhsm_conf],
       env: test_env,
       is_parallel: is_parallel,
     )
