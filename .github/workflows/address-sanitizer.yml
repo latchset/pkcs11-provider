@@ -63,6 +63,7 @@ jobs:
           name: Address sanitizer logs on ${{ matrix.name }}
           path: |
             builddir/meson-logs/
+            builddir/tests/*.log
             builddir/tests/tmp.${{ matrix.token }}/p11prov-debug.log
             builddir/tests/tmp.${{ matrix.token }}/testvars
             builddir/tests/tmp.${{ matrix.token }}/openssl.cnf
