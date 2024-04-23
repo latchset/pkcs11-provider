@@ -148,7 +148,7 @@ foreach t, extra_args : tests
       suite: suite,
       env: test_env,
       depends: test_executables,
-      is_parallel: is_parallel,
+      is_parallel: false,
     )
   endforeach
 endforeach
