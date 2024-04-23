@@ -1,11 +1,1 @@
-Tests are currently available for two different software token implementations,
-NSS's softokn and softhsm (with some limitations).
-
-The easiest way to configure things to run manual tests is to simply make check;
-this will create two temporary directories with each token's configurations.
-
-After make check has run, set up your environment with:
-$ source tests/tmp.<softokn|softhsm>/testvars
-
-Then you can run code like:
-$ openssl pkey -in $ECPUBURI -pubin -pubout -out ecout.pub
+README.md
