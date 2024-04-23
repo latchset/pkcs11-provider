@@ -104,10 +104,13 @@ test_programs = [
   'pincache',
 ]
 
+test_executables = []
 foreach t : test_programs
-  executable(t, '@0@.c'.format(t),
-             include_directories: [configinc],
-             dependencies: [libcrypto, libssl])
+  t = executable(t, '@0@.c'.format(t),
+                 build_by_default: false,
+                 include_directories: [configinc],
+                 dependencies: [libcrypto, libssl])
+  test_executables += [t]
 endforeach
 
 tests = {
@@ -144,6 +147,7 @@ foreach t, extra_args : tests
       args: '@0@-@1@.t'.format(t, suite),
       suite: suite,
       env: test_env,
+      depends: test_executables,
       is_parallel: is_parallel,
     )
   endforeach
