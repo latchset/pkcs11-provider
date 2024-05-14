@@ -980,7 +980,7 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
     CK_OBJECT_CLASS class = p11prov_uri_get_class(uri);
     CK_ATTRIBUTE id = p11prov_uri_get_id(uri);
     CK_ATTRIBUTE label = p11prov_uri_get_label(uri);
-    CK_ATTRIBUTE template[3] = { 0 };
+    CK_ATTRIBUTE template[3];
     CK_OBJECT_HANDLE *objects = NULL;
     CK_ULONG tsize = 0;
     CK_ULONG objcount = 0;
@@ -991,7 +991,8 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
     P11PROV_debug("Find objects [class=%lu, id-len=%lu, label=%s]", class,
                   id.ulValueLen,
                   label.type == CKA_LABEL ? (char *)label.pValue : "None");
-
+    
+    memset (template, 0, sizeof (template));
     switch (class) {
     case CKO_CERTIFICATE:
     case CKO_PUBLIC_KEY:
@@ -1081,7 +1082,7 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
 static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
                                         CK_OBJECT_CLASS class)
 {
-    CK_ATTRIBUTE template[2] = { 0 };
+    CK_ATTRIBUTE template[2];
     CK_ATTRIBUTE *id;
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     P11PROV_SESSION *session = NULL;
@@ -1092,7 +1093,8 @@ static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
     CK_RV ret, fret;
 
     P11PROV_debug("Find associated object");
-
+    
+    memset (template, 0, sizeof (template));
     id = p11prov_obj_get_attr(obj, CKA_ID);
     if (!id || id->ulValueLen == 0) {
         P11PROV_raise(provctx, CKR_GENERAL_ERROR, "No CKA_ID in source object");
@@ -1153,7 +1155,7 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     P11PROV_SESSION *session = NULL;
     CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
-    CK_ATTRIBUTE template[3] = { 0 };
+    CK_ATTRIBUTE template[3];
     CK_ATTRIBUTE *attr;
     int anum;
     CK_OBJECT_HANDLE handle;
@@ -1183,7 +1185,8 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
     }
 
     sess = p11prov_session_handle(session);
-
+    
+    memset (template, 0, sizeof(template));
     anum = 0;
     CKATTR_ASSIGN(template[anum], CKA_CLASS, &(obj->class), sizeof(obj->class));
     anum++;
@@ -1416,7 +1419,7 @@ CK_RV p11prov_obj_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
 #define MAX_KEY_ATTRS 2
 static CK_RV get_all_from_cert(P11PROV_OBJ *crt, CK_ATTRIBUTE *attrs, int num)
 {
-    OSSL_PARAM params[MAX_KEY_ATTRS + 1] = { 0 };
+    OSSL_PARAM params[MAX_KEY_ATTRS + 1];
     CK_ATTRIBUTE_TYPE types[MAX_KEY_ATTRS];
     CK_ATTRIBUTE *type;
     CK_ATTRIBUTE *value;
@@ -1427,6 +1430,7 @@ static CK_RV get_all_from_cert(P11PROV_OBJ *crt, CK_ATTRIBUTE *attrs, int num)
     int ret;
     CK_RV rv;
 
+    memset (params, 0, sizeof (params));
     /* if CKA_CERTIFICATE_TYPE is not present assume CKC_X_509 */
     type = p11prov_obj_get_attr(crt, CKA_CERTIFICATE_TYPE);
     if (type) {
@@ -1663,11 +1667,12 @@ static CK_RV get_public_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int num)
 static int p11prov_obj_export_public_rsa_key(P11PROV_OBJ *obj,
                                              OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
-    CK_ATTRIBUTE attrs[RSA_PUB_ATTRS] = { 0 };
+    CK_ATTRIBUTE attrs[RSA_PUB_ATTRS];
     OSSL_PARAM params[RSA_PUB_ATTRS + 1];
     CK_RV rv;
     int ret;
 
+    memset (attrs, 0, sizeof (attrs));
     if (p11prov_obj_get_key_type(obj) != CKK_RSA) {
         return RET_OSSL_ERR;
     }
@@ -1856,8 +1861,8 @@ static int ec_group_explicit_to_params(P11PROV_OBJ *obj, const EC_GROUP *group,
 static int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj,
                                             OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
-    CK_ATTRIBUTE attrs[EC_MAX_PUB_ATTRS] = { 0 };
-    OSSL_PARAM params[EC_MAX_OSSL_PARAMS + 1] = { 0 };
+    CK_ATTRIBUTE attrs[EC_MAX_PUB_ATTRS];
+    OSSL_PARAM params[EC_MAX_OSSL_PARAMS + 1];
     CK_KEY_TYPE key_type;
     int nattr = 0;
     int nparam = 0;
@@ -1866,6 +1871,8 @@ static int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj,
     EC_GROUP *group = NULL;
     int curve_nid = NID_undef;
 
+    memset (attrs, 0, sizeof (attrs));
+    memset (params, 0, sizeof (params));
     key_type = p11prov_obj_get_key_type(obj);
     switch (key_type) {
     case CKK_EC:

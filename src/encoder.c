@@ -655,10 +655,11 @@ static int p11prov_ec_set_keypoint_data(const OSSL_PARAM *params, void *key)
 
 static X509_PUBKEY *p11prov_ec_pubkey_to_x509(P11PROV_OBJ *key)
 {
-    struct ecdsa_key_point keypoint = { 0 };
+    struct ecdsa_key_point keypoint;
     X509_PUBKEY *pubkey;
     int ret;
-
+    
+    memset (&keypoint, 0, sizeof (keypoint));
     ret = p11prov_obj_export_public_key(
         key, CKK_EC, true, p11prov_ec_set_keypoint_data, &keypoint);
     if (ret != RET_OSSL_OK) {

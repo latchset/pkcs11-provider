@@ -626,7 +626,8 @@ bool p11prov_ctx_no_session_callbacks(P11PROV_CTX *ctx)
 CK_INFO p11prov_ctx_get_ck_info(P11PROV_CTX *ctx)
 {
     if (!ctx->module) {
-        CK_INFO info = { 0 };
+        CK_INFO info;
+        memset (&info, 0, sizeof(info));
         return info;
     }
     return p11prov_module_ck_info(ctx->module);
@@ -1358,6 +1359,16 @@ static struct p11prov_cfg_names {
     { "pkcs11-module-encode-provider-uri-to-pem" },
 };
 
+static void pkcs11prov_dbg_init (void)
+{
+    /* for debugging only
+     * Do nothing else than giving the possibility to set a breakpoint
+     * NOTE: don't compile with '-g -Og', use either '-g' or '-g -O0'
+     *       with -Og, the optimizer remove this call witch does nothing
+     */
+    return ;
+}
+
 int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
                        const OSSL_DISPATCH **out, void **provctx)
 {
@@ -1366,6 +1377,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
     P11PROV_CTX *ctx;
     int ret;
 
+    pkcs11prov_dbg_init ();
     *provctx = NULL;
 
     p11prov_get_core_dispatch_funcs(in);

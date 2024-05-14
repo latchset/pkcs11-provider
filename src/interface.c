@@ -159,7 +159,8 @@ static CK_RV p11prov_interface_init(P11PROV_MODULE *mctx)
     CK_VERSION version = { 3, 0 };
     CK_INTERFACE *ck_interface;
     CK_RV ret;
-
+    char *err = NULL;
+    
     intf = OPENSSL_zalloc(sizeof(struct p11prov_interface));
     if (!intf) {
         return CKR_HOST_MEMORY;
@@ -168,11 +169,7 @@ static CK_RV p11prov_interface_init(P11PROV_MODULE *mctx)
     ret = CKR_FUNCTION_NOT_SUPPORTED;
     intf->GetInterface = dlsym(mctx->dlhandle, "C_GetInterface");
     if (!intf->GetInterface) {
-        char *err = dlerror();
-        P11PROV_debug(
-            "C_GetInterface() not available. Falling back to "
-            "C_GetFunctionList(): %s",
-            err);
+        err = dlerror();
         intf->GetInterface = p11prov_NO_GetInterface;
     }
 
@@ -193,11 +190,21 @@ static CK_RV p11prov_interface_init(P11PROV_MODULE *mctx)
             ret = intf->GetFunctionList(
                 (CK_FUNCTION_LIST_PTR_PTR)&deflt.pFunctionList);
             if (ret == CKR_OK) {
+				CK_FUNCTION_LIST_PTR fctLst = deflt.pFunctionList;
                 ck_interface = &deflt;
+                if (fctLst->version.major >= 3 && err != NULL) {
+                    P11PROV_debug(
+                        "C_GetInterface() not available. Falling back to "
+                        "C_GetFunctionList(): %s",
+                        err);
+                }
             }
         } else {
-            char *err = dlerror();
-            P11PROV_debug("dlsym() failed: %s", err);
+            if (err) {
+                P11PROV_debug("C_GetInterface not available: %s", err);
+            }
+            err = dlerror();
+            P11PROV_debug("GetFunctionList not available: %s", err);
             ret = CKR_GENERAL_ERROR;
         }
     }
@@ -373,14 +380,16 @@ void p11prov_module_mark_reinit(P11PROV_MODULE *mctx)
 
 CK_RV p11prov_module_reinit(P11PROV_MODULE *mctx)
 {
-    CK_C_INITIALIZE_ARGS args = { 0 };
-    CK_INFO ck_info = { 0 };
+    CK_C_INITIALIZE_ARGS args;
+    CK_INFO ck_info;
     CK_RV ret;
 
     if (!mctx) {
         return CKR_GENERAL_ERROR;
     }
 
+    memset (&args, 0, sizeof (args));
+    memset (&ck_info, 0, sizeof (ck_info));
     ret = MUTEX_LOCK(mctx);
     if (ret != CKR_OK) {
         return ret;

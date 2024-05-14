@@ -349,7 +349,11 @@ static int p11prov_hkdf_get_ctx_params(void *ctx, OSSL_PARAM *params)
     if (p) {
         size_t ret_size = 0;
         if (hkdfctx->params.bExpand != CK_FALSE) {
-            ret_size = SIZE_MAX;
+#ifndef SIZE_MAX
+           ret_size = 0xffffffff;
+#else
+           ret_size = SIZE_MAX;
+#endif
         } else {
             CK_RV rv;
 
