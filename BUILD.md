@@ -1,4 +1,6 @@
-## Build Prerequisites
+## Build & Installation
+
+### Prerequisites
 
 This package requires the following:
 - OpenSSL 3.0.7+ libraries and development headers
@@ -9,10 +11,12 @@ This package requires the following:
 - pkg-config
 - p11-kit, p11-kit-server, p11-kit-devel, opensc and softhsm (for testing)
 
+### Build
+
 The usual command to build are:
-- meson setup builddir
-- meson compile -C builddir
-- meson test -C builddir
+- `meson setup builddir`
+- `meson compile -C builddir`
+- `meson test -C builddir`
 
 To link with OpenSSL installed in a custom path, set
 `PKG_CONFIG_PATH`, or `CFLAGS`/`LDFLAGS` envvars accordingly at the
@@ -27,3 +31,11 @@ where `libcrypto.pc` or `openssl.pc` can be found.
 Otherwise, you can set `CFLAGS`/`LDFLAGS`:
 
 - `CFLAGS="-I$OPENSSL_DIR/include" LDFLAGS="-L$OPENSSL_DIR/lib64" meson setup builddir`
+
+### Installation
+
+The usual command to install is:
+
+- `meson install -C builddir`
+
+Or simply copy the `src/pkcs11.so` (or `src/pkcs11.dylib` on Mac) in the appropriate directory for your OpenSSL installation.
