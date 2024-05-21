@@ -2,8 +2,8 @@
 %bcond_with gpgcheck
 
 Name:          pkcs11-provider
-Version:       0.3
-Release:       1%{?dist}
+Version:       0.4
+Release:       %autorelease
 Summary:       A PKCS#11 provider for OpenSSL 3.0+
 License:       Apache-2.0
 URL:           https://github.com/latchset/pkcs11-provider
@@ -72,8 +72,4 @@ compatible to previous versions as well.
 
 
 %changelog
-* Mon Jul 10 2023 Sahana Prasad <sahana@redhat.com> - 0.2-1
-+ New upstream release
-
-* Mon Oct 24 2022 Jakub Jelen <jjelen@redhat.com> - 0.1-1
-+ Initial Fedora release
+%autochangelog

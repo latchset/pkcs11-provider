@@ -1,6 +1,6 @@
 project(
   'pkcs11-provider', 'c',
-  version: '0.3',
+  version: '0.4',
   meson_version: '>= 0.57',
   default_options: ['c_std=c11'],
 )
