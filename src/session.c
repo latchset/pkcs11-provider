@@ -26,10 +26,10 @@ struct p11prov_session_pool {
     P11PROV_CTX *provctx;
     CK_SLOT_ID slotid;
 
-    int num_sessions;
-    int max_sessions;
-    int open_sessions;
-    int max_cached_sessions;
+    CK_ULONG num_sessions;
+    CK_ULONG max_sessions;
+    CK_ULONG open_sessions;
+    CK_ULONG max_cached_sessions;
 
     P11PROV_SESSION **sessions;
 
@@ -274,7 +274,7 @@ static CK_RV session_new(P11PROV_SESSION_POOL *pool, P11PROV_SESSION **_session)
 
     if (pool->num_sessions >= pool->max_sessions) {
         ret = CKR_SESSION_COUNT;
-        P11PROV_raise(pool->provctx, ret, "Max sessions (%d) exceeded",
+        P11PROV_raise(pool->provctx, ret, "Max sessions (%lu) exceeded",
                       pool->max_sessions);
         return ret;
     }
@@ -304,7 +304,7 @@ static CK_RV session_new(P11PROV_SESSION_POOL *pool, P11PROV_SESSION **_session)
 
     pool->sessions[pool->num_sessions] = session;
     pool->num_sessions++;
-    P11PROV_debug("Total sessions: %d", pool->num_sessions);
+    P11PROV_debug("Total sessions: %lu", pool->num_sessions);
 
     *_session = session;
     return CKR_OK;
