@@ -1002,8 +1002,7 @@ static CK_RV set_default_rsapss_mechanisms(struct key_generator *ctx)
         return CKR_HOST_MEMORY;
     }
     memcpy(ctx->data.rsa.allowed_types, rsapss_mechs, sizeof(rsapss_mechs));
-    ctx->data.rsa.allowed_types_size =
-        sizeof(rsapss_mechs) / sizeof(CK_MECHANISM_TYPE);
+    ctx->data.rsa.allowed_types_size = sizeof(rsapss_mechs);
 
     return CKR_OK;
 }
