@@ -2376,3 +2376,16 @@ const OSSL_DISPATCH p11prov_eddsa_signature_functions[] = {
     DISPATCH_SIG_ELEM(eddsa, SETTABLE_CTX_PARAMS, settable_ctx_params),
     { 0, NULL },
 };
+
+CK_MECHANISM_TYPE p11prov_digest_to_rsapss_mech(CK_MECHANISM_TYPE digest)
+{
+    const P11PROV_MECH *mech = NULL;
+    CK_RV rv;
+
+    rv = p11prov_mech_by_mechanism(digest, &mech);
+    if (rv == CKR_OK) {
+        return mech->pkcs_pss;
+    }
+
+    return CK_UNAVAILABLE_INFORMATION;
+}
