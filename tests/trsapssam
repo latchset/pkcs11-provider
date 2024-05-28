@@ -1,0 +1,58 @@
+#!/bin/bash -e
+# Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+#Need to enable this or genpkey fails because it can't output the private key
+sed -e "s/#pkcs11-module-encode-provider-uri-to-pem/pkcs11-module-encode-provider-uri-to-pem = true/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.rsapss_genpkey"
+OPENSSL_CONF=${OPENSSL_CONF}.rsapss_genpkey
+
+ossl '
+genpkey -propquery "provider=pkcs11"
+        -algorithm "RSA-PSS" -pkeyopt "rsa_pss_keygen_md:SHA256"
+        -pkeyopt "pkcs11_uri:pkcs11:object=Test-RSA-PSS-Restrictions"'
+
+title PARA "DigestSign and DigestVerify with RSA PSS"
+ossl '
+pkeyutl -sign -inkey "pkcs11:object=Test-RSA-PSS-Restrictions;type=private"
+              -digest sha256
+              -pkeyopt pad-mode:pss
+              -pkeyopt mgf1-digest:sha256
+              -pkeyopt saltlen:digest
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha256-rsapps-genpkey-dgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "pkcs11:object=Test-RSA-PSS-Restrictions;type=public" -pubin
+                -digest sha256
+                -pkeyopt pad-mode:pss
+                -pkeyopt mgf1-digest:sha256
+                -pkeyopt saltlen:digest
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha256-rsapps-genpkey-dgstsig.bin'
+
+FAIL=0
+title PARA "Fail DigestSign with RSA PSS because of restricted Digest"
+ossl '
+pkeyutl -sign -inkey "pkcs11:object=Test-RSA-PSS-Restrictions;type=private"
+              -digest sha384
+              -pkeyopt pad-mode:pss
+              -pkeyopt mgf1-digest:sha384
+              -pkeyopt saltlen:digest
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha384-rsapps-genpkey-dgstsig.bin 2>&1' "$helper_emit" || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Signature should have failed due to Digest restrictions"
+    exit 1
+fi
+output="$helper_output"
+FAIL=0
+echo "$output" | grep "mechanism not allowed with this key" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo "Signature seem to have failed for unrelated reasons"
+    exit 1
+fi
