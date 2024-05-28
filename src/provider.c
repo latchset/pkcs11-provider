@@ -1074,6 +1074,18 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
     ADD_ALGO_EXT(RSA, encoder,
                  "provider=pkcs11,output=pem,structure=SubjectPublicKeyInfo",
                  p11prov_rsa_encoder_spki_pem_functions);
+    ADD_ALGO_EXT(RSAPSS, encoder, "provider=pkcs11,output=text",
+                 p11prov_rsa_encoder_text_functions);
+    ADD_ALGO_EXT(RSAPSS, encoder, "provider=pkcs11,output=der,structure=pkcs1",
+                 p11prov_rsa_encoder_pkcs1_der_functions);
+    ADD_ALGO_EXT(RSAPSS, encoder, "provider=pkcs11,output=pem,structure=pkcs1",
+                 p11prov_rsa_encoder_pkcs1_pem_functions);
+    ADD_ALGO_EXT(RSAPSS, encoder,
+                 "provider=pkcs11,output=der,structure=SubjectPublicKeyInfo",
+                 p11prov_rsa_encoder_spki_der_functions);
+    ADD_ALGO_EXT(RSAPSS, encoder,
+                 "provider=pkcs11,output=pem,structure=SubjectPublicKeyInfo",
+                 p11prov_rsa_encoder_spki_pem_functions);
     ADD_ALGO_EXT(EC, encoder, "provider=pkcs11,output=text",
                  p11prov_ec_encoder_text_functions);
     ADD_ALGO_EXT(EC, encoder, "provider=pkcs11,output=der,structure=pkcs1",
@@ -1089,6 +1101,9 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                  p11prov_ec_edwards_encoder_text_functions);
     if (ctx->encode_pkey_as_pk11_uri) {
         ADD_ALGO_EXT(RSA, encoder,
+                     "provider=pkcs11,output=pem,structure=PrivateKeyInfo",
+                     p11prov_rsa_encoder_priv_key_info_pem_functions);
+        ADD_ALGO_EXT(RSAPSS, encoder,
                      "provider=pkcs11,output=pem,structure=PrivateKeyInfo",
                      p11prov_rsa_encoder_priv_key_info_pem_functions);
         ADD_ALGO_EXT(EC, encoder,
@@ -1144,6 +1159,9 @@ static const OSSL_ALGORITHM p11prov_decoders[] = {
     { "DER", "provider=pkcs11,input=pem",
       p11prov_pem_decoder_p11prov_der_functions },
     { P11PROV_NAMES_RSA,
+      "provider=pkcs11,input=der,structure=" P11PROV_DER_STRUCTURE,
+      p11prov_der_decoder_p11prov_rsa_functions },
+    { P11PROV_NAMES_RSAPSS,
       "provider=pkcs11,input=der,structure=" P11PROV_DER_STRUCTURE,
       p11prov_der_decoder_p11prov_rsa_functions },
     { P11PROV_NAMES_EC,
