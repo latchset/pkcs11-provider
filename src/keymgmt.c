@@ -452,11 +452,11 @@ static CK_RV common_key_usage_to_tmpl(struct key_generator *ctx,
     return CKR_OK;
 }
 
-static void *p11prov_common_gen(struct key_generator *ctx,
-                                CK_ATTRIBUTE *pubkey_template,
-                                CK_ATTRIBUTE *privkey_template, int pubtsize,
-                                int privtsize, OSSL_CALLBACK *cb_fn,
-                                void *cb_arg)
+static int p11prov_common_gen(struct key_generator *ctx,
+                              CK_ATTRIBUTE *pubkey_template,
+                              CK_ATTRIBUTE *privkey_template, int pubtsize,
+                              int privtsize, OSSL_CALLBACK *cb_fn, void *cb_arg,
+                              void **key)
 {
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     CK_BYTE id[16];
@@ -474,7 +474,7 @@ static void *p11prov_common_gen(struct key_generator *ctx,
                                    pubtsize, privtsize);
     if (ret != CKR_OK) {
         P11PROV_raise(ctx->provctx, ret, "Failed to map Key Usage");
-        return NULL;
+        return ret;
     }
 
     if (ctx->uri) {
@@ -486,7 +486,7 @@ static void *p11prov_common_gen(struct key_generator *ctx,
                               ctx->mechanism.mechanism, NULL, NULL, true, true,
                               &session);
     if (ret != CKR_OK) {
-        return NULL;
+        return ret;
     }
 
     if (cb_fn) {
@@ -544,7 +544,8 @@ done:
     }
     p11prov_return_session(session);
     p11prov_obj_free(pub_key);
-    return priv_key;
+    *key = priv_key;
+    return ret;
 }
 
 static void p11prov_common_gen_cleanup(void *genctx)
@@ -617,7 +618,9 @@ static void *p11prov_rsa_gen_init(void *provctx, int selection,
     return p11prov_common_gen_init(provctx, selection, CKK_RSA, params);
 }
 
-static void *p11prov_rsa_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
+static int p11prov_rsa_gen_internal(void *genctx, OSSL_CALLBACK *cb_fn,
+                                    void *cb_arg, void **key,
+                                    bool add_allow_mechs)
 {
     struct key_generator *ctx = (struct key_generator *)genctx;
 
@@ -634,25 +637,51 @@ static void *p11prov_rsa_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
           ctx->data.rsa.exponent_size },
     };
 #define RSA_PRIVKEY_TMPL_SIZE 6
-    CK_ATTRIBUTE privkey_template[RSA_PRIVKEY_TMPL_SIZE + COMMON_TMPL_SIZE] = {
+#define RSA_PRIVKEY_MAX RSA_PRIVKEY_TMPL_SIZE + 1 + COMMON_TMPL_SIZE
+    CK_ATTRIBUTE privkey_template[RSA_PRIVKEY_MAX] = {
         { CKA_TOKEN, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
         { CKA_PRIVATE, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
         { CKA_SENSITIVE, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
         { CKA_DECRYPT, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
         { CKA_SIGN, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
         { CKA_UNWRAP, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        /* 7. Optional CKA_ALLOWED_MECHANISMS */
         /* TODO?
          * CKA_SUBJECT
          * CKA_COPYABLE = true ?
          */
     };
+
     int pubtsize = RSA_PUBKEY_TMPL_SIZE;
     int privtsize = RSA_PRIVKEY_TMPL_SIZE;
+
+    if (add_allow_mechs) {
+        privkey_template[privtsize].type = CKA_ALLOWED_MECHANISMS;
+        privkey_template[privtsize].pValue =
+            DISCARD_CONST(ctx->data.rsa.allowed_types);
+        privkey_template[privtsize].ulValueLen =
+            ctx->data.rsa.allowed_types_size;
+        privtsize++;
+    }
 
     P11PROV_debug("rsa gen %p %p %p", genctx, cb_fn, cb_arg);
 
     return p11prov_common_gen(ctx, pubkey_template, privkey_template, pubtsize,
-                              privtsize, cb_fn, cb_arg);
+                              privtsize, cb_fn, cb_arg, key);
+}
+
+static void *p11prov_rsa_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
+{
+    struct key_generator *ctx = (struct key_generator *)genctx;
+    void *key;
+    CK_RV ret;
+
+    ret = p11prov_rsa_gen_internal(genctx, cb_fn, cb_arg, &key, false);
+    if (ret != CKR_OK) {
+        P11PROV_raise(ctx->provctx, ret, "RSA Key Gen failed");
+        return NULL;
+    }
+    return key;
 }
 
 static const OSSL_PARAM *p11prov_rsa_gen_settable_params(void *genctx,
@@ -1012,50 +1041,82 @@ static void *p11prov_rsapss_gen(void *genctx, OSSL_CALLBACK *cb_fn,
 {
     struct key_generator *ctx = (struct key_generator *)genctx;
     CK_BBOOL token_supports_allowed_mechs = CK_TRUE;
-    P11PROV_OBJ *key = NULL;
+    bool set_quirk = false;
+    void *key = NULL;
     CK_RV ret;
 
-    key = p11prov_rsa_gen(genctx, cb_fn, cb_arg);
-    if (!key) {
-        return NULL;
-    }
-
-    /* params could already be caying pss restriction. If allowed_types
-     * is already set, skip setting defaults */
-    if (!ctx->data.rsa.allowed_types) {
-        ret = set_default_rsapss_mechanisms(ctx);
-        if (ret != CKR_OK) {
-            P11PROV_raise(ctx->provctx, ret, "Failed to get pss params");
-            goto done;
-        }
-    }
-
+    /* check if we can add CKA_ALLOWED_MECHANISMS at all */
     ret = p11prov_token_sup_attr(ctx->provctx, p11prov_obj_get_slotid(key),
                                  GET_ATTR, CKA_ALLOWED_MECHANISMS,
                                  &token_supports_allowed_mechs);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx->provctx, ret, "Failed to probe quirk");
+        P11PROV_raise(ctx->provctx, ret,
+                      "Failed to probe CKA_ALLOWED_MECHANISMS quirk");
         goto done;
     }
 
-    if (token_supports_allowed_mechs == CK_TRUE) {
-        CK_ATTRIBUTE template[] = {
-            { CKA_ALLOWED_MECHANISMS, ctx->data.rsa.allowed_types,
-              ctx->data.rsa.allowed_types_size },
-        };
-        CK_ULONG tsize = 1;
-
-        ret = p11prov_obj_set_attributes(ctx->provctx, NULL, key, template,
-                                         tsize);
-        if (ret != CKR_OK) {
-            P11PROV_debug("Failed to add RSAPSS restrictions (%lu)", ret);
-            if (ret == CKR_ATTRIBUTE_TYPE_INVALID) {
-                /* set quirk to disable future attempts for this token */
-                token_supports_allowed_mechs = CK_FALSE;
-                (void)p11prov_token_sup_attr(
-                    ctx->provctx, p11prov_obj_get_slotid(key), SET_ATTR,
-                    CKA_ALLOWED_MECHANISMS, &token_supports_allowed_mechs);
+    if (token_supports_allowed_mechs) {
+        /* We always want to restrict PSS keys to just the PSS mechanisms.
+         * If a specific restriction is not already set then set defaults */
+        if (!ctx->data.rsa.allowed_types) {
+            ret = set_default_rsapss_mechanisms(ctx);
+            if (ret != CKR_OK) {
+                P11PROV_raise(ctx->provctx, ret,
+                              "Failed to set default pss params");
+                goto done;
             }
+        }
+
+        ret = p11prov_rsa_gen_internal(genctx, cb_fn, cb_arg, &key, true);
+        switch (ret) {
+        case CKR_OK:
+            break;
+        case CKR_ATTRIBUTE_TYPE_INVALID:
+            /* Failed: This may be because the token does not support
+             * CKA_ALLOWED_MECHANISMS, so we retry again later without it. */
+            P11PROV_debug("Failed to Generate PSS key with restrictions");
+
+            token_supports_allowed_mechs = CK_FALSE;
+            /* if the quirk has never been set we'll get back what we
+             * defaulted to, if that is the case then set the quirk.
+             * Otherwise the quirk was successfully probed earlier
+             * and we'll ignore setting anything as this may also be
+             * a fluke or a key specific failure */
+            ret = p11prov_token_sup_attr(
+                ctx->provctx, p11prov_obj_get_slotid(key), GET_ATTR,
+                CKA_ALLOWED_MECHANISMS, &token_supports_allowed_mechs);
+            if (ret != CKR_OK) {
+                P11PROV_raise(ctx->provctx, ret, "Failed to probe quirk");
+            } else if (token_supports_allowed_mechs == CK_FALSE) {
+                /* The previous check didn't hit a stored quirk, so
+                 * signal to set one later based on the outcome of the
+                 * next attempt. */
+                set_quirk = true;
+            }
+            break;
+        default:
+            /* In theory we should consider this error fatal, but given
+             * NSS sotoken returns CKR_GENERAL_ERROR just because it does
+             * not understand one attribute in the template we better
+             * retry anyway, as other tokens may return other errors too.
+             * The only penalty is that we won't set the quirk and keep
+             * retrying because we can't be sure the attribute is not
+             * valid in general ... */
+            break;
+        }
+    }
+
+    if (!key) {
+        ret = p11prov_rsa_gen_internal(genctx, cb_fn, cb_arg, &key, false);
+        if (ret != CKR_OK) {
+            goto done;
+        }
+
+        if (set_quirk) {
+            token_supports_allowed_mechs = CK_FALSE;
+            (void)p11prov_token_sup_attr(
+                ctx->provctx, p11prov_obj_get_slotid(key), SET_ATTR,
+                CKA_ALLOWED_MECHANISMS, &token_supports_allowed_mechs);
         }
     }
 
@@ -1063,10 +1124,64 @@ static void *p11prov_rsapss_gen(void *genctx, OSSL_CALLBACK *cb_fn,
 
 done:
     if (ret != CKR_OK) {
-        p11prov_obj_free(key);
-        key = NULL;
+        P11PROV_raise(ctx->provctx, ret, "Failed to generate RSA-PSS key");
+        return NULL;
     }
     return key;
+}
+
+static int p11prov_rsapss_gen_set_params(void *genctx,
+                                         const OSSL_PARAM params[])
+{
+    struct key_generator *ctx = (struct key_generator *)genctx;
+    const OSSL_PARAM *p;
+    int ret;
+
+    if (!ctx) {
+        return RET_OSSL_ERR;
+    }
+
+    if (params == NULL) {
+        return RET_OSSL_OK;
+    }
+
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_DIGEST);
+    if (p) {
+        CK_MECHANISM_TYPE digest_mech = CK_UNAVAILABLE_INFORMATION;
+        CK_MECHANISM_TYPE allowed_mech = CK_UNAVAILABLE_INFORMATION;
+        const char *digest = NULL;
+        CK_RV rv;
+
+        ret = OSSL_PARAM_get_utf8_string_ptr(p, &digest);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+        rv = p11prov_digest_get_by_name(digest, &digest_mech);
+        if (rv != CKR_OK) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
+            return RET_OSSL_ERR;
+        }
+        allowed_mech = p11prov_digest_to_rsapss_mech(digest_mech);
+        P11PROV_debug("Restrict RSAPSS DIGEST to %s (mech: %lu)", digest,
+                      allowed_mech);
+        if (allowed_mech == CK_UNAVAILABLE_INFORMATION) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
+            return RET_OSSL_ERR;
+        }
+        /* overwrites any previous setting */
+        ctx->data.rsa.allowed_types_size = sizeof(CK_MECHANISM_TYPE);
+        ctx->data.rsa.allowed_types = OPENSSL_realloc(
+            ctx->data.rsa.allowed_types, ctx->data.rsa.allowed_types_size);
+
+        if (!ctx->data.rsa.allowed_types) {
+            ctx->data.rsa.allowed_types_size = 0;
+            ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+            return RET_OSSL_ERR;
+        }
+        ctx->data.rsa.allowed_types[0] = allowed_mech;
+    }
+
+    return p11prov_common_gen_set_params(genctx, params);
 }
 
 static const OSSL_PARAM *p11prov_rsapss_gen_settable_params(void *genctx,
@@ -1092,7 +1207,7 @@ const OSSL_DISPATCH p11prov_rsapss_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(rsa, NEW, new),
     DISPATCH_KEYMGMT_ELEM(rsa, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(rsapss, GEN, gen),
-    DISPATCH_KEYMGMT_ELEM(common, GEN_SET_PARAMS, gen_set_params),
+    DISPATCH_KEYMGMT_ELEM(rsapss, GEN_SET_PARAMS, gen_set_params),
     DISPATCH_KEYMGMT_ELEM(rsapss, GEN_SETTABLE_PARAMS, gen_settable_params),
     DISPATCH_KEYMGMT_ELEM(common, GEN_CLEANUP, gen_cleanup),
     DISPATCH_KEYMGMT_ELEM(rsa, LOAD, load),
@@ -1153,6 +1268,8 @@ static void *p11prov_ec_gen_init(void *provctx, int selection,
 static void *p11prov_ec_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
     struct key_generator *ctx = (struct key_generator *)genctx;
+    void *key;
+    CK_RV ret;
 
     /* always leave space for CKA_ID and CKA_LABEL */
 #define EC_PUBKEY_TMPL_SIZE 5
@@ -1181,8 +1298,13 @@ static void *p11prov_ec_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
 
     P11PROV_debug("ec gen %p %p %p", ctx, cb_fn, cb_arg);
 
-    return p11prov_common_gen(ctx, pubkey_template, privkey_template, pubtsize,
-                              privtsize, cb_fn, cb_arg);
+    ret = p11prov_common_gen(ctx, pubkey_template, privkey_template, pubtsize,
+                             privtsize, cb_fn, cb_arg, &key);
+    if (ret != CKR_OK) {
+        P11PROV_raise(ctx->provctx, ret, "EC Key generation failed");
+        return NULL;
+    }
+    return key;
 }
 
 static const OSSL_PARAM *p11prov_ec_gen_settable_params(void *genctx,
