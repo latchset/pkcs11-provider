@@ -10,7 +10,7 @@ sed -e "s/#pkcs11-module-encode-provider-uri-to-pem/pkcs11-module-encode-provide
 OPENSSL_CONF=${OPENSSL_CONF}.rsapss_genpkey
 
 ossl '
-genpkey -propquery "provider=pkcs11"
+genpkey -propquery "?provider=pkcs11"
         -algorithm "RSA-PSS" -pkeyopt "rsa_pss_keygen_md:SHA256"
         -pkeyopt "pkcs11_uri:pkcs11:object=Test-RSA-PSS-Restrictions"'
 
