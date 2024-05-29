@@ -1022,7 +1022,7 @@ static CK_RV set_default_rsapss_mechanisms(struct key_generator *ctx)
         CKM_SHA256_RSA_PKCS_PSS,   CKM_SHA384_RSA_PKCS_PSS,
         CKM_SHA512_RSA_PKCS_PSS,   CKM_SHA3_224_RSA_PKCS_PSS,
         CKM_SHA3_256_RSA_PKCS_PSS, CKM_SHA3_384_RSA_PKCS_PSS,
-        CKM_SHA3_512_RSA_PKCS_PSS
+        CKM_SHA3_512_RSA_PKCS_PSS, CKM_RSA_PKCS_PSS
     };
 
     ctx->data.rsa.allowed_types = OPENSSL_malloc(sizeof(rsapss_mechs));
