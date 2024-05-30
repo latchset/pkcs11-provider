@@ -3,6 +3,7 @@
 
 #include "provider.h"
 #include "platform/endian.h"
+#include "openssl/rand.h"
 #include <string.h>
 
 #define DFLT_DIGEST "SHA256"
@@ -498,9 +499,13 @@ static int p11prov_common_gen(struct key_generator *ctx,
     sh = p11prov_session_handle(session);
 
     if (cka_id.ulValueLen == 0) {
+        int err = RET_OSSL_ERR;
         /* generate unique id for the key */
-        ret = p11prov_GenerateRandom(ctx->provctx, sh, id, sizeof(id));
-        if (ret != CKR_OK) {
+        err = RAND_bytes_ex(p11prov_ctx_get_libctx(ctx->provctx), id,
+                            sizeof(id), 0);
+        if (err != RET_OSSL_OK) {
+            ret = CKR_GENERAL_ERROR;
+            P11PROV_raise(ctx->provctx, ret, "Failed to source random buffer");
             goto done;
         }
         cka_id.type = CKA_ID;
