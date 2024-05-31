@@ -3,7 +3,9 @@
 
 #include "provider.h"
 #include <string.h>
+#include "openssl/prov_ssl.h"
 #include "openssl/rsa.h"
+#include "openssl/rand.h"
 
 DISPATCH_RSAENC_FN(newctx);
 DISPATCH_RSAENC_FN(freectx);
@@ -17,6 +19,14 @@ DISPATCH_RSAENC_FN(set_ctx_params);
 DISPATCH_RSAENC_FN(gettable_ctx_params);
 DISPATCH_RSAENC_FN(settable_ctx_params);
 
+struct tls_padding {
+    bool enabled;
+    CK_BYTE client_ver_major;
+    CK_BYTE client_ver_minor;
+    CK_BYTE alt_ver_major;
+    CK_BYTE alt_ver_minor;
+};
+
 struct p11prov_rsaenc_ctx {
     P11PROV_CTX *provctx;
 
@@ -24,6 +34,9 @@ struct p11prov_rsaenc_ctx {
 
     CK_MECHANISM_TYPE mechtype;
     CK_RSA_PKCS_OAEP_PARAMS oaep_params;
+
+    /* RSA_PKCS1_WITH_TLS_PADDING parameters */
+    struct tls_padding tls_padding;
 };
 
 static void *p11prov_rsaenc_newctx(void *provctx)
@@ -85,6 +98,7 @@ static void *p11prov_rsaenc_dupctx(void *ctx)
         }
         dst->ulSourceDataLen = src->ulSourceDataLen;
     }
+    newctx->tls_padding = encctx->tls_padding;
 
     return newctx;
 }
@@ -233,49 +247,128 @@ static int p11prov_rsaenc_decrypt_init(void *ctx, void *provkey,
     return p11prov_rsaenc_set_ctx_params(ctx, params);
 }
 
+/* we are guaranteed to have enough space in buf for our checks */
+static int
+p11prov_tls_constant_time_depadding(struct p11prov_rsaenc_ctx *encctx,
+                                    unsigned char *out, unsigned char *buf,
+                                    size_t *out_size, CK_ULONG *ret_cond)
+{
+    unsigned char randbuf[SSL_MAX_MASTER_KEY_LENGTH];
+    CK_ULONG ver_cond = 0;
+    CK_ULONG cond = 0;
+    size_t length = SSL_MAX_MASTER_KEY_LENGTH;
+    int err;
+
+    /* always generate a random buffer, to constant_time swap in
+     * in case any of the tests fails */
+    err = RAND_priv_bytes_ex(p11prov_ctx_get_libctx(encctx->provctx), randbuf,
+                             sizeof(randbuf), 0);
+    if (err != RET_OSSL_OK) {
+        /* it is ok to bail out here because the error is completely
+         * unrelated to the computations and is not a controllable
+         * side-channel */
+        ERR_raise(ERR_LIB_RSA, ERR_R_INTERNAL_ERROR);
+        return RET_OSSL_ERR;
+    }
+
+    cond = constant_equal(*out_size, 2 + length);
+
+    ver_cond = constant_equal(buf[0], encctx->tls_padding.client_ver_major);
+    ver_cond &= constant_equal(buf[1], encctx->tls_padding.client_ver_minor);
+
+    /* this conditional is ok because it does not depend on the outcome of
+     * the decryption or any other private data */
+    if (encctx->tls_padding.alt_ver_major != 0) {
+        CK_ULONG alt_cond = 0;
+        alt_cond = constant_equal(buf[0], encctx->tls_padding.alt_ver_major);
+        alt_cond &= constant_equal(buf[1], encctx->tls_padding.alt_ver_minor);
+        ver_cond |= alt_cond;
+    }
+    cond &= ver_cond;
+
+    constant_select_buf(cond, length, out, buf + 2, randbuf);
+
+    *out_size = length;
+    *ret_cond = cond;
+    return RET_OSSL_OK;
+}
+
 static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
                                   size_t outsize, const unsigned char *in,
                                   size_t inlen)
 {
     struct p11prov_rsaenc_ctx *encctx = (struct p11prov_rsaenc_ctx *)ctx;
     CK_MECHANISM mechanism;
-    P11PROV_SESSION *session;
+    P11PROV_SESSION *session = NULL;
     CK_SESSION_HANDLE sess;
     CK_SLOT_ID slotid;
     CK_OBJECT_HANDLE handle;
-    CK_ULONG out_size = *outlen;
+    CK_ULONG key_size = CK_UNAVAILABLE_INFORMATION;
+    unsigned char *tmpbuf = NULL;
+    unsigned char *outbuf = out;
+    CK_ULONG out_size = outsize;
     int result = RET_OSSL_ERR;
     bool always_auth = false;
+    bool tls_padding = encctx->tls_padding.enabled;
     CK_RV ret;
 
     P11PROV_debug("decrypt (ctx=%p)", ctx);
 
+    key_size = p11prov_obj_get_key_size(encctx->key);
+    if (key_size == CK_UNAVAILABLE_INFORMATION) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_KEY);
+        return RET_OSSL_ERR;
+    }
+
     if (out == NULL) {
-        CK_ULONG size = p11prov_obj_get_key_size(encctx->key);
-        if (size == CK_UNAVAILABLE_INFORMATION) {
-            ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_KEY);
+        if (encctx->tls_padding.enabled) {
+            *outlen = SSL_MAX_MASTER_KEY_LENGTH;
+        } else {
+            *outlen = key_size;
+        }
+        return RET_OSSL_OK;
+    }
+
+    if (outsize < key_size) {
+        if (tls_padding) {
+            if (outsize < SSL_MAX_MASTER_KEY_LENGTH) {
+                ERR_raise(ERR_LIB_PROV, PROV_R_BAD_LENGTH);
+                return RET_OSSL_ERR;
+            }
+        } else {
+            ERR_raise(ERR_LIB_PROV, PROV_R_BAD_LENGTH);
             return RET_OSSL_ERR;
         }
-        *outlen = size;
-        return RET_OSSL_OK;
+    }
+
+    if (tls_padding) {
+        tmpbuf = OPENSSL_zalloc(key_size);
+        if (!tmpbuf) {
+            return RET_OSSL_ERR;
+        }
+        outbuf = tmpbuf;
+        out_size = key_size;
     }
 
     slotid = p11prov_obj_get_slotid(encctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
         P11PROV_raise(encctx->provctx, CKR_SLOT_ID_INVALID,
                       "Provided key has invalid slot");
-        return RET_OSSL_ERR;
+        result = RET_OSSL_ERR;
+        goto done;
     }
     handle = p11prov_obj_get_handle(encctx->key);
     if (handle == CK_INVALID_HANDLE) {
         P11PROV_raise(encctx->provctx, CKR_KEY_HANDLE_INVALID,
                       "Provided key has invalid handle");
-        return RET_OSSL_ERR;
+        result = RET_OSSL_ERR;
+        goto done;
     }
 
     ret = p11prov_rsaenc_set_mechanism(encctx, &mechanism);
     if (ret != CKR_OK) {
-        return RET_OSSL_ERR;
+        result = RET_OSSL_ERR;
+        goto done;
     }
 
     ret = p11prov_get_session(encctx->provctx, &slotid, NULL, NULL,
@@ -284,7 +377,8 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     if (ret != CKR_OK) {
         P11PROV_raise(encctx->provctx, ret,
                       "Failed to open session on slot %lu", slotid);
-        return RET_OSSL_ERR;
+        result = RET_OSSL_ERR;
+        goto done;
     }
     sess = p11prov_session_handle(session);
 
@@ -294,7 +388,8 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
             || ret == CKR_MECHANISM_PARAM_INVALID) {
             ERR_raise(ERR_LIB_PROV, PROV_R_ILLEGAL_OR_UNSUPPORTED_PADDING_MODE);
         }
-        goto endsess;
+        result = RET_OSSL_ERR;
+        goto done;
     }
 
     always_auth =
@@ -302,7 +397,8 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     if (always_auth) {
         ret = p11prov_context_specific_login(session, NULL, NULL, NULL);
         if (ret != CKR_OK) {
-            goto endsess;
+            result = RET_OSSL_ERR;
+            goto done;
         }
     }
 
@@ -310,27 +406,45 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     if (mechanism.mechanism == CKM_RSA_PKCS) {
         CK_ULONG cond;
         ret = side_channel_free_Decrypt(encctx->provctx, sess, (void *)in,
-                                        inlen, out, &out_size);
+                                        inlen, outbuf, &out_size);
         /* the error case need to be handled in a side-channel free way, so
          * conditionals need to be constant time. Always setting outlen is
          * fine because out_size is initialized to the value of outlen
          * and the value should not matter in an error condition anyway */
-        *outlen = out_size;
         cond = constant_equal(ret, CKR_OK);
+
+        /* this conditional is ok because it is not dependent on the
+         * decryption computation or any private data */
+        if (tls_padding) {
+            CK_ULONG tls_cond = 0;
+
+            result = p11prov_tls_constant_time_depadding(encctx, out, tmpbuf,
+                                                         &out_size, &tls_cond);
+            /* this conditional is ok because only fatal failures
+             * unrelated to the computation are returned this way.
+             * Like allocation failures or rng failures. */
+            if (result != RET_OSSL_OK) {
+                goto done;
+            }
+            cond &= tls_cond;
+        }
         result = constant_select_int(cond, RET_OSSL_OK, RET_OSSL_ERR);
-        goto endsess;
+        *outlen = out_size;
+        goto done;
     }
 
     ret = p11prov_Decrypt(encctx->provctx, sess, (void *)in, inlen, out,
                           &out_size);
     if (ret != CKR_OK) {
-        goto endsess;
+        result = RET_OSSL_ERR;
+        goto done;
     }
     *outlen = out_size;
     result = RET_OSSL_OK;
 
-endsess:
+done:
     p11prov_return_session(session);
+    OPENSSL_clear_free(tmpbuf, key_size);
     return result;
 }
 
@@ -341,6 +455,8 @@ static struct {
 } padding_map[] = {
     { CKM_RSA_X_509, RSA_NO_PADDING, OSSL_PKEY_RSA_PAD_MODE_NONE },
     { CKM_RSA_PKCS, RSA_PKCS1_PADDING, OSSL_PKEY_RSA_PAD_MODE_PKCSV15 },
+    { CKM_RSA_PKCS, RSA_PKCS1_WITH_TLS_PADDING,
+      OSSL_PKEY_RSA_PAD_MODE_PKCSV15 },
     { CKM_RSA_PKCS_OAEP, RSA_PKCS1_OAEP_PADDING, OSSL_PKEY_RSA_PAD_MODE_OAEP },
     { CKM_RSA_X9_31, RSA_X931_PADDING, OSSL_PKEY_RSA_PAD_MODE_X931 },
     { CK_UNAVAILABLE_INFORMATION, 0, NULL },
@@ -464,6 +580,27 @@ static int p11prov_rsaenc_get_ctx_params(void *ctx, OSSL_PARAM *params)
         }
     }
 
+    p = OSSL_PARAM_locate(params, OSSL_ASYM_CIPHER_PARAM_TLS_CLIENT_VERSION);
+    if (p) {
+        ret = OSSL_PARAM_set_uint(
+            p, (((unsigned int)encctx->tls_padding.client_ver_major) << 8)
+                   + encctx->tls_padding.client_ver_minor);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+
+    p = OSSL_PARAM_locate(params,
+                          OSSL_ASYM_CIPHER_PARAM_TLS_NEGOTIATED_VERSION);
+    if (p) {
+        ret = OSSL_PARAM_set_uint(
+            p, (((unsigned int)encctx->tls_padding.alt_ver_major) << 8)
+                   + encctx->tls_padding.alt_ver_minor);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+
     return RET_OSSL_OK;
 }
 
@@ -494,6 +631,9 @@ static int p11prov_rsaenc_set_ctx_params(void *ctx, const OSSL_PARAM params[])
                     mechtype = padding_map[i].type;
                     break;
                 }
+            }
+            if (pad_mode == RSA_PKCS1_WITH_TLS_PADDING) {
+                encctx->tls_padding.enabled = true;
             }
         } else if (p->data_type == OSSL_PARAM_UTF8_STRING) {
             if (p->data) {
@@ -567,6 +707,34 @@ static int p11prov_rsaenc_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         encctx->oaep_params.ulSourceDataLen = len;
     }
 
+    p = OSSL_PARAM_locate_const(params,
+                                OSSL_ASYM_CIPHER_PARAM_TLS_CLIENT_VERSION);
+    if (p) {
+        unsigned int client_ver;
+
+        ret = OSSL_PARAM_get_uint(p, &client_ver);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+
+        encctx->tls_padding.client_ver_major = (client_ver >> 8) & 0xff;
+        encctx->tls_padding.client_ver_minor = client_ver & 0xff;
+    }
+
+    p = OSSL_PARAM_locate_const(params,
+                                OSSL_ASYM_CIPHER_PARAM_TLS_NEGOTIATED_VERSION);
+    if (p) {
+        unsigned int alt_ver;
+
+        ret = OSSL_PARAM_get_uint(p, &alt_ver);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+
+        encctx->tls_padding.alt_ver_major = (alt_ver >> 8) & 0xff;
+        encctx->tls_padding.alt_ver_minor = alt_ver & 0xff;
+    }
+
     return RET_OSSL_OK;
 }
 
@@ -578,10 +746,8 @@ static const OSSL_PARAM *p11prov_rsaenc_gettable_ctx_params(void *ctx,
         OSSL_PARAM_utf8_string(OSSL_ASYM_CIPHER_PARAM_OAEP_DIGEST, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_ASYM_CIPHER_PARAM_MGF1_DIGEST, NULL, 0),
         OSSL_PARAM_octet_string(OSSL_ASYM_CIPHER_PARAM_OAEP_LABEL, NULL, 0),
-        /*
         OSSL_PARAM_uint(OSSL_ASYM_CIPHER_PARAM_TLS_CLIENT_VERSION, NULL),
         OSSL_PARAM_uint(OSSL_ASYM_CIPHER_PARAM_TLS_NEGOTIATED_VERSION, NULL),
-        */
         OSSL_PARAM_END,
     };
     return params;
@@ -597,10 +763,8 @@ static const OSSL_PARAM *p11prov_rsaenc_settable_ctx_params(void *ctx,
         OSSL_PARAM_utf8_string(OSSL_ASYM_CIPHER_PARAM_MGF1_DIGEST_PROPS, NULL,
                                0),
         OSSL_PARAM_octet_string(OSSL_ASYM_CIPHER_PARAM_OAEP_LABEL, NULL, 0),
-        /*
         OSSL_PARAM_uint(OSSL_ASYM_CIPHER_PARAM_TLS_CLIENT_VERSION, NULL),
         OSSL_PARAM_uint(OSSL_ASYM_CIPHER_PARAM_TLS_NEGOTIATED_VERSION, NULL),
-        */
         OSSL_PARAM_END,
     };
     return params;

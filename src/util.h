@@ -120,4 +120,16 @@ static inline int constant_select_int(CK_ULONG cond, int a, int b)
     return (int)((A & mask) | (B & ~mask));
 }
 
+static inline void constant_select_buf(CK_ULONG cond, size_t size,
+                                       unsigned char *dst, unsigned char *a,
+                                       unsigned char *b)
+{
+    for (int i = 0; i < size; i++) {
+        volatile unsigned char A = a[i];
+        volatile unsigned char B = b[i];
+        volatile unsigned char mask = -(unsigned char)cond;
+        dst[i] = ((A & mask) | (B & ~mask));
+    }
+}
+
 #endif /* _UTIL_H */
