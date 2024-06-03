@@ -93,20 +93,20 @@ if get_option('b_sanitize') == 'address'
   endif
 endif
 
-test_programs = [
-  'tsession',
-  'tgenkey',
-  'tlsctx',
-  'tdigests',
-  'treadkeys',
-  'tcmpkeys',
-  'tfork',
-  'pincache',
-]
+test_programs = {
+  'tsession': ['tsession.c'],
+  'tgenkey': ['tgenkey.c'],
+  'tlsctx': ['tlsctx.c', 'util.c'],
+  'tdigests': ['tdigests.c'],
+  'treadkeys': ['treadkeys.c'],
+  'tcmpkeys': ['tcmpkeys.c', 'util.c'],
+  'tfork': ['tfork.c'],
+  'pincache': ['pincache.c'],
+}
 
 test_executables = []
-foreach t : test_programs
-  t = executable(t, '@0@.c'.format(t),
+foreach t, sources : test_programs
+  t = executable(t, sources,
                  build_by_default: false,
                  include_directories: [configinc],
                  dependencies: [libcrypto, libssl])

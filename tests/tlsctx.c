@@ -4,32 +4,104 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <openssl/ssl.h>
-#include <openssl/err.h>
+#include <openssl/evp.h>
+#include <openssl/rsa.h>
+#include <openssl/core_names.h>
+#include "util.h"
 
-static void ossl_err_print(void)
+static void test_pkcs1_with_tls_padding(void)
 {
-    bool first = true;
-    unsigned long err = 0;
-    while (true) {
-        const char *file, *func, *data;
-        int line;
-        err = ERR_get_error_all(&file, &line, &func, &data, NULL);
-        if (err == 0) {
-            break;
-        }
+    EVP_PKEY_CTX *ctx;
+    EVP_PKEY *prikey;
+    EVP_PKEY *pubkey;
+    unsigned char plain[SSL_MAX_MASTER_KEY_LENGTH + 2] = { 0x03, 0x03, 0x01 };
+    unsigned char enc[1024];
+    unsigned char dec[1024];
+    size_t enclen;
+    size_t declen;
+    unsigned int ver = 0x0303;
+    const OSSL_PARAM ver_params[] = {
+        OSSL_PARAM_uint(OSSL_ASYM_CIPHER_PARAM_TLS_CLIENT_VERSION, &ver),
+        OSSL_PARAM_END
+    };
+    int err;
 
-        char buf[1024];
-        ERR_error_string_n(err, buf, sizeof(buf));
+    pubkey = load_key(getenv("PUBURI"));
 
-        const char *fmt =
-            first ? ": %s (in function %s in %s:%d): %s\n"
-                  : "  caused by: %s (in function %s in %s:%d): %s\n";
-        fprintf(stderr, fmt, buf, func, file, line, data);
-
-        first = false;
+    ctx = EVP_PKEY_CTX_new_from_pkey(NULL, pubkey, NULL);
+    if (!ctx) {
+        fprintf(stderr, "Failed to init pkey ctx for puburi\n");
+        ossl_err_print();
+        exit(EXIT_FAILURE);
     }
-    if (first) {
-        fprintf(stderr, "\n");
+    err = EVP_PKEY_encrypt_init(ctx);
+    if (err != 1) {
+        fprintf(stderr, "Failed to init encrypt ctx\n");
+        ossl_err_print();
+        exit(EXIT_FAILURE);
+    }
+    err = EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_PADDING);
+    if (err != 1) {
+        fprintf(stderr, "Failed to set padding on encrypt ctx\n");
+        ossl_err_print();
+        exit(EXIT_FAILURE);
+    }
+
+    enclen = sizeof(enc);
+    err = EVP_PKEY_encrypt(ctx, enc, &enclen, plain, sizeof(plain));
+    if (err != 1) {
+        fprintf(stderr, "Failed to encrypt TLS master key\n");
+        ossl_err_print();
+        exit(EXIT_FAILURE);
+    }
+
+    EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(pubkey);
+
+    prikey = load_key(getenv("PRIURI"));
+
+    ctx = EVP_PKEY_CTX_new_from_pkey(NULL, prikey, NULL);
+    if (!ctx) {
+        fprintf(stderr, "Failed to init pkey ctx for priuri\n");
+        ossl_err_print();
+        exit(EXIT_FAILURE);
+    }
+    err = EVP_PKEY_decrypt_init(ctx);
+    if (err != 1) {
+        fprintf(stderr, "Failed to init decrypt ctx\n");
+        ossl_err_print();
+        exit(EXIT_FAILURE);
+    }
+    err = EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_WITH_TLS_PADDING);
+    if (err != 1) {
+        fprintf(stderr, "Failed to set padding on decrypt ctx\n");
+        ossl_err_print();
+        exit(EXIT_FAILURE);
+    }
+
+    err = EVP_PKEY_CTX_set_params(ctx, ver_params);
+    if (err != 1) {
+        fprintf(stderr, "Failed to set version params\n");
+        ossl_err_print();
+        exit(EXIT_FAILURE);
+    }
+
+    declen = sizeof(dec);
+    err = EVP_PKEY_decrypt(ctx, dec, &declen, enc, enclen);
+    if (err != 1) {
+        fprintf(stderr, "Failed to decrypt TLS master key\n");
+        ossl_err_print();
+        exit(EXIT_FAILURE);
+    }
+
+    EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(prikey);
+
+    if ((declen != sizeof(plain) - 2)
+        || (memcmp(plain + 2, dec, declen) != 0)) {
+        fprintf(stderr, "Fail, decrypted master secret differs from input\n");
+        ossl_err_print();
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -47,6 +119,8 @@ int main(int argc, char *argv[])
     fprintf(stderr, "SSL Context works!\n");
 
     SSL_CTX_free(ctx);
+
+    test_pkcs1_with_tls_padding();
 
     exit(EXIT_SUCCESS);
 }
