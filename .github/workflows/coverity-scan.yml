@@ -5,6 +5,7 @@ on:
   pull_request_target:
     branches: ["main"]
     types:
+      - synchronize
       - labeled
   schedule:
     - cron: '41 3 * * 0'
@@ -46,7 +47,7 @@ jobs:
           token: ${{ secrets.COVERITY_SCAN_TOKEN }}
 
   on-labeled-pr:
-    if: ${{ contains(github.event.*.labels.*.name, 'covscan') }}
+    if: ${{ contains(github.event.action, 'labeled') && contains(github.event.*.labels.*.name, 'covscan') }}
     name: Coverity Scan on PR
     runs-on: ubuntu-latest
     permissions:
@@ -76,16 +77,64 @@ jobs:
           token: ${{ secrets.COVERITY_SCAN_TOKEN }}
       - name: Remove Label
         if: always()
-        run: gh pr edit "$NUMBER" --remove-label "covscan"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.number }}
+        run: gh pr edit "$NUMBER" --remove-label "covscan"
 
   on-no-covscan-labeled-pr:
-    if: ${{ contains(github.event.*.labels.*.name, 'no-covscan') }}
+    if: ${{ contains(github.event.action, 'labeled') && contains(github.event.*.labels.*.name, 'covscan-ok') }}
     name: Coverity Scan on PR
     runs-on: ubuntu-latest
     steps:
-      - name: Coverity Scan not needed
+      - name: Coverity Scan Marked Successful
         run: echo "Dummy action to report all ok and mark covscan as handled"
+
+  on-synchronize-no-source-changes:
+    if: ${{ contains(github.event.action, 'synchronize') && ! contains(github.event.*.labels.*.name, 'covscan-ok') }}
+    name: Coverity Scan on PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check changed files
+        id: changed-sources
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            src/**
+      - name: Coverity Scan not needed
+        if: steps.changed-sources.outputs.any_changed == 'false'
+        run: |
+          echo "No Source files changed, no covscan needed"
+      - name: Coverity Scan is needed
+        if: steps.changed-sources.outputs.any_changed == 'true'
+        run: |
+          echo "Source files changed, covscan is needed"
+
+  on-synchronize-covscan-ok:
+    if: ${{ contains(github.event.action, 'synchronize') && contains(github.event.*.labels.*.name, 'covscan-ok') }}
+    name: Coverity Scan on PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check changed files
+        id: changed-sources
+        uses: tj-actions/changed-files@v44
+        with:
+          base_sha: ${{ github.event.before }}
+          files: |
+            src/**
+        continue-on-error: true
+      - name: Coverity Scan not needed
+        if: ${{ steps.changed-sources.outcome == 'success' &&  steps.changed-sources.outputs.any_changed == 'false' }}
+        run: echo "Dummy action to report all ok and mark covscan as handled"
+      - name: Coverity Scan is needed
+        if: ${{ steps.changed-sources.outcome == 'failure' || steps.changed-sources.outputs.any_changed == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.number }}
+        run: |
+          gh pr edit "$NUMBER" --remove-label "covscan"
+          false
