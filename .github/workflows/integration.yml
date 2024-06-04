@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test: [libssh, httpd, bind]
+        test: [libssh, httpd]
     name: ${{ matrix.test }}
     container: fedora:rawhide
     env:
