@@ -251,12 +251,12 @@ static int p11prov_rsaenc_decrypt_init(void *ctx, void *provkey,
 static int
 p11prov_tls_constant_time_depadding(struct p11prov_rsaenc_ctx *encctx,
                                     unsigned char *out, unsigned char *buf,
-                                    size_t *out_size, CK_ULONG *ret_cond)
+                                    CK_ULONG *out_size, CK_ULONG *ret_cond)
 {
     unsigned char randbuf[SSL_MAX_MASTER_KEY_LENGTH];
     CK_ULONG ver_cond = 0;
     CK_ULONG cond = 0;
-    size_t length = SSL_MAX_MASTER_KEY_LENGTH;
+    CK_ULONG length = SSL_MAX_MASTER_KEY_LENGTH;
     int err;
 
     /* always generate a random buffer, to constant_time swap in
