@@ -46,3 +46,10 @@ generate-docs:
 		manfile=`echo $${mdfile} | sed s/\.md//`; \
 		pandoc --standalone --to man $${mdfile} -o $${manfile}; \
 	done
+
+dist:
+	rm -fr distdir
+	meson setup distdir
+	meson compile -C distdir pkcs11
+	meson test -C distdir
+	meson dist -C distdir
