@@ -120,7 +120,7 @@ static inline int constant_select_int(CK_ULONG cond, int a, int b)
     return (int)((A & mask) | (B & ~mask));
 }
 
-static inline void constant_select_buf(CK_ULONG cond, size_t size,
+static inline void constant_select_buf(CK_ULONG cond, CK_ULONG size,
                                        unsigned char *dst, unsigned char *a,
                                        unsigned char *b)
 {
