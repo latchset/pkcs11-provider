@@ -131,65 +131,6 @@ struct key_generator {
     void *cb_arg;
 };
 
-static void *p11prov_common_gen_init(void *provctx, int selection,
-                                     CK_KEY_TYPE type,
-                                     const OSSL_PARAM params[])
-{
-    struct key_generator *ctx = NULL;
-    /* big endian 65537 */
-    unsigned char def_e[] = { 0x01, 0x00, 0x01 };
-    int ret;
-
-    P11PROV_debug("common gen_init %p", provctx);
-
-    ret = p11prov_ctx_status(provctx);
-    if (ret != CKR_OK) {
-        return NULL;
-    }
-
-    if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) == 0) {
-        P11PROV_raise(provctx, CKR_ARGUMENTS_BAD, "Unsupported selection");
-        return NULL;
-    }
-
-    ctx = OPENSSL_zalloc(sizeof(struct key_generator));
-    if (ctx == NULL) {
-        P11PROV_raise(provctx, CKR_HOST_MEMORY, "Failed to get key_generator");
-        return NULL;
-    }
-    ctx->provctx = (P11PROV_CTX *)provctx;
-    ctx->type = type;
-
-    /* set defaults */
-    switch (type) {
-    case CKK_RSA:
-        ctx->mechanism.mechanism = CKM_RSA_PKCS_KEY_PAIR_GEN;
-        ctx->data.rsa.modulus_bits = 2048;
-        ctx->data.rsa.exponent_size = sizeof(def_e);
-        memcpy(ctx->data.rsa.exponent, def_e, ctx->data.rsa.exponent_size);
-        break;
-    case CKK_EC:
-        ctx->mechanism.mechanism = CKM_EC_KEY_PAIR_GEN;
-        ctx->data.ec.ec_params = prime256v1_param;
-        ctx->data.ec.ec_params_size = sizeof(prime256v1_param);
-        break;
-    case CKK_EC_EDWARDS:
-        ctx->mechanism.mechanism = CKM_EC_EDWARDS_KEY_PAIR_GEN;
-        break;
-    default:
-        P11PROV_raise(provctx, CKR_ARGUMENTS_BAD, "Invalid type %lu", type);
-        OPENSSL_free(ctx);
-        return NULL;
-    }
-
-    ret = p11prov_common_gen_set_params(ctx, params);
-    if (ret != RET_OSSL_OK) {
-        p11prov_common_gen_cleanup(ctx);
-        ctx = NULL;
-    }
-    return ctx;
-}
-
 static int p11prov_common_gen_set_params(void *genctx,
                                          const OSSL_PARAM params[])
 {
@@ -618,9 +559,43 @@ static int p11prov_common_match(const void *keydata1, const void *keydata2,
 static void *p11prov_rsa_gen_init(void *provctx, int selection,
                                   const OSSL_PARAM params[])
 {
+    struct key_generator *ctx = NULL;
+    /* big endian 65537 */
+    unsigned char def_e[] = { 0x01, 0x00, 0x01 };
+    int ret;
+
     P11PROV_debug("rsa gen_init %p", provctx);
 
-    return p11prov_common_gen_init(provctx, selection, CKK_RSA, params);
+    ret = p11prov_ctx_status(provctx);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
+
+    if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) == 0) {
+        P11PROV_raise(provctx, CKR_ARGUMENTS_BAD, "Unsupported selection");
+        return NULL;
+    }
+
+    ctx = OPENSSL_zalloc(sizeof(struct key_generator));
+    if (ctx == NULL) {
+        P11PROV_raise(provctx, CKR_HOST_MEMORY, "Failed to get key_generator");
+        return NULL;
+    }
+    ctx->provctx = (P11PROV_CTX *)provctx;
+    ctx->type = CKK_RSA;
+
+    /* set defaults */
+    ctx->mechanism.mechanism = CKM_RSA_PKCS_KEY_PAIR_GEN;
+    ctx->data.rsa.modulus_bits = 2048;
+    ctx->data.rsa.exponent_size = sizeof(def_e);
+    memcpy(ctx->data.rsa.exponent, def_e, ctx->data.rsa.exponent_size);
+
+    ret = p11prov_common_gen_set_params(ctx, params);
+    if (ret != RET_OSSL_OK) {
+        p11prov_common_gen_cleanup(ctx);
+        ctx = NULL;
+    }
+    return ctx;
 }
 
 static int p11prov_rsa_gen_internal(void *genctx, OSSL_CALLBACK *cb_fn,
@@ -1265,9 +1240,48 @@ static void *p11prov_ec_new(void *provctx)
 static void *p11prov_ec_gen_init(void *provctx, int selection,
                                  const OSSL_PARAM params[])
 {
+    struct key_generator *ctx = NULL;
+    int ret;
+
     P11PROV_debug("ec gen_init %p", provctx);
 
-    return p11prov_common_gen_init(provctx, selection, CKK_EC, params);
+    ret = p11prov_ctx_status(provctx);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
+
+    /* we need to allow to initialize a generation of just domain parameters,
+     * as this is used by OpenSSL for ECDH, to set the expected paramters first
+     * and then import the received public peer key */
+    if ((selection & OSSL_KEYMGMT_SELECT_ALL) == 0) {
+        P11PROV_raise(provctx, CKR_ARGUMENTS_BAD, "Unsupported selection");
+        return NULL;
+    }
+
+    ctx = OPENSSL_zalloc(sizeof(struct key_generator));
+    if (ctx == NULL) {
+        P11PROV_raise(provctx, CKR_HOST_MEMORY, "Failed to get key_generator");
+        return NULL;
+    }
+    ctx->provctx = (P11PROV_CTX *)provctx;
+    ctx->type = CKK_EC;
+
+    if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0) {
+        ctx->mechanism.mechanism = CKM_EC_KEY_PAIR_GEN;
+    } else {
+        ctx->mechanism.mechanism = CK_UNAVAILABLE_INFORMATION;
+    }
+
+    /* set defaults */
+    ctx->data.ec.ec_params = prime256v1_param;
+    ctx->data.ec.ec_params_size = sizeof(prime256v1_param);
+
+    ret = p11prov_common_gen_set_params(ctx, params);
+    if (ret != RET_OSSL_OK) {
+        p11prov_common_gen_cleanup(ctx);
+        ctx = NULL;
+    }
+    return ctx;
 }
 
 static void *p11prov_ec_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
@@ -1275,6 +1289,19 @@ static void *p11prov_ec_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
     struct key_generator *ctx = (struct key_generator *)genctx;
     void *key;
     CK_RV ret;
+
+    if (ctx->mechanism.mechanism == CK_UNAVAILABLE_INFORMATION) {
+        /* OpenSSL asked for a paramgen, basically it wants an
+         * empty key of a specific group that it will be filling
+         * up with public params later */
+        CK_ATTRIBUTE ec_params = {
+            .type = CKA_EC_PARAMS,
+            .pValue = (CK_VOID_PTR)ctx->data.ec.ec_params,
+            .ulValueLen = (CK_ULONG)ctx->data.ec.ec_params_size,
+        };
+
+        return mock_pub_ec_key(ctx->provctx, ctx->type, &ec_params);
+    }
 
     /* always leave space for CKA_ID and CKA_LABEL */
 #define EC_PUBKEY_TMPL_SIZE 5
@@ -1731,8 +1758,35 @@ static void *p11prov_ed25519_gen_init(void *provctx, int selection,
 
     P11PROV_debug("ed25519 gen_init %p", provctx);
 
-    ctx = p11prov_common_gen_init(provctx, selection, CKK_EC_EDWARDS, curve);
-    if (!ctx) {
+    ret = p11prov_ctx_status(provctx);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
+
+    /* we need to allow to initialize a generation of just domain parameters,
+     * as this is used by OpenSSL for ECDH, to set the expected paramters first
+     * and then import the received public peer key */
+    if ((selection & OSSL_KEYMGMT_SELECT_ALL) == 0) {
+        P11PROV_raise(provctx, CKR_ARGUMENTS_BAD, "Unsupported selection");
+        return NULL;
+    }
+
+    ctx = OPENSSL_zalloc(sizeof(struct key_generator));
+    if (ctx == NULL) {
+        P11PROV_raise(provctx, CKR_HOST_MEMORY, "Failed to get key_generator");
+        return NULL;
+    }
+    ctx->provctx = (P11PROV_CTX *)provctx;
+    ctx->type = CKK_EC_EDWARDS;
+
+    if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0) {
+        ctx->mechanism.mechanism = CKM_EC_EDWARDS_KEY_PAIR_GEN;
+    }
+
+    /* set defaults */
+    ret = p11prov_common_gen_set_params(ctx, curve);
+    if (ret != RET_OSSL_OK) {
+        p11prov_common_gen_cleanup(ctx);
         return NULL;
     }
 
@@ -1756,8 +1810,35 @@ static void *p11prov_ed448_gen_init(void *provctx, int selection,
 
     P11PROV_debug("ed448 gen_init %p", provctx);
 
-    ctx = p11prov_common_gen_init(provctx, selection, CKK_EC_EDWARDS, curve);
-    if (!ctx) {
+    ret = p11prov_ctx_status(provctx);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
+
+    /* we need to allow to initialize a generation of just domain parameters,
+     * as this is used by OpenSSL for ECDH, to set the expected paramters first
+     * and then import the received public peer key */
+    if ((selection & OSSL_KEYMGMT_SELECT_ALL) == 0) {
+        P11PROV_raise(provctx, CKR_ARGUMENTS_BAD, "Unsupported selection");
+        return NULL;
+    }
+
+    ctx = OPENSSL_zalloc(sizeof(struct key_generator));
+    if (ctx == NULL) {
+        P11PROV_raise(provctx, CKR_HOST_MEMORY, "Failed to get key_generator");
+        return NULL;
+    }
+    ctx->provctx = (P11PROV_CTX *)provctx;
+    ctx->type = CKK_EC_EDWARDS;
+
+    if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0) {
+        ctx->mechanism.mechanism = CKM_EC_EDWARDS_KEY_PAIR_GEN;
+    }
+
+    /* set defaults */
+    ret = p11prov_common_gen_set_params(ctx, curve);
+    if (ret != RET_OSSL_OK) {
+        p11prov_common_gen_cleanup(ctx);
         return NULL;
     }
 

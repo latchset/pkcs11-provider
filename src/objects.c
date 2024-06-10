@@ -3570,6 +3570,7 @@ CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
     CK_ATTRIBUTE new_pub;
     ASN1_OCTET_STRING oct;
     unsigned char *der = NULL;
+    int add_attrs = 0;
     int len;
 
     if (key->handle != CK_INVALID_HANDLE) {
@@ -3582,20 +3583,60 @@ CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
         return CKR_KEY_INDIGESTIBLE;
     }
 
+    switch (key->data.key.type) {
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+        /* check that this is a public key */
+        if (key->class != CKO_PUBLIC_KEY) {
+            P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
+                          "Invalid Key type, not a public key");
+            return CKR_KEY_INDIGESTIBLE;
+        }
+        break;
+    default:
+        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
+                      "Invalid Key type, not an EC/ED key");
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
     pub = p11prov_obj_get_attr(key, CKA_P11PROV_PUB_KEY);
     if (!pub) {
-        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE, "No public key found");
-        return CKR_KEY_INDIGESTIBLE;
+        add_attrs += 1;
     }
 
     ecpoint = p11prov_obj_get_attr(key, CKA_EC_POINT);
     if (!ecpoint) {
-        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE, "No public key found");
-        return CKR_KEY_INDIGESTIBLE;
+        add_attrs += 1;
     }
 
-    OPENSSL_free(pub->pValue);
+    if (add_attrs > 0) {
+        void *ptr = OPENSSL_realloc(
+            key->attrs, sizeof(CK_ATTRIBUTE) * (key->numattrs + add_attrs));
+        if (!ptr) {
+            P11PROV_raise(key->ctx, CKR_HOST_MEMORY,
+                          "Failed to store key public key");
+            return CKR_HOST_MEMORY;
+        }
+    }
+
+    if (!pub) {
+        pub = &key->attrs[key->numattrs];
+        key->numattrs += 1;
+    } else {
+        OPENSSL_free(pub->pValue);
+    }
+    /* always memset as realloc does not guarantee zeroed data */
     memset(pub, 0, sizeof(CK_ATTRIBUTE));
+
+    if (!ecpoint) {
+        ecpoint = &key->attrs[key->numattrs];
+        key->numattrs += 1;
+    } else {
+        OPENSSL_free(ecpoint->pValue);
+    }
+    /* always memset as realloc does not guarantee zeroed data */
+    memset(ecpoint, 0, sizeof(CK_ATTRIBUTE));
+
     new_pub.type = CKA_P11PROV_PUB_KEY;
     new_pub.pValue = (CK_VOID_PTR)pubkey;
     new_pub.ulValueLen = (CK_ULONG)pubkey_len;
@@ -3614,8 +3655,7 @@ CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
                       "Failure to encode EC point to DER");
         return CKR_KEY_INDIGESTIBLE;
     }
-
-    OPENSSL_free(ecpoint->pValue);
+    ecpoint->type = CKA_EC_POINT;
     ecpoint->pValue = der;
     ecpoint->ulValueLen = len;
 
@@ -3728,4 +3768,53 @@ CK_RV p11prov_merge_pub_attrs_into_priv(P11PROV_OBJ *pub_key,
 err:
     P11PROV_raise(priv_key->ctx, ret, "Failed attr copy");
     return CKR_GENERAL_ERROR;
+}
+
+/* creates an empty (no public point) Public EC Key, (OpenSSL paramgen
+ * function), that will later be filled in with a public EC key obtained
+ * by a peer (generally for ECDH, but we don't have that context in the
+ * code) */
+P11PROV_OBJ *mock_pub_ec_key(P11PROV_CTX *ctx, CK_ATTRIBUTE_TYPE type,
+                             CK_ATTRIBUTE *ec_params)
+{
+    P11PROV_OBJ *key;
+    CK_RV ret;
+
+    key = p11prov_obj_new(ctx, CK_UNAVAILABLE_INFORMATION, CK_INVALID_HANDLE,
+                          CK_UNAVAILABLE_INFORMATION);
+    if (!key) {
+        return NULL;
+    }
+
+    key->class = CKO_PUBLIC_KEY;
+    key->data.key.type = type;
+
+    /* at this stage we have EC_PARAMS and the preprocessing
+     * function will add CKA_P11PROV_CURVE_NID and
+     * CKA_P11PROV_CURVE_NAME */
+    key->attrs = OPENSSL_zalloc(KEY_EC_PARAMS * sizeof(CK_ATTRIBUTE));
+    if (key->attrs == NULL) {
+        P11PROV_raise(key->ctx, CKR_HOST_MEMORY,
+                      "Failed to generate mock ec key");
+        p11prov_obj_free(key);
+        return NULL;
+    }
+
+    ret = p11prov_copy_attr(&key->attrs[0], ec_params);
+    if (ret != CKR_OK) {
+        P11PROV_raise(key->ctx, ret, "Failed to copy mock key attribute");
+        p11prov_obj_free(key);
+        return NULL;
+    }
+    key->numattrs++;
+
+    /* verify params are ok */
+    ret = pre_process_ec_key_data(key);
+    if (ret != CKR_OK) {
+        P11PROV_raise(key->ctx, ret, "Failed to process mock key data");
+        p11prov_obj_free(key);
+        return NULL;
+    }
+
+    return key;
 }
