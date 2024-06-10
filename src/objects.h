@@ -56,6 +56,8 @@ int p11prov_obj_get_ec_public_x_y(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub_x,
                                   CK_ATTRIBUTE **pub_y);
 int p11prov_obj_get_ed_pub_key(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub);
 CK_ATTRIBUTE *p11prov_obj_get_ec_public_raw(P11PROV_OBJ *key);
+P11PROV_OBJ *mock_pub_ec_key(P11PROV_CTX *ctx, CK_ATTRIBUTE_TYPE type,
+                             CK_ATTRIBUTE *ec_params);
 
 #define OBJ_CMP_KEY_TYPE 0x00
 #define OBJ_CMP_KEY_PUBLIC 0x01
