@@ -622,7 +622,9 @@ static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     FA_SET_BUF_ALLOC(attrs, num, CKA_PUBLIC_EXPONENT, true);
     FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
     FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
-    FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
+    if (key->class == CKO_PRIVATE_KEY) {
+        FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
+    }
     ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
     if (ret != CKR_OK) {
         /* free any allocated memory */
@@ -802,10 +804,10 @@ static CK_RV fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
          * find_associated_obj later
          */
         FA_SET_BUF_ALLOC(attrs, num, CKA_EC_POINT, false);
+        FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
     }
     FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
     FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
-    FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
     ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
     if (ret != CKR_OK) {
         /* free any allocated memory */
