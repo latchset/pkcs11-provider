@@ -199,7 +199,24 @@ Default: none
 Example:
 
 ```pkcs11-module-quirks = no-deinit no-operation-state```
-(Disables deinitialization)
+(Disables deinitialization, blocks context duplication)
+
+## pkcs11-module-block-operations
+Allows to block specific "provider operations" even if the token actually
+supports the necessary mechanisms. This is useful to work around cases
+where one wants to enforce use of the token for all operations by setting
+?provider=pkcs11 in the default properties but wants an exception for a
+specific type of operation like digests.
+NOTE: some operations may depend on others or may be fundamental to the
+correct working of the provider, so not all configurations of this
+parameter will work. Use carefully.
+
+Default: none
+
+Example:
+```pkcs11-module-block-operations = digest```
+(Disables digest mechanisms, which will be instead routed to the OpenSSL
+default provider in most configurtions)
 
 
 ENVIRONMENT VARIABLES
