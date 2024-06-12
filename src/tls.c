@@ -107,14 +107,14 @@ struct {
     },
     {
         "secp256r1",
-        TLS_PARAMS_ENTRY("secp256r1", "secp256r1", "EC", p256_group_id,
+        TLS_PARAMS_ENTRY("secp256r1", "prime256v1", "EC", p256_group_id,
                          p256_secbits, p256_mintls, p256_maxtls, p256_mindtls,
                          p256_maxdtls),
     },
     /* alias */
     {
         "P-256",
-        TLS_PARAMS_ENTRY("P-256", "secp256r1", "EC", p256_group_id,
+        TLS_PARAMS_ENTRY("P-256", "prime256v1", "EC", p256_group_id,
                          p256_secbits, p256_mintls, p256_maxtls, p256_mindtls,
                          p256_maxdtls),
     },
