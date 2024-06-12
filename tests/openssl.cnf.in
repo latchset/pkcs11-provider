@@ -27,6 +27,7 @@ pkcs11-module-token-pin = file:@PINFILE@
 #pkcs11-module-encode-provider-uri-to-pem
 #pkcs11-module-allow-export
 #pkcs11-module-load-behavior
+#pkcs11-module-block-operations
 ##QUIRKS
 activate = 1
 
