@@ -12,5 +12,32 @@ OPENSSL_CONF=${OPENSSL_CONF}.early_load
 
 title PARA "Test Digests support"
 $CHECKER "${TESTBLDDIR}/tdigests"
+echo "PASSED"
+
+# Ensure failure if the digest operations are blocked
+sed "s/#pkcs11-module-block-operations/pkcs11-module-block-operations = digest/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.no_digests"
+OPENSSL_CONF=${OPENSSL_CONF}.no_digests
+
+title PARA "Test Digests Blocked"
+FAIL=0
+OUT=$(eval "${TESTBLDDIR}/tdigests" 2>&1) || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo "$OUT" | grep "No digest available" || FAIL=2
+fi
+if [ $FAIL -eq 0 ]; then
+    echo "Digests test should have failed"
+    exit 1
+fi
+if [ $FAIL -eq 1 ]; then
+    echo "Digest operations failed as expected"
+fi
+if [ $FAIL -eq 2 ]; then
+    echo "Digest operations failed but not as expected"
+    echo "---"
+    echo "${OUT}"
+    echo "---"
+    exit 1
+fi
 
 exit 0
