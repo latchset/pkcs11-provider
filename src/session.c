@@ -386,11 +386,17 @@ static void session_free(P11PROV_SESSION *session)
 
 CK_SESSION_HANDLE p11prov_session_handle(P11PROV_SESSION *session)
 {
+    if (!session) {
+        return CK_INVALID_HANDLE;
+    }
     return session->session;
 }
 
 CK_SLOT_ID p11prov_session_slotid(P11PROV_SESSION *session)
 {
+    if (!session) {
+        return CK_UNAVAILABLE_INFORMATION;
+    }
     return session->slotid;
 }
 
