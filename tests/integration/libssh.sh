@@ -11,13 +11,13 @@ PKCS11_DEBUG_FILE="${WORKDIR}/pkcs11-libssh-test.log"
 
 install_dependencies()
 {
-    title PARA "Install dependencies" 
-    
+    title PARA "Install dependencies"
+
     dnf install -y --skip-broken cmake libcmocka libcmocka-devel softhsm \
       nss-tools gnutls-utils p11-kit p11-kit-devel p11-kit-server opensc \
       softhsm-devel socket_wrapper nss_wrapper uid_wrapper pam_wrapper \
       priv_wrapper openssh-server zlib-devel git meson \
-      openssl-devel gcc g++ libcmocka-devel 
+      openssl-devel gcc g++ libcmocka-devel
 }
 
 pkcs11_provider_setup()
@@ -76,7 +76,7 @@ libssh_test()
      | tee testout.log 2>&1
     grep -q "100% tests passed, 0 tests failed out of 3" testout.log
     test -s "$PKCS11_DEBUG_FILE"
-   
+
     echo "Test passed"
     popd
 }
