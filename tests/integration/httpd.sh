@@ -14,7 +14,7 @@ MOD_SSL_CONF="/etc/httpd/conf.d/ssl.conf"
 
 install_dependencies()
 {
-    title PARA "Install dependencies" 
+    title PARA "Install dependencies"
 
     FEDORA_VERSION=$(rpm -q --qf "%{V}" fedora-release-common)
     if [ "$FEDORA_VERSION" -lt 39 ]; then
@@ -31,9 +31,9 @@ install_dependencies()
 }
 
 softhsm_token_setup()
-{    
+{
     title PARA "Softhsm token setup"
-    
+
     pushd "$WORKDIR"
     mkdir ca server
     openssl req -x509 -sha256 -newkey rsa:2048 -noenc -batch \
@@ -68,7 +68,7 @@ softhsm_token_setup()
     export PKCS11_PROVIDER_MODULE="/usr/lib64/pkcs11/libsofthsm2.so"
 
     title SECTION "List token content"
-    p11tool --login --set-pin "$PIN" --list-all "$TOKENURL" 
+    p11tool --login --set-pin "$PIN" --list-all "$TOKENURL"
     title ENDSECTION
 }
 
@@ -135,7 +135,7 @@ httpd_setup()
            -e "s/^SSLCertificateKeyFile.*\$/SSLCertificateKeyFile \"$KEYURL\"/" \
            $MOD_SSL_CONF
     # echo 'ServerName localhost:80' >>/etc/httpd/conf/httpd.conf
-           
+
     title SECTION "$MOD_SSL_CONF"
     cat $MOD_SSL_CONF
     title ENDSECTION
@@ -151,7 +151,7 @@ httpd_test()
     sleep 3
     if ! pgrep httpd >/dev/null; then
         echo "ERROR: Unable to start httpd!"
-        exit 1 
+        exit 1
     fi
 
     title PARA "Test 2: Curl connects to httpd over TLS"
@@ -171,7 +171,7 @@ cleanup()
         cat "$L"
         title ENDSECTION
     done
-    ssl_log="/var/log/httpd/ssl_error_log" 
+    ssl_log="/var/log/httpd/ssl_error_log"
     if [ -e "$ssl_log" ]; then
         title SECTION "$ssl_log"
         cat "$ssl_log"
