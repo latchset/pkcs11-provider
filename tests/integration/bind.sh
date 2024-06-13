@@ -14,14 +14,7 @@ install_dependencies()
 {
     title PARA "Install dependencies"
 
-    FEDORA_VERSION=$(rpm -q --qf "%{V}" fedora-release-common)
-    if [ "$FEDORA_VERSION" -lt 39 ]; then
-        echo "ERROR: This test requires at least Fedora 39!"
-        exit 1
-    elif [ "$FEDORA_VERSION" -eq 39 ]; then
-        releasever="--releasever=40"
-    fi
-    dnf install -y "$releasever" --skip-broken \
+    dnf install -y --skip-broken \
         meson \
         p11-kit httpd mod_ssl openssl-devel gnutls-utils nss-tools \
         p11-kit-devel p11-kit-server opensc softhsm-devel procps-ng \
