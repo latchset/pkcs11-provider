@@ -29,7 +29,9 @@ pkcs11-module-init-args = <initialization string here>
 
 Once the section is properly constructed add the following statement to the
 provider section. If a provider section does not exist make sure to create one
-with all the needed providers (at least the default provider will be needed):
+with all the needed providers (at least the default provider will be needed - 
+remember to activate it, otherwise the _openssl_ command will not behave 
+correctly):
 
 ```
 [openssl_init]
@@ -65,8 +67,10 @@ $ openssl pkey -in pkcs11:id=%01 -pubin -pubout -text
 ### Specifying keys
 
 When the pkcs11-provider is in use keys are specified using pkcs11 URIs as
-defined in RFC7512. In general keys are either identified by a binary ID, or by
-a label (called "object" in pkcs11 URIs).
+defined in RFC7512. In general keys are either identified by a percent-encoded
+binary ID, or by a label (called "object" in pkcs11 URIs). The command 
+`pkcs11-tool --module /path/to/pkcs11-driver.so --list-objects` can be used to
+find identifiers for your keys.
 
 Example:
 ```
