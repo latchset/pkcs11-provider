@@ -33,6 +33,7 @@ endif
 test_setup = {
   'setup_softokn': {'suite': 'softokn', 'exe': find_program('setup-softokn.sh')},
   'setup_softhsm': {'suite': 'softhsm', 'exe': find_program('setup-softhsm.sh')},
+  'setup_kryoptic': {'suite': 'kryoptic', 'exe': find_program('setup-kryoptic.sh')},
 }
 
 foreach name, targs : test_setup
