@@ -61,7 +61,7 @@ libssh_setup()
       -DWITH_PKCS11_URI=ON \
       -DWITH_PKCS11_PROVIDER=ON \
       -DPKCS11_PROVIDER="${PKCS11_MODULE}" ..
-    make
+    make -j "$(nproc)"
     popd
 }
 
