@@ -47,7 +47,7 @@ pkcs11_provider_setup()
 
 libssh_setup()
 {
-    title PRAM "Clone, setup and build libssh"
+    title PARA "Clone, setup and build libssh"
 
     git clone https://gitlab.com/libssh/libssh-mirror.git \
       "${WORKDIR}"/libssh-mirror
@@ -67,7 +67,7 @@ libssh_setup()
 
 libssh_test()
 {
-    title PARAM "Run libssh pkcs11 tests"
+    title PARA "Run libssh pkcs11 tests"
 
     pushd "${WORKDIR}"/libssh-mirror/build
     PKCS11_PROVIDER_DEBUG=file:$PKCS11_DEBUG_FILE ctest \
