@@ -1,0 +1,101 @@
+---
+name: Kryoptic
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    name: CI with kryoptic token
+    runs-on: ubuntu-22.04
+    container: fedora:latest
+    steps:
+      - name: Get Date for DNF cache entry
+        id: get-date
+        run: |
+          echo "date=$(/bin/date -u "+%Y%V")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: DNF cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/dnf
+          key: ${{ runner.os }}-dnf-${{ steps.get-date.outputs.date }}
+
+      - name: Install Dependencies
+        run: |
+            dnf -y install clang git meson cargo expect \
+              pkgconf-pkg-config openssl-devel openssl opensc \
+              p11-kit-devel p11-kit-server gnutls-utils \
+              gcc g++ perl-interpreter zlib-devel sqlite-devel \
+              'perl(Module::Load::Conditional)' 'perl(File::Temp)' \
+              'perl(IPC::Cmd)' 'perl(FindBin)' 'perl(lib)' \
+              'perl(File::Compare)' 'perl(File::Copy)'
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Get Kryoptic
+        id: kryoptic_setup
+        run: |
+          git clone https://github.com/latchset/kryoptic.git
+          cd kryoptic
+          git submodule update --init
+          echo "KRYOPTIC=${PWD}" >> "$GITHUB_OUTPUT"
+
+      - name: OpenSSL build cache
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: |
+            kryoptic/openssl/
+          key: ${{ runner.os }}-ossl-${{ hashFiles('kryoptic/.git/modules/openssl/HEAD') }}
+
+      - name: Generate lock file
+        run: |
+          cd kryoptic
+          cargo generate-lockfile
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            kryoptic/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('kryoptic/**/Cargo.lock') }}
+
+      - name: Build Kryoptic
+        run: |
+          cd kryoptic
+          cargo build
+          cargo test | tee testout.log 2>&1
+          grep -q "0 failed" testout.log
+
+      - name: Setup
+        run:
+          meson setup builddir
+      - name: Build
+        run:
+          meson compile -C builddir
+      - name: Test
+        env:
+          KRYOPTIC: ${{ steps.kryoptic_setup.outputs.KRYOPTIC }}
+        run:
+          meson test --num-processes 1 -C builddir
+      - uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: Test logs kryoptic
+          path: |
+            builddir/meson-logs/
+            builddir/tests/tmp.kryoptic/p11prov-debug.log
+            builddir/tests/tmp.kryoptic/testvars
+            builddir/tests/tmp.kryoptic/openssl.cnf
+            builddir/tests/*.log
