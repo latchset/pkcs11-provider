@@ -1461,6 +1461,10 @@ static const char *p11prov_ec_query_operation_name(int operation_id)
     return NULL;
 }
 
+#define CURVE_521_BITS 521
+#define MAX_CURVE_BITS CURVE_521_BITS
+#define MAX_CURVE_SIZE ((MAX_CURVE_BITS + 7) / 8)
+
 static int p11prov_ec_secbits(int bits)
 {
     /* common values from various NIST documents */
@@ -1517,6 +1521,10 @@ static int p11prov_ec_get_params(void *keydata, OSSL_PARAM params[])
     if (p) {
         /* add room for ECDSA Signature DER overhead */
         CK_ULONG size = p11prov_obj_get_key_size(key);
+        if (size > MAX_CURVE_SIZE) {
+            /* coverity started looking for silly integer overflows */
+            return RET_OSSL_ERR;
+        }
         ret = OSSL_PARAM_set_int(p, 3 + (size + 4) * 2);
         if (ret != RET_OSSL_OK) {
             return ret;
