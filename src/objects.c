@@ -2175,6 +2175,65 @@ done:
     return ret;
 }
 
+CK_ATTRIBUTE *p11prov_obj_get_ec_public_raw(P11PROV_OBJ *key)
+{
+    CK_ATTRIBUTE *pub_key;
+
+    if (!key) {
+        return RET_OSSL_ERR;
+    }
+
+    if (key->data.key.type != CKK_EC) {
+        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR, "Unsupported key type");
+        return RET_OSSL_ERR;
+    }
+
+    if (key->class != CKO_PRIVATE_KEY && key->class != CKO_PUBLIC_KEY) {
+        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR, "Invalid Object Class");
+        return RET_OSSL_ERR;
+    }
+
+    pub_key = p11prov_obj_get_attr(key, CKA_P11PROV_PUB_KEY);
+    if (!pub_key) {
+        CK_ATTRIBUTE *ec_point;
+
+        ec_point = p11prov_obj_get_attr(key, CKA_EC_POINT);
+        if (ec_point) {
+            const unsigned char *val;
+            ASN1_OCTET_STRING *octet;
+            void *tmp_ptr;
+
+            val = ec_point->pValue;
+            octet = d2i_ASN1_OCTET_STRING(NULL, (const unsigned char **)&val,
+                                          ec_point->ulValueLen);
+            if (!octet) {
+                P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
+                              "Failed to decode CKA_EC_POINT");
+                return NULL;
+            }
+            tmp_ptr = OPENSSL_realloc(key->attrs, sizeof(CK_ATTRIBUTE)
+                                                      * (key->numattrs + 1));
+            if (!tmp_ptr) {
+                P11PROV_raise(key->ctx, CKR_HOST_MEMORY,
+                              "Failed to allocate memory key attributes");
+                return NULL;
+            }
+            key->attrs = tmp_ptr;
+
+            CKATTR_ASSIGN(key->attrs[key->numattrs], CKA_P11PROV_PUB_KEY,
+                          octet->data, octet->length);
+            key->numattrs++;
+
+            pub_key = &key->attrs[key->numattrs - 1];
+        }
+    }
+
+    if (!pub_key) {
+        P11PROV_debug("ECC Public Point not found");
+    }
+    return pub_key;
+}
+
 static int cmp_attr(P11PROV_OBJ *key1, P11PROV_OBJ *key2,
                     CK_ATTRIBUTE_TYPE attr)
 {
