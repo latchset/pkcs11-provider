@@ -247,7 +247,7 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
         }
     }
 
-    ec_point = p11prov_obj_get_attr(ecdhctx->peer_key, CKA_EC_POINT);
+    ec_point = p11prov_obj_get_ec_public_raw(ecdhctx->peer_key);
     if (ec_point == NULL) {
         return RET_OSSL_ERR;
     }

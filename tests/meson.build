@@ -120,7 +120,7 @@ tests = {
   'certs': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'ecc': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'edwards': {'suites': ['softhsm']},
-  'ecdh': {'suites': ['softokn']},
+  'ecdh': {'suites': ['softokn', 'kryoptic']},
   'democa': {'suites': ['softokn', 'softhsm', 'kryoptic'], 'is_parallel': false},
   'digest': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'fork': {'suites': ['softokn', 'softhsm', 'kryoptic']},
