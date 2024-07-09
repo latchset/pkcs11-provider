@@ -87,25 +87,16 @@ if [ -d "${TOKDIR}" ]; then
 fi
 mkdir "${TOKDIR}"
 
-# Kryoptic configuration
-export KRYOPTIC_CONF="$TMPPDIR/tokens/kryoptic.sql"
-
 title LINE "Creating Kyroptic database"
 
-export GNUTLS_SO_PIN=${PINVALUE}
-p11tool --provider="${P11LIB}" --initialize \
-    --label="Test" \
-    "pkcs11:manufacturer=Kryoptic%20Project" 2>&1
-unset GNUTLS_SO_PIN
-
-title LINE "Setting User PIN"
-# For some reason currently p11tool requires adding extraneous %00 termination
-# marks at the end of the manufacturer and token names when using the
-# --initialize-pin option
-export GNUTLS_PIN=${PINVALUE}
-p11tool --provider="${P11LIB}" --initialize-pin \
-    "pkcs11:manufacturer=Kryoptic%20Project%00;token=Test%00" 2>&1
-
+# Kryoptic configuration
+export KRYOPTIC_CONF="$TMPPDIR/tokens/kryoptic.sql"
+# init token
+pkcs11-tool --module "${P11LIB}" --init-token \
+    --label "Pkcs11 Provider Tests" --so-pin "${PINVALUE}" 2>&1
+# set user pin
+pkcs11-tool --module "${P11LIB}" --so-pin "${PINVALUE}" \
+    --login --login-type so --init-pin --pin "${PINVALUE}" 2>&1
 
 P11DEFARGS="--module=${P11LIB} --login --pin=${PINVALUE}"
 
@@ -119,6 +110,7 @@ email = "testcert@example.org"
 signing_key
 encryption_key
 HEREDOC
+export GNUTLS_PIN=$PINVALUE
 SERIAL=1
 
 
