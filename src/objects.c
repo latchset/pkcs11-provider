@@ -234,7 +234,7 @@ static void obj_rm_from_pool(P11PROV_OBJ *obj)
     }
 
     /* LOCKED SECTION ------------- */
-    if (obj->poolid > pool->size || pool->objects[obj->poolid] != obj) {
+    if (obj->poolid >= pool->size || pool->objects[obj->poolid] != obj) {
         ret = CKR_GENERAL_ERROR;
         P11PROV_raise(pool->provctx, ret, "Objects pool in inconsistent state");
         goto done;
