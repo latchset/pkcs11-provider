@@ -392,7 +392,6 @@ sed -e "s|@libtoollibs@|${LIBSPATH}|g" \
     -e "s|@testsdir@|${TMPPDIR}|g" \
     -e "s|@SHARED_EXT@|${SHARED_EXT}|g" \
     -e "s|@PINFILE@|${PINFILE}|g" \
-    -e "s|##QUIRKS|pkcs11-module-quirks = no-deinit|g" \
     -e "/pkcs11-module-init-args/d" \
     "${TESTSSRCDIR}/openssl.cnf.in" > "${OPENSSL_CONF}"
 
