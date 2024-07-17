@@ -109,6 +109,7 @@ expiration_days = 365
 email = "testcert@example.org"
 signing_key
 encryption_key
+cert_signing_key
 HEREDOC
 export GNUTLS_PIN=$PINVALUE
 SERIAL=1
@@ -135,6 +136,9 @@ pkcs11-tool ${P11DEFARGS} --write-object "${CACRT}.crt" --type=cert \
 
 # the organization identification is not in the CA
 echo 'organization = "PKCS11 Provider"' >> "${TMPPDIR}/cert.cfg"
+# the cert_signing_key and "ca" should be only on the CA
+sed -i -e "/cert_signing_key/d" "${TMPPDIR}/cert.cfg"
+
 
 ca_sign() {
     CRT=$1
