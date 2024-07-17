@@ -9,6 +9,11 @@ if [ -z "$XDG_RUNTIME_DIR" ]; then
     export XDG_RUNTIME_DIR=$PWD
 fi
 
+if [ "$P11KITCLIENTPATH" = "" ]; then
+    echo "Missing P11KITCLIENTPATH env variable"
+    exit 0
+fi
+
 title PARA "Start the p11-kit server and check if it works"
 # shellcheck disable=SC2046 # we want to split these for eval
 eval $(p11-kit server --provider "$P11LIB" "pkcs11:")

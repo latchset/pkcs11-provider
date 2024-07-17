@@ -395,7 +395,6 @@ sed -e "s|@libtoollibs@|${LIBSPATH}|g" \
 title LINE "Export test variables to ${TMPPDIR}/testvars"
 cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
 export P11LIB=${P11LIB}
-export P11KITCLIENTPATH=${P11KITCLIENTPATH}
 export PKCS11_PROVIDER_MODULE=${P11LIB}
 export PKCS11_PROVIDER_DEBUG="file:${TMPPDIR}/p11prov-debug.log"
 export OPENSSL_CONF="${OPENSSL_CONF}"
