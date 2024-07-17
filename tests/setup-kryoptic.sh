@@ -118,7 +118,8 @@ SERIAL=1
 title LINE "Creating new Self Sign CA"
 KEYID='0000'
 URIKEYID="%00%00"
-CACRT="${TMPPDIR}/CAcert"
+CACRT="${TMPPDIR}/CAcert.crt"
+CACRT_PEM="${TMPPDIR}/CAcert.pem"
 CACRTN="caCert"
 
 
@@ -126,13 +127,16 @@ CACRTN="caCert"
 # shellcheck disable=SC2086
 pkcs11-tool ${P11DEFARGS} --keypairgen --key-type="RSA:2048" \
 	--label="${CACRTN}" --id="${KEYID}" 2>&1
-"${certtool}" --generate-self-signed --outfile="${CACRT}.crt" \
+"${certtool}" --generate-self-signed --outfile="${CACRT}" \
 	--template="${TMPPDIR}/cert.cfg" --provider="$P11LIB" \
         --load-privkey "pkcs11:object=$CACRTN;type=private" \
         --load-pubkey "pkcs11:object=$CACRTN;type=public" --outder 2>&1
 # shellcheck disable=SC2086
-pkcs11-tool ${P11DEFARGS} --write-object "${CACRT}.crt" --type=cert \
+pkcs11-tool ${P11DEFARGS} --write-object "${CACRT}" --type=cert \
         --id=$KEYID --label="$CACRTN" 2>&1
+
+# convert the DER cert to PEM
+openssl x509 -inform DER -in "$CACRT" -outform PEM > "$CACRT_PEM"
 
 # the organization identification is not in the CA
 echo 'organization = "PKCS11 Provider"' >> "${TMPPDIR}/cert.cfg"
@@ -155,7 +159,7 @@ ca_sign() {
         --template="${TMPPDIR}/cert.cfg" --provider="$P11LIB" \
 	--load-privkey "pkcs11:object=$LABEL;type=private" \
         --load-pubkey "pkcs11:object=$LABEL;type=public" --outder \
-        --load-ca-certificate "${CACRT}.crt" --inder \
+        --load-ca-certificate "${CACRT}" --inder \
         --load-ca-privkey="pkcs11:object=$CACRTN;type=private" 2>&1
 # shellcheck disable=SC2086
     pkcs11-tool ${P11DEFARGS} --write-object "${CRT}.crt" --type=cert \
@@ -404,6 +408,8 @@ export OPENSSL_CONF="${OPENSSL_CONF}"
 export KRYOPTIC_CONF="${TMPPDIR}/tokens/kryoptic.sql"
 export TESTSSRCDIR="${TESTSSRCDIR}"
 export TESTBLDDIR="${TESTBLDDIR}"
+
+export CACRT="${CACRT_PEM}"
 
 export TOKDIR="${TOKDIR}"
 export TMPPDIR="${TMPPDIR}"

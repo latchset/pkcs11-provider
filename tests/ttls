@@ -53,7 +53,7 @@ run_test() {
 
     read -r < "${TMPPDIR}/s_server_ready"
 
-    expect -c "spawn $CHECKER openssl s_client -connect \"localhost:${PORT}\" $CLNT_ARGS;
+    expect -c "spawn $CHECKER openssl s_client -connect \"localhost:${PORT}\" -CAfile \"${CACRT}\" $CLNT_ARGS;
         set timeout 60;
         expect {
             \" TLS SUCCESSFUL \" {};

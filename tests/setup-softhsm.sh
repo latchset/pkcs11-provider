@@ -127,17 +127,21 @@ softhsm2-util --init-token --label "token_name" --free --pin $PINVALUE --so-pin 
 title LINE "Creating new Self Sign CA"
 KEYID='0000'
 URIKEYID="%00%00"
-CACRT="${TMPPDIR}/CAcert"
+CACRT="${TMPPDIR}/CAcert.crt"
+CACRT_PEM="${TMPPDIR}/CAcert.pem"
 CACRTN="caCert"
 ((SERIAL+=1))
 pkcs11-tool --keypairgen --key-type="RSA:2048" --login --pin=$PINVALUE \
 	--module="$P11LIB" --label="${CACRTN}" --id="$KEYID"
-"${certtool}" --generate-self-signed --outfile="${CACRT}.crt" \
+"${certtool}" --generate-self-signed --outfile="${CACRT}" \
 	--template="${TMPPDIR}/cert.cfg" --provider="$P11LIB" \
         --load-privkey "pkcs11:object=$CACRTN;type=private" \
         --load-pubkey "pkcs11:object=$CACRTN;type=public" --outder
-pkcs11-tool --write-object "${CACRT}.crt" --type=cert --id=$KEYID \
+pkcs11-tool --write-object "${CACRT}" --type=cert --id=$KEYID \
         --label="$CACRTN" --module="$P11LIB"
+
+# convert the DER cert to PEM
+openssl x509 -inform DER -in "$CACRT" -outform PEM > "$CACRT_PEM"
 
 # the organization identification is not in the CA
 echo 'organization = "PKCS11 Provider"' >> "${TMPPDIR}/cert.cfg"
@@ -159,7 +163,7 @@ ca_sign() {
         --template="${TMPPDIR}/cert.cfg" --provider="$P11LIB" \
 	--load-privkey "pkcs11:object=$LABEL;type=private" \
         --load-pubkey "pkcs11:object=$LABEL;type=public" --outder \
-        --load-ca-certificate "${CACRT}.crt" --inder \
+        --load-ca-certificate "${CACRT}" --inder \
         --load-ca-privkey="pkcs11:object=$CACRTN;type=private"
     pkcs11-tool --write-object "${CRT}.crt" --type=cert --id="$KEYID" \
         --label="$LABEL" --module="$P11LIB"
@@ -402,6 +406,8 @@ export TMPPDIR="${TMPPDIR}"
 export PINVALUE="${PINVALUE}"
 export SEEDFILE="${TMPPDIR}/noisefile.bin"
 export RAND64FILE="${TMPPDIR}/64krandom.bin"
+
+export CACRT="${CACRT_PEM}"
 
 export BASEURIWITHPINVALUE="${BASEURIWITHPINVALUE}"
 export BASEURIWITHPINSOURCE="${BASEURIWITHPINSOURCE}"

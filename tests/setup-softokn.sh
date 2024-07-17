@@ -42,7 +42,8 @@ certutil -N -d "${TOKDIR}" -f "${PINFILE}"
 
 title LINE "Creating new Self Sign CA"
 ((SERIAL+=1))
-certutil -S -s "CN=Issuer" -n selfCA -x -t "C,C,C" \
+CACRTN="selfCA"
+certutil -S -s "CN=Issuer" -n "${CACRTN}" -x -t "C,C,C" \
     -m "${SERIAL}" -1 -2 -5 --keyUsage certSigning,crlSigning \
     --nsCertType sslCA,smimeCA,objectSigningCA \
     -f "${PINFILE}" -d "${TOKDIR}" -z "${SEEDFILE}" >/dev/null 2>&1 <<CERTSCRIPT
@@ -50,6 +51,10 @@ y
 
 n
 CERTSCRIPT
+
+CACRT="${TMPPDIR}/CAcert.crt"
+title LINE "Read CA cert of of the token"
+certutil -L -a -n "${CACRTN}" -d "${TOKDIR}" -o "$CACRT"
 
 # RSA
 TSTCRT="${TMPPDIR}/testcert"
@@ -180,6 +185,8 @@ export TMPPDIR="${TMPPDIR}"
 export PINVALUE="${PINVALUE}"
 export SEEDFILE="${TMPPDIR}/noisefile.bin"
 export RAND64FILE="${TMPPDIR}/64krandom.bin"
+
+export CACRT="${CACRT}"
 
 export BASEURIWITHPINVALUE="${BASEURIWITHPINVALUE}"
 export BASEURIWITHPINSOURCE="${BASEURIWITHPINSOURCE}"
