@@ -25,38 +25,64 @@ trap 'wait_for_server_at_exit $SERVER_PID;' EXIT
 
 PORT=23456
 
-expect -c "spawn $CHECKER openssl s_server -accept \"${PORT}\" -naccept 1 -key \"${PRIURI}\" -cert \"${CRTURI}\";
-    set timeout 60;
-    expect {
-        \"ACCEPT\" {};
-        default {exit 1;};
-    }
-    set server_ready [open \"${TMPPDIR}/s_server_ready\" w+];
-    puts \$server_ready \"READY\n\";
-    close \$server_ready;
-    expect {
-        \"END SSL SESSION PARAMETERS\" {};
-        default {exit 1;};
-    }
-    send \" TLS SUCCESSFUL \n\"
-    send \"Q\n\"
-    expect {
-        eof {exit 0;};
-        default {exit 1;};
-    }" > "${TMPPDIR}/s_server_output" &
-SERVER_PID=$!
+run_test() {
+    KEY="$1"
+    CERT="$2"
+    SRV_ARGS=$3
+    CLNT_ARGS=$4
+    expect -c "spawn $CHECKER openssl s_server -accept \"${PORT}\" -naccept 1 -key \"${KEY}\" -cert \"${CERT}\" $SRV_ARGS;
+        set timeout 60;
+        expect {
+            \"ACCEPT\" {};
+            default {exit 1;};
+        }
+        set server_ready [open \"${TMPPDIR}/s_server_ready\" w+];
+        puts \$server_ready \"READY\n\";
+        close \$server_ready;
+        expect {
+            \"END SSL SESSION PARAMETERS\" {};
+            default {exit 1;};
+        }
+        send \" TLS SUCCESSFUL \n\"
+        send \"Q\n\"
+        expect {
+            eof {exit 0;};
+            default {exit 1;};
+        }" > "${TMPPDIR}/s_server_output" &
+    SERVER_PID=$!
 
-read -r < "${TMPPDIR}/s_server_ready"
+    read -r < "${TMPPDIR}/s_server_ready"
 
-expect -c "spawn $CHECKER openssl s_client -connect \"localhost:${PORT}\";
-    set timeout 60;
-    expect {
-        \" TLS SUCCESSFUL \" {};
-        default {exit 1;};
-    }
-    expect {
-        eof {exit 0;};
-        default {exit 1;};
-    }"
+    expect -c "spawn $CHECKER openssl s_client -connect \"localhost:${PORT}\" $CLNT_ARGS;
+        set timeout 60;
+        expect {
+            \" TLS SUCCESSFUL \" {};
+            default {exit 1;};
+        }
+        expect {
+            eof {exit 0;};
+            default {exit 1;};
+        }"
+
+    wait_for_server_at_exit $SERVER_PID
+}
+
+title PARA "Run sanity test with default values (RSA)"
+run_test "$PRIURI" "$CRTURI"
+
+title PARA "Run sanity test with default values (ECDSA)"
+run_test "$ECPRIURI" "$ECCRTURI"
+
+title PARA "Run test with TLS 1.2"
+run_test "$PRIURI" "$CRTURI" "" "-tls1_2"
+
+title PARA "Run test with explicit TLS 1.3"
+run_test "$PRIURI" "$CRTURI" "" "-tls1_3"
+
+title PARA "Run test with TLS 1.2 (ECDSA)"
+run_test "$ECPRIURI" "$ECCRTURI" "" "-tls1_2"
+
+title PARA "Run test with TLS 1.2 and ECDH"
+run_test "$ECPRIURI" "$ECCRTURI" "" "-tls1_2 -cipher ECDHE-ECDSA-AES128-GCM-SHA256 -groups secp256r1"
 
 exit 0;
