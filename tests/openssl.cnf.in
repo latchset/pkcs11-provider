@@ -28,6 +28,7 @@ pkcs11-module-token-pin = file:@PINFILE@
 #pkcs11-module-allow-export
 #pkcs11-module-load-behavior
 #pkcs11-module-block-operations
+#pkcs11-module-cache-keys
 ##QUIRKS
 activate = 1
 
