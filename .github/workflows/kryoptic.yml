@@ -89,7 +89,7 @@ jobs:
           KRYOPTIC: ${{ steps.kryoptic_setup.outputs.KRYOPTIC }}
         run:
           meson test --num-processes 1 -C builddir
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: Test logs kryoptic

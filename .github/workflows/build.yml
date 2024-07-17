@@ -65,7 +65,7 @@ jobs:
         run: |
           meson compile -C builddir
           meson test --num-processes 1 -C builddir
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: Test logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
@@ -79,7 +79,7 @@ jobs:
             if [ "${{ matrix.compiler }}" = "gcc" ]; then
               meson test --num-processes 1 -C builddir --setup=valgrind
             fi
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: Test valgrind logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
@@ -126,7 +126,7 @@ jobs:
 
           meson compile -j$(sysctl -n hw.ncpu || echo 2) -C builddir
           meson test --num-processes 1 -C builddir
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: Test logs on macOS-12 with ${{ matrix.token }}

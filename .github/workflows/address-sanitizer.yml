@@ -57,7 +57,7 @@ jobs:
         run: |
           meson compile -C builddir
           meson test --num-processes 1 -C builddir
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: Address sanitizer logs on ${{ matrix.name }}

@@ -23,7 +23,7 @@ jobs:
       - name: Scan Build
         run: |
           SCANBUILD=$PWD/.github/scan-build.sh ninja -C builddir scan-build
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: Scan Build logs
