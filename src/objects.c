@@ -2180,17 +2180,17 @@ CK_ATTRIBUTE *p11prov_obj_get_ec_public_raw(P11PROV_OBJ *key)
     CK_ATTRIBUTE *pub_key;
 
     if (!key) {
-        return RET_OSSL_ERR;
+        return NULL;
     }
 
     if (key->data.key.type != CKK_EC) {
         P11PROV_raise(key->ctx, CKR_GENERAL_ERROR, "Unsupported key type");
-        return RET_OSSL_ERR;
+        return NULL;
     }
 
     if (key->class != CKO_PRIVATE_KEY && key->class != CKO_PUBLIC_KEY) {
         P11PROV_raise(key->ctx, CKR_GENERAL_ERROR, "Invalid Object Class");
-        return RET_OSSL_ERR;
+        return NULL;
     }
 
     pub_key = p11prov_obj_get_attr(key, CKA_P11PROV_PUB_KEY);
