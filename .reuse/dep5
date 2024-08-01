@@ -25,6 +25,7 @@ Files: .github/*
        docs/*
        tests/lsan.supp
        tools/openssl*.cnf
+       tests/*.pem
 Copyright: (C) 2022 Simo Sorce <simo@redhat.com>
 License: Apache-2.0
 
