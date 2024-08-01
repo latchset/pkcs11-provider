@@ -173,6 +173,7 @@ sed -e "s|@libtoollibs@|${LIBSPATH}|g" \
 
 title LINE "Export tests variables to ${TMPPDIR}/testvars"
 cat > "${TMPPDIR}/testvars" <<DBGSCRIPT
+export PPDBGFILE=${TMPPDIR}/p11prov-debug.log
 export PKCS11_PROVIDER_DEBUG="file:${TMPPDIR}/p11prov-debug.log"
 export PKCS11_PROVIDER_MODULE="${SOFTOKNPATH%%/}/libsoftokn3${SHARED_EXT}"
 export OPENSSL_CONF="${OPENSSL_CONF}"
