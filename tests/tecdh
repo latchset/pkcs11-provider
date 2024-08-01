@@ -10,4 +10,31 @@ pkeyutl -derive -inkey ${ECBASEURI}
                 -peerkey ${ECPEERPUBURI}
                 -out ${TMPPDIR}/secret.ecdh.bin'
 
+
+# Now test by forcing all operations on the token
+title PARA "ECDH Exchange forcing PKCS11 Provider"
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
+OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+title PARA "ECDH Exchange forced: public key in file"
+ossl '
+pkeyutl -derive -inkey ${ECBASEURI}
+                -peerkey ${TESTSSRCDIR}/testp256.pub.pem
+                -out ${TMPPDIR}/forced.pub.ecdh.bin'
+
+### Private EC Key import not supported yet
+#title PARA "ECDH Exchange forced: private key in file"
+#ossl '
+#pkeyutl -derive -inkey ${TESTSSRCDIR}/testp256.pri.pem
+#                -peerkey ${ECPEERPUBURI}
+#                -out ${TMPPDIR}/forced.pri.ecdh.bin'
+
+#title PARA "ECDH Exchange forced: both key in file"
+#ossl '
+#pkeyutl -derive -inkey ${TESTSSRCDIR}/testp256.pri.pem
+#                -peerkey ${TESTSSRCDIR}/testp256.pub.pem
+#                -out ${TMPPDIR}/forced.both.ecdh.bin'
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
 exit 0
