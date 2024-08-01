@@ -1016,8 +1016,10 @@ CK_RV p11prov_copy_attr(CK_ATTRIBUTE *dst, CK_ATTRIBUTE *src)
             return CKR_HOST_MEMORY;
         }
         memcpy(dst->pValue, src->pValue, src->ulValueLen);
-        dst->ulValueLen = src->ulValueLen;
+    } else {
+        dst->pValue = NULL;
     }
+    dst->ulValueLen = src->ulValueLen;
     dst->type = src->type;
 
     return CKR_OK;
