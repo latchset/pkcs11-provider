@@ -2762,7 +2762,7 @@ static CK_RV return_dup_key(P11PROV_OBJ *dst, P11PROV_OBJ *src)
     dst->cka_token = src->cka_token;
     dst->data.key = src->data.key;
 
-    dst->attrs = OPENSSL_malloc(sizeof(CK_ATTRIBUTE) * src->numattrs);
+    dst->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * src->numattrs);
     if (!dst->attrs) {
         rv = CKR_HOST_MEMORY;
         P11PROV_raise(dst->ctx, rv, "Failed allocation");
