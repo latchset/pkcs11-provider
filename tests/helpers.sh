@@ -23,6 +23,9 @@ title()
         shift 1
         echo ""
         echo "## $*"
+        if [ -f "${PPDBGFILE}" ]; then
+            echo "[TEST]: $*" >> "${PPDBGFILE}"
+        fi
         ;;
     "LINE")
         shift 1
