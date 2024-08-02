@@ -48,11 +48,13 @@ run_test() {
         expect {
             eof {exit 0;};
             default {exit 1;};
-        }" > "${TMPPDIR}/s_server_output" &
+        }" 2>&1 | tee "${TMPPDIR}/s_server_output" &
     SERVER_PID=$!
 
     read -r < "${TMPPDIR}/s_server_ready"
 
+    # The point is to force the server to use the pkcs11-provider for all operations, not the client now
+    OPENSSL_CONF="${ORIG_OPENSSL_CONF}" \
     expect -c "spawn $CHECKER openssl s_client -connect \"localhost:${PORT}\" -CAfile \"${CACRT}\" $CLNT_ARGS;
         set timeout 60;
         expect {
@@ -67,22 +69,47 @@ run_test() {
     wait_for_server_at_exit $SERVER_PID
 }
 
-title PARA "Run sanity test with default values (RSA)"
-run_test "$PRIURI" "$CRTURI"
+run_tests() {
 
-title PARA "Run sanity test with default values (ECDSA)"
-run_test "$ECPRIURI" "$ECCRTURI"
+    title PARA "Run sanity test with default values (RSA)"
+    run_test "$PRIURI" "$CRTURI"
 
-title PARA "Run test with TLS 1.2"
-run_test "$PRIURI" "$CRTURI" "" "-tls1_2"
+    title PARA "Run sanity test with default values (ECDSA)"
+    run_test "$ECPRIURI" "$ECCRTURI"
 
-title PARA "Run test with explicit TLS 1.3"
-run_test "$PRIURI" "$CRTURI" "" "-tls1_3"
+    title PARA "Run test with TLS 1.2"
+    run_test "$PRIURI" "$CRTURI" "" "-tls1_2"
 
-title PARA "Run test with TLS 1.2 (ECDSA)"
-run_test "$ECPRIURI" "$ECCRTURI" "" "-tls1_2"
+    title PARA "Run test with explicit TLS 1.3"
+    run_test "$PRIURI" "$CRTURI" "" "-tls1_3"
 
-title PARA "Run test with TLS 1.2 and ECDH"
-run_test "$ECPRIURI" "$ECCRTURI" "" "-tls1_2 -cipher ECDHE-ECDSA-AES128-GCM-SHA256 -groups secp256r1"
+    title PARA "Run test with TLS 1.2 (ECDSA)"
+    run_test "$ECPRIURI" "$ECCRTURI" "-tls1_2" "-tls1_2"
+
+    title PARA "Run test with TLS 1.2 and ECDH"
+    run_test "$ECPRIURI" "$ECCRTURI" "" "-tls1_2 -cipher ECDHE-ECDSA-AES128-GCM-SHA256 -groups secp256r1"
+}
+
+title SECTION "TLS with key in provider"
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+run_tests
+title ENDSECTION
+
+title SECTION "Forcing the provider for all server operations"
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed \
+    -e "s/^#pkcs11-module-cache-keys.*$/pkcs11-module-cache-keys = false/" \
+    -e "s/^#pkcs11-module-block-operations.*$/pkcs11-module-block-operations = digest/" \
+    -e "s/pkcs11-module-quirks = /pkcs11-module-quirks = no-operation-state /" \
+    -e "s/^##QUIRKS$/pkcs11-module-quirks = no-operation-state/" \
+    -e "s/#MORECONF/alg_section = algorithm_sect/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.force"
+echo "[algorithm_sect]" >> "${OPENSSL_CONF}.force"
+echo "default_properties = ?provider=pkcs11" >> "${OPENSSL_CONF}.force"
+OPENSSL_CONF=${OPENSSL_CONF}.force
+
+run_tests
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+title ENDSECTION
 
 exit 0;
