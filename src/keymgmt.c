@@ -1289,6 +1289,7 @@ static void *p11prov_ec_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
 #define EC_PRIVKEY_TMPL_SIZE 5
     CK_ATTRIBUTE privkey_template[EC_PRIVKEY_TMPL_SIZE + COMMON_TMPL_SIZE] = {
         { CKA_TOKEN, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_DERIVE, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
         { CKA_PRIVATE, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
         { CKA_SENSITIVE, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
         { CKA_SIGN, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
