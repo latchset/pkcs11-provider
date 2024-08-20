@@ -269,6 +269,35 @@ echo "${EDPUBURI}"
 echo "${EDPRIURI}"
 echo "${EDCRTURI}"
 
+# FIXME The pkcs11-tool before OpenSC 0.26 does not support Ed448 so they can
+# not be generated here
+#
+# generate ED448
+#KEYID='0009'
+#URIKEYID="%00%09"
+#ED2CRT="${TMPPDIR}/ed2cert"
+#ED2CRTN="ed2Cert"
+#
+# shellcheck disable=SC2086
+# pkcs11-tool ${P11DEFARGS} --keypairgen --key-type="EC:edwards448" \
+# 	--label="${ED2CRTN}" --id="$KEYID"
+# ca_sign "$EDCRT" $ED2CRTN "My ED448 Cert" $KEYID
+#
+# ED2BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+# ED2BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
+# ED2BASEURI="pkcs11:id=${URIKEYID}"
+# ED2PUBURI="pkcs11:type=public;id=${URIKEYID}"
+# ED2PRIURI="pkcs11:type=private;id=${URIKEYID}"
+# ED2CRTURI="pkcs11:type=cert;object=${ED2CRTN}"
+#
+# title LINE "ED448 PKCS11 URIS"
+# echo "${EDBASEURIWITHPINVALUE}"
+# echo "${EDBASEURIWITHPINSOURCE}"
+# echo "${EDBASEURI}"
+# echo "${EDPUBURI}"
+# echo "${EDPRIURI}"
+# echo "${EDCRTURI}"
+
 
 title PARA "generate RSA key pair, self-signed certificate, remove public key"
 KEYID='0005'
