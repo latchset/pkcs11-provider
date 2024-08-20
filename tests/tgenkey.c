@@ -154,7 +154,8 @@ static void check_keys(OSSL_STORE_CTX *store, const char *key_type)
         check_rsa_key(pubkey);
     } else if (strcmp(key_type, "EC") == 0) {
         check_ec_key(pubkey);
-    } else if (strcmp(key_type, "ED25519") == 0) {
+    } else if (strcmp(key_type, "ED25519") == 0
+               || strcmp(key_type, "ED448") == 0) {
         check_eddsa_key(pubkey);
     }
 
@@ -211,7 +212,8 @@ static void gen_keys(const char *key_type, const char *label, const char *idhex,
         check_rsa_key(key);
     } else if (strcmp(key_type, "EC") == 0) {
         check_ec_key(key);
-    } else if (strcmp(key_type, "ED25519") == 0) {
+    } else if (strcmp(key_type, "ED25519") == 0
+               || strcmp(key_type, "ED448") == 0) {
         check_eddsa_key(key);
     }
 
@@ -527,7 +529,8 @@ int main(int argc, char *argv[])
 
             free(label);
             free(uri);
-        } else if (strcmp(tests[num], "ED25519") == 0) {
+        } else if (strcmp(tests[num], "ED25519") == 0
+                   || strcmp(tests[num], "ED448") == 0) {
             ret = RAND_bytes(id, 16);
             if (ret != 1) {
                 fprintf(stderr, "Failed to generate key id\n");
@@ -548,7 +551,7 @@ int main(int argc, char *argv[])
             params[0] = OSSL_PARAM_construct_utf8_string("pkcs11_uri", uri, 0);
             params[1] = OSSL_PARAM_construct_end();
 
-            gen_keys("ED25519", label, idhex, params, false);
+            gen_keys(tests[num], label, idhex, params, false);
             free(label);
             free(uri);
         } else {

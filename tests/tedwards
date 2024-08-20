@@ -61,4 +61,64 @@ if [ $FAIL -ne 0 ]; then
     exit 1
 fi
 
+# Test Ed448 too if supported
+if [[ -n $ED2BASEURI ]]; then
+    title PARA "Export ED448 Public key to a file"
+    ossl 'pkey -in $ED2PUBURI -pubin -pubout -out ${TMPPDIR}/ed2out.pub'
+    
+    title LINE "Print ED448 Public key from private"
+    ossl 'pkey -in $ED2PRIURI -pubout -text' $helper_emit
+    output="$helper_output"
+    FAIL=0
+    echo "$output" | grep "ED448 Public Key" > /dev/null 2>&1 || FAIL=1
+    if [ $FAIL -eq 1 ]; then
+        echo "Could not extract public key from private"
+        echo
+        echo "Original command output:"
+        echo "$output"
+        echo
+        exit 1
+    fi
+    
+    title PARA "DigestSign and DigestVerify with ED448"
+    ossl '
+    pkeyutl -sign -inkey "${ED2BASEURI}"
+                  -in ${RAND64FILE}
+                  -rawin
+                  -out ${TMPPDIR}/sha256-eddgstsig.bin'
+    ossl '
+    pkeyutl -verify -inkey "${ED2BASEURI}" -pubin
+                    -in ${RAND64FILE}
+                    -rawin
+                    -sigfile ${TMPPDIR}/sha256-eddgstsig.bin'
+    
+    title PARA "Test CSR generation from private ED448 keys"
+    ossl '
+    req -new -batch -key "${ED2PRIURI}" -out ${TMPPDIR}/ed448_csr.pem'
+    ossl '
+    req -in ${TMPPDIR}/ed448_csr.pem -verify -noout'
+    
+    title PARA "Test EVP_PKEY_eq on public Edwards key both on token"
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ED2PUBURI" "$ED2PUBURI"
+    
+    title PARA "Test EVP_PKEY_eq on public ED448 key via import"
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ED2PUBURI" "${TMPPDIR}"/ed2out.pub
+    title PARA "Match private ED key against public key"
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ED2PRIURI" "${TMPPDIR}"/ed2out.pub
+    title PARA "Match private ED key against public key (commutativity)"
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/ed2out.pub "$ED2PRIURI"
+fi
+
+title PARA "Test Ed448 Key generation"
+output=$("${TESTBLDDIR}"/tgenkey "ED448" 2>&1 || true)
+FAIL=0
+echo "$output" | grep "Performed tests: 1" || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
 exit 0
