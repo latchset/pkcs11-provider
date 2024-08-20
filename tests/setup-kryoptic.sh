@@ -243,32 +243,31 @@ echo "${ECPEERPRIURI}"
 echo "${ECPEERCRTURI}"
 echo ""
 
-# TODO: not supported yet by Kryoptic
-## generate ED25519
-#KEYID='0004'
-#URIKEYID="%00%04"
-#EDCRT="${TMPPDIR}/edcert"
-#EDCRTN="edCert"
-#
-## shellcheck disable=SC2086
-#pkcs11-tool ${P11DEFARGS} --keypairgen --key-type="EC:edwards25519" \
-#	--label="${EDCRTN}" --id="$KEYID"
-#ca_sign "$EDCRT" $EDCRTN "My ED25519 Cert" $KEYID
-#
-#EDBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
-#EDBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
-#EDBASEURI="pkcs11:id=${URIKEYID}"
-#EDPUBURI="pkcs11:type=public;id=${URIKEYID}"
-#EDPRIURI="pkcs11:type=private;id=${URIKEYID}"
-#EDCRTURI="pkcs11:type=cert;object=${EDCRTN}"
-#
-#title LINE "ED25519 PKCS11 URIS"
-#echo "${EDBASEURIWITHPINVALUE}"
-#echo "${EDBASEURIWITHPINSOURCE}"
-#echo "${EDBASEURI}"
-#echo "${EDPUBURI}"
-#echo "${EDPRIURI}"
-#echo "${EDCRTURI}"
+# generate ED25519
+KEYID='0004'
+URIKEYID="%00%04"
+EDCRT="${TMPPDIR}/edcert"
+EDCRTN="edCert"
+
+# shellcheck disable=SC2086
+pkcs11-tool ${P11DEFARGS} --keypairgen --key-type="EC:edwards25519" \
+	--label="${EDCRTN}" --id="$KEYID"
+ca_sign "$EDCRT" $EDCRTN "My ED25519 Cert" $KEYID
+
+EDBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+EDBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
+EDBASEURI="pkcs11:id=${URIKEYID}"
+EDPUBURI="pkcs11:type=public;id=${URIKEYID}"
+EDPRIURI="pkcs11:type=private;id=${URIKEYID}"
+EDCRTURI="pkcs11:type=cert;object=${EDCRTN}"
+
+title LINE "ED25519 PKCS11 URIS"
+echo "${EDBASEURIWITHPINVALUE}"
+echo "${EDBASEURIWITHPINSOURCE}"
+echo "${EDBASEURI}"
+echo "${EDPUBURI}"
+echo "${EDPRIURI}"
+echo "${EDCRTURI}"
 
 
 title PARA "generate RSA key pair, self-signed certificate, remove public key"
@@ -353,33 +352,32 @@ else
     echo ""
 fi
 
-# TODO: ALWAYS_AUTHENTICATE behavior not supported yet
-#title PARA "generate EC key pair with ALWAYS AUTHENTICATE flag, self-signed certificate"
-#KEYID='0008'
-#URIKEYID="%00%08"
-#TSTCRT="${TMPPDIR}/eccert3"
-#TSTCRTN="ecCert3"
-#
-## shellcheck disable=SC2086
-#pkcs11-tool ${P11DEFARGS} --keypairgen --key-type="EC:secp521r1" \
-#	--label="${TSTCRTN}" --id="$KEYID" --always-auth
-#ca_sign "$TSTCRT" $TSTCRTN "My EC Cert 3" $KEYID
-#
-#ECBASE3URIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
-#ECBASE3URIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
-#ECBASE3URI="pkcs11:id=${URIKEYID}"
-#ECPUB3URI="pkcs11:type=public;id=${URIKEYID}"
-#ECPRI3URI="pkcs11:type=private;id=${URIKEYID}"
-#ECCRT3URI="pkcs11:type=cert;object=${TSTCRTN}"
-#
-#title LINE "EC3 PKCS11 URIS"
-#echo "${ECBASE3URIWITHPINVALUE}"
-#echo "${ECBASE3URIWITHPINSOURCE}"
-#echo "${ECBASE3URI}"
-#echo "${ECPUB3URI}"
-#echo "${ECPRI3URI}"
-#echo "${ECCRT3URI}"
-#echo ""
+title PARA "generate EC key pair with ALWAYS AUTHENTICATE flag, self-signed certificate"
+KEYID='0008'
+URIKEYID="%00%08"
+TSTCRT="${TMPPDIR}/eccert3"
+TSTCRTN="ecCert3"
+
+# shellcheck disable=SC2086
+pkcs11-tool ${P11DEFARGS} --keypairgen --key-type="EC:secp521r1" \
+	--label="${TSTCRTN}" --id="$KEYID" --always-auth
+ca_sign "$TSTCRT" $TSTCRTN "My EC Cert 3" $KEYID
+
+ECBASE3URIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+ECBASE3URIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
+ECBASE3URI="pkcs11:id=${URIKEYID}"
+ECPUB3URI="pkcs11:type=public;id=${URIKEYID}"
+ECPRI3URI="pkcs11:type=private;id=${URIKEYID}"
+ECCRT3URI="pkcs11:type=cert;object=${TSTCRTN}"
+
+title LINE "EC3 PKCS11 URIS"
+echo "${ECBASE3URIWITHPINVALUE}"
+echo "${ECBASE3URIWITHPINSOURCE}"
+echo "${ECBASE3URI}"
+echo "${ECPUB3URI}"
+echo "${ECPRI3URI}"
+echo "${ECCRT3URI}"
+echo ""
 
 title PARA "Show contents of kryoptic token"
 echo " ----------------------------------------------------------------------------------------------------"
@@ -439,6 +437,13 @@ export ECPEERPUBURI="${ECPEERPUBURI}"
 export ECPEERPRIURI="${ECPEERPRIURI}"
 export ECPEERCRTURI="${ECPEERCRTURI}"
 
+export EDBASEURIWITHPINVALUE="${EDBASEURIWITHPINVALUE}"
+export EDBASEURIWITHPINSOURCE="${EDBASEURIWITHPINSOURCE}"
+export EDBASEURI="${EDBASEURI}"
+export EDPUBURI="${EDPUBURI}"
+export EDPRIURI="${EDPRIURI}"
+export EDCRTURI="${EDCRTURI}"
+
 export BASE2URIWITHPINVALUE="${BASEURIWITHPINVALUE}"
 export BASE2URIWITHPINSOURCE="${BASEURIWITHPINSOURCE}"
 export BASE2URI="${BASE2URI}"
@@ -450,6 +455,13 @@ export ECBASE2URIWITHPINSOURCE="${ECBASE2URIWITHPINSOURCE}"
 export ECBASE2URI="${ECBASE2URI}"
 export ECPRI2URI="${ECPRI2URI}"
 export ECCRT2URI="${ECCRT2URI}"
+
+export ECBASE3URIWITHPINVALUE="${ECBASE3URIWITHPINVALUE}"
+export ECBASE3URIWITHPINSOURCE="${ECBASE3URIWITHPINSOURCE}"
+export ECBASE3URI="${ECBASE3URI}"
+export ECPUB3URI="${ECPUB3URI}"
+export ECPRI3URI="${ECPRI3URI}"
+export ECCRT3URI="${ECCRT3URI}"
 DBGSCRIPT
 
 if [ -n "${ECXBASEURI}" ]; then
