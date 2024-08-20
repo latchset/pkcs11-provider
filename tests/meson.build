@@ -125,13 +125,13 @@ tests = {
   'pubkey': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'certs': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'ecc': {'suites': ['softokn', 'softhsm', 'kryoptic']},
-  'edwards': {'suites': ['softhsm']},
+  'edwards': {'suites': ['softhsm', 'kryoptic']},
   'ecdh': {'suites': ['softokn', 'kryoptic']},
   'democa': {'suites': ['softokn', 'softhsm', 'kryoptic'], 'is_parallel': false},
   'digest': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'fork': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'oaepsha2': {'suites': ['softokn', 'kryoptic']},
-  'hkdf': {'suites': ['softokn']},
+  'hkdf': {'suites': ['softokn', 'kryoptic']},
   'rsapss': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'rsapssam': {'suites': ['softhsm']},
   'genkey': {'suites': ['softokn', 'softhsm', 'kryoptic']},
@@ -141,7 +141,7 @@ tests = {
   'tls': {'suites': ['softokn', 'softhsm', 'kryoptic'], 'is_parallel': false},
   'uri': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'ecxc': {'suites': ['softhsm', 'kryoptic']},
-  'cms': {'suites': ['softokn']},
+  'cms': {'suites': ['softokn', 'kryoptic']},
 }
 
 test_wrapper = find_program('test-wrapper')
