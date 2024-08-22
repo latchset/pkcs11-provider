@@ -58,11 +58,10 @@ if [ -n "$BASE2URI" ]; then
     title LINE "Export Public key to a file (base-uri)"
     ossl 'pkey -in $BASE2URI -pubout -out ${TMPPDIR}/base-cert.pub'
     diff "${TMPPDIR}/base-cert.pub" "${TMPPDIR}/priv-cert.pub"
+fi
 
-    # The MacOS keeps crashing in this step so lets skip the remaining tests
-    if [ "$(uname)" == "Darwin" ]; then
-        exit 0
-    fi
+if [ -n "$ECBASE2URI" ]; then
+    title PARA "Check we can get EC public keys from certificate objects"
 
     title LINE "Export Public EC key to a file (priv-uri)"
     ossl 'pkey -in $ECPRI2URI -pubout -out ${TMPPDIR}/ec-priv-cert.pub'
