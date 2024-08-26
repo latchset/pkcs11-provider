@@ -30,17 +30,13 @@ if nss_softokn.found()
   endif
 endif
 
-test_setup = {
-  'setup_softokn': {'suite': 'softokn', 'exe': find_program('setup-softokn.sh')},
-  'setup_softhsm': {'suite': 'softhsm', 'exe': find_program('setup-softhsm.sh')},
-  'setup_kryoptic': {'suite': 'kryoptic', 'exe': find_program('setup-kryoptic.sh')},
-}
-
-foreach name, targs : test_setup
+setup_script=find_program('setup.sh')
+foreach suite : ['softokn', 'softhsm', 'kryoptic']
   test(
-    name,
-    targs.get('exe'),
-    suite: targs.get('suite'),
+    'setup',
+    setup_script,
+    args: suite,
+    suite: suite,
     env: conf_env,
     is_parallel: false,
   )
