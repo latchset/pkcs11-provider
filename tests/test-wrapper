@@ -14,9 +14,9 @@ NAME=${BNAME%.*}
 TEST_NAME=${NAME%-*}
 TOKEN_DRIVER=${NAME#*-}
 
-if [ -f "${TESTBLDDIR}/tmp.${TOKEN_DRIVER}/testvars" ]; then
+if [ -f "${TESTBLDDIR}/${TOKEN_DRIVER}/testvars" ]; then
     # shellcheck source=/dev/null # we do not care about linting this source
-    source "${TESTBLDDIR}/tmp.${TOKEN_DRIVER}/testvars"
+    source "${TESTBLDDIR}/${TOKEN_DRIVER}/testvars"
 else
     exit 77 # token not configured, skip
 fi

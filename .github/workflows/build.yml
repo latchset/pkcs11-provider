@@ -37,23 +37,22 @@ jobs:
               dnf -y install $dnf_opts \
                 git ${{ matrix.compiler }} meson \
                 pkgconf-pkg-config openssl-devel openssl \
-                diffutils expect valgrind
+                diffutils expect valgrind opensc gnutls-utils
               if [ "${{ matrix.token }}" = "softokn" ]; then
                 dnf -y install nss-softokn nss-tools nss-softokn-devel
               elif [ "${{ matrix.token }}" = "softhsm" ]; then
-                dnf -y install softhsm opensc p11-kit-devel p11-kit-server \
-                  gnutls-utils
+                dnf -y install softhsm p11-kit-devel p11-kit-server
               fi
             elif [ -f /etc/debian_version ]; then
               apt-get -q update
               apt-get -yq install git ${{ matrix.compiler }} meson \
                 pkg-config libssl-dev openssl expect \
-                valgrind procps
+                valgrind procps opensc gnutls-bin
               if [ "${{ matrix.token }}" = "softokn" ]; then
                 apt-get -yq install libnss3 libnss3-tools libnss3-dev
               elif [ "${{ matrix.token }}" = "softhsm" ]; then
-                apt-get -yq install softhsm2 opensc p11-kit libp11-kit-dev \
-                  p11-kit-modules gnutls-bin
+                apt-get -yq install softhsm2 p11-kit libp11-kit-dev \
+                  p11-kit-modules
               fi
             fi
       - name: Checkout Repository
@@ -103,13 +102,13 @@ jobs:
           brew install \
             meson \
             openssl@3 \
-            pkg-config
+            pkg-config \
+            opensc \
+            p11-kit
           if [ "${{ matrix.token }}" = "softokn" ]; then
             brew install nss
           elif [ "${{ matrix.token }}" = "softhsm" ]; then
             brew install \
-              opensc \
-              p11-kit \
               softhsm
           fi
       - name: Checkout Repository
