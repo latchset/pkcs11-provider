@@ -2279,6 +2279,81 @@ static int cmp_public_key_values(P11PROV_OBJ *pub_key1, P11PROV_OBJ *pub_key2)
     return ret;
 }
 
+static int match_key_with_cert(P11PROV_OBJ *priv_key, P11PROV_OBJ *pub_key)
+{
+    P11PROV_OBJ *cert;
+    CK_ATTRIBUTE attrs[2] = { 0 };
+    CK_ATTRIBUTE *x;
+    int num = 0;
+    int ret = RET_OSSL_ERR;
+
+    cert = find_associated_obj(priv_key->ctx, priv_key, CKO_CERTIFICATE);
+    if (!cert) {
+        P11PROV_raise(priv_key->ctx, CKR_GENERAL_ERROR,
+                      "Could not find associated certificate object");
+        return RET_OSSL_ERR;
+    }
+
+    switch (pub_key->data.key.type) {
+    case CKK_RSA:
+        attrs[0].type = CKA_MODULUS;
+        attrs[1].type = CKA_PUBLIC_EXPONENT;
+        num = 2;
+        break;
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+        attrs[0].type = CKA_P11PROV_PUB_KEY;
+        num = 1;
+        break;
+    }
+
+    ret = get_all_from_cert(cert, attrs, num);
+    if (ret != CKR_OK) {
+        P11PROV_raise(priv_key->ctx, ret,
+                      "Failed to get public attrs from cert");
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+
+    switch (pub_key->data.key.type) {
+    case CKK_RSA:
+        x = p11prov_obj_get_attr(pub_key, CKA_MODULUS);
+        if (!x || x->ulValueLen != attrs[0].ulValueLen
+            || memcmp(x->pValue, attrs[0].pValue, x->ulValueLen) != 0) {
+            ret = RET_OSSL_ERR;
+            goto done;
+        }
+
+        x = p11prov_obj_get_attr(pub_key, CKA_PUBLIC_EXPONENT);
+        if (!x || x->ulValueLen != attrs[1].ulValueLen
+            || memcmp(x->pValue, attrs[1].pValue, x->ulValueLen) != 0) {
+            ret = RET_OSSL_ERR;
+            goto done;
+        }
+
+        ret = RET_OSSL_OK;
+        break;
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+        x = p11prov_obj_get_attr(pub_key, CKA_P11PROV_PUB_KEY);
+        if (!x || x->ulValueLen != attrs[0].ulValueLen
+            || memcmp(x->pValue, attrs[0].pValue, x->ulValueLen) != 0) {
+            ret = RET_OSSL_ERR;
+            goto done;
+        }
+
+        ret = RET_OSSL_OK;
+        break;
+    }
+
+done:
+    for (int i = 0; i < num; i++) {
+        OPENSSL_free(attrs[i].pValue);
+    }
+    p11prov_obj_free(cert);
+    return ret;
+}
+
 static int match_public_keys(P11PROV_OBJ *key1, P11PROV_OBJ *key2)
 {
     P11PROV_OBJ *pub_key, *assoc_pub_key;
@@ -2313,7 +2388,10 @@ static int match_public_keys(P11PROV_OBJ *key1, P11PROV_OBJ *key2)
     if (!assoc_pub_key) {
         P11PROV_raise(priv_key->ctx, CKR_GENERAL_ERROR,
                       "Could not find associated public key object");
-        return RET_OSSL_ERR;
+
+        /* some tokens only store the public key in a cert and not in a
+         * separate public key object */
+        return match_key_with_cert(priv_key, pub_key);
     }
 
     if (assoc_pub_key->data.key.type != pub_key->data.key.type) {
