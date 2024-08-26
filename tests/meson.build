@@ -104,6 +104,7 @@ test_programs = {
   'tsession': ['tsession.c'],
   'tgenkey': ['tgenkey.c'],
   'tlsctx': ['tlsctx.c', 'util.c'],
+  'tlssetkey': ['tlssetkey.c', 'util.c'],
   'tdigests': ['tdigests.c'],
   'treadkeys': ['treadkeys.c'],
   'tcmpkeys': ['tcmpkeys.c', 'util.c'],

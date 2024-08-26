@@ -3,3 +3,4 @@
 
 void ossl_err_print(void);
 EVP_PKEY *load_key(const char *uri);
+X509 *load_cert(const char *uri);

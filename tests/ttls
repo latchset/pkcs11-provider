@@ -7,6 +7,14 @@ source "${TESTSSRCDIR}/helpers.sh"
 title PARA "Test SSL_CTX creation"
 $CHECKER "${TESTBLDDIR}/tlsctx"
 
+title PARA "Test setting cert/keys on TLS Context"
+$CHECKER "${TESTBLDDIR}/tlssetkey" "${ECCRTURI}" "${ECPRIURI}"
+
+if [ -n "$ECBASE2URI" ]; then
+    title PARA "Test setting cert/keys on TLS Context w/o pub key"
+    $CHECKER "${TESTBLDDIR}/tlssetkey" "${ECCRT2URI}" "${ECPRI2URI}"
+fi
+
 title PARA "Test an actual TLS connection"
 
 rm -f "${TMPPDIR}/s_server_output"
