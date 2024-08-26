@@ -92,3 +92,49 @@ EVP_PKEY *load_key(const char *uri)
 
     return key;
 }
+
+X509 *load_cert(const char *uri)
+{
+    OSSL_STORE_CTX *store;
+    OSSL_STORE_INFO *info;
+    X509 *cert = NULL;
+
+    if (!uri) {
+        fprintf(stderr, "Invalid NULL uri");
+        ossl_err_print();
+        exit(EXIT_FAILURE);
+    }
+
+    store = OSSL_STORE_open(uri, NULL, NULL, NULL, NULL);
+    if (store == NULL) {
+        fprintf(stderr, "Failed to open store: %s\n", uri);
+        ossl_err_print();
+        exit(EXIT_FAILURE);
+    }
+
+    for (info = OSSL_STORE_load(store); info != NULL;
+         info = OSSL_STORE_load(store)) {
+        int type = OSSL_STORE_INFO_get_type(info);
+
+        if (cert != NULL) {
+            fprintf(stderr, "Multiple certs matching URI: %s\n", uri);
+            exit(EXIT_FAILURE);
+        }
+
+        switch (type) {
+        case OSSL_STORE_INFO_CERT:
+            cert = OSSL_STORE_INFO_get1_CERT(info);
+            break;
+        }
+        OSSL_STORE_INFO_free(info);
+    }
+
+    if (cert == NULL) {
+        fprintf(stderr, "Failed to load cert from URI: %s\n", uri);
+        ossl_err_print();
+        exit(EXIT_FAILURE);
+    }
+    OSSL_STORE_close(store);
+
+    return cert;
+}
