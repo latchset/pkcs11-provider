@@ -39,7 +39,8 @@ jobs:
                 pkgconf-pkg-config openssl-devel openssl \
                 diffutils expect valgrind opensc gnutls-utils
               if [ "${{ matrix.token }}" = "softokn" ]; then
-                dnf -y install nss-softokn nss-tools nss-softokn-devel
+                dnf -y install nss-softokn nss-tools nss-softokn-devel \
+                  nss-devel
               elif [ "${{ matrix.token }}" = "softhsm" ]; then
                 dnf -y install softhsm p11-kit-devel p11-kit-server
               fi
@@ -55,12 +56,26 @@ jobs:
                   p11-kit-modules
               fi
             fi
+      - name: Check NSS version
+        id: nss-version-check
+        run: |
+          if [ "${{ matrix.name }}" = "centos" ]; then
+            if [ "${{ matrix.token }}" = "softokn" ]; then
+              NSSMINVER=`nss-config --version nss | cut -d '.' -f 2`
+              if [ $NSSMINVER -lt 101 ]; then
+                echo "skiptest=true" >> $GITHUB_OUTPUT
+              fi
+            fi
+          fi
       - name: Checkout Repository
+        if : ( steps.nss-version-check.outputs.skiptest != 'true' )
         uses: actions/checkout@v4
       - name: Setup
+        if : ( steps.nss-version-check.outputs.skiptest != 'true' )
         run: |
           CC=${{ matrix.compiler }} meson setup builddir
       - name: Build and Test
+        if : ( steps.nss-version-check.outputs.skiptest != 'true' )
         run: |
           meson compile -C builddir
           meson test --num-processes 1 -C builddir
@@ -74,6 +89,7 @@ jobs:
             builddir/tests/tmp.${{ matrix.token }}/testvars
             builddir/tests/tmp.${{ matrix.token }}/openssl.cnf
       - name: Run tests with valgrind
+        if : ( steps.nss-version-check.outputs.skiptest != 'true' )
         run: |
             if [ "${{ matrix.compiler }}" = "gcc" ]; then
               meson test --num-processes 1 -C builddir --setup=valgrind
