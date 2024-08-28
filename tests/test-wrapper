@@ -41,12 +41,6 @@ if [ -f "${TEST_PATH}/t${TEST_NAME}.c" ]; then
     COMMAND="$CHECKER $COMMAND"
 fi
 
-for option in "${TEST_PARAMS[@]}"; do
-    if [[ "$option" == "proxy" ]]; then
-        COMMAND="${TESTSSRCDIR}/softhsm-proxy.sh $COMMAND"
-    fi
-done
-
 LOGFILE="${TESTBLDDIR}/${TEST_NAME}.${TOKEN_DRIVER}.log"
 
 echo "Executing ${COMMAND}"

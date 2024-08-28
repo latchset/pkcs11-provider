@@ -42,7 +42,7 @@ jobs:
                 dnf -y install nss-softokn nss-tools nss-softokn-devel \
                   nss-devel
               elif [ "${{ matrix.token }}" = "softhsm" ]; then
-                dnf -y install softhsm p11-kit-devel p11-kit-server
+                dnf -y install softhsm p11-kit-devel
               fi
             elif [ -f /etc/debian_version ]; then
               apt-get -q update

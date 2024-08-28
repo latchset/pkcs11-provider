@@ -17,7 +17,7 @@ install_dependencies()
     dnf install -y --skip-broken \
         meson \
         p11-kit httpd mod_ssl openssl-devel gnutls-utils nss-tools \
-        p11-kit-devel p11-kit-server opensc softhsm-devel procps-ng \
+        p11-kit-devel opensc softhsm-devel procps-ng \
         openssl util-linux bind9-next opensc
 }
 
