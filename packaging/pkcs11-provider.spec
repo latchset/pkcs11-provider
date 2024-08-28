@@ -29,7 +29,6 @@ BuildRequires: openssl
 BuildRequires: softhsm
 BuildRequires: opensc
 BuildRequires: p11-kit-devel
-BuildRequires: p11-kit-server
 BuildRequires: gnutls-utils
 BuildRequires: xz
 BuildRequires: expect
