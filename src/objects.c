@@ -2648,9 +2648,101 @@ static CK_RV param_to_attr(P11PROV_CTX *ctx, const OSSL_PARAM params[],
     return CKR_OK;
 }
 
+static CK_RV digest(P11PROV_CTX *ctx, const uint8_t *prefx, size_t plen,
+                    const uint8_t *data1, size_t len1, const uint8_t *data2,
+                    size_t len2, const uint8_t *data3, size_t len3,
+                    uint8_t **out, size_t *outlen)
+{
+    EVP_MD_CTX *mdctx = NULL;
+    EVP_MD *md = NULL;
+    unsigned char *dgst = NULL;
+    unsigned int dlen = 0;
+    CK_RV rv;
+    int err;
+
+    md = EVP_MD_fetch(p11prov_ctx_get_libctx(ctx), "sha256", NULL);
+    if (!md) {
+        rv = CKR_GENERAL_ERROR;
+        P11PROV_raise(ctx, rv, "Failed to fetch sha256 digest");
+        goto done;
+    }
+    dlen = EVP_MD_get_size(md);
+    if (dlen == -1) {
+        rv = CKR_GENERAL_ERROR;
+        P11PROV_raise(ctx, rv, "Failed to get sha256 digest length");
+        goto done;
+    }
+    dgst = OPENSSL_malloc(dlen);
+    if (!dgst) {
+        rv = CKR_HOST_MEMORY;
+        goto done;
+    }
+    mdctx = EVP_MD_CTX_new();
+    if (!mdctx) {
+        rv = CKR_GENERAL_ERROR;
+        P11PROV_raise(ctx, rv, "EVP_MD_CTX_new failed");
+        goto done;
+    }
+    err = EVP_DigestInit(mdctx, md);
+    if (err != RET_OSSL_OK) {
+        rv = CKR_GENERAL_ERROR;
+        P11PROV_raise(ctx, rv, "EVP_DigestInit failed");
+        goto done;
+    }
+    if (len1 > 0) {
+        err = EVP_DigestUpdate(mdctx, data1, len1);
+        if (err != RET_OSSL_OK) {
+            rv = CKR_GENERAL_ERROR;
+            P11PROV_raise(ctx, rv, "EVP_DigestUpdate(1) failed");
+            goto done;
+        }
+    }
+    if (len2 > 0) {
+        err = EVP_DigestUpdate(mdctx, data2, len2);
+        if (err != RET_OSSL_OK) {
+            rv = CKR_GENERAL_ERROR;
+            P11PROV_raise(ctx, rv, "EVP_DigestUpdate(2) failed");
+            goto done;
+        }
+    }
+    if (len3 > 0) {
+        err = EVP_DigestUpdate(mdctx, data3, len3);
+        if (err != RET_OSSL_OK) {
+            rv = CKR_GENERAL_ERROR;
+            P11PROV_raise(ctx, rv, "EVP_DigestUpdate(3) failed");
+            goto done;
+        }
+    }
+    err = EVP_DigestFinal(mdctx, dgst, &dlen);
+    if (err != RET_OSSL_OK || dlen == 0) {
+        rv = CKR_GENERAL_ERROR;
+        P11PROV_raise(ctx, rv, "EVP_DigestFinal(2) failed");
+        goto done;
+    }
+
+    *out = dgst;
+    *outlen = dlen;
+    dgst = NULL;
+    rv = CKR_OK;
+
+done:
+    OPENSSL_free(dgst);
+    EVP_MD_CTX_free(mdctx);
+    EVP_MD_free(md);
+    return rv;
+}
+
 static CK_RV prep_rsa_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
                            struct pool_find_ctx *findctx)
 {
+    const OSSL_PARAM *pn;
+    const OSSL_PARAM *pe;
+    const OSSL_PARAM *pd;
+    const char *prefix = "PrivKey";
+    size_t prefix_len = 7;
+    uint8_t *attr_data = NULL;
+    size_t attr_size = 0;
+    size_t key_size;
     CK_RV rv;
 
     if (findctx->numattrs != MAX_ATTRS_SIZE) {
@@ -2658,22 +2750,67 @@ static CK_RV prep_rsa_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
     }
     findctx->numattrs = 0;
 
-    rv = param_to_attr(ctx, params, OSSL_PKEY_PARAM_RSA_N, &findctx->attrs[0],
-                       CKA_MODULUS, true);
-    if (rv != CKR_OK) {
-        return rv;
-    }
-    findctx->numattrs++;
+    switch (findctx->class) {
+    case CKO_PUBLIC_KEY:
+        rv = param_to_attr(ctx, params, OSSL_PKEY_PARAM_RSA_N,
+                           &findctx->attrs[0], CKA_MODULUS, true);
+        if (rv != CKR_OK) {
+            return rv;
+        }
+        findctx->numattrs++;
+        key_size = findctx->attrs[0].ulValueLen;
 
-    rv = param_to_attr(ctx, params, OSSL_PKEY_PARAM_RSA_E, &findctx->attrs[1],
-                       CKA_PUBLIC_EXPONENT, true);
-    if (rv != CKR_OK) {
-        return rv;
-    }
-    findctx->numattrs++;
+        rv = param_to_attr(ctx, params, OSSL_PKEY_PARAM_RSA_E,
+                           &findctx->attrs[1], CKA_PUBLIC_EXPONENT, true);
+        if (rv != CKR_OK) {
+            return rv;
+        }
+        findctx->numattrs++;
+        break;
+    case CKO_PRIVATE_KEY:
+        /* A Token would never allow us to search by private exponent,
+         * so we store a hash of the private key in CKA_ID */
 
-    findctx->key_size = findctx->attrs[0].ulValueLen;
-    findctx->bit_size = findctx->key_size * 8;
+        pn = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_N);
+        if (!pn) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_RSA_N);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        pe = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_E);
+        if (!pe) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_RSA_E);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        pd = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_D);
+        if (!pd) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_RSA_D);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        rv = digest(ctx, (uint8_t *)prefix, prefix_len, pn->data, pn->data_size,
+                    pe->data, pe->data_size, pd->data, pd->data_size,
+                    &attr_data, &attr_size);
+        if (rv != CKR_OK) {
+            return rv;
+        }
+        findctx->attrs[0].type = CKA_ID;
+        findctx->attrs[0].pValue = attr_data;
+        findctx->attrs[0].ulValueLen = attr_size;
+        findctx->numattrs++;
+
+        key_size = pn->data_size;
+        break;
+    default:
+        return CKR_GENERAL_ERROR;
+    }
+
+    findctx->key_size = key_size;
+    findctx->bit_size = key_size * 8;
 
     return CKR_OK;
 }
@@ -2686,12 +2823,16 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
     EC_GROUP *group = NULL;
     EC_POINT *point = NULL;
     BN_CTX *bn_ctx = NULL;
-    int ret, plen;
 
     OSSL_PARAM tmp;
     const OSSL_PARAM *p;
     OSSL_PARAM pub_key[2] = { 0 };
     uint8_t pub_data[MAX_EC_PUB_KEY_SIZE];
+
+    const char *prefix = "PrivKey";
+    size_t prefix_len = 7;
+    uint8_t *attr_data = NULL;
+    size_t attr_size = 0;
 
     const char *curve_name = NULL;
     int curve_nid;
@@ -2711,60 +2852,6 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
         goto done;
     }
 
-    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PUB_KEY);
-    if (!p) {
-        P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
-                      OSSL_PKEY_PARAM_PUB_KEY);
-        EC_GROUP_free(group);
-        return CKR_KEY_INDIGESTIBLE;
-    }
-
-    /* Providers may export in any format - OpenSSL < 3.0.8
-     * ignores the "point-format" OSSL_PARAM and unconditionally uses
-     * compressed format:
-     * - https://github.com/openssl/openssl/pull/16624
-     * - https://github.com/openssl/openssl/issues/16595
-     *
-     * Convert from compressed to uncompressed if necessary
-     */
-    if (((char *)p->data)[0] == '\x02' || ((char *)p->data)[0] == '\x03') {
-        P11PROV_debug("OpenSSL 3.0.7 BUG - received compressed EC public key");
-        pub_key[0].key = OSSL_PKEY_PARAM_PUB_KEY;
-        pub_key[0].data_type = p->data_type;
-        pub_key[0].data = pub_data;
-
-        point = EC_POINT_new(group);
-        bn_ctx = BN_CTX_new();
-        ret = EC_POINT_oct2point(group, point, p->data, p->data_size, bn_ctx);
-        if (!ret) {
-            goto done0;
-        }
-
-        plen = EC_POINT_point2oct(group, point, POINT_CONVERSION_UNCOMPRESSED,
-                                  pub_key[0].data, MAX_EC_PUB_KEY_SIZE, bn_ctx);
-        if (!plen) {
-            ret = CKR_KEY_INDIGESTIBLE;
-            goto done0;
-        }
-
-        pub_key[0].data_size = plen;
-        ret = param_to_attr(ctx, pub_key, OSSL_PKEY_PARAM_PUB_KEY,
-                            &findctx->attrs[0], CKA_P11PROV_PUB_KEY, false);
-        if (ret != CKR_OK) {
-            goto done0;
-        }
-        EC_POINT_free(point);
-        BN_CTX_free(bn_ctx);
-    } else {
-        rv = param_to_attr(ctx, params, OSSL_PKEY_PARAM_PUB_KEY,
-                           &findctx->attrs[0], CKA_P11PROV_PUB_KEY, false);
-        if (rv != CKR_OK) {
-            return rv;
-        }
-    }
-
-    findctx->numattrs++;
-
     curve_nid = EC_GROUP_get_curve_name(group);
     if (curve_nid != NID_undef) {
         curve_name = OSSL_EC_curve_nid2name(curve_nid);
@@ -2774,6 +2861,113 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
             goto done;
         }
     }
+
+    len = i2d_ECPKParameters(group, &ecparams);
+    if (len < 0) {
+        P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Failed to encode EC params");
+        rv = CKR_KEY_INDIGESTIBLE;
+        goto done;
+    }
+
+    switch (findctx->class) {
+    case CKO_PUBLIC_KEY:
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PUB_KEY);
+        if (!p) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_PUB_KEY);
+            EC_GROUP_free(group);
+            rv = CKR_KEY_INDIGESTIBLE;
+            goto done;
+        }
+
+        /* Providers may export in any format - OpenSSL < 3.0.8
+         * ignores the "point-format" OSSL_PARAM and unconditionally uses
+         * compressed format:
+         * - https://github.com/openssl/openssl/pull/16624
+         * - https://github.com/openssl/openssl/issues/16595
+         *
+         * Convert from compressed to uncompressed if necessary
+         */
+        if (((char *)p->data)[0] == '\x02' || ((char *)p->data)[0] == '\x03') {
+            int ret, plen;
+
+            P11PROV_debug(
+                "OpenSSL 3.0.7 BUG - received compressed EC public key");
+            pub_key[0].key = OSSL_PKEY_PARAM_PUB_KEY;
+            pub_key[0].data_type = p->data_type;
+            pub_key[0].data = pub_data;
+
+            point = EC_POINT_new(group);
+            bn_ctx = BN_CTX_new();
+            ret =
+                EC_POINT_oct2point(group, point, p->data, p->data_size, bn_ctx);
+            if (!ret) {
+                rv = CKR_KEY_INDIGESTIBLE;
+                goto done;
+            }
+
+            plen = EC_POINT_point2oct(
+                group, point, POINT_CONVERSION_UNCOMPRESSED, pub_key[0].data,
+                MAX_EC_PUB_KEY_SIZE, bn_ctx);
+            if (!plen) {
+                rv = CKR_KEY_INDIGESTIBLE;
+                goto done;
+            }
+
+            pub_key[0].data_size = plen;
+            rv = param_to_attr(ctx, pub_key, OSSL_PKEY_PARAM_PUB_KEY,
+                               &findctx->attrs[0], CKA_P11PROV_PUB_KEY, false);
+            if (rv != CKR_OK) {
+                goto done;
+            }
+        } else {
+            rv = param_to_attr(ctx, params, OSSL_PKEY_PARAM_PUB_KEY,
+                               &findctx->attrs[0], CKA_P11PROV_PUB_KEY, false);
+            if (rv != CKR_OK) {
+                goto done;
+            }
+        }
+
+        findctx->numattrs++;
+
+        break;
+    case CKO_PRIVATE_KEY:
+        /* A Token would never allow us to search by private exponent,
+         * so we store a hash of the private key in CKA_ID */
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+        if (!p) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_PRIV_KEY);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        rv = digest(ctx, (uint8_t *)prefix, prefix_len, (uint8_t *)curve_name,
+                    curve_name ? strlen(curve_name) : 0, ecparams, len, p->data,
+                    p->data_size, &attr_data, &attr_size);
+        if (rv != CKR_OK) {
+            return rv;
+        }
+        findctx->attrs[0].type = CKA_ID;
+        findctx->attrs[0].pValue = attr_data;
+        findctx->attrs[0].ulValueLen = attr_size;
+        findctx->numattrs++;
+
+        break;
+    default:
+        return CKR_GENERAL_ERROR;
+    }
+
+    /* common params */
+    tmp.key = "EC Params";
+    tmp.data = ecparams;
+    tmp.data_size = len;
+    rv = param_to_attr(ctx, &tmp, tmp.key, &findctx->attrs[findctx->numattrs],
+                       CKA_EC_PARAMS, false);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+    findctx->numattrs++;
+
     tmp.key = "EC Group";
     tmp.data = &curve_nid;
     tmp.data_size = sizeof(curve_nid);
@@ -2784,7 +2978,7 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
     }
     findctx->numattrs++;
 
-    if (curve_name != NULL) {
+    if (curve_name) {
         tmp.key = "EC Curve Name";
         tmp.data = (void *)curve_name;
         tmp.data_size = strlen(curve_name) + 1;
@@ -2797,36 +2991,16 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
         findctx->numattrs++;
     }
 
-    len = i2d_ECPKParameters(group, &ecparams);
-    if (len < 0) {
-        P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Failed to encode EC params");
-        rv = CKR_KEY_INDIGESTIBLE;
-        goto done;
-    }
-    tmp.key = "EC Params";
-    tmp.data = ecparams;
-    tmp.data_size = len;
-    rv = param_to_attr(ctx, &tmp, tmp.key, &findctx->attrs[findctx->numattrs],
-                       CKA_EC_PARAMS, false);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-    findctx->numattrs++;
-
     findctx->bit_size = EC_GROUP_order_bits(group);
     findctx->key_size = (findctx->bit_size + 7) / 8;
     rv = CKR_OK;
+
 done:
     OPENSSL_free(ecparams);
     EC_GROUP_free(group);
-    return rv;
-
-done0:
-
-    EC_GROUP_free(group);
     EC_POINT_free(point);
     BN_CTX_free(bn_ctx);
-    return ret;
+    return rv;
 }
 
 static CK_RV return_dup_key(P11PROV_OBJ *dst, P11PROV_OBJ *src)
@@ -2898,13 +3072,13 @@ static CK_RV fix_ec_key_import(P11PROV_OBJ *key, int allocattrs)
     return CKR_OK;
 }
 
-CK_RV p11prov_obj_import_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
-                             CK_OBJECT_CLASS class, const OSSL_PARAM params[])
+static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
+                                           const OSSL_PARAM params[])
 {
     P11PROV_CTX *ctx;
     struct pool_find_ctx findctx = {
         .type = type,
-        .class = class,
+        .class = CKO_PUBLIC_KEY,
         .bit_size = 0,
         .attrs = { { 0 } },
         .numattrs = MAX_ATTRS_SIZE,
@@ -2912,19 +3086,6 @@ CK_RV p11prov_obj_import_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
     };
     int allocattrs = 0;
     CK_RV rv;
-
-    /* This operation available only on new objects, can't import over an
-     * existing one */
-    if (key->class != CK_UNAVAILABLE_INFORMATION) {
-        P11PROV_raise(key->ctx, CKR_ARGUMENTS_BAD, "Non empty object");
-        return CKR_ARGUMENTS_BAD;
-    }
-
-    if (class != CKO_PUBLIC_KEY) {
-        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
-                      "Only public keys are supported");
-        return CKR_KEY_INDIGESTIBLE;
-    }
 
     ctx = p11prov_obj_get_prov_ctx(key);
     if (!ctx) {
@@ -3015,6 +3176,388 @@ done:
         OPENSSL_free(findctx.attrs[i].pValue);
     }
     return rv;
+}
+
+static CK_RV get_bn(const OSSL_PARAM *p, CK_ATTRIBUTE *attr)
+{
+    BIGNUM *bn = NULL;
+    int bnlen;
+    int err = 0;
+    CK_RV ret;
+
+    if (p == NULL) {
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    /* FIXME: investigate if this needs to be done in constant time
+     * See BN_FLG_CONSTTIME */
+
+    err = OSSL_PARAM_get_BN(p, &bn);
+    if (err != RET_OSSL_OK) {
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    bnlen = BN_num_bytes(bn);
+    attr->pValue = OPENSSL_malloc(bnlen);
+    if (!attr->pValue) {
+        ret = CKR_HOST_MEMORY;
+        goto done;
+    }
+    attr->ulValueLen = BN_bn2bin(bn, attr->pValue);
+    if (attr->ulValueLen == 0 || attr->ulValueLen > bnlen) {
+        attr->ulValueLen = bnlen;
+        ret = CKR_KEY_INDIGESTIBLE;
+        goto done;
+    }
+
+    ret = CKR_OK;
+
+done:
+    if (ret != CKR_OK) {
+        OPENSSL_clear_free(attr->pValue, bnlen);
+        attr->pValue = NULL;
+    }
+    BN_free(bn);
+    return ret;
+}
+
+static CK_RV p11prov_store_rsa_private_key(P11PROV_OBJ *key,
+                                           struct pool_find_ctx *findctx,
+                                           const OSSL_PARAM params[])
+{
+    CK_BBOOL val_true = CK_TRUE;
+    CK_BBOOL val_false = CK_FALSE;
+    CK_ATTRIBUTE template[] = {
+        { CKA_CLASS, &findctx->class, sizeof(CK_OBJECT_CLASS) },
+        { CKA_KEY_TYPE, &findctx->type, sizeof(CK_KEY_TYPE) },
+        { CKA_ID, findctx->attrs[0].pValue,
+          findctx->attrs[0].ulValueLen }, /* 2 */
+        { CKA_SENSITIVE, &val_true, sizeof(val_true) },
+        { CKA_EXTRACTABLE, &val_false, sizeof(val_false) },
+        { CKA_TOKEN, &val_false, sizeof(val_false) },
+        /* we allow all operations as we do not know what is
+         * the purpose of this key at import time */
+        { CKA_DECRYPT, &val_true, sizeof(val_true) },
+        { CKA_SIGN, &val_true, sizeof(val_true) },
+        { CKA_UNWRAP, &val_true, sizeof(val_true) },
+        /* public key part */
+        { CKA_MODULUS, NULL, 0 }, /* 9 */
+        { CKA_PUBLIC_EXPONENT, NULL, 0 }, /* 10 */
+        /* private key part */
+        { CKA_PRIVATE_EXPONENT, NULL, 0 },
+        { CKA_PRIME_1, NULL, 0 }, /* optional from here */
+        { CKA_PRIME_2, NULL, 0 },
+        { CKA_EXPONENT_1, NULL, 0 },
+        { CKA_EXPONENT_2, NULL, 0 },
+        { CKA_COEFFICIENT, NULL, 0 },
+        /* TODO RSA PSS Params */
+    };
+    int na = 9; /* minimum will be 12, up to 17 */
+    const char *required[] = {
+        OSSL_PKEY_PARAM_RSA_N,
+        OSSL_PKEY_PARAM_RSA_E,
+        OSSL_PKEY_PARAM_RSA_D,
+    };
+    const char *optional[] = {
+        OSSL_PKEY_PARAM_RSA_FACTOR1,      OSSL_PKEY_PARAM_RSA_FACTOR2,
+        OSSL_PKEY_PARAM_RSA_EXPONENT1,    OSSL_PKEY_PARAM_RSA_EXPONENT2,
+        OSSL_PKEY_PARAM_RSA_COEFFICIENT1,
+    };
+    const OSSL_PARAM *p;
+    P11PROV_SLOTS_CTX *slots = NULL;
+    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
+    P11PROV_SESSION *session = NULL;
+    CK_RV rv = CKR_GENERAL_ERROR;
+
+    /* required params */
+    for (int i = 0; i < 3; i++) {
+        p = OSSL_PARAM_locate_const(params, required[i]);
+        rv = get_bn(p, &template[na]);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        na++;
+    }
+
+    /* optional */
+    for (int i = 0; i < 5; i++) {
+        p = OSSL_PARAM_locate_const(params, optional[i]);
+        if (p) {
+            rv = get_bn(p, &template[na]);
+            if (rv == CKR_OK) {
+                na++;
+            }
+        } else {
+            /* we must have all or none of the optional,
+             * if any is missing we pretend none of them were given */
+            for (; i >= 0; i--) {
+                na--;
+                OPENSSL_clear_free(template[na].pValue,
+                                   template[na].ulValueLen);
+            }
+            break;
+        }
+    }
+
+    slots = p11prov_ctx_get_slots(key->ctx);
+    if (!slots) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    slot = p11prov_get_default_slot(slots);
+    if (slot == CK_UNAVAILABLE_INFORMATION) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    rv = p11prov_take_login_session(key->ctx, slot, &session);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    rv = p11prov_CreateObject(key->ctx, p11prov_session_handle(session),
+                              template, na, &key->handle);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    key->slotid = slot;
+    key->class = findctx->class;
+    key->data.key.type = findctx->type;
+    key->data.key.size = findctx->key_size;
+    key->data.key.bit_size = findctx->bit_size;
+    key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * 3);
+    if (!key->attrs) {
+        rv = CKR_HOST_MEMORY;
+        goto done;
+    }
+    key->numattrs = 0;
+    /* cka_id */
+    rv = p11prov_copy_attr(&key->attrs[key->numattrs], &template[2]);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+    key->numattrs += 1;
+    /* steal modulus */
+    key->attrs[key->numattrs] = template[9];
+    template[9].pValue = NULL;
+    key->numattrs += 1;
+    /* steal public exponent */
+    key->attrs[key->numattrs] = template[10];
+    template[10].pValue = NULL;
+    key->numattrs += 1;
+
+    rv = CKR_OK;
+
+done:
+    p11prov_return_session(session);
+    for (int i = 9; i < na; i++) {
+        OPENSSL_clear_free(template[i].pValue, template[i].ulValueLen);
+    }
+    return rv;
+}
+
+static CK_RV p11prov_store_ec_private_key(P11PROV_OBJ *key,
+                                          struct pool_find_ctx *findctx,
+                                          const OSSL_PARAM params[])
+{
+    CK_BBOOL val_true = CK_TRUE;
+    CK_BBOOL val_false = CK_FALSE;
+    CK_ATTRIBUTE template[] = {
+        { CKA_CLASS, &findctx->class, sizeof(CK_OBJECT_CLASS) },
+        { CKA_KEY_TYPE, &findctx->type, sizeof(CK_KEY_TYPE) },
+        { CKA_ID, findctx->attrs[0].pValue,
+          findctx->attrs[0].ulValueLen }, /* 2 */
+        { CKA_SENSITIVE, &val_true, sizeof(val_true) },
+        { CKA_EXTRACTABLE, &val_false, sizeof(val_false) },
+        { CKA_TOKEN, &val_false, sizeof(val_false) },
+        /* we allow all operations as we do not know what is
+         * the purpose of this key at import time */
+        { CKA_DERIVE, &val_true, sizeof(val_true) },
+        { CKA_SIGN, &val_true, sizeof(val_true) },
+        /* public part */
+        { CKA_EC_PARAMS, findctx->attrs[1].pValue,
+          findctx->attrs[1].ulValueLen }, /* 8 */
+        /* private key part */
+        { CKA_VALUE, NULL, 0 }, /* 9 */
+    };
+    int na = 10;
+    const OSSL_PARAM *p;
+    P11PROV_SLOTS_CTX *slots = NULL;
+    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
+    P11PROV_SESSION *session = NULL;
+    CK_RV rv = CKR_GENERAL_ERROR;
+
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+    rv = get_bn(p, &template[9]);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    slots = p11prov_ctx_get_slots(key->ctx);
+    if (!slots) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    slot = p11prov_get_default_slot(slots);
+    if (slot == CK_UNAVAILABLE_INFORMATION) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    rv = p11prov_take_login_session(key->ctx, slot, &session);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    rv = p11prov_CreateObject(key->ctx, p11prov_session_handle(session),
+                              template, na, &key->handle);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    key->slotid = slot;
+    key->class = findctx->class;
+    key->data.key.type = findctx->type;
+    key->data.key.size = findctx->key_size;
+    key->data.key.bit_size = findctx->bit_size;
+    key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * findctx->numattrs);
+    if (!key->attrs) {
+        rv = CKR_HOST_MEMORY;
+        goto done;
+    }
+    key->numattrs = 0;
+    for (int i = 0; i < findctx->numattrs; i++) {
+        rv = p11prov_copy_attr(&key->attrs[i], &findctx->attrs[i]);
+        if (rv != CKR_OK) {
+            rv = CKR_HOST_MEMORY;
+            P11PROV_raise(key->ctx, rv, "Failed attr copy");
+            goto done;
+        }
+        key->numattrs++;
+    }
+
+    rv = CKR_OK;
+
+done:
+    p11prov_return_session(session);
+    OPENSSL_clear_free(template[9].pValue, template[9].ulValueLen);
+    return rv;
+}
+
+static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
+                                            const OSSL_PARAM params[])
+{
+    P11PROV_CTX *ctx;
+    struct pool_find_ctx findctx = {
+        .type = type,
+        .class = CKO_PRIVATE_KEY,
+        .attrs = { { 0 } },
+        .numattrs = MAX_ATTRS_SIZE,
+        .found = NULL,
+    };
+    CK_RV rv;
+
+    ctx = p11prov_obj_get_prov_ctx(key);
+    if (!ctx) {
+        return CKR_GENERAL_ERROR;
+    }
+
+    switch (type) {
+    case CKK_RSA:
+        rv = prep_rsa_find(ctx, params, &findctx);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        break;
+
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+        rv = prep_ec_find(ctx, params, &findctx);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        break;
+
+    default:
+        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
+                      "Unsupported key type: %08lx", type);
+        rv = CKR_KEY_INDIGESTIBLE;
+        goto done;
+    }
+
+    /* The only case for private keys is an application loading a key from
+     * a file or other mean and then asking (explicitly or implicitly) a
+     * pkcs11-provider mechanism to use it. There is no other case because
+     * tokens do not allow to export private keys.
+     *
+     * However we may have had the request to load this key before so we
+     * still need to check if we have previously uploaded this key as a
+     * session key before. If not we will compute a hash of the private
+     * key to store in CKA_ID for future lockup and store it in the token
+     * on the long lived login session.
+     */
+    rv = p11prov_slot_find_obj_pool(ctx, pool_find_callback, &findctx);
+    if (rv != CKR_OK) {
+        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR, "Failed to search pools");
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    if (findctx.found) {
+        rv = return_dup_key(key, findctx.found);
+        goto done;
+    }
+
+    /*
+     * No cached object found, create a session key on the login session so
+     * that its handle will live long enough for multiple operations.
+     */
+
+    switch (type) {
+    case CKK_RSA:
+        rv = p11prov_store_rsa_private_key(key, &findctx, params);
+        break;
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+        rv = p11prov_store_ec_private_key(key, &findctx, params);
+        break;
+
+    default:
+        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR,
+                      "Unsupported key type: %08lx, should NOT happen", type);
+        rv = CKR_GENERAL_ERROR;
+    }
+
+done:
+    for (int i = 0; i < findctx.numattrs; i++) {
+        OPENSSL_free(findctx.attrs[i].pValue);
+    }
+    return rv;
+}
+
+CK_RV p11prov_obj_import_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
+                             CK_OBJECT_CLASS class, const OSSL_PARAM params[])
+{
+    /* This operation available only on new objects, can't import over an
+     * existing one */
+    if (key->class != CK_UNAVAILABLE_INFORMATION) {
+        P11PROV_raise(key->ctx, CKR_ARGUMENTS_BAD, "Non empty object");
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    switch (class) {
+    case CKO_PUBLIC_KEY:
+        return p11prov_obj_import_public_key(key, type, params);
+    case CKO_PRIVATE_KEY:
+        return p11prov_obj_import_private_key(key, type, params);
+    default:
+        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
+                      "Invalid object class or key type");
+        return CKR_KEY_INDIGESTIBLE;
+    }
 }
 
 CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
