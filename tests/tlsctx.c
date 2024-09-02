@@ -14,7 +14,7 @@ static void test_pkcs1_with_tls_padding(void)
     EVP_PKEY_CTX *ctx;
     EVP_PKEY *prikey;
     EVP_PKEY *pubkey;
-    unsigned char plain[SSL_MAX_MASTER_KEY_LENGTH + 2] = { 0x03, 0x03, 0x01 };
+    unsigned char plain[SSL_MAX_MASTER_KEY_LENGTH] = { 0x03, 0x03, 0x01 };
     unsigned char enc[1024];
     unsigned char dec[1024];
     size_t enclen;
@@ -97,8 +97,7 @@ static void test_pkcs1_with_tls_padding(void)
     EVP_PKEY_CTX_free(ctx);
     EVP_PKEY_free(prikey);
 
-    if ((declen != sizeof(plain) - 2)
-        || (memcmp(plain + 2, dec, declen) != 0)) {
+    if ((declen != sizeof(plain)) || (memcmp(plain, dec, declen) != 0)) {
         fprintf(stderr, "Fail, decrypted master secret differs from input\n");
         ossl_err_print();
         exit(EXIT_FAILURE);
