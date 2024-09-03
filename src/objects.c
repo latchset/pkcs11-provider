@@ -3617,6 +3617,7 @@ CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
                           "Failed to store key public key");
             return CKR_HOST_MEMORY;
         }
+        key->attrs = ptr;
     }
 
     if (!pub) {
