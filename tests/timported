@@ -8,10 +8,16 @@ source "${TESTSSRCDIR}/helpers.sh"
 title PARA "Test imported key in token session"
 
 title LINE "Generate keypair in files"
+# older versions of openssl don't support -outpubkey ...
+#ossl 'genpkey -algorithm EC -out ${TMPPDIR}/file.ec.key.pem
+#              -pkeyopt ec_paramgen_curve:P-256
+#              -pkeyopt ec_param_enc:named_curve
+#              -outpubkey ${TMPPDIR}/file.ec.pub.key.pem'
+# .. so we'll use two steps
 ossl 'genpkey -algorithm EC -out ${TMPPDIR}/file.ec.key.pem
-              -pkeyopt ec_paramgen_curve:P-256
-              -pkeyopt ec_param_enc:named_curve
-              -outpubkey ${TMPPDIR}/file.ec.pub.key.pem'
+              -pkeyopt ec_paramgen_curve:P-256'
+ossl 'pkey -in ${TMPPDIR}/file.ec.key.pem
+           -pubout -out ${TMPPDIR}/file.ec.pub.key.pem'
 
 #After key generation force all operations to happen on the token
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
