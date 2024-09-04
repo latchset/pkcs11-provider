@@ -252,6 +252,8 @@ done:
     /* ------------- LOCKED SECTION */
 }
 
+static CK_RV p11prov_obj_store_public_key(P11PROV_OBJ *key);
+
 P11PROV_OBJ *p11prov_obj_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
                              CK_OBJECT_HANDLE handle, CK_OBJECT_CLASS class)
 {
@@ -270,7 +272,7 @@ P11PROV_OBJ *p11prov_obj_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
 
     obj->refcnt = 1;
 
-    if (handle == CK_INVALID_HANDLE) {
+    if (handle == CK_P11PROV_IMPORTED_HANDLE) {
         /* mock object, return w/o adding to pool */
         return obj;
     }
@@ -473,6 +475,19 @@ CK_OBJECT_HANDLE p11prov_obj_get_handle(P11PROV_OBJ *obj)
         }
         if (obj->cached != CK_INVALID_HANDLE) {
             return obj->cached;
+        }
+        if (obj->handle == CK_P11PROV_IMPORTED_HANDLE) {
+            /* This was a mock imported public key,
+             * but we are being asked for the actual key handle
+             * so it means we need to actually add the key to the
+             * session in order to be able to perform operations
+             * with the token */
+            int rv;
+
+            rv = p11prov_obj_store_public_key(obj);
+            if (rv != CKR_OK) {
+                return CK_INVALID_HANDLE;
+            }
         }
         return obj->handle;
     }
@@ -3141,7 +3156,7 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
 
     /*
      * FIXME:
-     * For things like ECDH we can get away with a mock objects that just holds
+     * For things like ECDH we can get away with a mock object that just holds
      * data for now, but is not backed by an actual handle and key in the token.
      * Once this is not sufficient, we'll probably need to change functions to
      * pass in a valid session when requesting a handle from an object, so that
@@ -3175,6 +3190,173 @@ done:
     for (int i = 0; i < findctx.numattrs; i++) {
         OPENSSL_free(findctx.attrs[i].pValue);
     }
+    return rv;
+}
+
+static CK_RV p11prov_store_rsa_public_key(P11PROV_OBJ *key)
+{
+    CK_BBOOL val_true = CK_TRUE;
+    CK_BBOOL val_false = CK_FALSE;
+    CK_ATTRIBUTE template[] = {
+        { CKA_CLASS, &key->class, sizeof(CK_OBJECT_CLASS) },
+        { CKA_KEY_TYPE, &key->data.key.type, sizeof(CK_KEY_TYPE) },
+        /* we allow all operations as we do not know what is
+         * the purpose of this key at import time */
+        { CKA_ENCRYPT, &val_true, sizeof(val_true) },
+        { CKA_VERIFY, &val_true, sizeof(val_true) },
+        { CKA_WRAP, &val_true, sizeof(val_true) },
+        /* public key part */
+        { CKA_MODULUS, NULL, 0 }, /* 5 */
+        { CKA_PUBLIC_EXPONENT, NULL, 0 }, /* 6 */
+        /* TODO RSA PSS Params */
+        { CKA_TOKEN, &val_false, sizeof(val_false) },
+    };
+    int na = sizeof(template) / sizeof(CK_ATTRIBUTE);
+    CK_ATTRIBUTE *a;
+    P11PROV_SLOTS_CTX *slots = NULL;
+    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
+    P11PROV_SESSION *session = NULL;
+    CK_RV rv = CKR_GENERAL_ERROR;
+
+    a = p11prov_obj_get_attr(key, CKA_MODULUS);
+    if (!a) {
+        return CKR_GENERAL_ERROR;
+    }
+    template[5].pValue = a->pValue;
+    template[5].ulValueLen = a->ulValueLen;
+
+    a = p11prov_obj_get_attr(key, CKA_PUBLIC_EXPONENT);
+    if (!a) {
+        return CKR_GENERAL_ERROR;
+    }
+    template[6].pValue = a->pValue;
+    template[6].ulValueLen = a->ulValueLen;
+
+    slots = p11prov_ctx_get_slots(key->ctx);
+    if (!slots) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    slot = p11prov_get_default_slot(slots);
+    if (slot == CK_UNAVAILABLE_INFORMATION) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    rv = p11prov_take_login_session(key->ctx, slot, &session);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    rv = p11prov_CreateObject(key->ctx, p11prov_session_handle(session),
+                              template, na, &key->handle);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    key->slotid = slot;
+
+    rv = CKR_OK;
+
+done:
+    p11prov_return_session(session);
+    return rv;
+}
+
+static CK_RV p11prov_store_ec_public_key(P11PROV_OBJ *key)
+{
+    CK_BBOOL val_true = CK_TRUE;
+    CK_BBOOL val_false = CK_FALSE;
+    CK_ATTRIBUTE template[] = {
+        { CKA_CLASS, &key->class, sizeof(CK_OBJECT_CLASS) },
+        { CKA_KEY_TYPE, &key->data.key.type, sizeof(CK_KEY_TYPE) },
+        /* we allow all operations as we do not know what is
+         * the purpose of this key at import time */
+        { CKA_DERIVE, &val_true, sizeof(val_true) },
+        { CKA_VERIFY, &val_true, sizeof(val_true) },
+        /* public part */
+        { CKA_EC_PARAMS, NULL, 0 }, /* 4 */
+        { CKA_EC_POINT, NULL, 0 }, /* 5 */
+        { CKA_TOKEN, &val_false, sizeof(val_false) },
+    };
+    int na = sizeof(template) / sizeof(CK_ATTRIBUTE);
+    CK_ATTRIBUTE *a;
+    P11PROV_SLOTS_CTX *slots = NULL;
+    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
+    P11PROV_SESSION *session = NULL;
+    CK_RV rv = CKR_GENERAL_ERROR;
+
+    a = p11prov_obj_get_attr(key, CKA_EC_PARAMS);
+    if (!a) {
+        return CKR_GENERAL_ERROR;
+    }
+    template[4].pValue = a->pValue;
+    template[4].ulValueLen = a->ulValueLen;
+
+    a = p11prov_obj_get_attr(key, CKA_EC_POINT);
+    if (!a) {
+        return CKR_GENERAL_ERROR;
+    }
+    template[5].pValue = a->pValue;
+    template[5].ulValueLen = a->ulValueLen;
+
+    slots = p11prov_ctx_get_slots(key->ctx);
+    if (!slots) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    slot = p11prov_get_default_slot(slots);
+    if (slot == CK_UNAVAILABLE_INFORMATION) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    rv = p11prov_take_login_session(key->ctx, slot, &session);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    rv = p11prov_CreateObject(key->ctx, p11prov_session_handle(session),
+                              template, na, &key->handle);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    key->slotid = slot;
+    rv = CKR_OK;
+
+done:
+    p11prov_return_session(session);
+    return rv;
+}
+
+static CK_RV p11prov_obj_store_public_key(P11PROV_OBJ *key)
+{
+    int rv;
+
+    if (key->class != CKO_PUBLIC_KEY) {
+        P11PROV_raise(key->ctx, CKR_OBJECT_HANDLE_INVALID, "Invalid key type");
+        return CKR_OBJECT_HANDLE_INVALID;
+    }
+
+    switch (key->data.key.type) {
+    case CKK_RSA:
+        rv = p11prov_store_rsa_public_key(key);
+        break;
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+        rv = p11prov_store_ec_public_key(key);
+        break;
+
+    default:
+        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR,
+                      "Unsupported key type: %08lx, should NOT happen",
+                      key->data.key.type);
+        rv = CKR_GENERAL_ERROR;
+    }
+
     return rv;
 }
 
@@ -3573,7 +3755,7 @@ CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
     int add_attrs = 0;
     int len;
 
-    if (key->handle != CK_INVALID_HANDLE) {
+    if (key->handle != CK_P11PROV_IMPORTED_HANDLE) {
         /*
          * not a mock object, cannot set public key to a token object backed by
          * an actual handle

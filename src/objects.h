@@ -7,6 +7,9 @@
 /* Set the base to Vendor + 'OPP' for OpenSSL PKCS11 Provider */
 #define CKA_P11PROV_BASE CKA_VENDOR_DEFINED + 0x4F5050
 
+/* Special value for "imported key handle" */
+#define CK_P11PROV_IMPORTED_HANDLE (CK_UNAVAILABLE_INFORMATION - 1)
+
 /* Objects */
 CK_RV p11prov_obj_pool_init(P11PROV_CTX *ctx, CK_SLOT_ID id,
                             P11PROV_OBJ_POOL **_pool);
