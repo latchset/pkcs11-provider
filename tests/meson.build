@@ -129,6 +129,7 @@ tests = {
   'fork': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'oaepsha2': {'suites': ['softokn', 'kryoptic']},
   'hkdf': {'suites': ['softokn', 'kryoptic']},
+  'imported' : {'suites': ['softokn', 'kryoptic']},
   'rsapss': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'rsapssam': {'suites': ['softhsm']},
   'genkey': {'suites': ['softokn', 'softhsm', 'kryoptic']},
