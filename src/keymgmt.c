@@ -1252,8 +1252,8 @@ static void *p11prov_ec_gen_init(void *provctx, int selection,
     }
 
     /* we need to allow to initialize a generation of just domain parameters,
-     * as this is used by OpenSSL for ECDH, to set the expected paramters first
-     * and then import the received public peer key */
+     * as this is used by OpenSSL for ECDH, to set the expected parameters
+     * first and then import the received public peer key */
     if ((selection & OSSL_KEYMGMT_SELECT_ALL) == 0) {
         P11PROV_raise(provctx, CKR_ARGUMENTS_BAD, "Unsupported selection");
         return NULL;
@@ -1765,8 +1765,8 @@ static void *p11prov_ed25519_gen_init(void *provctx, int selection,
     }
 
     /* we need to allow to initialize a generation of just domain parameters,
-     * as this is used by OpenSSL for ECDH, to set the expected paramters first
-     * and then import the received public peer key */
+     * as this is used by OpenSSL for ECDH, to set the expected parameters
+     * first and then import the received public peer key */
     if ((selection & OSSL_KEYMGMT_SELECT_ALL) == 0) {
         P11PROV_raise(provctx, CKR_ARGUMENTS_BAD, "Unsupported selection");
         return NULL;
@@ -1817,8 +1817,8 @@ static void *p11prov_ed448_gen_init(void *provctx, int selection,
     }
 
     /* we need to allow to initialize a generation of just domain parameters,
-     * as this is used by OpenSSL for ECDH, to set the expected paramters first
-     * and then import the received public peer key */
+     * as this is used by OpenSSL for ECDH, to set the expected parameters
+     * first and then import the received public peer key */
     if ((selection & OSSL_KEYMGMT_SELECT_ALL) == 0) {
         P11PROV_raise(provctx, CKR_ARGUMENTS_BAD, "Unsupported selection");
         return NULL;

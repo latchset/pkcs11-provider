@@ -9,7 +9,7 @@ By participating, you are expected to abide by the code.
 
 ## What should I know before I get started?
 
-If you want to contirbute code you need to understand the [PKCS#11](https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11) Specifications and the OpneSSL 3.0 provider APIs.
+If you want to contribute code you need to understand the [PKCS#11](https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11) Specifications and the OpenSSL 3.0 provider APIs.
 Useful links to learn about these are:
 - [PKCS#11 2.4 Base Specification](https://docs.oasis-open.org/pkcs11/pkcs11-base/v2.40/pkcs11-base-v2.40.html)
 - [PKCS#11 3.1 Spec](https://docs.oasis-open.org/pkcs11/pkcs11-spec/v3.1/csd01/pkcs11-spec-v3.1-csd01.html)
