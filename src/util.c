@@ -814,10 +814,10 @@ CK_ATTRIBUTE p11prov_uri_get_id(P11PROV_URI *uri)
     return uri->id;
 }
 
-void p11prov_uri_set_id(P11PROV_URI *uri, CK_ATTRIBUTE *id)
+CK_RV p11prov_uri_set_id(P11PROV_URI *uri, CK_ATTRIBUTE *id)
 {
     OPENSSL_free(uri->id.pValue);
-    p11prov_copy_attr(&uri->id, id);
+    return p11prov_copy_attr(&uri->id, id);
 }
 
 CK_ATTRIBUTE p11prov_uri_get_label(P11PROV_URI *uri)
@@ -825,10 +825,10 @@ CK_ATTRIBUTE p11prov_uri_get_label(P11PROV_URI *uri)
     return uri->object;
 }
 
-void p11prov_uri_set_label(P11PROV_URI *uri, CK_ATTRIBUTE *label)
+CK_RV p11prov_uri_set_label(P11PROV_URI *uri, CK_ATTRIBUTE *label)
 {
     OPENSSL_free(uri->object.pValue);
-    p11prov_copy_attr(&uri->object, label);
+    return p11prov_copy_attr(&uri->object, label);
 }
 
 char *p11prov_uri_get_serial(P11PROV_URI *uri)
