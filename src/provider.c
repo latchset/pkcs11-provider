@@ -985,6 +985,7 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                 break;
             case CKM_HKDF_DERIVE:
                 ADD_ALGO(HKDF, hkdf, kdf);
+                ADD_ALGO(TLS13_KDF, tls13, kdf);
                 ADD_ALGO(HKDF, hkdf, exchange);
                 UNCHECK_MECHS(CKM_HKDF_DERIVE);
                 break;

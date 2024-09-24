@@ -12,5 +12,6 @@
     }
 extern const void *p11prov_hkdf_static_ctx;
 extern const OSSL_DISPATCH p11prov_hkdf_kdf_functions[];
+extern const OSSL_DISPATCH p11prov_tls13_kdf_functions[];
 
 #endif /* _KDF_H */
