@@ -1640,6 +1640,18 @@ static int p11prov_ec_get_params(void *keydata, OSSL_PARAM params[])
             memcpy(p->data, pub_key->pValue, pub_key->ulValueLen);
         }
     }
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_EC_POINT_CONVERSION_FORMAT);
+    if (p) {
+        bool compressed = p11prov_obj_get_ec_compressed(key);
+        if (compressed) {
+            ret = OSSL_PARAM_set_utf8_string(p, "compressed");
+        } else {
+            ret = OSSL_PARAM_set_utf8_string(p, "uncompressed");
+        }
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
 
     return RET_OSSL_OK;
 }
@@ -1655,10 +1667,11 @@ static const OSSL_PARAM *p11prov_ec_gettable_params(void *provctx)
         OSSL_PARAM_BN(OSSL_PKEY_PARAM_EC_PUB_X, NULL, 0),
         OSSL_PARAM_BN(OSSL_PKEY_PARAM_EC_PUB_Y, NULL, 0),
         OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_ENCODED_PUBLIC_KEY, NULL, 0),
+        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_EC_POINT_CONVERSION_FORMAT, NULL,
+                               0),
         /*
          * OSSL_PKEY_PARAM_EC_DECODED_FROM_EXPLICIT_PARAM
          * OSSL_PKEY_PARAM_EC_ENCODING
-         * OSSL_PKEY_PARAM_EC_POINT_CONVERSION_FORMAT
          * OSSL_PKEY_PARAM_EC_FIELD_TYPE
          * OSSL_PKEY_PARAM_EC_P
          * OSSL_PKEY_PARAM_EC_A

@@ -1728,6 +1728,20 @@ const char *p11prov_obj_get_ec_group_name(P11PROV_OBJ *obj)
     return (const char *)attr->pValue;
 }
 
+bool p11prov_obj_get_ec_compressed(P11PROV_OBJ *obj)
+{
+    CK_ATTRIBUTE *pub_key;
+    uint8_t *buf;
+
+    pub_key = p11prov_obj_get_attr(obj, CKA_P11PROV_PUB_KEY);
+    if (!pub_key) {
+        return false;
+    }
+    buf = pub_key->pValue;
+
+    return (buf[0] & 0x01) == 0x01;
+}
+
 static int ossl_param_construct_bn(P11PROV_CTX *provctx, OSSL_PARAM *param,
                                    const char *key, const BIGNUM *val)
 {
