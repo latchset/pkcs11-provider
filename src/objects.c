@@ -2663,100 +2663,12 @@ static CK_RV param_to_attr(P11PROV_CTX *ctx, const OSSL_PARAM params[],
     return CKR_OK;
 }
 
-static CK_RV digest(P11PROV_CTX *ctx, const uint8_t *prefx, size_t plen,
-                    const uint8_t *data1, size_t len1, const uint8_t *data2,
-                    size_t len2, const uint8_t *data3, size_t len3,
-                    uint8_t **out, size_t *outlen)
-{
-    EVP_MD_CTX *mdctx = NULL;
-    EVP_MD *md = NULL;
-    unsigned char *dgst = NULL;
-    unsigned int dlen = 0;
-    CK_RV rv;
-    int err;
-
-    md = EVP_MD_fetch(p11prov_ctx_get_libctx(ctx), "sha256", NULL);
-    if (!md) {
-        rv = CKR_GENERAL_ERROR;
-        P11PROV_raise(ctx, rv, "Failed to fetch sha256 digest");
-        goto done;
-    }
-    dlen = EVP_MD_get_size(md);
-    if (dlen == -1) {
-        rv = CKR_GENERAL_ERROR;
-        P11PROV_raise(ctx, rv, "Failed to get sha256 digest length");
-        goto done;
-    }
-    dgst = OPENSSL_malloc(dlen);
-    if (!dgst) {
-        rv = CKR_HOST_MEMORY;
-        goto done;
-    }
-    mdctx = EVP_MD_CTX_new();
-    if (!mdctx) {
-        rv = CKR_GENERAL_ERROR;
-        P11PROV_raise(ctx, rv, "EVP_MD_CTX_new failed");
-        goto done;
-    }
-    err = EVP_DigestInit(mdctx, md);
-    if (err != RET_OSSL_OK) {
-        rv = CKR_GENERAL_ERROR;
-        P11PROV_raise(ctx, rv, "EVP_DigestInit failed");
-        goto done;
-    }
-    if (len1 > 0) {
-        err = EVP_DigestUpdate(mdctx, data1, len1);
-        if (err != RET_OSSL_OK) {
-            rv = CKR_GENERAL_ERROR;
-            P11PROV_raise(ctx, rv, "EVP_DigestUpdate(1) failed");
-            goto done;
-        }
-    }
-    if (len2 > 0) {
-        err = EVP_DigestUpdate(mdctx, data2, len2);
-        if (err != RET_OSSL_OK) {
-            rv = CKR_GENERAL_ERROR;
-            P11PROV_raise(ctx, rv, "EVP_DigestUpdate(2) failed");
-            goto done;
-        }
-    }
-    if (len3 > 0) {
-        err = EVP_DigestUpdate(mdctx, data3, len3);
-        if (err != RET_OSSL_OK) {
-            rv = CKR_GENERAL_ERROR;
-            P11PROV_raise(ctx, rv, "EVP_DigestUpdate(3) failed");
-            goto done;
-        }
-    }
-    err = EVP_DigestFinal(mdctx, dgst, &dlen);
-    if (err != RET_OSSL_OK || dlen == 0) {
-        rv = CKR_GENERAL_ERROR;
-        P11PROV_raise(ctx, rv, "EVP_DigestFinal(2) failed");
-        goto done;
-    }
-
-    *out = dgst;
-    *outlen = dlen;
-    dgst = NULL;
-    rv = CKR_OK;
-
-done:
-    OPENSSL_free(dgst);
-    EVP_MD_CTX_free(mdctx);
-    EVP_MD_free(md);
-    return rv;
-}
-
 static CK_RV prep_rsa_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
                            struct pool_find_ctx *findctx)
 {
-    const OSSL_PARAM *pn;
-    const OSSL_PARAM *pe;
-    const OSSL_PARAM *pd;
-    const char *prefix = "PrivKey";
-    size_t prefix_len = 7;
-    uint8_t *attr_data = NULL;
-    size_t attr_size = 0;
+    data_buffer digest_data[5];
+    data_buffer digest = { 0 };
+    const OSSL_PARAM *p;
     size_t key_size;
     CK_RV rv;
 
@@ -2786,39 +2698,50 @@ static CK_RV prep_rsa_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
         /* A Token would never allow us to search by private exponent,
          * so we store a hash of the private key in CKA_ID */
 
-        pn = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_N);
-        if (!pn) {
+        /* prefix */
+        digest_data[0].data = (uint8_t *)"PrivKey";
+        digest_data[0].length = 7;
+
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_N);
+        if (!p) {
             P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
                           OSSL_PKEY_PARAM_RSA_N);
             return CKR_KEY_INDIGESTIBLE;
         }
+        digest_data[1].data = p->data;
+        digest_data[1].length = p->data_size;
+        key_size = p->data_size;
 
-        pe = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_E);
-        if (!pe) {
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_E);
+        if (!p) {
             P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
                           OSSL_PKEY_PARAM_RSA_E);
             return CKR_KEY_INDIGESTIBLE;
         }
+        digest_data[2].data = p->data;
+        digest_data[2].length = p->data_size;
 
-        pd = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_D);
-        if (!pd) {
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_D);
+        if (!p) {
             P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
                           OSSL_PKEY_PARAM_RSA_D);
             return CKR_KEY_INDIGESTIBLE;
         }
+        digest_data[3].data = p->data;
+        digest_data[3].length = p->data_size;
 
-        rv = digest(ctx, (uint8_t *)prefix, prefix_len, pn->data, pn->data_size,
-                    pe->data, pe->data_size, pd->data, pd->data_size,
-                    &attr_data, &attr_size);
+        digest_data[4].data = NULL;
+
+        rv = p11prov_digest_util(ctx, "sha256", NULL, digest_data, &digest);
+
         if (rv != CKR_OK) {
             return rv;
         }
         findctx->attrs[0].type = CKA_ID;
-        findctx->attrs[0].pValue = attr_data;
-        findctx->attrs[0].ulValueLen = attr_size;
+        findctx->attrs[0].pValue = digest.data;
+        findctx->attrs[0].ulValueLen = digest.length;
         findctx->numattrs++;
 
-        key_size = pn->data_size;
         break;
     default:
         return CKR_GENERAL_ERROR;
@@ -2844,15 +2767,13 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
     OSSL_PARAM pub_key[2] = { 0 };
     uint8_t pub_data[MAX_EC_PUB_KEY_SIZE];
 
-    const char *prefix = "PrivKey";
-    size_t prefix_len = 7;
-    uint8_t *attr_data = NULL;
-    size_t attr_size = 0;
+    data_buffer digest_data[5];
+    data_buffer digest = { 0 };
 
     const char *curve_name = NULL;
     int curve_nid;
     unsigned char *ecparams = NULL;
-    int len;
+    int len, i;
     CK_RV rv;
 
     if (findctx->numattrs != MAX_ATTRS_SIZE) {
@@ -2956,15 +2877,36 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
             return CKR_KEY_INDIGESTIBLE;
         }
 
-        rv = digest(ctx, (uint8_t *)prefix, prefix_len, (uint8_t *)curve_name,
-                    curve_name ? strlen(curve_name) : 0, ecparams, len, p->data,
-                    p->data_size, &attr_data, &attr_size);
+        i = 0;
+
+        /* prefix */
+        digest_data[i].data = (uint8_t *)"PrivKey";
+        digest_data[i].length = 7;
+        i++;
+
+        if (curve_name) {
+            digest_data[i].data = (uint8_t *)curve_name;
+            digest_data[i].length = strlen(curve_name);
+            i++;
+        }
+
+        digest_data[i].data = ecparams;
+        digest_data[i].length = len;
+        i++;
+
+        digest_data[i].data = p->data;
+        digest_data[i].length = p->data_size;
+        i++;
+
+        digest_data[i].data = NULL;
+
+        rv = p11prov_digest_util(ctx, "sha256", NULL, digest_data, &digest);
         if (rv != CKR_OK) {
             return rv;
         }
         findctx->attrs[0].type = CKA_ID;
-        findctx->attrs[0].pValue = attr_data;
-        findctx->attrs[0].ulValueLen = attr_size;
+        findctx->attrs[0].pValue = digest.data;
+        findctx->attrs[0].ulValueLen = digest.length;
         findctx->numattrs++;
 
         break;

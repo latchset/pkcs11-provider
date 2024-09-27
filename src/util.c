@@ -1170,3 +1170,92 @@ void p11prov_force_rwlock_reinit(pthread_rwlock_t *lock)
     pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
     memcpy(lock, &rwlock, sizeof(rwlock));
 }
+
+CK_RV p11prov_digest_util(P11PROV_CTX *ctx, const char *digest,
+                          const char *properties, data_buffer data[],
+                          data_buffer *output)
+{
+    EVP_MD_CTX *mdctx = NULL;
+    EVP_MD *md = NULL;
+    unsigned char *dgst = NULL;
+    unsigned int dlen = 0;
+    CK_RV rv;
+    int err;
+
+    if (!data || !output) {
+        rv = CKR_GENERAL_ERROR;
+        P11PROV_raise(ctx, rv, "Invalid function arguments");
+        return rv;
+    }
+
+    md = EVP_MD_fetch(p11prov_ctx_get_libctx(ctx), digest, properties);
+    if (!md) {
+        rv = CKR_GENERAL_ERROR;
+        P11PROV_raise(ctx, rv, "Failed to fetch %s digest", digest);
+        goto done;
+    }
+
+    dlen = EVP_MD_get_size(md);
+    if (dlen == -1) {
+        rv = CKR_GENERAL_ERROR;
+        P11PROV_raise(ctx, rv, "Failed to get %s digest length", digest);
+        goto done;
+    }
+
+    if (output->data) {
+        if (output->length < dlen) {
+            rv = CKR_GENERAL_ERROR;
+            P11PROV_raise(ctx, rv, "Invalid function arguments");
+            goto done;
+        }
+        dgst = output->data;
+    } else {
+        dgst = OPENSSL_malloc(dlen);
+        if (!dgst) {
+            rv = CKR_HOST_MEMORY;
+            goto done;
+        }
+    }
+
+    mdctx = EVP_MD_CTX_new();
+    if (!mdctx) {
+        rv = CKR_GENERAL_ERROR;
+        P11PROV_raise(ctx, rv, "EVP_MD_CTX_new failed");
+        goto done;
+    }
+
+    err = EVP_DigestInit(mdctx, md);
+    if (err != RET_OSSL_OK) {
+        rv = CKR_GENERAL_ERROR;
+        P11PROV_raise(ctx, rv, "EVP_DigestInit failed");
+        goto done;
+    }
+
+    for (int i = 0; data[i].data; i++) {
+        err = EVP_DigestUpdate(mdctx, data[i].data, data[i].length);
+        if (err != RET_OSSL_OK) {
+            rv = CKR_GENERAL_ERROR;
+            P11PROV_raise(ctx, rv, "EVP_DigestUpdate(%d) failed", i);
+            goto done;
+        }
+    }
+
+    err = EVP_DigestFinal(mdctx, dgst, &dlen);
+    if (err != RET_OSSL_OK || dlen == 0) {
+        rv = CKR_GENERAL_ERROR;
+        P11PROV_raise(ctx, rv, "EVP_DigestFinal failed");
+        goto done;
+    }
+
+    output->data = dgst;
+    output->length = dlen;
+    rv = CKR_OK;
+
+done:
+    if (output->data != dgst) {
+        OPENSSL_free(dgst);
+    }
+    EVP_MD_CTX_free(mdctx);
+    EVP_MD_free(md);
+    return rv;
+}
