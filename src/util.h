@@ -132,4 +132,14 @@ static inline void constant_select_buf(CK_ULONG cond, CK_ULONG size,
     }
 }
 
+struct data_buffer {
+    uint8_t *data;
+    size_t length;
+};
+typedef struct data_buffer data_buffer;
+
+CK_RV p11prov_digest_util(P11PROV_CTX *provctx, const char *digest,
+                          const char *properties, data_buffer data[],
+                          data_buffer *output);
+
 #endif /* _UTIL_H */
