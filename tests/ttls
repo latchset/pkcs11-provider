@@ -93,4 +93,18 @@ run_test "$ECPRIURI" "$ECCRTURI" "" "-tls1_2"
 title PARA "Run test with TLS 1.2 and ECDH"
 run_test "$ECPRIURI" "$ECCRTURI" "" "-tls1_2 -cipher ECDHE-ECDSA-AES128-GCM-SHA256 -groups secp256r1"
 
+#Try again forcing all operations on the token
+#We need to disable digest operations as OpenSSL depends on context duplication working
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
+    -e "s/#pkcs11-module-block-operations/pkcs11-module-block-operations = digest/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
+OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+
+title PARA "Run test with TLS 1.3 preferring token functions"
+run_test "$ECPRIURI" "$ECCRTURI" "" "-tls1_3"
+
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
+
 exit 0;
