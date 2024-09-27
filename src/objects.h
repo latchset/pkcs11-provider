@@ -52,6 +52,7 @@ CK_RV p11prov_obj_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                                  P11PROV_OBJ *obj, CK_ATTRIBUTE *template,
                                  CK_ULONG tsize);
 const char *p11prov_obj_get_ec_group_name(P11PROV_OBJ *obj);
+bool p11prov_obj_get_ec_compressed(P11PROV_OBJ *obj);
 int p11prov_obj_export_public_key(P11PROV_OBJ *obj, CK_KEY_TYPE key_type,
                                   bool search_related, OSSL_CALLBACK *cb_fn,
                                   void *cb_arg);
