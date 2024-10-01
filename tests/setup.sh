@@ -106,7 +106,7 @@ pkcs11-tool "${P11DEFARGS[@]}" --write-object "${CACRT}" --type=cert \
 SERIAL=2
 
 # convert the DER cert to PEM
-openssl x509 -inform DER -in "$CACRT" -outform PEM > "$CACRT_PEM"
+openssl x509 -inform DER -in "$CACRT" -outform PEM -out "$CACRT_PEM"
 
 # the organization identification is not in the CA
 echo 'organization = "PKCS11 Provider"' >> "${TMPPDIR}/cert.cfg"
