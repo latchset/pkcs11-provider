@@ -58,6 +58,10 @@ struct p11prov_ctx {
     OSSL_ALGORITHM *op_decoder;
     OSSL_ALGORITHM *op_keymgmt;
     OSSL_ALGORITHM *op_store;
+#if SKEY_SUPPORT == 1
+    OSSL_ALGORITHM *op_cipher;
+    OSSL_ALGORITHM *op_skeymgmt;
+#endif
 
     pthread_rwlock_t quirk_lock;
     struct quirk *quirks;
@@ -544,6 +548,10 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
     OPENSSL_free(ctx->op_decoder);
     OPENSSL_free(ctx->op_keymgmt);
     OPENSSL_free(ctx->op_store);
+#if SKEY_SUPPORT == 1
+    OPENSSL_free(ctx->op_cipher);
+    OPENSSL_free(ctx->op_skeymgmt);
+#endif
 
     OSSL_LIB_CTX_free(ctx->libctx);
     ctx->libctx = NULL;
@@ -849,6 +857,12 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
         CKM_ECDSA_SHA384, CKM_ECDSA_SHA512, CKM_ECDSA_SHA3_224, \
         CKM_ECDSA_SHA3_256, CKM_ECDSA_SHA3_384, CKM_ECDSA_SHA3_512
 
+#if SKEY_SUPPORT == 1
+#define AES_MECHS \
+    CKM_AES_ECB, CKM_AES_CBC, CKM_AES_CBC_PAD, CKM_AES_CTR, CKM_AES_CTS, \
+        CKM_AES_OFB, CKM_AES_CFB8, CKM_AES_CFB128, CKM_AES_CFB1
+#endif
+
 static void alg_rm_mechs(CK_ULONG *checklist, CK_ULONG *rmlist, int *clsize,
                          int rmsize)
 {
@@ -900,7 +914,11 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                              CKM_ECDH1_COFACTOR_DERIVE,
                              CKM_HKDF_DERIVE,
                              DIGEST_MECHS,
-                             CKM_EDDSA };
+                             CKM_EDDSA,
+#if SKEY_SUPPORT == 1
+                             AES_MECHS
+#endif
+    };
     bool add_rsasig = false;
     bool add_rsaenc = false;
     int cl_size = sizeof(checklist) / sizeof(CK_ULONG);
@@ -910,6 +928,9 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
     int exchange_idx = 0;
     int signature_idx = 0;
     int asym_cipher_idx = 0;
+#if SKEY_SUPPORT == 1
+    int cipher_idx = 0;
+#endif
     int slot_idx = 0;
     const char *prop = get_default_properties(ctx);
     CK_RV ret;
@@ -1060,6 +1081,58 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                              p11prov_eddsa_signature_functions);
                 UNCHECK_MECHS(CKM_EC_EDWARDS_KEY_PAIR_GEN, CKM_EDDSA);
                 break;
+#if SKEY_SUPPORT == 1
+            case CKM_AES_ECB:
+                ADD_ALGO(AES_256_ECB, aes256ecb, cipher, prop);
+                ADD_ALGO(AES_192_ECB, aes192ecb, cipher, prop);
+                ADD_ALGO(AES_128_ECB, aes128ecb, cipher, prop);
+                UNCHECK_MECHS(CKM_AES_ECB);
+                break;
+            case CKM_AES_CBC:
+            case CKM_AES_CBC_PAD:
+                ADD_ALGO(AES_256_CBC, aes256cbc, cipher, prop);
+                ADD_ALGO(AES_192_CBC, aes192cbc, cipher, prop);
+                ADD_ALGO(AES_128_CBC, aes128cbc, cipher, prop);
+                UNCHECK_MECHS(CKM_AES_CBC);
+                UNCHECK_MECHS(CKM_AES_CBC_PAD);
+                break;
+            case CKM_AES_OFB:
+                ADD_ALGO(AES_256_OFB, aes256ofb, cipher, prop);
+                ADD_ALGO(AES_192_OFB, aes192ofb, cipher, prop);
+                ADD_ALGO(AES_128_OFB, aes128ofb, cipher, prop);
+                UNCHECK_MECHS(CKM_AES_OFB);
+                break;
+            case CKM_AES_CFB128:
+                ADD_ALGO(AES_256_CFB, aes256cfb, cipher, prop);
+                ADD_ALGO(AES_192_CFB, aes192cfb, cipher, prop);
+                ADD_ALGO(AES_128_CFB, aes128cfb, cipher, prop);
+                UNCHECK_MECHS(CKM_AES_CFB128);
+                break;
+            case CKM_AES_CFB1:
+                ADD_ALGO(AES_256_CFB1, aes256cfb1, cipher, prop);
+                ADD_ALGO(AES_192_CFB1, aes192cfb1, cipher, prop);
+                ADD_ALGO(AES_128_CFB1, aes128cfb1, cipher, prop);
+                UNCHECK_MECHS(CKM_AES_CFB1);
+                break;
+            case CKM_AES_CFB8:
+                ADD_ALGO(AES_256_CFB8, aes256cfb8, cipher, prop);
+                ADD_ALGO(AES_192_CFB8, aes192cfb8, cipher, prop);
+                ADD_ALGO(AES_128_CFB8, aes128cfb8, cipher, prop);
+                UNCHECK_MECHS(CKM_AES_CFB8);
+                break;
+            case CKM_AES_CTR:
+                ADD_ALGO(AES_256_CTR, aes256ctr, cipher, prop);
+                ADD_ALGO(AES_192_CTR, aes192ctr, cipher, prop);
+                ADD_ALGO(AES_128_CTR, aes128ctr, cipher, prop);
+                UNCHECK_MECHS(CKM_AES_CTR);
+                break;
+            case CKM_AES_CTS:
+                ADD_ALGO(AES_256_CTS, aes256cts, cipher, prop);
+                ADD_ALGO(AES_192_CTS, aes192cts, cipher, prop);
+                ADD_ALGO(AES_128_CTS, aes128cts, cipher, prop);
+                UNCHECK_MECHS(CKM_AES_CTS);
+                break;
+#endif
             default:
                 P11PROV_raise(ctx, CKR_GENERAL_ERROR,
                               "Unhandled mechianism %lu", mech);
@@ -1082,6 +1155,9 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
     TERM_ALGO(exchange);
     TERM_ALGO(signature);
     TERM_ALGO(asym_cipher);
+#if SKEY_SUPPORT == 1
+    TERM_ALGO(cipher);
+#endif
 
     /* handle random */
     ret = p11prov_check_random(ctx);
@@ -1099,6 +1175,9 @@ static CK_RV static_operations_init(P11PROV_CTX *ctx)
     int decoder_idx = 0;
     int store_idx = 0;
     int keymgmt_idx = 0;
+#if SKEY_SUPPORT == 1
+    int skeymgmt_idx = 0;
+#endif
     const char *prop = get_default_properties(ctx);
 
 /* encoder */
@@ -1195,6 +1274,12 @@ static CK_RV static_operations_init(P11PROV_CTX *ctx)
     ADD_ALGO_EXT(ED448, keymgmt, prop, p11prov_ed448_keymgmt_functions);
     TERM_ALGO(keymgmt);
 
+#if SKEY_SUPPORT == 1
+    /* skeymgmt */
+    ADD_ALGO(AES, aes, skeymgmt, prop);
+    TERM_ALGO(skeymgmt);
+#endif
+
     return CKR_OK;
 }
 
@@ -1212,6 +1297,10 @@ static const char *p11prov_block_ops_names[OSSL_OP__HIGHEST + 1] = {
     [OSSL_OP_ENCODER] = "encoder",
     [OSSL_OP_DECODER] = "decoder",
     [OSSL_OP_STORE] = "store",
+#if SKEY_SUPPORT == 1
+    [OSSL_OP_CIPHER] = "cipher",
+    [OSSL_OP_SKEYMGMT] = "skeymgmt",
+#endif
 };
 
 static const OSSL_ALGORITHM *
@@ -1262,6 +1351,14 @@ p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
     case OSSL_OP_STORE:
         *no_cache = 0;
         return ctx->op_store;
+#if SKEY_SUPPORT == 1
+    case OSSL_OP_CIPHER:
+        *no_cache = 0;
+        return ctx->op_cipher;
+    case OSSL_OP_SKEYMGMT:
+        *no_cache = 0;
+        return ctx->op_skeymgmt;
+#endif
     }
     *no_cache = 0;
     return NULL;
