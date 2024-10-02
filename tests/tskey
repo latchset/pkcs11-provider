@@ -1,0 +1,57 @@
+#!/bin/bash -e
+# Copyright (C) 2024 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+# We need to force the provider and configure early loading otherwise no
+# ciphers are loaded, and operations will fail
+sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
+    -e "s/#pkcs11-module-load-behavior/pkcs11-module-load-behavior = early/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.ciphers"
+OPENSSL_CONF=${OPENSSL_CONF}.ciphers
+
+echo "plaintext" > ${TMPPDIR}/aes128cbc.txt
+
+title PARA "Test Symmetric Encryption on the token (legacy init)"
+ossl 'enc -e -aes128
+             -K 0102030405060708090a0b0c0d0e0f10
+             -iv 100f0e0d0c0b0a090807060504030201
+             -in ${TMPPDIR}/aes128cbc.txt
+             -out ${TMPPDIR}/aes128cbc.txt.enc
+             -propquery "provider=pkcs11"'
+
+ossl 'enc -d -aes128
+             -K 0102030405060708090a0b0c0d0e0f10
+             -iv 100f0e0d0c0b0a090807060504030201
+             -in ${TMPPDIR}/aes128cbc.txt.enc
+             -out ${TMPPDIR}/aes128cbc.txt.dec
+             -propquery "provider=pkcs11"'
+
+diff ${TMPPDIR}/aes128cbc.txt ${TMPPDIR}/aes128cbc.txt.dec
+
+title PARA "Test Symmetric Encryption on the token (skey init)"
+ossl 'enc -e -aes128 -skeymgmt AES
+             -skeyopt hexraw-bytes:0102030405060708090a0b0c0d0e0f10
+             -iv 100f0e0d0c0b0a090807060504030201
+             -in ${TMPPDIR}/aes128cbc.txt
+             -out ${TMPPDIR}/aes128cbc.txt.skey.enc
+             -propquery "provider=pkcs11"'
+
+ossl 'enc -d -aes128 -skeymgmt AES
+             -skeyopt hexraw-bytes:0102030405060708090a0b0c0d0e0f10
+             -iv 100f0e0d0c0b0a090807060504030201
+             -in ${TMPPDIR}/aes128cbc.txt.skey.enc
+             -out ${TMPPDIR}/aes128cbc.txt.skey.dec
+             -propquery "provider=pkcs11"'
+
+diff ${TMPPDIR}/aes128cbc.txt ${TMPPDIR}/aes128cbc.txt.skey.dec
+
+title PARA "Test Symmetric Key Generation"
+openssl skeyutl -genkey -skeymgmt AES -cipher aes128 -skeyopt 'pkcs11_uri:pkcs11:id=%55%33;object=SECRET-SKEY' -skeyopt 'pkcs11_ephemeral:0'
+pkcs11-tool --module "${P11LIB}" -O --login --pin "${PINVALUE}" | grep SECRET-SKEY
+
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
+exit 0

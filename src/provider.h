@@ -24,6 +24,12 @@
 #include <openssl/provider.h>
 #include <openssl/ui.h>
 
+#ifdef OSSL_OP_SKEYMGMT
+#define SKEY_SUPPORT 1
+#else
+#define SKEY_SUPPORT 0
+#endif
+
 #define UNUSED __attribute__((unused))
 #define RET_OSSL_OK 1
 #define RET_OSSL_ERR 0
@@ -68,8 +74,70 @@
 #define P11PROV_DESCS_URI "PKCS11 URI Store"
 
 #define P11PROV_PARAM_URI "pkcs11_uri"
+#define P11PROV_PARAM_EPHEMERAL "pkcs11_ephemeral"
 #define P11PROV_PARAM_KEY_USAGE "pkcs11_key_usage"
 #define P11PROV_PARAM_SLOT_ID "pkcs11_slot_id"
+
+#if SKEY_SUPPORT == 1
+
+#define P11PROV_NAMES_AES "AES:2.16.840.1.101.3.4.1"
+#define P11PROV_DESCS_AES "PKCS11 AES Implementation"
+#define P11PROV_NAMES_AES_256_ECB "AES-256-ECB:2.16.840.1.101.3.4.1.41"
+#define P11PROV_DESCS_AES_256_ECB "AES-256 ECB PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_192_ECB "AES-192-ECB:2.16.840.1.101.3.4.1.21"
+#define P11PROV_DESCS_AES_192_ECB "AES-192 ECB PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_128_ECB "AES-128-ECB:2.16.840.1.101.3.4.1.1"
+#define P11PROV_DESCS_AES_128_ECB "AES-128 ECB PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_256_CBC \
+    "AES-256-CBC:AES256:aes256:2.16.840.1.101.3.4.1.42"
+#define P11PROV_DESCS_AES_256_CBC "AES-256 CBC PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_192_CBC \
+    "AES-192-CBC:AES192:aes192:2.16.840.1.101.3.4.1.22"
+#define P11PROV_DESCS_AES_192_CBC "AES-192 CBC PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_128_CBC \
+    "AES-128-CBC:AES128:aes128:2.16.840.1.101.3.4.1.2"
+#define P11PROV_DESCS_AES_128_CBC "AES-128 CBC PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_256_OFB "AES-256-OFB:2.16.840.1.101.3.4.1.43"
+#define P11PROV_DESCS_AES_256_OFB "AES-256 OFB PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_192_OFB "AES-192-OFB:2.16.840.1.101.3.4.1.23"
+#define P11PROV_DESCS_AES_192_OFB "AES-192 OFB PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_128_OFB "AES-128-OFB:2.16.840.1.101.3.4.1.3"
+#define P11PROV_DESCS_AES_128_OFB "AES-128 OFB PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_256_CFB "AES-256-CFB:2.16.840.1.101.3.4.1.44"
+#define P11PROV_DESCS_AES_256_CFB \
+    "AES-256 CFB128 PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_192_CFB "AES-192-CFB:2.16.840.1.101.3.4.1.24"
+#define P11PROV_DESCS_AES_192_CFB \
+    "AES-192 CFB128 PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_128_CFB "AES-128-CFB:2.16.840.1.101.3.4.1.4"
+#define P11PROV_DESCS_AES_128_CFB \
+    "AES-128 CFB128 PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_256_CFB1 "AES-256-CFB1"
+#define P11PROV_DESCS_AES_256_CFB1 "AES-256 CFB1 PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_192_CFB1 "AES-192-CFB1"
+#define P11PROV_DESCS_AES_192_CFB1 "AES-192 CFB1 PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_128_CFB1 "AES-128-CFB1"
+#define P11PROV_DESCS_AES_128_CFB1 "AES-128 CFB1 PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_256_CFB8 "AES-256-CFB8"
+#define P11PROV_DESCS_AES_256_CFB8 "AES-256 CFB8 PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_192_CFB8 "AES-192-CFB8"
+#define P11PROV_DESCS_AES_192_CFB8 "AES-192 CFB8 PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_128_CFB8 "AES-128-CFB8"
+#define P11PROV_DESCS_AES_128_CFB8 "AES-128 CFB8 PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_256_CTR "AES-256-CTR"
+#define P11PROV_DESCS_AES_256_CTR "AES-256 CTR PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_192_CTR "AES-192-CTR"
+#define P11PROV_DESCS_AES_192_CTR "AES-192 CTR PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_128_CTR "AES-128-CTR"
+#define P11PROV_DESCS_AES_128_CTR "AES-128 CTR PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_256_CTS "AES-256-CBC-CTS"
+#define P11PROV_DESCS_AES_256_CTS "AES-256 CTS PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_192_CTS "AES-192-CBC-CTS"
+#define P11PROV_DESCS_AES_192_CTS "AES-192 CTS PKCS11 Provider Implementation"
+#define P11PROV_NAMES_AES_128_CTS "AES-128-CBC-CTS"
+#define P11PROV_DESCS_AES_128_CTS "AES-128 CTS PKCS11 Provider Implementation"
+
+#endif
 
 typedef struct p11prov_ctx P11PROV_CTX;
 typedef struct p11prov_module_ctx P11PROV_MODULE;
@@ -166,6 +234,11 @@ int p11prov_pop_error_to_mark(P11PROV_CTX *ctx);
 #include "slot.h"
 #include "random.h"
 #include "pk11_uri.h"
+
+#if SKEY_SUPPORT == 1
+#include "cipher.h"
+#include "skeymgmt.h"
+#endif
 
 /* TLS */
 int tls_group_capabilities(OSSL_CALLBACK *cb, void *arg);
