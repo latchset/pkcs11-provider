@@ -24,6 +24,7 @@ OPENSC_VERSION=$(opensc-tool -i | grep OpenSC | sed -e "s/OpenSC 0\.\([0-9]*\).*
 if [[ "$OPENSC_VERSION" -le "25" ]]; then
     SUPPORT_ED448=0
 fi
+SUPPORT_ED448=0
 
 # FIPS Mode
 if [[ "${PKCS11_PROVIDER_FORCE_FIPS_MODE}" = "1" || "$(cat /proc/sys/crypto/fips_enabled)" = "1" ]]; then

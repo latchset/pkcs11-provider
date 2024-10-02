@@ -158,6 +158,7 @@ tests = {
   'genkey': {'suites': all_suites},
   'pkey': {'suites': all_suites},
   'session': {'suites': all_suites},
+  'skey': {'suites': ['kryoptic', 'kryoptic.nss']},
   'rand': {'suites': all_suites},
   'readkeys': {'suites': all_suites},
   'tls': {'suites': all_suites, 'is_parallel': false, 'timeout': 60},
