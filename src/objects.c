@@ -3292,6 +3292,8 @@ static CK_RV p11prov_obj_store_public_key(P11PROV_OBJ *key)
 {
     int rv;
 
+    P11PROV_debug("Store imported public key=%p", key);
+
     if (key->class != CKO_PUBLIC_KEY) {
         P11PROV_raise(key->ctx, CKR_OBJECT_HANDLE_INVALID, "Invalid key type");
         return CKR_OBJECT_HANDLE_INVALID;

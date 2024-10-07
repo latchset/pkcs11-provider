@@ -7,7 +7,7 @@ source "${TESTSSRCDIR}/helpers.sh"
 
 title PARA "Test imported key in token session"
 
-title LINE "Generate keypair in files"
+title LINE "Generate EC keypair in files"
 # older versions of openssl don't support -outpubkey ...
 #ossl 'genpkey -algorithm EC -out ${TMPPDIR}/file.ec.key.pem
 #              -pkeyopt ec_paramgen_curve:P-256
@@ -19,22 +19,48 @@ ossl 'genpkey -algorithm EC -out ${TMPPDIR}/file.ec.key.pem
 ossl 'pkey -in ${TMPPDIR}/file.ec.key.pem
            -pubout -out ${TMPPDIR}/file.ec.pub.key.pem'
 
+title LINE "Generate RSA keypair in files"
+# older versions of openssl don't support -outpubkey ...
+# .. so we'll use two steps
+ossl 'genpkey -algorithm RSA -out ${TMPPDIR}/file.rsa.key.pem
+              -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_keygen_pubexp:3'
+ossl 'pkey -in ${TMPPDIR}/file.rsa.key.pem
+           -pubout -out ${TMPPDIR}/file.rsa.pub.key.pem'
+
 #After key generation force all operations to happen on the token
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
 sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
     "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
 OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
 
-title LINE "Test Signing with private key imported from file"
+title LINE "Test Signing with private EC key imported from file"
 ossl 'pkeyutl -sign
               -inkey ${TMPPDIR}/file.ec.key.pem
               -in ${TMPPDIR}/sha256.bin
               -out ${TMPPDIR}/file.ec.sig.bin'
 
-title LINE "Test Verifying with public key imported from file"
+title LINE "Test Verifying with public EC key imported from file"
 ossl 'pkeyutl -verify -pubin
               -inkey ${TMPPDIR}/file.ec.pub.key.pem
               -sigfile ${TMPPDIR}/file.ec.sig.bin
+              -in ${TMPPDIR}/sha256.bin'
+
+#After key generation force all operations to happen on the token
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
+OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+
+title LINE "Test Signing with private RSA key imported from file"
+ossl 'pkeyutl -sign
+              -inkey ${TMPPDIR}/file.rsa.key.pem
+              -in ${TMPPDIR}/sha256.bin
+              -out ${TMPPDIR}/file.rsa.sig.bin'
+
+title LINE "Test Verifying with public RSA key imported from file"
+ossl 'pkeyutl -verify -pubin
+              -inkey ${TMPPDIR}/file.rsa.pub.key.pem
+              -sigfile ${TMPPDIR}/file.rsa.sig.bin
               -in ${TMPPDIR}/sha256.bin'
 
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}

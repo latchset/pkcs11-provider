@@ -690,7 +690,8 @@ static void *p11prov_rsa_new(void *provctx)
     }
 
     return p11prov_obj_new(provctx, CK_UNAVAILABLE_INFORMATION,
-                           CK_INVALID_HANDLE, CK_UNAVAILABLE_INFORMATION);
+                           CK_P11PROV_IMPORTED_HANDLE,
+                           CK_UNAVAILABLE_INFORMATION);
 }
 
 static void p11prov_rsa_free(void *key)
