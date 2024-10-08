@@ -3315,6 +3315,12 @@ static CK_RV p11prov_obj_store_public_key(P11PROV_OBJ *key)
         rv = CKR_GENERAL_ERROR;
     }
 
+    if (rv == CKR_OK) {
+        /* this is a real object now, add it to the pool, but do not
+         * fail if the operation goes haywire for some reason */
+        (void)obj_add_to_pool(key);
+    }
+
     return rv;
 }
 
