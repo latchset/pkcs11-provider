@@ -42,20 +42,29 @@ run_test() {
         set timeout 60;
         expect {
             \"ACCEPT\" {};
-            default {exit 1;};
+            default {
+                send \" NO ACCEPT \n\";
+                exit 1;
+            };
         }
         set server_ready [open \"${TMPPDIR}/s_server_ready\" w+];
         puts \$server_ready \"READY\n\";
         close \$server_ready;
         expect {
             \"END SSL SESSION PARAMETERS\" {};
-            default {exit 1;};
+            default {
+                send \" NO SESSION PARAMETERS \n\";
+                exit 1;
+            };
         }
         send \" TLS SUCCESSFUL \n\"
         send \"Q\n\"
         expect {
             eof {exit 0;};
-            default {exit 1;};
+            default {
+                send \" NO EOF \n\";
+                exit 1;
+            };
         }" > "${TMPPDIR}/s_server_output" &
     SERVER_PID=$!
 
@@ -65,11 +74,17 @@ run_test() {
         set timeout 60;
         expect {
             \" TLS SUCCESSFUL \" {};
-            default {exit 1;};
+            default {
+                send \" NO TLS SUCCESSFUL MESSAGE \n\";
+                exit 1;
+            };
         }
         expect {
             eof {exit 0;};
-            default {exit 1;};
+            default {
+                send \" NO EOF \n\";
+                exit 1;
+            };
         }"
 
     wait_for_server_at_exit $SERVER_PID
