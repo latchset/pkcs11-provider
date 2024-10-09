@@ -100,7 +100,6 @@ openssl_setup()
       -e "s|\(default = default_sect\)|\1\npkcs11 = pkcs11_sect\n|" \
       -e "s|\(\[default_sect\]\)|\[pkcs11_sect\]\n\1|" \
       -e "s|\(\[default_sect\]\)|module = $PKCS11_MODULE\n\1|" \
-      -e "s|\(\[default_sect\]\)|pkcs11-module-load-behavior = early\n\1|" \
       -e "s|\(\[default_sect\]\)|pkcs11-module-token-pin = file:$PIN_FILE\n\1|" \
       -e "s|\(\[default_sect\]\)|activate = 1\n\n\1|" \
       /etc/pki/tls/openssl.cnf >"${WORKDIR}"/openssl.cnf
