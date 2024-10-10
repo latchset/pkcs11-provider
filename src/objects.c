@@ -3927,8 +3927,9 @@ P11PROV_OBJ *mock_pub_ec_key(P11PROV_CTX *ctx, CK_ATTRIBUTE_TYPE type,
     P11PROV_OBJ *key;
     CK_RV ret;
 
-    key = p11prov_obj_new(ctx, CK_UNAVAILABLE_INFORMATION, CK_INVALID_HANDLE,
-                          CK_UNAVAILABLE_INFORMATION);
+    key =
+        p11prov_obj_new(ctx, CK_UNAVAILABLE_INFORMATION,
+                        CK_P11PROV_IMPORTED_HANDLE, CK_UNAVAILABLE_INFORMATION);
     if (!key) {
         return NULL;
     }
