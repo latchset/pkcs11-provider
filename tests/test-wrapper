@@ -46,5 +46,5 @@ LOGFILE="${TESTBLDDIR}/${TEST_NAME}.${TOKEN_DRIVER}.log"
 echo "Executing ${COMMAND}"
 (
   set -o pipefail
-  ${COMMAND} | tee "${LOGFILE}"
+  ${COMMAND} 2>&1 | tee "${LOGFILE}"
 )
