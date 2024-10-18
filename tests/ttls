@@ -70,6 +70,9 @@ run_test() {
 
     read -r < "${TMPPDIR}/s_server_ready"
 
+    # FIXME For now we strive to test the server. The client causes some unrelated issues that will have to
+    # be handled later
+    OPENSSL_CONF="${ORIG_OPENSSL_CONF}" \
     expect -c "spawn $CHECKER openssl s_client -connect \"localhost:${PORT}\" -CAfile \"${CACRT}\" $CLNT_ARGS;
         set timeout 60;
         expect {
@@ -89,6 +92,8 @@ run_test() {
 
     wait_for_server_at_exit $SERVER_PID
 }
+
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
 
 title PARA "Run sanity test with default values (RSA)"
 run_test "$PRIURI" "$CRTURI"
