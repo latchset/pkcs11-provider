@@ -88,7 +88,7 @@ run_test() {
                 send \" NO EOF \n\";
                 exit 1;
             };
-        }"
+        }" || (wait_for_server_at_exit $SERVER_PID; exit 1; )
 
     wait_for_server_at_exit $SERVER_PID
 }
