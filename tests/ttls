@@ -42,6 +42,7 @@ run_test() {
         set timeout 60;
         expect {
             \"ACCEPT\" {};
+            eof { exit 2; }
             default {
                 send \" NO ACCEPT \n\";
                 exit 1;
@@ -52,6 +53,7 @@ run_test() {
         close \$server_ready;
         expect {
             \"END SSL SESSION PARAMETERS\" {};
+            eof { exit 2; }
             default {
                 send \" NO SESSION PARAMETERS \n\";
                 exit 1;
@@ -74,6 +76,7 @@ run_test() {
         set timeout 60;
         expect {
             \" TLS SUCCESSFUL \" {};
+            eof { exit 2; }
             default {
                 send \" NO TLS SUCCESSFUL MESSAGE \n\";
                 exit 1;
