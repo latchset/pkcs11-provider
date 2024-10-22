@@ -62,6 +62,6 @@ export TOKENLABELURI="SoftHSM%20Token"
 softhsm2-util --init-token --label "${TOKENLABEL}" --free --pin "${PINVALUE}" --so-pin "${PINVALUE}"
 
 #softhsm crashes on de-init so we need to default to this quirk
-export TOKENOPTIONS="pkcs11-module-quirks = no-deinit"
+export TOKENOPTIONS="pkcs11-module-quirks = no-deinit no-operation-state"
 
 export TOKENCONFIGVARS="export SOFTHSM2_CONF=${TMPPDIR}/softhsm.conf"
