@@ -107,6 +107,9 @@ void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
         }
     }
 
+    /* set error mark so we can clear spurious errors */
+    p11prov_set_error_mark(ctx);
+
     ret = p11prov_GetMechanismInfo(ctx, slotid, type, &info);
     if (ret != CKR_OK) {
         p11prov_debug(NULL, 0, NULL,
@@ -129,6 +132,8 @@ void p11prov_debug_mechanism(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
             }
         }
     }
+    /* if there was any error, remove it, this is just a debug function */
+    p11prov_pop_error_to_mark(ctx);
 }
 
 extern struct ckmap token_flags[];
