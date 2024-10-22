@@ -25,7 +25,7 @@ SERVER_PID=-1
 # Make sure we terminate programs if test fails in the middle
 # shellcheck disable=SC2317  # Shellcheck for some reason does not follow trap
 wait_for_server_at_exit() {
-    wait "$1"
+    wait "$1" || :
     echo "Server output:"
     cat "${TMPPDIR}/s_server_output"
 }
