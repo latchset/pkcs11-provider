@@ -1484,6 +1484,16 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_PAD_MODE);
     if (p) {
         CK_MECHANISM_TYPE mechtype = CK_UNAVAILABLE_INFORMATION;
+        CK_SLOT_ID slotid = p11prov_obj_get_slotid(sigctx->key);
+
+        /* If the object is imported, use the default slot */
+        if (slotid == CK_UNAVAILABLE_INFORMATION) {
+            P11PROV_SLOTS_CTX *slots = p11prov_ctx_get_slots(sigctx->provctx);
+            if (!slots) {
+                return RET_OSSL_ERR;
+            }
+            slotid = p11prov_get_default_slot(slots);
+        }
         if (p->data_type == OSSL_PARAM_INTEGER) {
             int pad_mode;
             /* legacy pad mode number */
@@ -1525,8 +1535,7 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
              * regardless, and this is not the case in PKCS#11 */
             CK_RV rv;
 
-            rv = p11prov_check_mechanism(sigctx->provctx,
-                                         p11prov_obj_get_slotid(sigctx->key),
+            rv = p11prov_check_mechanism(sigctx->provctx, slotid,
                                          CKM_RSA_PKCS_PSS);
             if (rv != CKR_OK) {
                 P11PROV_raise(sigctx->provctx, rv,
@@ -1537,9 +1546,7 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
         sigctx->mechtype = mechtype;
 
-        P11PROV_debug_mechanism(sigctx->provctx,
-                                p11prov_obj_get_slotid(sigctx->key),
-                                sigctx->mechtype);
+        P11PROV_debug_mechanism(sigctx->provctx, slotid, sigctx->mechtype);
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_PSS_SALTLEN);
