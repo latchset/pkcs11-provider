@@ -439,6 +439,35 @@ err:
     return ret;
 }
 
+static CK_RV check_pin_flags_ok(P11PROV_CTX *ctx, CK_SLOT_ID slotid)
+{
+    CK_TOKEN_INFO token;
+    CK_RV ret;
+
+    ret = p11prov_GetTokenInfo(ctx, slotid, &token);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+
+    if (token.flags & CKF_USER_PIN_FINAL_TRY) {
+        ret = CKR_CANCEL;
+        P11PROV_raise(ctx, ret,
+                      "Only one auth attempt left on token. "
+                      "Canceling login attempt to avoid locking the token. "
+                      "Manual user login required to reset counter.");
+    } else if (token.flags & CKF_USER_PIN_LOCKED) {
+        ret = CKR_PIN_LOCKED;
+        P11PROV_raise(ctx, ret, "PIN marked as locked, canceling login");
+    } else if (token.flags & CKF_USER_PIN_TO_BE_CHANGED) {
+        ret = CKR_PIN_EXPIRED;
+        P11PROV_raise(ctx, ret, "PIN marked as expired, canceling login");
+    } else {
+        ret = CKR_OK;
+    }
+
+    return ret;
+}
+
 /* returns a locked login_session if _session is not NULL */
 static CK_RV token_login(P11PROV_SESSION *session, P11PROV_URI *uri,
                          OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg,
@@ -520,6 +549,11 @@ static CK_RV token_login(P11PROV_SESSION *session, P11PROV_URI *uri,
 
             cache = p11prov_ctx_cache_pins(session->provctx);
         }
+    }
+
+    ret = check_pin_flags_ok(session->provctx, session->slotid);
+    if (ret != CKR_OK) {
+        goto done;
     }
 
     P11PROV_debug("Attempt Login on session %lu", session->session);
