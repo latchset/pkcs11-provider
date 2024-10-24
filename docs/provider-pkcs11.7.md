@@ -194,6 +194,11 @@ Some implementatations of PKCS11 don't allow setting `pApplication` and
 `Notify` callback functions in `C_OpenSession`.
 This option sets NULL values for both callbacks.
 
+### no-allowed-mechanisms
+Some implementatations of PKCS11 don't support `CKA_ALLOWED_MECHANISMS`
+attribute on keys. Setting this quirk prevents the provider from
+attempting to set and read this attribute.
+
 Default: none
 
 Example:
