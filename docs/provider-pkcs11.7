@@ -202,6 +202,12 @@ Some implementatations of PKCS11 don\[cq]t allow setting
 \f[V]pApplication\f[R] and \f[V]Notify\f[R] callback functions in
 \f[V]C_OpenSession\f[R].
 This option sets NULL values for both callbacks.
+.SS no-allowed-mechanisms
+.PP
+Some implementatations of PKCS11 don\[cq]t support
+\f[V]CKA_ALLOWED_MECHANISMS\f[R] attribute on keys.
+Setting this quirk prevents the provider from attempting to set and read
+this attribute.
 .PP
 Default: none
 .PP
