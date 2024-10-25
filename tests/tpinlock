@@ -1,0 +1,81 @@
+#!/bin/bash -e
+# Copyright (C) 2024 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+title PARA "Test PIN lock prevention"
+
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed "s/^pkcs11-module-token-pin.*$/##nopin/" "${OPENSSL_CONF}" > "${OPENSSL_CONF}.nopin"
+OPENSSL_CONF=${OPENSSL_CONF}.nopin
+
+BADPIN="bad"
+export BADPINURI="${PRIURI}?pin-value=${BADPIN}"
+export GOODPINURI="${PRIURI}?pin-value=${PINVALUE}"
+
+TOOLDEFARGS=("--module=${P11LIB}" "--token-label=${TOKENLABEL}")
+
+FAIL=0
+pkcs11-tool "${TOOLDEFARGS[@]}" -T | grep "PIN initialized" && FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Failed to detect PIN status"
+    exit 1
+fi
+
+# Kryoptic allows for 10 tries by default
+for i in {1..10}; do
+    echo "Login attempt: $i"
+    pkcs11-tool "${TOOLDEFARGS[@]}" -l -I -p "${BADPIN}" && false
+    DETECT=0
+    pkcs11-tool "${TOOLDEFARGS[@]}" -T | grep "final user PIN try" && DETECT=1
+    if [ $DETECT -eq 1 ]; then
+        break
+    fi
+done
+FAIL=0
+pkcs11-tool "${TOOLDEFARGS[@]}" -T | grep "final user PIN try" && FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Failed to reach "final try" status"
+    exit 1
+fi
+
+# Now we test one operation with a bad pin.
+# It should fail but not lock the token
+title LINE "Try op with bad pin and fail"
+FAIL=0
+ossl '
+pkeyutl -sign -inkey "${BADPINURI}"
+    -in ${TMPPDIR}/sha256.bin
+    -out ${TMPPDIR}/pinlock-sig.bin' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Operation should have failed, pin lock prevention not working"
+    exit 1
+fi
+
+# Now we test one operation with a good pin.
+# It should fail because the token is on last try
+title LINE "Try op with good pin and fail"
+FAIL=0
+ossl '
+pkeyutl -sign -inkey "${GOODPINURI}"
+    -in ${TMPPDIR}/sha256.bin
+    -out ${TMPPDIR}/pinlock-sig.bin' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Operation should have failed, pin lock prevention not working"
+    exit 1
+fi
+
+
+# Now reset the token counter with a good try
+pkcs11-tool "${TOOLDEFARGS[@]}" -l -T -p "${PINVALUE}"
+
+# Now we test one operation with a good pin.
+# It should succeed
+title LINE "Try op with good pin and succeed"
+ossl '
+pkeyutl -sign -inkey "${GOODPINURI}"
+    -in ${TMPPDIR}/sha256.bin
+    -out ${TMPPDIR}/pinlock-sig.bin'
+
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}

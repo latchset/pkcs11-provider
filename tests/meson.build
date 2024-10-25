@@ -140,6 +140,7 @@ tests = {
   'uri': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'ecxc': {'suites': ['softhsm', 'kryoptic']},
   'cms': {'suites': ['softokn', 'kryoptic']},
+  'pinlock': {'suites': ['kryoptic']},
 }
 
 test_wrapper = find_program('test-wrapper')
