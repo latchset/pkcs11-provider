@@ -137,6 +137,7 @@ tests = {
   'rand': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'readkeys': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'tls': {'suites': ['softokn', 'softhsm', 'kryoptic'], 'is_parallel': false},
+  'tlsfuzzer': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'uri': {'suites': ['softokn', 'softhsm', 'kryoptic']},
   'ecxc': {'suites': ['softhsm', 'kryoptic']},
   'cms': {'suites': ['softokn', 'kryoptic']},

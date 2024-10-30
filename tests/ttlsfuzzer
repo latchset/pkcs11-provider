@@ -1,0 +1,63 @@
+#!/bin/bash -e
+# Copyright (C) 2024 Jakub Jelen <jjelen@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+if [[ ! -d "${TESTSSRCDIR}/../tlsfuzzer/tlsfuzzer" ]]; then
+    title "TLS fuzzer is not available -- skipping"
+    exit 77;
+fi
+
+TMPFILE="${PWD}/tls-fuzzer.$$.tmp"
+PORT="$TESTPORT"
+PYTHON=$(which python3)
+
+if [[ -f /etc/debian_version ]] && grep Ubuntu /etc/lsb-release; then
+    # the ubuntu builds miss Brainpool curves, but Debian has them already
+    SIGALGS="ecdsa_secp256r1_sha256 ecdsa_secp384r1_sha384 ecdsa_secp521r1_sha512 ed25519 ed448 rsa_pss_pss_sha256 rsa_pss_pss_sha384 rsa_pss_pss_sha512 rsa_pss_rsae_sha256 rsa_pss_rsae_sha384 rsa_pss_rsae_sha512 rsa_pkcs1_sha256 rsa_pkcs1_sha384 rsa_pkcs1_sha512 ecdsa_sha224 rsa_pkcs1_sha224"
+else
+    SIGALGS="ecdsa_secp256r1_sha256 ecdsa_secp384r1_sha384 ecdsa_secp521r1_sha512 ed25519 ed448 8+26 8+27 8+28 rsa_pss_pss_sha256 rsa_pss_pss_sha384 rsa_pss_pss_sha512 rsa_pss_rsae_sha256 rsa_pss_rsae_sha384 rsa_pss_rsae_sha512 rsa_pkcs1_sha256 rsa_pkcs1_sha384 rsa_pkcs1_sha512 ecdsa_sha224 rsa_pkcs1_sha224"
+fi
+
+run_tests() {
+    # Prepare the tlsfuzzer configuration
+    sed -e "s|@PRIURI@|$PRIURI|g" -e "s/@CRTURI@/$CRTURI/g" \
+        -e "s|@ECPRIURI@|$ECPRIURI|g" -e "s/@ECCRTURI@/$ECCRTURI/g" \
+        -e "s/@PORT@/$PORT/g" \
+        -e "s/@SIGALGS@/$SIGALGS/g" "${TESTSSRCDIR}/cert.json.in" >"${TMPFILE}"
+
+    # Run openssl under checker program if needed
+    if [[ -n "$CHECKER" ]]; then
+        IFS=" " read -r -a ARR <<< "$CHECKER"
+        sed -e "s|@CHECKER@|$(printf "\"%s\", " "${ARR[@]}")|g" "${sed_inplace[@]}" "${TMPFILE}"
+    else
+        sed -e "s|@CHECKER@||g" "${sed_inplace[@]}" "${TMPFILE}"
+    fi
+
+    pushd "${TESTSSRCDIR}/../tlsfuzzer"
+    test -L ecdsa || ln -s ../python-ecdsa/src/ecdsa ecdsa
+    test -L tlslite || ln -s ../tlslite-ng/tlslite tlslite 2>/dev/null
+    PYTHONPATH=. "${PYTHON}" tests/scripts_retention.py "${TMPFILE}" openssl 821
+    rm -f "${TMPFILE}"
+    popd
+}
+
+title SECTION "Run TLS fuzzer with server key on provider"
+run_tests
+title ENDSECTION
+
+title SECTION "Run TLS fuzzer forcing the provider for all server operations"
+#We need to disable digest operations as OpenSSL depends on context duplication working
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed -e "s/^#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
+    -e "s/^#pkcs11-module-block-operations/pkcs11-module-block-operations = digest/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
+export OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+
+run_tests
+
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+title ENDSECTION
+
+exit 0

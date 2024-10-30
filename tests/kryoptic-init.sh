@@ -40,3 +40,5 @@ pkcs11-tool --module "${P11LIB}" --so-pin "${PINVALUE}" \
     --login --login-type so --init-pin --pin "${PINVALUE}" 2>&1
 
 export TOKENCONFIGVARS="export KRYOPTIC_CONF=$TOKDIR/kryoptic.sql"
+
+export TESTPORT="34000"

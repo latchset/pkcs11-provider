@@ -1,0 +1,36 @@
+[
+    {"server_command": [@CHECKER@"openssl", "s_server", "-www", "-port", "@PORT@",
+                        "-key", "@PRIURI@", "-cert", "@CRTURI@",
+                        "-verify", "1", "-CAfile", "tests/clientX509Cert.pem"],
+     "comment": "Use ANY certificate just to ensure that server tries to authorise a client",
+     "environment": {"PYTHONPATH" : "."},
+     "server_hostname": "localhost",
+     "server_port": @PORT@,
+     "tests" : [
+       {"name" : "test-tls13-certificate-verify.py",
+        "arguments" : ["-k", "tests/clientX509Key.pem",
+                       "-c", "tests/clientX509Cert.pem",
+                       "-s", "@SIGALGS@",
+                       "-p", "@PORT@"]},
+       {"name" : "test-tls13-ecdsa-in-certificate-verify.py",
+        "arguments" : ["-k", "tests/serverECKey.pem",
+                       "-c", "tests/serverECCert.pem",
+                       "-s", "@SIGALGS@",
+                       "-p", "@PORT@"]}
+     ]
+    },
+    {"server_command": [@CHECKER@"openssl", "s_server", "-www", "-port", "@PORT@", "-key", "@ECPRIURI@", "-cert", "@ECCRTURI@"],
+     "comment": "Run test with ECDSA hostkey in pkcs11 provider",
+     "environment": {"PYTHONPATH" : "."},
+     "server_hostname": "localhost",
+     "server_port": @PORT@,
+     "tests" : [
+       {"name" : "test-tls13-conversation.py",
+        "arguments" : ["-p", "@PORT@"]},
+       {"name" : "test-conversation.py",
+        "arguments" : ["-p", "@PORT@",
+                       "-d"]}
+     ]
+    }
+]
+

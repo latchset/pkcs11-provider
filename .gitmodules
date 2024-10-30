@@ -1,0 +1,9 @@
+[submodule "tlsfuzzer"]
+	path = tlsfuzzer
+	url = https://github.com/tlsfuzzer/tlsfuzzer.git
+[submodule "python-ecdsa"]
+	path = python-ecdsa
+	url = https://github.com/tlsfuzzer/python-ecdsa.git
+[submodule "tlslite-ng"]
+	path = tlslite-ng
+	url = https://github.com/tlsfuzzer/tlslite-ng.git

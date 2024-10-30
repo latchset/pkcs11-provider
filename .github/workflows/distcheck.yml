@@ -29,7 +29,7 @@ jobs:
             fi
             if [ -f /etc/redhat-release ]; then
               dnf -y install $dnf_opts \
-                git gcc meson expect \
+                git gcc meson expect python3 python3-six which \
                 pkgconf-pkg-config openssl-devel openssl xz \
                 nss-softokn nss-tools nss-softokn-devel \
                 softhsm opensc p11-kit-devel p11-kit-server \
@@ -46,6 +46,9 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup
         run: |
+          git config --global --add safe.directory \
+              /__w/pkcs11-provider/pkcs11-provider
+          git submodule update --init
           meson setup builddir
       - name: Distcheck
         run: |

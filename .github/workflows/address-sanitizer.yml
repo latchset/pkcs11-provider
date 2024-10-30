@@ -54,6 +54,8 @@ jobs:
             meson setup builddir -Db_sanitize=address -Dpreload_libasan=/usr/lib/x86_64-linux-gnu/libasan.so.8.0.0
           fi
       - name: Build and Test
+        # note, that this intentionally does not initialize submodules as
+        # the tlsfuzzer test does not work under address sanitizer well
         run: |
           meson compile -C builddir
           meson test --num-processes 1 -C builddir
