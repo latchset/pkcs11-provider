@@ -210,7 +210,7 @@ echo "${ECPEERCRTURI}"
 echo ""
 
 
-## Softtokn does not support edwrds curves yet
+## Softtokn does not support edwards curves yet
 if [ "${TOKENTYPE}" != "softokn" ]; then
 
     # generate ED25519

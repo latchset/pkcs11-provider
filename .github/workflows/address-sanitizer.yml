@@ -44,7 +44,7 @@ jobs:
           fi
       - name: Setup
         # The detection on debian works ok, but on Fedora, we get linker script,
-        # that is not compabitlbe with LD_PRELOAD so we force the absolute path.
+        # that is not compatible with LD_PRELOAD so we force the absolute path.
         run: |
           if [ -f /etc/fedora-release ]; then
             CC=gcc \
