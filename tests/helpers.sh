@@ -72,3 +72,17 @@ kill_children() {
     # make sure it is killed before we continue
     jobs -p | xargs -r kill -9 || true
 }
+
+# macOS uses BSD sed, which expects the argument after -i (with a space after
+# it!) to be the backup suffix, while GNU sed expects a potential backup suffix
+# directly after -i and interprets -i <expression> as in-place editing with no
+# backup.
+#
+# Use "${sed_inplace[@]}" to make that work transparently by setting it to the
+# arguments required to achieve in-place editing without backups depending on
+# the version of sed.
+if sed --version 2>/dev/null | grep -q 'GNU sed'; then
+	export sed_inplace=("-i")
+else
+	export sed_inplace=("-i" "")
+fi
