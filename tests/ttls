@@ -38,11 +38,14 @@ run_test() {
     CERT="$2"
     SRV_ARGS=$3
     CLNT_ARGS=$4
-    expect -c "spawn $CHECKER openssl s_server -accept \"${PORT}\" -naccept 1 -key \"${KEY}\" -cert \"${CERT}\" $SRV_ARGS;
-        set timeout 60;
+
+    export PKCS11_PROVIDER_DEBUG="file:${TMPPDIR}/p11prov-debug-tls-server.log"
+    expect -c "spawn $CHECKER openssl s_server $PROPQ -accept \"${PORT}\" -naccept 1 -key \"${KEY}\" -cert \"${CERT}\" $SRV_ARGS;
+        set timeout 10;
         expect {
             \"ACCEPT\" {};
             eof { exit 2; }
+            timeout { exit 5; }
             default {
                 send \" NO ACCEPT \n\";
                 exit 1;
@@ -54,6 +57,7 @@ run_test() {
         expect {
             \"END SSL SESSION PARAMETERS\" {};
             eof { exit 2; }
+            timeout { exit 5; }
             default {
                 send \" NO SESSION PARAMETERS \n\";
                 exit 1;
@@ -63,6 +67,7 @@ run_test() {
         send \"Q\n\"
         expect {
             eof {exit 0;};
+            timeout { exit 5; }
             default {
                 send \" NO EOF \n\";
                 exit 1;
@@ -72,11 +77,13 @@ run_test() {
 
     read -r < "${TMPPDIR}/s_server_ready"
 
-    expect -c "spawn $CHECKER openssl s_client -connect \"localhost:${PORT}\" -CAfile \"${CACRT}\" $CLNT_ARGS;
-        set timeout 60;
+    export PKCS11_PROVIDER_DEBUG="file:${TMPPDIR}/p11prov-debug-tls-client.log"
+    expect -c "spawn $CHECKER openssl s_client $PROPQ -connect \"localhost:${PORT}\" -CAfile \"${CACRT}\" $CLNT_ARGS;
+        set timeout 10;
         expect {
             \" TLS SUCCESSFUL \" {};
             eof { exit 2; }
+            timeout { exit 5; }
             default {
                 send \" NO TLS SUCCESSFUL MESSAGE \n\";
                 exit 1;
@@ -84,6 +91,7 @@ run_test() {
         }
         expect {
             eof {exit 0;};
+            timeout { exit 5; }
             default {
                 send \" NO EOF \n\";
                 exit 1;
@@ -100,6 +108,11 @@ run_tests() {
 
     title PARA "Run sanity test with default values (ECDSA)"
     run_test "$ECPRIURI" "$ECCRTURI"
+
+    if [[ -n "$EDBASEURI" ]]; then
+        title PARA "Run sanity test with default values (EdDSA)"
+        run_test "$EDPRIURI" "$EDCRTURI"
+    fi
 
     title PARA "Run test with TLS 1.2"
     run_test "$PRIURI" "$CRTURI" "" "-tls1_2"
@@ -118,15 +131,18 @@ run_tests() {
 }
 
 title SECTION "TLS with key in provider"
+PROPQ=""
 run_tests
 title ENDSECTION
 
 title SECTION "Forcing the provider for all server operations"
-#Try again forcing all operations on the token
-#We need to disable digest operations as OpenSSL depends on context duplication working
+# We can not put this into the openssl.cnf directly, as it would be picked up by softhsm
+# causing infinite recursion when doing EdDSA key operations.
+PROPQ="-propquery \"?provider=pkcs11\""
+# Try again forcing all operations on the token
+# We need to disable digest operations as OpenSSL depends on context duplication working
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
-sed -e "s/^#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
-    -e "s/^#pkcs11-module-block-operations/pkcs11-module-block-operations = digest/" \
+sed -e "s/^#pkcs11-module-block-operations/pkcs11-module-block-operations = digest/" \
     "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
 OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
 
