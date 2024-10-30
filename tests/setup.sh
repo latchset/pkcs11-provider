@@ -57,20 +57,6 @@ if [ -z "$certtool" ]; then
     exit 0
 fi
 
-# macOS uses BSD sed, which expects the argument after -i (with a space after
-# it!) to be the backup suffix, while GNU sed expects a potential backup suffix
-# directly after -i and interprets -i <expression> as in-place editing with no
-# backup.
-#
-# Use "${sed_inplace[@]}" to make that work transparently by setting it to the
-# arguments required to achieve in-place editing without backups depending on
-# the version of sed.
-if sed --version 2>/dev/null | grep -q 'GNU sed'; then
-	sed_inplace=("-i")
-else
-	sed_inplace=("-i" "")
-fi
-
 # NSS uses the second slot for certificates, so we need to provide the token
 # label in the args to allow pkcs11-tool to find the right slot
 P11DEFARGS=("--module=${P11LIB}" "--login" "--pin=${PINVALUE}" "--token-label=${TOKENLABEL}")
