@@ -34,7 +34,8 @@ jobs:
               gcc g++ perl-interpreter zlib-devel sqlite-devel \
               'perl(Module::Load::Conditional)' 'perl(File::Temp)' \
               'perl(IPC::Cmd)' 'perl(FindBin)' 'perl(lib)' \
-              'perl(File::Compare)' 'perl(File::Copy)'
+              'perl(File::Compare)' 'perl(File::Copy)' \
+              python3-six which
 
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -79,7 +80,10 @@ jobs:
           grep -q "0 failed" testout.log
 
       - name: Setup
-        run:
+        run: |
+          git config --global --add safe.directory \
+              /__w/pkcs11-provider/pkcs11-provider
+          git submodule update --init
           meson setup builddir
       - name: Build
         run:

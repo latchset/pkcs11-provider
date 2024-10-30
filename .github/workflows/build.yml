@@ -35,9 +35,9 @@ jobs:
             fi
             if [ -f /etc/redhat-release ]; then
               dnf -y install $dnf_opts \
-                git ${{ matrix.compiler }} meson \
+                git ${{ matrix.compiler }} meson which \
                 pkgconf-pkg-config openssl-devel openssl \
-                diffutils expect valgrind opensc gnutls-utils
+                diffutils expect valgrind opensc gnutls-utils python3-six
               if [ "${{ matrix.token }}" = "softokn" ]; then
                 dnf -y install nss-softokn nss-tools nss-softokn-devel \
                   nss-devel
@@ -48,7 +48,7 @@ jobs:
               apt-get -q update
               apt-get -yq install git ${{ matrix.compiler }} meson \
                 pkg-config libssl-dev openssl expect \
-                valgrind procps opensc gnutls-bin
+                valgrind procps opensc gnutls-bin python3-six
               if [ "${{ matrix.token }}" = "softokn" ]; then
                 apt-get -yq install libnss3 libnss3-tools libnss3-dev
               elif [ "${{ matrix.token }}" = "softhsm" ]; then
@@ -73,6 +73,9 @@ jobs:
       - name: Setup
         if : ( steps.nss-version-check.outputs.skiptest != 'true' )
         run: |
+          git config --global --add safe.directory \
+              /__w/pkcs11-provider/pkcs11-provider
+          git submodule update --init
           CC=${{ matrix.compiler }} meson setup builddir
       - name: Build and Test
         if : ( steps.nss-version-check.outputs.skiptest != 'true' )
@@ -120,17 +123,20 @@ jobs:
             openssl@3 \
             pkg-config \
             opensc \
-            p11-kit
+            p11-kit \
+            six
           if [ "${{ matrix.token }}" = "softokn" ]; then
             brew install nss
           elif [ "${{ matrix.token }}" = "softhsm" ]; then
-            brew install \
-              softhsm
+            brew install softhsm
           fi
       - name: Checkout Repository
         uses: actions/checkout@v4
       - name: Setup
         run: |
+          git config --global --add safe.directory \
+              /__w/pkcs11-provider/pkcs11-provider
+          git submodule update --init
           export PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig
           export PATH=$(brew --prefix openssl@3)/bin:$PATH
 

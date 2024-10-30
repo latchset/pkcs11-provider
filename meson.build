@@ -84,6 +84,8 @@ endforeach
 
 configure_file(output: 'config.h', configuration: conf)
 
+meson.add_dist_script('scripts/clean-dist.sh')
+
 subdir('src')
 subdir('docs')
 subdir('tests')
