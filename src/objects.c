@@ -2974,6 +2974,134 @@ done:
     return rv;
 }
 
+static CK_RV prep_ed_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
+                          struct pool_find_ctx *findctx)
+{
+    OSSL_PARAM tmp;
+    const OSSL_PARAM *p;
+
+    data_buffer digest_data[4];
+    data_buffer digest = { 0 };
+
+    const unsigned char *ecparams = NULL;
+    int len, i;
+    CK_RV rv;
+
+    if (findctx->numattrs != MAX_ATTRS_SIZE) {
+        return CKR_ARGUMENTS_BAD;
+    }
+    findctx->numattrs = 0;
+
+    switch (findctx->class) {
+    case CKO_PUBLIC_KEY:
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PUB_KEY);
+        if (!p) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_PUB_KEY);
+            rv = CKR_KEY_INDIGESTIBLE;
+            goto done;
+        }
+
+        if (p->data_size == ED25519_BYTE_SIZE) {
+            ecparams = ed25519_ec_params;
+            len = ED25519_EC_PARAMS_LEN;
+            findctx->bit_size = ED25519_BIT_SIZE;
+            findctx->key_size = ED25519_BYTE_SIZE;
+        } else if (p->data_size == ED448_BYTE_SIZE) {
+            ecparams = ed448_ec_params;
+            len = ED448_EC_PARAMS_LEN;
+            findctx->bit_size = ED448_BIT_SIZE;
+            findctx->key_size = ED448_BYTE_SIZE;
+        } else {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE,
+                          "Public key of unknown length %lu", p->data_size);
+            rv = CKR_KEY_INDIGESTIBLE;
+            goto done;
+        }
+
+        rv = param_to_attr(ctx, params, OSSL_PKEY_PARAM_PUB_KEY,
+                           &findctx->attrs[0], CKA_P11PROV_PUB_KEY, false);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+
+        findctx->numattrs++;
+
+        break;
+    case CKO_PRIVATE_KEY:
+        /* A Token would never allow us to search by private exponent,
+         * so we store a hash of the private key in CKA_ID */
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+        if (!p) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_PRIV_KEY);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        i = 0;
+
+        if (p->data_size == ED25519_BYTE_SIZE) {
+            ecparams = ed25519_ec_params;
+            len = ED25519_EC_PARAMS_LEN;
+            findctx->bit_size = ED25519_BIT_SIZE;
+            findctx->key_size = ED25519_BYTE_SIZE;
+        } else if (p->data_size == ED448_BYTE_SIZE) {
+            ecparams = ed448_ec_params;
+            len = ED448_EC_PARAMS_LEN;
+            findctx->bit_size = ED448_BIT_SIZE;
+            findctx->key_size = ED448_BYTE_SIZE;
+        } else {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE,
+                          "Private key of unknown length %lu", p->data_size);
+            rv = CKR_KEY_INDIGESTIBLE;
+            goto done;
+        }
+
+        /* prefix */
+        digest_data[i].data = (uint8_t *)"PrivKey";
+        digest_data[i].length = 7;
+        i++;
+
+        digest_data[i].data = (CK_BYTE *)ecparams;
+        digest_data[i].length = len;
+        i++;
+
+        digest_data[i].data = p->data;
+        digest_data[i].length = p->data_size;
+        i++;
+
+        digest_data[i].data = NULL;
+
+        rv = p11prov_digest_util(ctx, "sha256", NULL, digest_data, &digest);
+        if (rv != CKR_OK) {
+            return rv;
+        }
+        findctx->attrs[0].type = CKA_ID;
+        findctx->attrs[0].pValue = digest.data;
+        findctx->attrs[0].ulValueLen = digest.length;
+        findctx->numattrs++;
+
+        break;
+    default:
+        return CKR_GENERAL_ERROR;
+    }
+
+    /* common params */
+    tmp.key = "EC Params";
+    tmp.data = (CK_BYTE *)ecparams;
+    tmp.data_size = len;
+    rv = param_to_attr(ctx, &tmp, tmp.key, &findctx->attrs[findctx->numattrs],
+                       CKA_EC_PARAMS, false);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+    findctx->numattrs++;
+    rv = CKR_OK;
+
+done:
+    return rv;
+}
+
 static CK_RV return_dup_key(P11PROV_OBJ *dst, P11PROV_OBJ *src)
 {
     CK_RV rv;
@@ -3073,8 +3201,15 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
         break;
 
     case CKK_EC:
-    case CKK_EC_EDWARDS:
         rv = prep_ec_find(ctx, params, &findctx);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        allocattrs = EC_ATTRS_NUM;
+        break;
+
+    case CKK_EC_EDWARDS:
+        rv = prep_ed_find(ctx, params, &findctx);
         if (rv != CKR_OK) {
             goto done;
         }
@@ -3620,8 +3755,14 @@ static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
         break;
 
     case CKK_EC:
-    case CKK_EC_EDWARDS:
         rv = prep_ec_find(ctx, params, &findctx);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        break;
+
+    case CKK_EC_EDWARDS:
+        rv = prep_ed_find(ctx, params, &findctx);
         if (rv != CKR_OK) {
             goto done;
         }
