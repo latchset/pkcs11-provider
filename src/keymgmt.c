@@ -1396,8 +1396,8 @@ static int p11prov_ec_match(const void *keydata1, const void *keydata2,
     return p11prov_common_match(keydata1, keydata2, CKK_EC, selection);
 }
 
-static int p11prov_ec_import(void *keydata, int selection,
-                             const OSSL_PARAM params[])
+static int p11prov_ec_import_genr(CK_KEY_TYPE key_type, void *keydata,
+                                  int selection, const OSSL_PARAM params[])
 {
     P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
     CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
@@ -1426,11 +1426,17 @@ static int p11prov_ec_import(void *keydata, int selection,
         }
     }
 
-    rv = p11prov_obj_import_key(key, CKK_EC, class, params);
+    rv = p11prov_obj_import_key(key, key_type, class, params);
     if (rv != CKR_OK) {
         return RET_OSSL_ERR;
     }
     return RET_OSSL_OK;
+}
+
+static int p11prov_ec_import(void *keydata, int selection,
+                             const OSSL_PARAM params[])
+{
+    return p11prov_ec_import_genr(CKK_EC, keydata, selection, params);
 }
 
 static int p11prov_ec_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
@@ -1915,6 +1921,12 @@ static int p11prov_ed_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
     return RET_OSSL_ERR;
 }
 
+static int p11prov_ed_import(void *keydata, int selection,
+                             const OSSL_PARAM params[])
+{
+    return p11prov_ec_import_genr(CKK_EC_EDWARDS, keydata, selection, params);
+}
+
 static const OSSL_PARAM *p11prov_ed_import_types(int selection)
 {
     static const OSSL_PARAM p11prov_ed_imp_key_types[] = {
@@ -2082,7 +2094,7 @@ const OSSL_DISPATCH p11prov_ed25519_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ec, FREE, free),
     DISPATCH_KEYMGMT_ELEM(ec, HAS, has),
     DISPATCH_KEYMGMT_ELEM(ed, MATCH, match),
-    DISPATCH_KEYMGMT_ELEM(ec, IMPORT, import),
+    DISPATCH_KEYMGMT_ELEM(ed, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(ed, IMPORT_TYPES, import_types),
     DISPATCH_KEYMGMT_ELEM(ed, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(ed, EXPORT_TYPES, export_types),
@@ -2106,7 +2118,7 @@ const OSSL_DISPATCH p11prov_ed448_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ec, FREE, free),
     DISPATCH_KEYMGMT_ELEM(ec, HAS, has),
     DISPATCH_KEYMGMT_ELEM(ed, MATCH, match),
-    DISPATCH_KEYMGMT_ELEM(ec, IMPORT, import),
+    DISPATCH_KEYMGMT_ELEM(ed, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(ed, IMPORT_TYPES, import_types),
     DISPATCH_KEYMGMT_ELEM(ed, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(ed, EXPORT_TYPES, export_types),
