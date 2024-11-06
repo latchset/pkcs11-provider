@@ -182,18 +182,22 @@ CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
             ret = CKR_HOST_MEMORY;
             goto done;
         }
-        sctx->slots[sctx->num] = slot;
 
         ret = p11prov_GetSlotInfo(ctx, slotid[i], &slot->slot);
         if (ret != CKR_OK || (slot->slot.flags & CKF_TOKEN_PRESENT) == 0) {
             /* skip slot */
+            OPENSSL_free(slot);
             continue;
         }
         ret = p11prov_GetTokenInfo(ctx, slotid[i], &slot->token);
         if (ret) {
             /* skip slot */
+            OPENSSL_free(slot);
             continue;
         }
+
+        sctx->slots[sctx->num] = slot;
+        sctx->num++;
 
         trim(slot->slot.slotDescription);
         trim(slot->slot.manufacturerID);
@@ -243,8 +247,6 @@ CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
 
         P11PROV_debug_slot(ctx, slot->id, &slot->slot, &slot->token,
                            slot->mechs, slot->nmechs, slot->profiles);
-
-        sctx->num++;
     }
 
 done:
@@ -346,9 +348,6 @@ void p11prov_free_slots(P11PROV_SLOTS_CTX *sctx)
         P11PROV_raise(sctx->provctx, CKR_CANT_LOCK,
                       "Failed to destroy slots lock (errno:%d), leaking memory",
                       err);
-        return;
-    }
-    if (sctx->num == 0) {
         return;
     }
     for (int i = 0; i < sctx->num; i++) {
