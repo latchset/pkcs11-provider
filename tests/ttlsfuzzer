@@ -9,7 +9,7 @@ if [[ ! -d "${TESTSSRCDIR}/../tlsfuzzer/tlsfuzzer" ]]; then
     exit 77;
 fi
 
-TMPFILE="${PWD}/tls-fuzzer.$$.tmp"
+TMPFILE="${TMPPDIR}/tls-fuzzer.$$.tmp"
 PORT="$TESTPORT"
 PYTHON=$(which python3)
 
@@ -20,13 +20,18 @@ else
     SIGALGS="ecdsa_secp256r1_sha256 ecdsa_secp384r1_sha384 ecdsa_secp521r1_sha512 ed25519 ed448 8+26 8+27 8+28 rsa_pss_pss_sha256 rsa_pss_pss_sha384 rsa_pss_pss_sha512 rsa_pss_rsae_sha256 rsa_pss_rsae_sha384 rsa_pss_rsae_sha512 rsa_pkcs1_sha256 rsa_pkcs1_sha384 rsa_pkcs1_sha512 ecdsa_sha224 rsa_pkcs1_sha224"
 fi
 
-run_tests() {
+prepare_test() {
+    TEMPLATE="$1"
+    KEY="$2"
+    CERT="$3"
     # Prepare the tlsfuzzer configuration
-    sed -e "s|@PRIURI@|$PRIURI|g" -e "s/@CRTURI@/$CRTURI/g" \
-        -e "s|@ECPRIURI@|$ECPRIURI|g" -e "s/@ECCRTURI@/$ECCRTURI/g" \
+    sed -e "s|@PRIURI@|$KEY|g" -e "s/@CRTURI@/$CERT/g" \
         -e "s/@PORT@/$PORT/g" \
-        -e "s/@SIGALGS@/$SIGALGS/g" "${TESTSSRCDIR}/cert.json.in" >"${TMPFILE}"
+        -e "s/@PROPQ@/$PROPQ/g" \
+        -e "s/@SIGALGS@/$SIGALGS/g" "${TESTSSRCDIR}/${TEMPLATE}" >>"${TMPFILE}"
+}
 
+run_test() {
     # Run openssl under checker program if needed
     if [[ -n "$CHECKER" ]]; then
         IFS=" " read -r -a ARR <<< "$CHECKER"
@@ -39,8 +44,31 @@ run_tests() {
     test -L ecdsa || ln -s ../python-ecdsa/src/ecdsa ecdsa
     test -L tlslite || ln -s ../tlslite-ng/tlslite tlslite 2>/dev/null
     PYTHONPATH=. "${PYTHON}" tests/scripts_retention.py "${TMPFILE}" openssl 821
-    rm -f "${TMPFILE}"
     popd
+}
+
+run_tests() {
+    # truncate
+    true > "${TMPFILE}"
+
+    title PARA "Prepare CertificateVerify test with RSA"
+    prepare_test cert.json.in "$PRIURI" "$CRTURI"
+
+    title PARA "Prepare test for RSA"
+    prepare_test cert.json.part.in "$PRIURI" "$CRTURI"
+
+    title PARA "Prepare test for ECDSA"
+    prepare_test cert.json.part.in "$ECPRIURI" "$ECCRTURI"
+
+    if [[ -n "$EDBASEURI" ]]; then
+        title PARA "Prepare test for EdDSA"
+        prepare_test cert.json.part.in "$EDPRIURI" "$EDCRTURI"
+    fi
+
+    # the missing closing brace
+    echo "]" >> "${TMPFILE}"
+
+    run_test
 }
 
 title SECTION "Run TLS fuzzer with server key on provider"
@@ -48,10 +76,12 @@ run_tests
 title ENDSECTION
 
 title SECTION "Run TLS fuzzer forcing the provider for all server operations"
-#We need to disable digest operations as OpenSSL depends on context duplication working
+# We can not put this into the openssl.cnf directly, as it would be picked up by softhsm
+# causing infinite recursion when doing EdDSA key operations.
+PROPQ="\"-propquery\", \"?provider=pkcs11\", "
+# We need to disable digest operations as OpenSSL depends on context duplication working
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
-sed -e "s/^#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
-    -e "s/^#pkcs11-module-block-operations/pkcs11-module-block-operations = digest/" \
+sed -e "s/^#pkcs11-module-block-operations/pkcs11-module-block-operations = digest/" \
     "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
 export OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
 
