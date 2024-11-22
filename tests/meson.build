@@ -78,7 +78,7 @@ if get_option('b_sanitize') == 'address'
     name_prefix: '',
   )
 
-  test_env.set('ASAN_OPTIONS', 'fast_unwind_on_malloc=0')
+  test_env.set('ASAN_OPTIONS', 'fast_unwind_on_malloc=0:detect_leaks=1')
   test_env.set('LSAN_OPTIONS', 'suppressions=@0@/lsan.supp'.format(meson.current_source_dir()))
   test_env.set('FAKE_DLCLOSE', fake_dlclose.full_path())
 
