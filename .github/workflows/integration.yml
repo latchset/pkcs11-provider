@@ -115,7 +115,7 @@ jobs:
       - name: Build Kryoptic
         run: |
           cd kryoptic
-          cargo build
+          cargo build --features standard
 
       - name: Setup, Build and Install pkcs11-provider
         run: |
