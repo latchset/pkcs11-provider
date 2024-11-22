@@ -219,6 +219,12 @@ static void context_rm_pool(struct p11prov_ctx *ctx)
     }
     if (found) {
         ctx_pool.num--;
+        if (ctx_pool.num == 0) {
+            /* This was the last context, free ctx_pool.contexts to avoid
+             * leaking memory. */
+            OPENSSL_free(ctx_pool.contexts);
+            ctx_pool.contexts = NULL;
+        }
     } else {
         P11PROV_debug("Context not found in pool ?!");
     }
