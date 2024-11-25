@@ -1,0 +1,44 @@
+{
+    "bomFormat": "CycloneDX",
+    "specVersion": "1.6",
+    "version": 1,
+    "metadata": {
+        "authors": [
+            {
+                "name": "@VCS_SBOM_AUTHORS@"
+            }
+        ]
+    },
+    "components": [
+        {
+            "type": "library",
+            "bom-ref": "pkg:github/latchset/pkcs11-provider@@VCS_TAG@",
+            "cpe": "cpe:2.3:a:latchset:pkcs11-provider:@VCS_TAG@:*:*:*:*:*:*:*",
+            "name": "pkcs11-provider",
+            "version": "@VCS_VERSION@",
+            "description":
+                "OpenSSL 3.x provider to access Hardware and Software Tokens using the PKCS#11 Cryptographic Token Interface",
+            "supplier": {
+                "name": "pkcs11-provider developers"
+            },
+            "authors": [
+                {
+                    "name": "@VCS_AUTHORS@"
+                }
+            ],
+            "licenses": [
+                {
+                    "license": {
+                        "id": "Apache-2.0"
+                    }
+                }
+            ],
+            "externalReferences": [
+                {
+                    "type": "vcs",
+                    "url": "https://github.com/latchset/pkcs11-provider"
+                }
+            ]
+        }
+    ]
+}
