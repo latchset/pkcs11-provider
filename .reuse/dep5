@@ -23,6 +23,7 @@ Files: .github/*
        .clang-format
        .clang-format-ignore
        packaging/pkcs11-provider.spec
+       packaging/sbom.cdx.json
        docs/*
        tests/lsan.supp
        tools/openssl*.cnf
