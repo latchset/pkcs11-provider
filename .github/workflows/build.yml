@@ -121,7 +121,6 @@ jobs:
           brew install \
             meson \
             openssl@3 \
-            pkg-config \
             opensc \
             p11-kit \
             six
