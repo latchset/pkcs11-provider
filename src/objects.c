@@ -666,6 +666,53 @@ static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     return CKR_OK;
 }
 
+static CK_RV decode_ec_point(CK_KEY_TYPE key_type, CK_ATTRIBUTE *attr,
+                             struct data_buffer *ec_point)
+{
+    ASN1_OCTET_STRING *octet;
+    const unsigned char *val;
+    CK_RV ret = CKR_GENERAL_ERROR;
+    int err;
+
+    /* in d2i functions 'in' is overwritten to return the remainder of
+     * the buffer after parsing, so we always need to avoid passing in
+     * our pointer holders, to avoid having them clobbered */
+    val = attr->pValue;
+    octet = d2i_ASN1_OCTET_STRING(NULL, (const unsigned char **)&val,
+                                  attr->ulValueLen);
+    if (!octet) {
+        /* 3.1 spec says CKA_EC_POINT is not DER encoded for Edwards and
+         * Montgomery curves so do not fail in that case and just take
+         * the value as is */
+        if (key_type == CKK_EC) {
+            return CKR_KEY_INDIGESTIBLE;
+        } else {
+            octet = ASN1_OCTET_STRING_new();
+            if (!octet) {
+                return CKR_HOST_MEMORY;
+            }
+            /* makes a copy of the value */
+            err = ASN1_OCTET_STRING_set(octet, attr->pValue, attr->ulValueLen);
+            if (err != RET_OSSL_OK) {
+                ret = CKR_HOST_MEMORY;
+                goto done;
+            }
+        }
+    }
+
+    ec_point->data = octet->data;
+    ec_point->length = octet->length;
+
+    /* moved octet data, do not free it */
+    octet->data = NULL;
+    octet->length = 0;
+
+    ret = CKR_OK;
+done:
+    ASN1_OCTET_STRING_free(octet);
+    return ret;
+}
+
 const CK_BYTE ed25519_ec_params[] = { ED25519_EC_PARAMS };
 const CK_BYTE ed448_ec_params[] = { ED448_EC_PARAMS };
 
@@ -679,7 +726,8 @@ static CK_RV pre_process_ec_key_data(P11PROV_OBJ *key)
     int buffer_size;
     const char *curve_name = NULL;
     int curve_nid;
-    ASN1_OCTET_STRING *octet;
+    struct data_buffer ec_point = { 0 };
+    CK_RV ret;
 
     attr = p11prov_obj_get_attr(key, CKA_EC_PARAMS);
     if (!attr) {
@@ -778,21 +826,15 @@ static CK_RV pre_process_ec_key_data(P11PROV_OBJ *key)
         return CKR_OK;
     }
 
-    val = attr->pValue;
-    octet = d2i_ASN1_OCTET_STRING(NULL, (const unsigned char **)&val,
-                                  attr->ulValueLen);
-    if (!octet) {
-        return CKR_KEY_INDIGESTIBLE;
+    ret = decode_ec_point(type, attr, &ec_point);
+    if (ret != CKR_OK) {
+        return ret;
     }
 
-    CKATTR_ASSIGN(key->attrs[key->numattrs], CKA_P11PROV_PUB_KEY, octet->data,
-                  octet->length);
+    /* takes the data allocated in ec_point */
+    CKATTR_ASSIGN(key->attrs[key->numattrs], CKA_P11PROV_PUB_KEY, ec_point.data,
+                  ec_point.length);
     key->numattrs++;
-
-    /* moved octet data to attrs, do not free it */
-    octet->data = NULL;
-    octet->length = 0;
-    ASN1_OCTET_STRING_free(octet);
     return CKR_OK;
 }
 
@@ -2228,29 +2270,29 @@ CK_ATTRIBUTE *p11prov_obj_get_ec_public_raw(P11PROV_OBJ *key)
 
         ec_point = p11prov_obj_get_attr(key, CKA_EC_POINT);
         if (ec_point) {
-            const unsigned char *val;
-            ASN1_OCTET_STRING *octet;
+            struct data_buffer data = { 0 };
             void *tmp_ptr;
+            CK_RV ret;
 
-            val = ec_point->pValue;
-            octet = d2i_ASN1_OCTET_STRING(NULL, (const unsigned char **)&val,
-                                          ec_point->ulValueLen);
-            if (!octet) {
-                P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
-                              "Failed to decode CKA_EC_POINT");
+            ret = decode_ec_point(key->data.key.type, ec_point, &data);
+            if (ret != CKR_OK) {
+                P11PROV_raise(key->ctx, ret, "Failed to decode EC_POINT");
                 return NULL;
             }
+
             tmp_ptr = OPENSSL_realloc(key->attrs, sizeof(CK_ATTRIBUTE)
                                                       * (key->numattrs + 1));
             if (!tmp_ptr) {
                 P11PROV_raise(key->ctx, CKR_HOST_MEMORY,
                               "Failed to allocate memory key attributes");
+                OPENSSL_free(data.data);
                 return NULL;
             }
             key->attrs = tmp_ptr;
 
+            /* takes the data allocated in data */
             CKATTR_ASSIGN(key->attrs[key->numattrs], CKA_P11PROV_PUB_KEY,
-                          octet->data, octet->length);
+                          data.data, data.length);
             key->numattrs++;
 
             pub_key = &key->attrs[key->numattrs - 1];
