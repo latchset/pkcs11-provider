@@ -482,16 +482,28 @@ static int p11prov_common_gen(struct key_generator *ctx,
     }
 
     ret = p11prov_merge_pub_attrs_into_priv(pub_key, priv_key);
+    if (ret != CKR_OK) {
+        goto done;
+    }
+
+    ret = p11prov_set_pub(priv_key, pub_key);
 
 done:
     if (ret != CKR_OK) {
+        p11prov_obj_free(pub_key);
         p11prov_obj_free(priv_key);
-        priv_key = NULL;
+        pub_key = priv_key = NULL;
     }
     p11prov_return_session(session);
-    p11prov_obj_free(pub_key);
     *key = priv_key;
     return ret;
+}
+
+static void p11prov_common_free(void *key)
+{
+    P11PROV_OBJ *key_obj = (P11PROV_OBJ *)key;
+    p11prov_obj_free(p11prov_get_pub(key_obj));
+    p11prov_obj_free(key_obj);
 }
 
 static void p11prov_common_gen_cleanup(void *genctx)
@@ -697,7 +709,7 @@ static void *p11prov_rsa_new(void *provctx)
 static void p11prov_rsa_free(void *key)
 {
     P11PROV_debug("rsa free %p", key);
-    p11prov_obj_free((P11PROV_OBJ *)key);
+    p11prov_common_free(key);
 }
 
 static void *p11prov_rsa_load(const void *reference, size_t reference_sz)
@@ -1356,7 +1368,7 @@ static const OSSL_PARAM *p11prov_ec_gen_settable_params(void *genctx,
 static void p11prov_ec_free(void *key)
 {
     P11PROV_debug("ec free %p", key);
-    p11prov_obj_free((P11PROV_OBJ *)key);
+    p11prov_common_free(key);
 }
 
 static void *p11prov_ec_load(const void *reference, size_t reference_sz)

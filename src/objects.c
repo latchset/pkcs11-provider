@@ -40,6 +40,8 @@ struct p11prov_obj {
     CK_BBOOL cka_copyable;
     CK_BBOOL cka_token;
 
+    P11PROV_OBJ *pub_key_obj;
+
     P11PROV_URI *refresh_uri;
 
     union {
@@ -108,8 +110,8 @@ void p11prov_obj_pool_free(P11PROV_OBJ_POOL *pool)
         }
         OPENSSL_free(pool->objects);
         (void)MUTEX_UNLOCK(pool);
-        /* ------------- LOCKED SECTION */ }
-    else {
+        /* ------------- LOCKED SECTION */
+    } else {
         P11PROV_debug("Failed to lock object pool, leaking it!");
         return;
     }
@@ -269,6 +271,8 @@ P11PROV_OBJ *p11prov_obj_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
     obj->handle = handle;
     obj->class = class;
     obj->cached = CK_INVALID_HANDLE;
+
+    obj->pub_key_obj = NULL;
 
     obj->refcnt = 1;
 
@@ -941,8 +945,6 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     if (obj == NULL) {
         return CKR_HOST_MEMORY;
     }
-    obj->handle = handle;
-    obj->slotid = p11prov_session_slotid(session);
     obj->data.key.type = CK_UNAVAILABLE_INFORMATION;
 
     num = 0;
@@ -4027,6 +4029,7 @@ CK_RV p11prov_obj_copy_specific_attr(P11PROV_OBJ *pub_key,
 #define RSA_PRIV_ATTRS_NUM 2
 
 #define EC_PRIV_ATTRS_NUM 3
+// TODO: maybe remove after public key object was added in P11PROV_OBJ
 CK_RV p11prov_merge_pub_attrs_into_priv(P11PROV_OBJ *pub_key,
                                         P11PROV_OBJ *priv_key)
 {
@@ -4148,4 +4151,20 @@ P11PROV_OBJ *mock_pub_ec_key(P11PROV_CTX *ctx, CK_ATTRIBUTE_TYPE type,
     }
 
     return key;
+}
+
+CK_RV p11prov_set_pub(P11PROV_OBJ *priv, P11PROV_OBJ *pub)
+{
+    if (!priv || !pub) return CKR_ARGUMENTS_BAD;
+    if (priv->class != CKO_PRIVATE_KEY || pub->class != CKO_PUBLIC_KEY)
+        return CKR_ARGUMENTS_BAD;
+    if (priv->pub_key_obj) return CKR_ARGUMENTS_BAD;
+    priv->pub_key_obj = pub;
+    return CKR_OK;
+}
+
+P11PROV_OBJ *p11prov_get_pub(P11PROV_OBJ *priv)
+{
+    if (!priv || priv->class != CKO_PRIVATE_KEY) return NULL;
+    return priv->pub_key_obj;
 }
