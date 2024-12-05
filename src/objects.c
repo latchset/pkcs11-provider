@@ -440,6 +440,9 @@ void p11prov_obj_free(P11PROV_OBJ *obj)
     if (obj == NULL) {
         return;
     }
+
+    p11prov_obj_free(obj->pub_key_obj);
+
     if (__atomic_sub_fetch(&obj->refcnt, 1, __ATOMIC_SEQ_CST) != 0) {
         P11PROV_debug("object free: reference held");
         return;
