@@ -40,6 +40,8 @@ struct p11prov_obj {
     CK_BBOOL cka_copyable;
     CK_BBOOL cka_token;
 
+    P11PROV_OBJ *pub_key_obj;
+
     P11PROV_URI *refresh_uri;
 
     union {
@@ -4148,4 +4150,20 @@ P11PROV_OBJ *mock_pub_ec_key(P11PROV_CTX *ctx, CK_ATTRIBUTE_TYPE type,
     }
 
     return key;
+}
+
+CK_RV p11prov_set_pub(P11PROV_OBJ *priv, P11PROV_OBJ *pub)
+{
+    if (!priv || !pub) return CKR_ARGUMENTS_BAD;
+    if (priv->class != CKO_PRIVATE_KEY || pub->class != CKO_PUBLIC_KEY)
+        return CKR_ARGUMENTS_BAD;
+    if (priv->pub_key_obj) return CKR_ARGUMENTS_BAD;
+    priv->pub_key_obj = pub;
+    return CKR_OK;
+}
+
+P11PROV_OBJ *p11prov_get_pub(P11PROV_OBJ *priv)
+{
+    if (!priv || priv->class != CKO_PRIVATE_KEY) return NULL;
+    return priv->pub_key_obj;
 }
