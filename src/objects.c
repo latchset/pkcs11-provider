@@ -110,8 +110,8 @@ void p11prov_obj_pool_free(P11PROV_OBJ_POOL *pool)
         }
         OPENSSL_free(pool->objects);
         (void)MUTEX_UNLOCK(pool);
-        /* ------------- LOCKED SECTION */ }
-    else {
+        /* ------------- LOCKED SECTION */
+    } else {
         P11PROV_debug("Failed to lock object pool, leaking it!");
         return;
     }
@@ -4030,6 +4030,7 @@ CK_RV p11prov_obj_copy_specific_attr(P11PROV_OBJ *pub_key,
 #define RSA_PRIV_ATTRS_NUM 2
 
 #define EC_PRIV_ATTRS_NUM 3
+// TODO: maybe remove after public key object was added in P11PROV_OBJ
 CK_RV p11prov_merge_pub_attrs_into_priv(P11PROV_OBJ *pub_key,
                                         P11PROV_OBJ *priv_key)
 {

@@ -1256,10 +1256,9 @@ static int p11prov_rsasig_digest_sign_final(void *ctx, unsigned char *sig,
     /* the siglen might be uninitialized when called from openssl */
     *siglen = 0;
 
-    P11PROV_debug(
-        "rsa digest sign final (ctx=%p, sig=%p, siglen=%zu, "
-        "sigsize=%zu)",
-        ctx, sig, *siglen, sigsize);
+    P11PROV_debug("rsa digest sign final (ctx=%p, sig=%p, siglen=%zu, "
+                  "sigsize=%zu)",
+                  ctx, sig, *siglen, sigsize);
 
     if (sigctx == NULL) {
         return RET_OSSL_ERR;
@@ -1907,10 +1906,9 @@ static int p11prov_ecdsa_digest_sign_final(void *ctx, unsigned char *sig,
     /* the siglen might be uninitialized when called from openssl */
     *siglen = 0;
 
-    P11PROV_debug(
-        "ecdsa digest sign final (ctx=%p, sig=%p, siglen=%zu, "
-        "sigsize=%zu)",
-        ctx, sig, *siglen, sigsize);
+    P11PROV_debug("ecdsa digest sign final (ctx=%p, sig=%p, siglen=%zu, "
+                  "sigsize=%zu)",
+                  ctx, sig, *siglen, sigsize);
 
     if (sigctx == NULL) {
         return RET_OSSL_ERR;
