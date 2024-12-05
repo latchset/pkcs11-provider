@@ -946,8 +946,6 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     if (obj == NULL) {
         return CKR_HOST_MEMORY;
     }
-    obj->handle = handle;
-    obj->slotid = p11prov_session_slotid(session);
     obj->data.key.type = CK_UNAVAILABLE_INFORMATION;
 
     num = 0;
