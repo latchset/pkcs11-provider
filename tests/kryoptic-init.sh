@@ -27,10 +27,10 @@ find_kryoptic \
 title LINE "Creating Kyroptic database"
 
 # Kryoptic configuration
-export KRYOPTIC_CONF="$TOKDIR/kryoptic.sql"
+export KRYOPTIC_CONF="${KRYOPTIC_CONF:-$TOKDIR/kryoptic.sql}"
 
-export TOKENLABEL="Kryoptic Token"
-export TOKENLABELURI="Kryoptic%20Token"
+export TOKENLABEL="${TOKENLABEL:-Kryoptic Token}"
+export TOKENLABELURI="${TOKENLABELURI:-Kryoptic%20Token}"
 
 # init token
 pkcs11-tool --module "${P11LIB}" --init-token \
