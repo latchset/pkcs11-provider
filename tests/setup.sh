@@ -31,6 +31,8 @@ elif [ "${TOKENTYPE}" == "softokn" ]; then
     source "${TESTSSRCDIR}/softokn-init.sh"
 elif [ "${TOKENTYPE}" == "kryoptic" ]; then
     source "${TESTSSRCDIR}/kryoptic-init.sh"
+elif [ "${TOKENTYPE}" == "kryoptic.nss" ]; then
+    source "${TESTSSRCDIR}/kryoptic.nss-init.sh"
 else
     echo "Unknown token type: $1"
     exit 1

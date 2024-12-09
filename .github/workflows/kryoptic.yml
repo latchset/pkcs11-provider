@@ -75,8 +75,8 @@ jobs:
       - name: Build Kryoptic
         run: |
           cd kryoptic
-          cargo build --features standard
-          cargo test --features standard | tee testout.log 2>&1
+          cargo build --features standard,nssdb
+          cargo test --features standard,nssdb | tee testout.log 2>&1
           grep -q "0 failed" testout.log
 
       - name: Setup
