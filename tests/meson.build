@@ -106,6 +106,7 @@ test_programs = {
   'tcmpkeys': ['tcmpkeys.c', 'util.c'],
   'tfork': ['tfork.c'],
   'pincache': ['pincache.c'],
+  'tsigver': ['tsigver.c'],
 }
 
 test_executables = []
