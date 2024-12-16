@@ -29,7 +29,9 @@ Files: .github/*
        tools/openssl*.cnf
        tests/*.pem
        tests/cert.json.in
-       tests/cert.json.part.in
+       tests/cert.json.rsa.in
+       tests/cert.json.ecdsa.in
+       tests/cert.json.eddsa.in
        scripts/clean-dist.sh
 Copyright: (C) 2022 - 2024 Simo Sorce <simo@redhat.com>
 License: Apache-2.0

@@ -1,0 +1,41 @@
+,
+    {"server_command": [@CHECKER@"openssl", "s_server", @PROPQ@"-www", "-port", "@PORT@", "-key", "@PRIURI@", "-cert", "@CRTURI@"],
+     "comment": "Run test with @PRIURI@ without certificate verify",
+     "environment": {"PYTHONPATH" : "."},
+     "server_hostname": "localhost",
+     "server_port": @PORT@,
+     "common_arguments": ["-p", "@PORT@"],
+     "tests" : [
+       {"name" : "test-tls13-conversation.py"},
+       {"name" : "test-conversation.py",
+        "arguments" : ["-d"]},
+       {"name" : "test-dhe-rsa-key-exchange-signatures.py",
+        "arguments" : [
+          "-n", "0",
+          "-x", "TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA sha1 signature", "-X", "handshake_failure",
+          "-x", "TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA sha224 signature", "-X", "handshake_failure",
+          "-x", "TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA sha256 signature", "-X", "handshake_failure",
+          "-x", "TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA sha384 signature", "-X", "handshake_failure",
+          "-x", "TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA sha512 signature", "-X", "handshake_failure",
+          "-x", "TLS_DHE_RSA_WITH_AES_128_CBC_SHA256 sha1 signature", "-X", "handshake_failure",
+          "-x", "TLS_DHE_RSA_WITH_AES_128_CBC_SHA sha1 signature", "-X", "handshake_failure",
+          "-x", "TLS_DHE_RSA_WITH_AES_256_CBC_SHA256 sha1 signature", "-X", "handshake_failure",
+          "-x", "TLS_DHE_RSA_WITH_AES_256_CBC_SHA sha1 signature", "-X", "handshake_failure"
+        ],
+        "comment": "The 3DES ciphersuites are not enabled. Crypto-Policies disable SHA-1 signatures."
+       },
+       {"name" : "test-sig-algs.py",
+        "arguments" : [
+          "-n", "0",
+          "-x", "rsa_pss_pss_sha256 only", "-X", "handshake_failure",
+          "-x", "rsa_pss_pss_sha384 only", "-X", "handshake_failure",
+          "-x", "rsa_pss_pss_sha512 only", "-X", "handshake_failure"
+        ],
+        "comment": "Server has only RSA key here."
+       },
+       {"name" : "test-tls13-rsa-signatures.py"},
+       {"name" : "test-tls13-signature-algorithms.py",
+        "arguments" : ["-n", "0"]}
+     ]
+    }
+

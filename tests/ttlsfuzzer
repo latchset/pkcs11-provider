@@ -55,14 +55,14 @@ run_tests() {
     prepare_test cert.json.in "$PRIURI" "$CRTURI"
 
     title PARA "Prepare test for RSA"
-    prepare_test cert.json.part.in "$PRIURI" "$CRTURI"
+    prepare_test cert.json.rsa.in "$PRIURI" "$CRTURI"
 
     title PARA "Prepare test for ECDSA"
-    prepare_test cert.json.part.in "$ECPRIURI" "$ECCRTURI"
+    prepare_test cert.json.ecdsa.in "$ECPRIURI" "$ECCRTURI"
 
     if [[ -n "$EDBASEURI" ]]; then
         title PARA "Prepare test for EdDSA"
-        prepare_test cert.json.part.in "$EDPRIURI" "$EDCRTURI"
+        prepare_test cert.json.eddsa.in "$EDPRIURI" "$EDCRTURI"
     fi
 
     # the missing closing brace
