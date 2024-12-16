@@ -1,0 +1,67 @@
+,
+    {"server_command": [@CHECKER@"openssl", "s_server", @PROPQ@"-www", "-port", "@PORT@", "-key", "@PRIURI@", "-cert", "@CRTURI@"],
+     "comment": "Run test with @PRIURI@ without certificate verify",
+     "environment": {"PYTHONPATH" : "."},
+     "server_hostname": "localhost",
+     "server_port": @PORT@,
+     "common_arguments": ["-p", "@PORT@"],
+     "tests" : [
+       {"name" : "test-tls13-conversation.py"},
+       {"name" : "test-conversation.py",
+        "arguments" : ["-d"]},
+       {"name" : "test-ecdsa-sig-flexibility.py",
+        "arguments" : [
+          "-n", "0",
+          "-e", "connect with ecdsa_brainpoolP256r1tls13_sha256 only",
+          "-e", "connect with ecdsa_brainpoolP384r1tls13_sha384 only",
+          "-e", "connect with ecdsa_brainpoolP512r1tls13_sha512 only",
+          "-x", "connect with sha1+ecdsa only", "-X", "handshake_failure"
+        ],
+	"comment": "Crypto-Policies disable SHA-1. The brainpool is broken in OpenSSL."
+       },
+       {"name" : "test-signature-algorithms.py",
+        "arguments" : [
+          "-n", "0", "--ecdsa",
+          "-x", "duplicated 206 non-rsa schemes", "-X", "handshake_failure",
+          "-x", "duplicated 2346 non-rsa schemes", "-X", "handshake_failure",
+          "-x", "duplicated 8123 non-rsa schemes", "-X", "handshake_failure",
+          "-x", "duplicated 23745 non-rsa schemes", "-X", "handshake_failure",
+          "-x", "duplicated 32748 non-rsa schemes", "-X", "handshake_failure",
+          "-x", "explicit SHA-256+RSA or ECDSA", "-X", "handshake_failure",
+          "-x", "explicit SHA-1+RSA/ECDSA", "-X", "handshake_failure",
+          "-x", "explicit SHA-1+RSA/ECDSA", "-X", "handshake_failure",
+          "-x", "implicit SHA-1 check", "-X", "handshake_failure",
+          "-x", "tolerance 10+RSA or ECDSA method", "-X", "handshake_failure",
+          "-x", "tolerance 215 RSA or ECDSA methods", "-X", "handshake_failure",
+          "-x", "tolerance 2355 RSA or ECDSA methods", "-X", "handshake_failure",
+          "-x", "tolerance 8132 RSA or ECDSA methods", "-X", "handshake_failure",
+          "-x", "tolerance 32758 methods with sig_alg_cert", "-X", "handshake_failure",
+          "-x", "tolerance max 32748 number of methods with sig_alg_cert", "-X", "handshake_failure",
+          "-x", "tolerance none+RSA or ECDSA", "-X", "handshake_failure",
+          "-x", "unique and well-known sig_algs, ecdsa algorithm last", "-X", "handshake_failure"
+        ],
+	"comment": "Crypto-Policies disable SHA-1."
+       },
+       {"name" : "test-signature-algorithms.py",
+        "arguments" : [
+          "-n", "0", "--ecdsa", "-g", "secp384r1",
+          "-x", "sanity", "-X", "handshake_failure",
+          "-x", "explicit SHA-256+RSA or ECDSA", "-X", "handshake_failure",
+          "sanity", "explicit SHA-256+RSA or ECDSA"
+        ],
+	"comment": "Incompatible curve should fail"
+       },
+       {"name" : "test-tls13-ecdsa-support.py",
+        "arguments" : [
+          "-n", "0",
+          "-x", "Test with ecdsa_secp384r1_sha384", "-X", "handshake_failure",
+          "-x", "Test with ecdsa_secp521r1_sha512", "-X", "handshake_failure",
+          "-x", "Test with ecdsa_brainpoolP256r1tls13_sha256", "-X", "handshake_failure",
+          "-x", "Test with ecdsa_brainpoolP384r1tls13_sha384", "-X", "handshake_failure",
+          "-x", "Test with ecdsa_brainpoolP512r1tls13_sha512", "-X", "handshake_failure"
+        ],
+	"comment": "We have only P-256 key. The brainpool is broken in OpenSSL."
+       }
+     ]
+    }
+

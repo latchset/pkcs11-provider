@@ -1,0 +1,25 @@
+,
+    {"server_command": [@CHECKER@"openssl", "s_server", @PROPQ@"-www", "-port", "@PORT@", "-key", "@PRIURI@", "-cert", "@CRTURI@"],
+     "comment": "Run test with @PRIURI@ without certificate verify",
+     "environment": {"PYTHONPATH" : "."},
+     "server_hostname": "localhost",
+     "server_port": @PORT@,
+     "common_arguments": ["-p", "@PORT@"],
+     "tests" : [
+       {"name" : "test-tls13-conversation.py"},
+       {"name" : "test-conversation.py",
+        "arguments" : ["-d"]},
+       {"name" : "test-signature-algorithms.py",
+        "arguments" : [
+          "--ecdsa", "-x", "implicit SHA-1 check",
+          "-X", "handshake_failure", "sanity", "implicit SHA-1 check"
+        ],
+        "comment": "SHA-1 is disabled by crypto policies."
+       },
+       {"name" : "test-tls13-eddsa.py",
+        "arguments" : ["-x", "ed448 only", "-X", "handshake_failure"],
+        "comment": "We have only ed25519 key."
+       }
+     ]
+    }
+
