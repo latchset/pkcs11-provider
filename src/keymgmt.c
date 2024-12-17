@@ -482,14 +482,19 @@ static int p11prov_common_gen(struct key_generator *ctx,
     }
 
     ret = p11prov_merge_pub_attrs_into_priv(pub_key, priv_key);
+    if (ret != CKR_OK) {
+        goto done;
+    }
+
+    ret = p11prov_set_pub(priv_key, pub_key);
 
 done:
     if (ret != CKR_OK) {
+        p11prov_obj_free(pub_key);
         p11prov_obj_free(priv_key);
-        priv_key = NULL;
+        pub_key = priv_key = NULL;
     }
     p11prov_return_session(session);
-    p11prov_obj_free(pub_key);
     *key = priv_key;
     return ret;
 }
