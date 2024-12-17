@@ -80,7 +80,7 @@ if [ $FAIL -eq 0 ]; then
 fi
 output="$helper_output"
 FAIL=0
-echo "$output" | grep "An invalid mechanism was specified to the cryptographic operation" > /dev/null 2>&1 || FAIL=1
+echo "$output" | grep "Public Key operation error" > /dev/null 2>&1 || FAIL=1
 if [ $FAIL -ne 0 ]; then
     echo "Signature seem to have failed for unrelated reasons"
     echo "$output";

@@ -17,9 +17,9 @@ CK_RV p11prov_Initialize(P11PROV_CTX *ctx, CK_VOID_PTR pInitArgs)
                   "Initialize");
     ret = intf->Initialize(pInitArgs);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "Initialize");
+        P11PROV_debug("Error %ld returned by C_"
+                      "Initialize",
+                      ret);
     }
     return ret;
 }
@@ -40,9 +40,9 @@ CK_RV p11prov_Finalize(P11PROV_CTX *ctx, CK_VOID_PTR pReserved)
                   "Finalize");
     ret = intf->Finalize(pReserved);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "Finalize");
+        P11PROV_debug("Error %ld returned by C_"
+                      "Finalize",
+                      ret);
     }
     return ret;
 }
@@ -63,9 +63,9 @@ CK_RV p11prov_GetInfo(P11PROV_CTX *ctx, CK_INFO_PTR pInfo)
                   "GetInfo");
     ret = intf->GetInfo(pInfo);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "GetInfo");
+        P11PROV_debug("Error %ld returned by C_"
+                      "GetInfo",
+                      ret);
     }
     return ret;
 }
@@ -88,9 +88,9 @@ CK_RV p11prov_GetInterface(P11PROV_CTX *ctx, CK_UTF8CHAR_PTR pInterfaceName,
                   "GetInterface");
     ret = intf->GetInterface(pInterfaceName, pVersion, ppInterface, flags);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "GetInterface");
+        P11PROV_debug("Error %ld returned by C_"
+                      "GetInterface",
+                      ret);
     }
     return ret;
 }
@@ -112,9 +112,9 @@ CK_RV p11prov_GetFunctionList(P11PROV_CTX *ctx,
                   "GetFunctionList");
     ret = intf->GetFunctionList(ppFunctionList);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "GetFunctionList");
+        P11PROV_debug("Error %ld returned by C_"
+                      "GetFunctionList",
+                      ret);
     }
     return ret;
 }
@@ -136,9 +136,9 @@ CK_RV p11prov_GetSlotList(P11PROV_CTX *ctx, CK_BBOOL tokenPresent,
                   "GetSlotList");
     ret = intf->GetSlotList(tokenPresent, pSlotList, pulCount);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "GetSlotList");
+        P11PROV_debug("Error %ld returned by C_"
+                      "GetSlotList",
+                      ret);
     }
     return ret;
 }
@@ -160,9 +160,9 @@ CK_RV p11prov_GetSlotInfo(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
                   "GetSlotInfo");
     ret = intf->GetSlotInfo(slotID, pInfo);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "GetSlotInfo");
+        P11PROV_debug("Error %ld returned by C_"
+                      "GetSlotInfo",
+                      ret);
     }
     return ret;
 }
@@ -184,9 +184,9 @@ CK_RV p11prov_GetTokenInfo(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
                   "GetTokenInfo");
     ret = intf->GetTokenInfo(slotID, pInfo);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "GetTokenInfo");
+        P11PROV_debug("Error %ld returned by C_"
+                      "GetTokenInfo",
+                      ret);
     }
     return ret;
 }
@@ -209,9 +209,9 @@ CK_RV p11prov_GetMechanismList(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
                   "GetMechanismList");
     ret = intf->GetMechanismList(slotID, pMechanismList, pulCount);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "GetMechanismList");
+        P11PROV_debug("Error %ld returned by C_"
+                      "GetMechanismList",
+                      ret);
     }
     return ret;
 }
@@ -234,9 +234,9 @@ CK_RV p11prov_GetMechanismInfo(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
                   "GetMechanismInfo");
     ret = intf->GetMechanismInfo(slotID, type, pInfo);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "GetMechanismInfo");
+        P11PROV_debug("Error %ld returned by C_"
+                      "GetMechanismInfo",
+                      ret);
     }
     return ret;
 }
@@ -259,9 +259,9 @@ CK_RV p11prov_OpenSession(P11PROV_CTX *ctx, CK_SLOT_ID slotID, CK_FLAGS flags,
                   "OpenSession");
     ret = intf->OpenSession(slotID, flags, pApplication, Notify, phSession);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "OpenSession");
+        P11PROV_debug("Error %ld returned by C_"
+                      "OpenSession",
+                      ret);
     }
     return ret;
 }
@@ -282,9 +282,9 @@ CK_RV p11prov_CloseSession(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession)
                   "CloseSession");
     ret = intf->CloseSession(hSession);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "CloseSession");
+        P11PROV_debug("Error %ld returned by C_"
+                      "CloseSession",
+                      ret);
     }
     return ret;
 }
@@ -306,9 +306,9 @@ CK_RV p11prov_GetSessionInfo(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "GetSessionInfo");
     ret = intf->GetSessionInfo(hSession, pInfo);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "GetSessionInfo");
+        P11PROV_debug("Error %ld returned by C_"
+                      "GetSessionInfo",
+                      ret);
     }
     return ret;
 }
@@ -332,9 +332,9 @@ CK_RV p11prov_GetOperationState(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     ret = intf->GetOperationState(hSession, pOperationState,
                                   pulOperationStateLen);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "GetOperationState");
+        P11PROV_debug("Error %ld returned by C_"
+                      "GetOperationState",
+                      ret);
     }
     return ret;
 }
@@ -361,9 +361,9 @@ CK_RV p11prov_SetOperationState(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         intf->SetOperationState(hSession, pOperationState, ulOperationStateLen,
                                 hEncryptionKey, hAuthenticationKey);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "SetOperationState");
+        P11PROV_debug("Error %ld returned by C_"
+                      "SetOperationState",
+                      ret);
     }
     return ret;
 }
@@ -386,9 +386,9 @@ CK_RV p11prov_Login(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "Login");
     ret = intf->Login(hSession, userType, pPin, ulPinLen);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "Login");
+        P11PROV_debug("Error %ld returned by C_"
+                      "Login",
+                      ret);
     }
     return ret;
 }
@@ -411,9 +411,9 @@ CK_RV p11prov_CreateObject(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "CreateObject");
     ret = intf->CreateObject(hSession, pTemplate, ulCount, phObject);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "CreateObject");
+        P11PROV_debug("Error %ld returned by C_"
+                      "CreateObject",
+                      ret);
     }
     return ret;
 }
@@ -436,9 +436,9 @@ CK_RV p11prov_CopyObject(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "CopyObject");
     ret = intf->CopyObject(hSession, hObject, pTemplate, ulCount, phNewObject);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "CopyObject");
+        P11PROV_debug("Error %ld returned by C_"
+                      "CopyObject",
+                      ret);
     }
     return ret;
 }
@@ -460,9 +460,9 @@ CK_RV p11prov_DestroyObject(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "DestroyObject");
     ret = intf->DestroyObject(hSession, hObject);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "DestroyObject");
+        P11PROV_debug("Error %ld returned by C_"
+                      "DestroyObject",
+                      ret);
     }
     return ret;
 }
@@ -485,9 +485,9 @@ CK_RV p11prov_GetAttributeValue(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "GetAttributeValue");
     ret = intf->GetAttributeValue(hSession, hObject, pTemplate, ulCount);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "GetAttributeValue");
+        P11PROV_debug("Error %ld returned by C_"
+                      "GetAttributeValue",
+                      ret);
     }
     return ret;
 }
@@ -510,9 +510,9 @@ CK_RV p11prov_SetAttributeValue(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "SetAttributeValue");
     ret = intf->SetAttributeValue(hSession, hObject, pTemplate, ulCount);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "SetAttributeValue");
+        P11PROV_debug("Error %ld returned by C_"
+                      "SetAttributeValue",
+                      ret);
     }
     return ret;
 }
@@ -534,9 +534,9 @@ CK_RV p11prov_FindObjectsInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "FindObjectsInit");
     ret = intf->FindObjectsInit(hSession, pTemplate, ulCount);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "FindObjectsInit");
+        P11PROV_debug("Error %ld returned by C_"
+                      "FindObjectsInit",
+                      ret);
     }
     return ret;
 }
@@ -561,9 +561,9 @@ CK_RV p11prov_FindObjects(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     ret =
         intf->FindObjects(hSession, phObject, ulMaxObjectCount, pulObjectCount);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "FindObjects");
+        P11PROV_debug("Error %ld returned by C_"
+                      "FindObjects",
+                      ret);
     }
     return ret;
 }
@@ -584,9 +584,9 @@ CK_RV p11prov_FindObjectsFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession)
                   "FindObjectsFinal");
     ret = intf->FindObjectsFinal(hSession);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "FindObjectsFinal");
+        P11PROV_debug("Error %ld returned by C_"
+                      "FindObjectsFinal",
+                      ret);
     }
     return ret;
 }
@@ -608,9 +608,9 @@ CK_RV p11prov_EncryptInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "EncryptInit");
     ret = intf->EncryptInit(hSession, pMechanism, hKey);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "EncryptInit");
+        P11PROV_debug("Error %ld returned by C_"
+                      "EncryptInit",
+                      ret);
     }
     return ret;
 }
@@ -635,9 +635,9 @@ CK_RV p11prov_Encrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     ret = intf->Encrypt(hSession, pData, ulDataLen, pEncryptedData,
                         pulEncryptedDataLen);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "Encrypt");
+        P11PROV_debug("Error %ld returned by C_"
+                      "Encrypt",
+                      ret);
     }
     return ret;
 }
@@ -659,9 +659,9 @@ CK_RV p11prov_DecryptInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "DecryptInit");
     ret = intf->DecryptInit(hSession, pMechanism, hKey);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "DecryptInit");
+        P11PROV_debug("Error %ld returned by C_"
+                      "DecryptInit",
+                      ret);
     }
     return ret;
 }
@@ -685,9 +685,9 @@ CK_RV p11prov_Decrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     ret = intf->Decrypt(hSession, pEncryptedData, ulEncryptedDataLen, pData,
                         pulDataLen);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "Decrypt");
+        P11PROV_debug("Error %ld returned by C_"
+                      "Decrypt",
+                      ret);
     }
     return ret;
 }
@@ -709,9 +709,9 @@ CK_RV p11prov_DigestInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "DigestInit");
     ret = intf->DigestInit(hSession, pMechanism);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "DigestInit");
+        P11PROV_debug("Error %ld returned by C_"
+                      "DigestInit",
+                      ret);
     }
     return ret;
 }
@@ -733,9 +733,9 @@ CK_RV p11prov_DigestUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "DigestUpdate");
     ret = intf->DigestUpdate(hSession, pPart, ulPartLen);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "DigestUpdate");
+        P11PROV_debug("Error %ld returned by C_"
+                      "DigestUpdate",
+                      ret);
     }
     return ret;
 }
@@ -757,9 +757,9 @@ CK_RV p11prov_DigestFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "DigestFinal");
     ret = intf->DigestFinal(hSession, pDigest, pulDigestLen);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "DigestFinal");
+        P11PROV_debug("Error %ld returned by C_"
+                      "DigestFinal",
+                      ret);
     }
     return ret;
 }
@@ -781,9 +781,9 @@ CK_RV p11prov_SignInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "SignInit");
     ret = intf->SignInit(hSession, pMechanism, hKey);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "SignInit");
+        P11PROV_debug("Error %ld returned by C_"
+                      "SignInit",
+                      ret);
     }
     return ret;
 }
@@ -806,9 +806,9 @@ CK_RV p11prov_Sign(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "Sign");
     ret = intf->Sign(hSession, pData, ulDataLen, pSignature, pulSignatureLen);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "Sign");
+        P11PROV_debug("Error %ld returned by C_"
+                      "Sign",
+                      ret);
     }
     return ret;
 }
@@ -830,9 +830,9 @@ CK_RV p11prov_SignUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "SignUpdate");
     ret = intf->SignUpdate(hSession, pPart, ulPartLen);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "SignUpdate");
+        P11PROV_debug("Error %ld returned by C_"
+                      "SignUpdate",
+                      ret);
     }
     return ret;
 }
@@ -854,9 +854,9 @@ CK_RV p11prov_SignFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "SignFinal");
     ret = intf->SignFinal(hSession, pSignature, pulSignatureLen);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "SignFinal");
+        P11PROV_debug("Error %ld returned by C_"
+                      "SignFinal",
+                      ret);
     }
     return ret;
 }
@@ -878,9 +878,9 @@ CK_RV p11prov_VerifyInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "VerifyInit");
     ret = intf->VerifyInit(hSession, pMechanism, hKey);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "VerifyInit");
+        P11PROV_debug("Error %ld returned by C_"
+                      "VerifyInit",
+                      ret);
     }
     return ret;
 }
@@ -903,9 +903,9 @@ CK_RV p11prov_Verify(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "Verify");
     ret = intf->Verify(hSession, pData, ulDataLen, pSignature, ulSignatureLen);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "Verify");
+        P11PROV_debug("Error %ld returned by C_"
+                      "Verify",
+                      ret);
     }
     return ret;
 }
@@ -927,9 +927,9 @@ CK_RV p11prov_VerifyUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "VerifyUpdate");
     ret = intf->VerifyUpdate(hSession, pPart, ulPartLen);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "VerifyUpdate");
+        P11PROV_debug("Error %ld returned by C_"
+                      "VerifyUpdate",
+                      ret);
     }
     return ret;
 }
@@ -951,9 +951,9 @@ CK_RV p11prov_VerifyFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "VerifyFinal");
     ret = intf->VerifyFinal(hSession, pSignature, ulSignatureLen);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "VerifyFinal");
+        P11PROV_debug("Error %ld returned by C_"
+                      "VerifyFinal",
+                      ret);
     }
     return ret;
 }
@@ -981,9 +981,9 @@ CK_RV p11prov_GenerateKeyPair(
                                 ulPrivateKeyAttributeCount, phPublicKey,
                                 phPrivateKey);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "GenerateKeyPair");
+        P11PROV_debug("Error %ld returned by C_"
+                      "GenerateKeyPair",
+                      ret);
     }
     return ret;
 }
@@ -1008,9 +1008,9 @@ CK_RV p11prov_DeriveKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     ret = intf->DeriveKey(hSession, pMechanism, hBaseKey, pTemplate,
                           ulAttributeCount, phKey);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "DeriveKey");
+        P11PROV_debug("Error %ld returned by C_"
+                      "DeriveKey",
+                      ret);
     }
     return ret;
 }
@@ -1032,9 +1032,9 @@ CK_RV p11prov_SeedRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "SeedRandom");
     ret = intf->SeedRandom(hSession, pSeed, ulSeedLen);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "SeedRandom");
+        P11PROV_debug("Error %ld returned by C_"
+                      "SeedRandom",
+                      ret);
     }
     return ret;
 }
@@ -1056,9 +1056,9 @@ CK_RV p11prov_GenerateRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                   "GenerateRandom");
     ret = intf->GenerateRandom(hSession, RandomData, ulRandomLen);
     if (ret != CKR_OK) {
-        P11PROV_raise(ctx, ret,
-                      "Error returned by C_"
-                      "GenerateRandom");
+        P11PROV_debug("Error %ld returned by C_"
+                      "GenerateRandom",
+                      ret);
     }
     return ret;
 }

@@ -17,7 +17,7 @@ BEGIN:
     P11PROV_debug("Calling C_" #name);
 #define IMPL_CALL_EPILOG(name) \
     if (ret != CKR_OK) { \
-        P11PROV_raise(ctx, ret, "Error returned by C_" #name); \
+        P11PROV_debug("Error %ld returned by C_" #name, ret); \
     } \
     return ret;
 #define IMPL_INTERFACE_FN_1_ARG(name, t1, a1) \
