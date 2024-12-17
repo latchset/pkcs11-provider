@@ -14,7 +14,7 @@ if [ $FAIL -ne 0 ]; then
     exit 1
 fi
 
-URISonly=$(echo "$helper_output" | grep "^URI")
+URISonly=$(echo "$helper_output" | grep "^URI pkcs11:")
 # poor mans mapfile for bash 3 on macos
 declare -a URIS
 while read -r var; do
