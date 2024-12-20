@@ -28,7 +28,7 @@ title PARA "Use storeutl command to match specific certs via params"
 
 SUBJECTS=("/O=PKCS11 Provider/CN=My Test Cert"
           "/O=PKCS11 Provider/CN=My EC Cert"
-          "/O=PKCS11 Provider/CN=My Peer EC Cert"
+          "/CN=My Peer EC Cert"
           "/CN=Issuer")
 
 for subj in "${SUBJECTS[@]}"; do

@@ -58,7 +58,10 @@ run_tests() {
     prepare_test cert.json.rsa.in "$PRIURI" "$CRTURI"
 
     title PARA "Prepare test for ECDSA"
-    prepare_test cert.json.ecdsa.in "$ECPRIURI" "$ECCRTURI"
+    # Note, that tlsfuzzer expects the homogeneous CA and server keys
+    # so we are using here the self-signed peer EC Key, instead of
+    # the default ECC key
+    prepare_test cert.json.ecdsa.in "$ECPEERPRIURI" "$ECPEERCRTURI"
 
     if [[ -n "$EDBASEURI" ]]; then
         title PARA "Prepare test for EdDSA"

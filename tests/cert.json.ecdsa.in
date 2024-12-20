@@ -22,23 +22,9 @@
        {"name" : "test-signature-algorithms.py",
         "arguments" : [
           "-n", "0", "--ecdsa",
-          "-x", "duplicated 206 non-rsa schemes", "-X", "handshake_failure",
-          "-x", "duplicated 2346 non-rsa schemes", "-X", "handshake_failure",
-          "-x", "duplicated 8123 non-rsa schemes", "-X", "handshake_failure",
-          "-x", "duplicated 23745 non-rsa schemes", "-X", "handshake_failure",
-          "-x", "duplicated 32748 non-rsa schemes", "-X", "handshake_failure",
-          "-x", "explicit SHA-256+RSA or ECDSA", "-X", "handshake_failure",
           "-x", "explicit SHA-1+RSA/ECDSA", "-X", "handshake_failure",
           "-x", "explicit SHA-1+RSA/ECDSA", "-X", "handshake_failure",
-          "-x", "implicit SHA-1 check", "-X", "handshake_failure",
-          "-x", "tolerance 10+RSA or ECDSA method", "-X", "handshake_failure",
-          "-x", "tolerance 215 RSA or ECDSA methods", "-X", "handshake_failure",
-          "-x", "tolerance 2355 RSA or ECDSA methods", "-X", "handshake_failure",
-          "-x", "tolerance 8132 RSA or ECDSA methods", "-X", "handshake_failure",
-          "-x", "tolerance 32758 methods with sig_alg_cert", "-X", "handshake_failure",
-          "-x", "tolerance max 32748 number of methods with sig_alg_cert", "-X", "handshake_failure",
-          "-x", "tolerance none+RSA or ECDSA", "-X", "handshake_failure",
-          "-x", "unique and well-known sig_algs, ecdsa algorithm last", "-X", "handshake_failure"
+          "-x", "implicit SHA-1 check", "-X", "handshake_failure"
         ],
 	"comment": "Crypto-Policies disable SHA-1."
        },
