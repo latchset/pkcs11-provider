@@ -64,7 +64,7 @@ fi
 P11DEFARGS=("--module=${P11LIB}" "--login" "--pin=${PINVALUE}" "--token-label=${TOKENLABEL}")
 
 # prepare certtool configuration
-cat >> "${TMPPDIR}/cert.cfg" <<HEREDOC
+cat >> "${TMPPDIR}/cacert.cfg" <<HEREDOC
 ca
 cn = "Issuer"
 serial = 1
@@ -75,50 +75,61 @@ encryption_key
 cert_signing_key
 HEREDOC
 
+# Serial = 1 is the CA
+SERIAL=1
+
+crt_selfsign() {
+    LABEL=$1
+    CN=$2
+    KEYID=$3
+    ((SERIAL+=1))
+    sed -e "s|cn = .*|cn = $CN|g" \
+        -e "s|serial = .*|serial = $SERIAL|g" \
+        "${sed_inplace[@]}" "${TMPPDIR}/cacert.cfg"
+    "${certtool}" --generate-self-signed --outfile="${TMPPDIR}/${LABEL}.crt" \
+        --template="${TMPPDIR}/cacert.cfg" --provider="$P11LIB" \
+	--load-privkey "pkcs11:object=$LABEL;token=$TOKENLABELURI;type=private" \
+        --load-pubkey "pkcs11:object=$LABEL;token=$TOKENLABELURI;type=public" --outder 2>&1
+    pkcs11-tool "${P11DEFARGS[@]}" --write-object "${TMPPDIR}/${LABEL}.crt" --type=cert \
+        --id="$KEYID" --label="$LABEL" 2>&1
+}
+
 title LINE "Creating new Self Sign CA"
 KEYID='0000'
 URIKEYID="%00%00"
-CACRT="${TMPPDIR}/CAcert.crt"
-CACRT_PEM="${TMPPDIR}/CAcert.pem"
 CACRTN="caCert"
 pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="RSA:2048" \
 	--label="${CACRTN}" --id="${KEYID}" 2>&1
-"${certtool}" --generate-self-signed --outfile="${CACRT}" \
-	--template="${TMPPDIR}/cert.cfg" --provider="$P11LIB" \
-        --load-privkey "pkcs11:object=$CACRTN;token=$TOKENLABELURI;type=private" \
-        --load-pubkey "pkcs11:object=$CACRTN;token=$TOKENLABELURI;type=public" --outder 2>&1
-pkcs11-tool "${P11DEFARGS[@]}" --write-object "${CACRT}" --type=cert \
-        --id=$KEYID --label="$CACRTN" 2>&1
-
-# Serial = 1 is the CA
-SERIAL=2
+crt_selfsign $CACRTN "Issuer" $KEYID
 
 # convert the DER cert to PEM
+CACRT_PEM="${TMPPDIR}/${CACRTN}.pem"
+CACRT="${TMPPDIR}/${CACRTN}.crt"
 openssl x509 -inform DER -in "$CACRT" -outform PEM -out "$CACRT_PEM"
 
+cat "${TMPPDIR}/cacert.cfg" > "${TMPPDIR}/cert.cfg"
 # the organization identification is not in the CA
 echo 'organization = "PKCS11 Provider"' >> "${TMPPDIR}/cert.cfg"
 # the cert_signing_key and "ca" should be only on the CA
 sed -e "/^cert_signing_key$/d" -e "/^ca$/d" "${sed_inplace[@]}" "${TMPPDIR}/cert.cfg"
 
 ca_sign() {
-    CRT=$1
-    LABEL=$2
-    CN=$3
-    KEYID=$4
+    LABEL=$1
+    CN=$2
+    KEYID=$3
     ((SERIAL+=1))
     sed -e "s|cn = .*|cn = $CN|g" \
         -e "s|serial = .*|serial = $SERIAL|g" \
         -e "/^ca$/d" \
         "${sed_inplace[@]}" \
         "${TMPPDIR}/cert.cfg"
-    "${certtool}" --generate-certificate --outfile="${CRT}.crt" \
+    "${certtool}" --generate-certificate --outfile="${TMPPDIR}/${LABEL}.crt" \
         --template="${TMPPDIR}/cert.cfg" --provider="$P11LIB" \
 	--load-privkey "pkcs11:object=$LABEL;token=$TOKENLABELURI;type=private" \
         --load-pubkey "pkcs11:object=$LABEL;token=$TOKENLABELURI;type=public" --outder \
         --load-ca-certificate "${CACRT}" --inder \
         --load-ca-privkey="pkcs11:object=$CACRTN;token=$TOKENLABELURI;type=private"
-    pkcs11-tool "${P11DEFARGS[@]}" --write-object "${CRT}.crt" --type=cert \
+    pkcs11-tool "${P11DEFARGS[@]}" --write-object "${TMPPDIR}/${LABEL}.crt" --type=cert \
         --id="$KEYID" --label="$LABEL" 2>&1
 }
 
@@ -126,12 +137,11 @@ ca_sign() {
 # generate RSA key pair and self-signed certificate
 KEYID='0001'
 URIKEYID="%00%01"
-TSTCRT="${TMPPDIR}/testcert"
 TSTCRTN="testCert"
 
 pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="RSA:2048" \
 	--label="${TSTCRTN}" --id="$KEYID"
-ca_sign "$TSTCRT" $TSTCRTN "My Test Cert" $KEYID
+ca_sign "${TSTCRTN}" "My Test Cert" $KEYID
 
 BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -152,12 +162,11 @@ echo ""
 # generate ECC key pair
 KEYID='0002'
 URIKEYID="%00%02"
-ECCRT="${TMPPDIR}/eccert"
 ECCRTN="ecCert"
 
 pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:secp256r1" \
 	--label="${ECCRTN}" --id="$KEYID"
-ca_sign "$ECCRT" $ECCRTN "My EC Cert" $KEYID
+ca_sign $ECCRTN "My EC Cert" $KEYID
 
 ECBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -168,12 +177,11 @@ ECCRTURI="pkcs11:type=cert;object=${ECCRTN}"
 
 KEYID='0003'
 URIKEYID="%00%03"
-ECPEERCRT="${TMPPDIR}/ecpeercert"
 ECPEERCRTN="ecPeerCert"
 
 pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:secp256r1" \
 	--label="$ECPEERCRTN" --id="$KEYID"
-ca_sign "$ECPEERCRT" $ECPEERCRTN "My Peer EC Cert" $KEYID
+crt_selfsign $ECPEERCRTN "My Peer EC Cert" $KEYID
 
 ECPEERBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECPEERBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -204,12 +212,11 @@ if [ "${TOKENTYPE}" != "softokn" ]; then
     # generate ED25519
     KEYID='0004'
     URIKEYID="%00%04"
-    EDCRT="${TMPPDIR}/edcert"
     EDCRTN="edCert"
 
     pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:edwards25519" \
     	--label="${EDCRTN}" --id="$KEYID"
-    ca_sign "$EDCRT" $EDCRTN "My ED25519 Cert" $KEYID
+    ca_sign $EDCRTN "My ED25519 Cert" $KEYID
 
     EDBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
     EDBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
@@ -233,12 +240,11 @@ fi
 # generate ED448
 #KEYID='0009'
 #URIKEYID="%00%09"
-#ED2CRT="${TMPPDIR}/ed2cert"
 #ED2CRTN="ed2Cert"
 #
 # pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:edwards448" \
 # 	--label="${ED2CRTN}" --id="$KEYID"
-# ca_sign "$EDCRT" $ED2CRTN "My ED448 Cert" $KEYID
+# ca_sign $ED2CRTN "My ED448 Cert" $KEYID
 #
 # ED2BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
 # ED2BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
@@ -258,12 +264,11 @@ fi
 title PARA "generate RSA key pair, self-signed certificate, remove public key"
 KEYID='0005'
 URIKEYID="%00%05"
-TSTCRT="${TMPPDIR}/testcert2"
 TSTCRTN="testCert2"
 
 pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="RSA:2048" \
 	--label="${TSTCRTN}" --id="$KEYID"
-ca_sign "$TSTCRT" $TSTCRTN "My Test Cert 2" $KEYID
+ca_sign $TSTCRTN "My Test Cert 2" $KEYID
 pkcs11-tool "${P11DEFARGS[@]}" --delete-object --type pubkey --id 0005
 
 BASE2URIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
@@ -283,12 +288,11 @@ echo ""
 title PARA "generate EC key pair, self-signed certificate, remove public key"
 KEYID='0006'
 URIKEYID="%00%06"
-TSTCRT="${TMPPDIR}/eccert2"
 TSTCRTN="ecCert2"
 
 pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:secp384r1" \
 	--label="${TSTCRTN}" --id="$KEYID"
-ca_sign "$TSTCRT" $TSTCRTN "My EC Cert 2" $KEYID
+ca_sign $TSTCRTN "My EC Cert 2" $KEYID
 pkcs11-tool "${P11DEFARGS[@]}" --delete-object --type pubkey --id 0006
 
 ECBASE2URIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
@@ -336,12 +340,11 @@ fi
 title PARA "generate EC key pair with ALWAYS AUTHENTICATE flag, self-signed certificate"
 KEYID='0008'
 URIKEYID="%00%08"
-TSTCRT="${TMPPDIR}/eccert3"
 TSTCRTN="ecCert3"
 
 pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:secp521r1" \
 	--label="${TSTCRTN}" --id="$KEYID" --always-auth
-ca_sign "$TSTCRT" $TSTCRTN "My EC Cert 3" $KEYID
+ca_sign $TSTCRTN "My EC Cert 3" $KEYID
 
 ECBASE3URIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECBASE3URIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
