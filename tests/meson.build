@@ -30,6 +30,10 @@ if nss_softokn.found()
   endif
 endif
 
+if get_option('enable_explicit_EC_test')
+  conf_env.set('ENABLE_EXPLICIT_EC_TEST', '1')
+endif
+
 setup_script=find_program('setup.sh')
 foreach suite : ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']
   test(
@@ -46,6 +50,10 @@ test_env = environment({
   'TEST_PATH': meson.current_source_dir(),
   'TESTBLDDIR': meson.current_build_dir(),
 })
+
+if get_option('enable_explicit_EC_test')
+  test_env.set('ENABLE_EXPLICIT_EC_TEST', '1')
+endif
 
 valgrind = find_program('valgrind', required: false)
 if valgrind.found()
@@ -95,6 +103,7 @@ if get_option('b_sanitize') == 'address'
     test_env.set('CHECKER', 'env @0@=@1@'.format(preload_env_var, fake_dlclose.full_path()))
   endif
 endif
+
 
 test_programs = {
   'tsession': ['tsession.c'],

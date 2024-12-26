@@ -76,7 +76,11 @@ jobs:
           git config --global --add safe.directory \
               /__w/pkcs11-provider/pkcs11-provider
           git submodule update --init
-          CC=${{ matrix.compiler }} meson setup builddir
+          if [ -f /etc/redhat-release ]; then
+            CC=${{ matrix.compiler }} meson setup builddir
+          else
+            CC=${{ matrix.compiler }} meson setup builddir -Denable_explicit_EC_test=true
+          fi
       - name: Build and Test
         if : ( steps.nss-version-check.outputs.skiptest != 'true' )
         run: |
