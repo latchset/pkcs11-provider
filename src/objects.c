@@ -1315,6 +1315,17 @@ done:
     p11prov_return_session(session);
 }
 
+CK_RV p11prov_obj_refresh_invalid(P11PROV_OBJ *obj)
+{
+    obj->handle = CK_INVALID_HANDLE;
+    obj->cached = CK_INVALID_HANDLE;
+    p11prov_obj_refresh(obj);
+    if (obj->handle == CK_INVALID_HANDLE) {
+        return CKR_OBJECT_HANDLE_INVALID;
+    }
+    return CKR_OK;
+}
+
 #define SECRET_KEY_ATTRS 2
 P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        P11PROV_SESSION *session,
