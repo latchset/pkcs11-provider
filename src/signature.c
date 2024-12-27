@@ -870,7 +870,7 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
     }
 
 done:
-    if (ret != CKR_OK) {
+    if (ret != CKR_OK && ret != CKR_OBJECT_HANDLE_INVALID) {
         p11prov_return_session(session);
     } else {
         *_session = session;
@@ -935,10 +935,22 @@ static CK_RV p11prov_sig_operate(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
         tbslen += mech->der_digestinfo_len;
     }
 
+    p11prov_set_error_mark(sigctx->provctx);
     ret = p11prov_sig_operate_init(sigctx, false, &session);
     if (ret != CKR_OK) {
-        return ret;
+        if (ret == CKR_OBJECT_HANDLE_INVALID && p11prov_obj_refresh_invalid(sigctx->key) == CKR_OK) {
+            ret = p11prov_sig_operate_init(sigctx, false, &session);
+        }
+        if (ret != CKR_OK) {
+            p11prov_clear_last_error_mark(sigctx->provctx);
+            return ret;
+        } else {
+            p11prov_pop_error_to_mark(sigctx->provctx);
+        }
+    } else {
+        p11prov_clear_last_error_mark(sigctx->provctx);
     }
+
     sess = p11prov_session_handle(session);
 
     if (sigctx->operation == CKF_SIGN) {
