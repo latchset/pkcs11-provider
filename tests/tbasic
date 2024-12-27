@@ -296,5 +296,9 @@ if [ $FAIL -ne 0 ]; then
     echo
     exit 1
 fi
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
+title PARA "Test Get generated key info"
+$CHECKER "${TESTBLDDIR}/tgetinfopkey"
 
 exit 0
