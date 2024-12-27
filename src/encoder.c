@@ -140,7 +140,7 @@ static int p11prov_rsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
         }
     }
 
-    uri = p11prov_key_to_uri(ctx->provctx, key);
+    uri = p11prov_key_to_uri(ctx->provctx, key, selection);
     if (uri) {
         BIO_printf(out, "URI %s\n", uri);
         free(uri);
@@ -474,7 +474,7 @@ static P11PROV_PK11_URI *p11prov_encoder_private_key_to_asn1(P11PROV_CTX *pctx,
     size_t uri_len;
     int ret = RET_OSSL_ERR;
 
-    uri = p11prov_key_to_uri(pctx, key);
+    uri = p11prov_key_to_uri(pctx, key, OSSL_KEYMGMT_SELECT_PRIVATE_KEY);
     if (!uri) {
         goto done;
     }
@@ -896,7 +896,7 @@ static int p11prov_ec_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
         }
     }
 
-    uri = p11prov_key_to_uri(ctx->provctx, key);
+    uri = p11prov_key_to_uri(ctx->provctx, key, selection);
     if (uri) {
         BIO_printf(out, "URI %s\n", uri);
     }
@@ -1014,7 +1014,7 @@ static int p11prov_ec_edwards_encoder_encode_text(
         }
     }
 
-    uri = p11prov_key_to_uri(ctx->provctx, key);
+    uri = p11prov_key_to_uri(ctx->provctx, key, selection);
     if (uri) {
         BIO_printf(out, "URI %s\n", uri);
     }
