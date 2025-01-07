@@ -27,7 +27,7 @@ under an absolute path `$OPENSSL_DIR`.
 If you rely on pkg-config, point `PKG_CONFIG_PATH` to a directory
 where `libcrypto.pc` or `openssl.pc` can be found.
 
-- `PKG_CONFIG_PATH="$OPENSSL_DIR/lib64/pkg-config" meson setup builddir`
+- `PKG_CONFIG_PATH="$OPENSSL_DIR/lib64/pkgconfig" meson setup builddir`
 
 Otherwise, you can set `CFLAGS`/`LDFLAGS`:
 
