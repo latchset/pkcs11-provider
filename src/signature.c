@@ -686,11 +686,7 @@ static CK_RV p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
         return ret;
     }
 
-    sigctx->key = p11prov_obj_ref(key);
-    if (sigctx->key == NULL) {
-        return CKR_KEY_NEEDED;
-    }
-    class = p11prov_obj_get_class(sigctx->key);
+    class = p11prov_obj_get_class(key);
     switch (operation) {
     case CKF_SIGN:
         if (class != CKO_PRIVATE_KEY) {
@@ -699,17 +695,25 @@ static CK_RV p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
         break;
     case CKF_VERIFY:
         if (class != CKO_PUBLIC_KEY) {
-            return CKR_KEY_TYPE_INCONSISTENT;
+            key = p11prov_get_pub(key);
+            if (key == NULL) {
+                return CKR_KEY_TYPE_INCONSISTENT;
+            }
         }
         break;
     default:
         return CKR_GENERAL_ERROR;
+    }
+    sigctx->key = p11prov_obj_ref(key);
+    if (sigctx->key == NULL) {
+        return CKR_KEY_NEEDED;
     }
     sigctx->operation = operation;
 
     if (digest) {
         ret = p11prov_digest_get_by_name(digest, &sigctx->digest);
         if (ret != CKR_OK) {
+            p11prov_obj_free(sigctx->key);
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return ret;
         }
@@ -1252,10 +1256,9 @@ static int p11prov_rsasig_digest_sign_final(void *ctx, unsigned char *sig,
     /* the siglen might be uninitialized when called from openssl */
     *siglen = 0;
 
-    P11PROV_debug(
-        "rsa digest sign final (ctx=%p, sig=%p, siglen=%zu, "
-        "sigsize=%zu)",
-        ctx, sig, *siglen, sigsize);
+    P11PROV_debug("rsa digest sign final (ctx=%p, sig=%p, siglen=%zu, "
+                  "sigsize=%zu)",
+                  ctx, sig, *siglen, sigsize);
 
     if (sigctx == NULL) {
         return RET_OSSL_ERR;
@@ -1903,10 +1906,9 @@ static int p11prov_ecdsa_digest_sign_final(void *ctx, unsigned char *sig,
     /* the siglen might be uninitialized when called from openssl */
     *siglen = 0;
 
-    P11PROV_debug(
-        "ecdsa digest sign final (ctx=%p, sig=%p, siglen=%zu, "
-        "sigsize=%zu)",
-        ctx, sig, *siglen, sigsize);
+    P11PROV_debug("ecdsa digest sign final (ctx=%p, sig=%p, siglen=%zu, "
+                  "sigsize=%zu)",
+                  ctx, sig, *siglen, sigsize);
 
     if (sigctx == NULL) {
         return RET_OSSL_ERR;
