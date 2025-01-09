@@ -268,7 +268,8 @@ static void gen_keys(const char *key_type, const char *label, const char *idhex,
     OSSL_STORE_close(store);
 }
 
-static void sign_test(const char *label, const EVP_MD *md, bool fail)
+static void sign_test(const char *label, const char *mdname,
+                      const OSSL_PARAM *params, bool fail)
 {
     OSSL_STORE_CTX *store;
     OSSL_STORE_SEARCH *search;
@@ -280,6 +281,8 @@ static void sign_test(const char *label, const EVP_MD *md, bool fail)
     unsigned char sigret[4096];
     size_t siglen = 4096;
     int ret;
+
+    fprintf(stdout, "Test signature\n");
 
     store = OSSL_STORE_open("pkcs11:", NULL, NULL, NULL, NULL);
     if (store == NULL) {
@@ -324,7 +327,8 @@ static void sign_test(const char *label, const EVP_MD *md, bool fail)
         exit(EXIT_FAILURE);
     }
 
-    ret = EVP_DigestSignInit(ctx, &pctx, md, NULL, privkey);
+    ret =
+        EVP_DigestSignInit_ex(ctx, &pctx, mdname, NULL, NULL, privkey, params);
     if (ret == 0) {
         fprintf(stderr, "Failed to init Sig Ctx\n");
         exit(EXIT_FAILURE);
@@ -435,7 +439,7 @@ int main(int argc, char *argv[])
 
             gen_keys("RSA", label, idhex, params, false);
 
-            sign_test(label, EVP_sha256(), false);
+            sign_test(label, "SHA256", NULL, false);
 
             free(label);
             free(uri);
@@ -494,7 +498,7 @@ int main(int argc, char *argv[])
 
             gen_keys("EC", label, idhex, params, false);
 
-            sign_test(label, EVP_sha256(), false);
+            sign_test(label, "SHA256", NULL, false);
 
             free(label);
             free(uri);
@@ -526,7 +530,7 @@ int main(int argc, char *argv[])
 
             gen_keys("RSA", label, idhex, params, false);
 
-            sign_test(label, EVP_sha256(), true);
+            sign_test(label, "SHA256", NULL, true);
 
             params[1] = OSSL_PARAM_construct_utf8_string("pkcs11_key_usage",
                                                          (char *)bad_usage, 0);
@@ -537,6 +541,13 @@ int main(int argc, char *argv[])
             free(uri);
         } else if (strcmp(tests[num], "ED25519") == 0
                    || strcmp(tests[num], "ED448") == 0) {
+            const char *context = "context string";
+            const char *instance = "Ed25519ph";
+
+            if (strcmp(tests[num], "ED448") == 0) {
+                instance = "Ed448ph";
+            }
+
             ret = RAND_bytes(id, 16);
             if (ret != 1) {
                 fprintf(stderr, "Failed to generate key id\n");
@@ -559,7 +570,27 @@ int main(int argc, char *argv[])
 
             gen_keys(tests[num], label, idhex, params, false);
 
-            sign_test(label, NULL, false);
+            sign_test(label, NULL, NULL, false);
+
+/* these are not defined in OpenSSL 3.0 so just skip the test */
+#ifdef OSSL_SIGNATURE_PARAM_CONTEXT_STRING
+            /* Test again with context string */
+            params[0] = OSSL_PARAM_construct_octet_string(
+                OSSL_SIGNATURE_PARAM_CONTEXT_STRING, (void *)context,
+                sizeof(context));
+            params[1] = OSSL_PARAM_construct_end();
+            sign_test(label, NULL, params, false);
+
+            /* Test again with prehash */
+            params[0] = OSSL_PARAM_construct_utf8_string(
+                OSSL_SIGNATURE_PARAM_INSTANCE, (char *)instance,
+                strlen(instance));
+            params[1] = OSSL_PARAM_construct_end();
+            sign_test(label, NULL, params, false);
+#else
+            (void)instance;
+            (void)context;
+#endif
 
             free(label);
             free(uri);
