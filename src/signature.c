@@ -2289,62 +2289,33 @@ static int p11prov_eddsa_get_ctx_params(void *ctx, OSSL_PARAM *params)
 static int p11prov_eddsa_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
+    const char *instance = "Ed25519";
     const OSSL_PARAM *p;
+    CK_ULONG size;
+    bool matched = false;
     int ret;
 
     P11PROV_debug("eddsa set ctx params (ctx=%p, params=%p)", sigctx, params);
 
-    if (params == NULL) {
-        return RET_OSSL_OK;
+    size = p11prov_obj_get_key_bit_size(sigctx->key);
+    if (size != ED25519_BIT_SIZE && size != ED448_BIT_SIZE) {
+        P11PROV_raise(sigctx->provctx, CKR_KEY_TYPE_INCONSISTENT,
+                      "Invalid EdDSA key size %lu", size);
+        return RET_OSSL_ERR;
+    }
+
+    /* PKCS #11 parameters are mandatory for Ed448 key type anyway */
+    if (size == ED448_BIT_SIZE) {
+        instance = "Ed448";
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_INSTANCE);
     if (p) {
-        const char *instance = NULL;
-        bool matched = false;
-        CK_ULONG size;
-
         ret = OSSL_PARAM_get_utf8_string_ptr(p, &instance);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
         P11PROV_debug("Set OSSL_SIGNATURE_PARAM_INSTANCE to %s", instance);
-
-        size = p11prov_obj_get_key_bit_size(sigctx->key);
-        if (size != ED25519_BIT_SIZE && size != ED448_BIT_SIZE) {
-            P11PROV_raise(sigctx->provctx, CKR_KEY_TYPE_INCONSISTENT,
-                          "Invalid EdDSA key size %lu", size);
-            return RET_OSSL_ERR;
-        }
-        if (size == ED25519_BIT_SIZE) {
-            if (OPENSSL_strcasecmp(instance, "Ed25519") == 0) {
-                matched = true;
-                sigctx->use_eddsa_params = CK_FALSE;
-            } else if (OPENSSL_strcasecmp(instance, "Ed25519ph") == 0) {
-                matched = true;
-                sigctx->use_eddsa_params = CK_TRUE;
-                sigctx->eddsa_params.phFlag = CK_TRUE;
-            } else if (OPENSSL_strcasecmp(instance, "Ed25519ctx") == 0) {
-                matched = true;
-                sigctx->use_eddsa_params = CK_TRUE;
-                sigctx->eddsa_params.phFlag = CK_FALSE;
-            }
-        } else if (size == ED448_BIT_SIZE) {
-            if (OPENSSL_strcasecmp(instance, "Ed448") == 0) {
-                matched = true;
-                sigctx->use_eddsa_params = CK_TRUE;
-                sigctx->eddsa_params.phFlag = CK_FALSE;
-            } else if (OPENSSL_strcasecmp(instance, "Ed448ph") == 0) {
-                matched = true;
-                sigctx->use_eddsa_params = CK_TRUE;
-                sigctx->eddsa_params.phFlag = CK_TRUE;
-            }
-        }
-        if (!matched) {
-            P11PROV_raise(sigctx->provctx, CKR_ARGUMENTS_BAD,
-                          "Invalid instance");
-            return RET_OSSL_ERR;
-        }
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_CONTEXT_STRING);
@@ -2359,6 +2330,36 @@ static int p11prov_eddsa_set_ctx_params(void *ctx, const OSSL_PARAM params[])
             return ret;
         }
         sigctx->eddsa_params.ulContextDataLen = datalen;
+    }
+
+    if (size == ED25519_BIT_SIZE) {
+        if (OPENSSL_strcasecmp(instance, "Ed25519") == 0) {
+            matched = true;
+            sigctx->use_eddsa_params = CK_FALSE;
+        } else if (OPENSSL_strcasecmp(instance, "Ed25519ph") == 0) {
+            matched = true;
+            sigctx->use_eddsa_params = CK_TRUE;
+            sigctx->eddsa_params.phFlag = CK_TRUE;
+        } else if (OPENSSL_strcasecmp(instance, "Ed25519ctx") == 0) {
+            matched = true;
+            sigctx->use_eddsa_params = CK_TRUE;
+            sigctx->eddsa_params.phFlag = CK_FALSE;
+        }
+    } else if (size == ED448_BIT_SIZE) {
+        if (OPENSSL_strcasecmp(instance, "Ed448") == 0) {
+            matched = true;
+            sigctx->use_eddsa_params = CK_TRUE;
+            sigctx->eddsa_params.phFlag = CK_FALSE;
+        } else if (OPENSSL_strcasecmp(instance, "Ed448ph") == 0) {
+            matched = true;
+            sigctx->use_eddsa_params = CK_TRUE;
+            sigctx->eddsa_params.phFlag = CK_TRUE;
+        }
+    }
+    if (!matched) {
+        P11PROV_raise(sigctx->provctx, CKR_ARGUMENTS_BAD, "Invalid instance %s",
+                      instance);
+        return RET_OSSL_ERR;
     }
 
     return RET_OSSL_OK;
