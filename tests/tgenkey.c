@@ -268,7 +268,7 @@ static void gen_keys(const char *key_type, const char *label, const char *idhex,
     OSSL_STORE_close(store);
 }
 
-static void sign_test(const char *label, bool fail)
+static void sign_test(const char *label, const EVP_MD *md, bool fail)
 {
     OSSL_STORE_CTX *store;
     OSSL_STORE_SEARCH *search;
@@ -324,7 +324,7 @@ static void sign_test(const char *label, bool fail)
         exit(EXIT_FAILURE);
     }
 
-    ret = EVP_DigestSignInit(ctx, &pctx, EVP_sha256(), NULL, privkey);
+    ret = EVP_DigestSignInit(ctx, &pctx, md, NULL, privkey);
     if (ret == 0) {
         fprintf(stderr, "Failed to init Sig Ctx\n");
         exit(EXIT_FAILURE);
@@ -434,6 +434,9 @@ int main(int argc, char *argv[])
             params[2] = OSSL_PARAM_construct_end();
 
             gen_keys("RSA", label, idhex, params, false);
+
+            sign_test(label, EVP_sha256(), false);
+
             free(label);
             free(uri);
 
@@ -490,6 +493,9 @@ int main(int argc, char *argv[])
             params[2] = OSSL_PARAM_construct_end();
 
             gen_keys("EC", label, idhex, params, false);
+
+            sign_test(label, EVP_sha256(), false);
+
             free(label);
             free(uri);
 
@@ -520,7 +526,7 @@ int main(int argc, char *argv[])
 
             gen_keys("RSA", label, idhex, params, false);
 
-            sign_test(label, true);
+            sign_test(label, EVP_sha256(), true);
 
             params[1] = OSSL_PARAM_construct_utf8_string("pkcs11_key_usage",
                                                          (char *)bad_usage, 0);
@@ -552,6 +558,9 @@ int main(int argc, char *argv[])
             params[1] = OSSL_PARAM_construct_end();
 
             gen_keys(tests[num], label, idhex, params, false);
+
+            sign_test(label, NULL, false);
+
             free(label);
             free(uri);
         } else {
