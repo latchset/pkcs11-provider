@@ -16,6 +16,7 @@ int main(int argc, char *argv[])
     EVP_PKEY *prikey = NULL;
     EVP_PKEY *pubkey = NULL;
     EVP_MD_CTX *sign_md[CNUM] = {};
+    const char *mdname = "SHA256";
     int ret;
 
     baseuri = getenv("BASEURI");
@@ -60,28 +61,27 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    if (EVP_PKEY_get_id(prikey) == EVP_PKEY_ED25519
+        || EVP_PKEY_get_id(prikey) == EVP_PKEY_ED448) {
+        mdname = NULL;
+    }
+
     /* Do this twice to check that freeing and taling again sessions
      * works correctly and caching of open sessions work as expected */
     for (int r = 0; r < 2; r++) {
-        /* Start a series of signin operation so code grabs sessions */
+        const unsigned char *data = (unsigned char *)"Sign Me!";
+        /* Start a series of signing operation so code grabs sessions */
         for (int c = 0; c < CNUM; c++) {
-            const char *data = "Sign Me!";
             sign_md[c] = EVP_MD_CTX_new();
             if (sign_md[c] == NULL) {
                 fprintf(stderr, "Failed to init EVP_MD_CTX\n");
                 exit(EXIT_FAILURE);
             }
 
-            ret = EVP_DigestSignInit_ex(sign_md[c], NULL, "SHA256", NULL, NULL,
+            ret = EVP_DigestSignInit_ex(sign_md[c], NULL, mdname, NULL, NULL,
                                         prikey, NULL);
             if (ret != 1) {
                 fprintf(stderr, "Failed to init EVP_DigestSign\n");
-                exit(EXIT_FAILURE);
-            }
-
-            ret = EVP_DigestSignUpdate(sign_md[c], data, sizeof(data));
-            if (ret != 1) {
-                fprintf(stderr, "Failed to EVP_DigestSignUpdate\n");
                 exit(EXIT_FAILURE);
             }
 
@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
         for (int c = 0; c < CNUM; c++) {
             size_t size = EVP_PKEY_get_size(prikey);
             unsigned char sig[size];
-            ret = EVP_DigestSignFinal(sign_md[c], sig, &size);
+            ret = EVP_DigestSign(sign_md[c], sig, &size, data, sizeof(data));
             if (ret != 1) {
                 fprintf(stderr, "Failed to EVP_DigestSignFinal-ize\n");
                 exit(EXIT_FAILURE);

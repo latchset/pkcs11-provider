@@ -121,4 +121,34 @@ if [ $FAIL -ne 0 ]; then
     exit 1
 fi
 
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed "s/^pkcs11-module-token-pin.*$/##nopin/" "${OPENSSL_CONF}" > "${OPENSSL_CONF}.nopin"
+OPENSSL_CONF=${OPENSSL_CONF}.nopin
+
+title PARA "Test interactive Login on key without ALWAYS AUTHENTICATE"
+# shellcheck disable=SC2153 # It is correctly defined in the testvars
+output=$(expect -c "spawn -noecho $CHECKER ${TESTBLDDIR}/tsession \"$EDBASEURI\";
+                expect \"Enter PIN for PKCS#11 Token (Slot *:\" {
+                    send \"${PINVALUE}\r\"; exp_continue; }
+                expect \"ALL A-OK\";")
+FAIL=0
+echo "$output" | grep "Enter PIN for PKCS#11 Token (Slot .*):" > /dev/null 2>&1 || FAIL=1
+prompts=$(echo "$output" | grep -c "Enter PIN for PKCS#11 Token (Slot .*):" 2>&1)
+# 1 login to read key only
+if [ "$prompts" -ne "1" ]; then
+    echo "Failed receive expected amount of prompts (got $prompts, expected 1)"
+    FAIL=2
+fi
+if [ $FAIL -eq 1 ]; then
+    echo "Failed to obtain expected prompt"
+fi
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
 exit 0
