@@ -970,7 +970,7 @@ static int p11prov_ec_edwards_encoder_encode_text(
     P11PROV_OBJ *key = (P11PROV_OBJ *)inkey;
     CK_KEY_TYPE type;
     CK_ULONG keysize;
-    const char *type_name = "ED25519";
+    const char *type_name = ED25519;
     char *uri = NULL;
     BIO *out;
     int ret;
@@ -990,8 +990,8 @@ static int p11prov_ec_edwards_encoder_encode_text(
     }
 
     keysize = p11prov_obj_get_key_bit_size(key);
-    if (keysize == 448) {
-        type_name = "ED448";
+    if (keysize == ED448_BIT_SIZE) {
+        type_name = ED448;
     }
     if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
         CK_OBJECT_CLASS class = p11prov_obj_get_class(key);
