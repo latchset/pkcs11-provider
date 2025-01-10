@@ -232,34 +232,38 @@ if [ "${TOKENTYPE}" != "softokn" ]; then
     echo "${EDPUBURI}"
     echo "${EDPRIURI}"
     echo "${EDCRTURI}"
-fi
 
-# FIXME The pkcs11-tool before OpenSC 0.26 does not support Ed448 so they can
-# not be generated here
-#
-# generate ED448
-#KEYID='0009'
-#URIKEYID="%00%09"
-#ED2CRTN="ed2Cert"
-#
-# pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:edwards448" \
-# 	--label="${ED2CRTN}" --id="$KEYID"
-# ca_sign $ED2CRTN "My ED448 Cert" $KEYID
-#
-# ED2BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
-# ED2BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
-# ED2BASEURI="pkcs11:id=${URIKEYID}"
-# ED2PUBURI="pkcs11:type=public;id=${URIKEYID}"
-# ED2PRIURI="pkcs11:type=private;id=${URIKEYID}"
-# ED2CRTURI="pkcs11:type=cert;object=${ED2CRTN}"
-#
-# title LINE "ED448 PKCS11 URIS"
-# echo "${EDBASEURIWITHPINVALUE}"
-# echo "${EDBASEURIWITHPINSOURCE}"
-# echo "${EDBASEURI}"
-# echo "${EDPUBURI}"
-# echo "${EDPRIURI}"
-# echo "${EDCRTURI}"
+    # this requires OpenSC 0.26.0, which is not available in Ubuntu and CentOS 9
+    if [[ -f /etc/debian_version ]] && grep Ubuntu /etc/lsb-release; then
+        echo "Ed448 not supported in Ubuntu's OpenSC version"
+    elif [[ -f /etc/redhat-release ]] && grep "release 9" /etc/redhat-release; then
+        echo "Ed448 not supported in EL9's OpenSC version"
+    else
+        # generate ED448
+        KEYID='0009'
+        URIKEYID="%00%09"
+        ED2CRTN="ed2Cert"
+
+        pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:Ed448" \
+            --label="${ED2CRTN}" --id="$KEYID"
+        ca_sign $ED2CRTN "My ED448 Cert" $KEYID
+
+        ED2BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+        ED2BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
+        ED2BASEURI="pkcs11:id=${URIKEYID}"
+        ED2PUBURI="pkcs11:type=public;id=${URIKEYID}"
+        ED2PRIURI="pkcs11:type=private;id=${URIKEYID}"
+        ED2CRTURI="pkcs11:type=cert;object=${ED2CRTN}"
+
+        title LINE "ED448 PKCS11 URIS"
+        echo "${ED2BASEURIWITHPINVALUE}"
+        echo "${ED2BASEURIWITHPINSOURCE}"
+        echo "${ED2BASEURI}"
+        echo "${ED2PUBURI}"
+        echo "${ED2PRIURI}"
+        echo "${ED2CRTURI}"
+    fi
+fi
 
 title PARA "generate RSA key pair, self-signed certificate, remove public key"
 KEYID='0005'
@@ -451,6 +455,18 @@ export EDBASEURI="${EDBASEURI}"
 export EDPUBURI="${EDPUBURI}"
 export EDPRIURI="${EDPRIURI}"
 export EDCRTURI="${EDCRTURI}"
+DBGSCRIPT
+fi
+
+if [ -n "${ED2BASEURI}" ]; then
+    cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
+
+export ED2BASEURIWITHPINVALUE="${ED2BASEURIWITHPINVALUE}"
+export ED2BASEURIWITHPINSOURCE="${ED2BASEURIWITHPINSOURCE}"
+export ED2BASEURI="${ED2BASEURI}"
+export ED2PUBURI="${ED2PUBURI}"
+export ED2PRIURI="${ED2PRIURI}"
+export ED2CRTURI="${ED2CRTURI}"
 DBGSCRIPT
 fi
 
