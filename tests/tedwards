@@ -103,9 +103,9 @@ if [[ -n $ED2BASEURI ]]; then
     
     title PARA "Test EVP_PKEY_eq on public ED448 key via import"
     $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ED2PUBURI" "${TMPPDIR}"/ed2out.pub
-    title PARA "Match private ED key against public key"
+    title PARA "Match private ED448 key against public key"
     $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ED2PRIURI" "${TMPPDIR}"/ed2out.pub
-    title PARA "Match private ED key against public key (commutativity)"
+    title PARA "Match private ED448 key against public key (commutativity)"
     $CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/ed2out.pub "$ED2PRIURI"
 fi
 
