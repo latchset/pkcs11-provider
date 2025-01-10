@@ -2477,6 +2477,31 @@ done:
     return ret;
 }
 
+static int p11prov_obj_get_ed_nid(CK_ATTRIBUTE *ecp)
+{
+    const unsigned char *val = ecp->pValue;
+    ASN1_OBJECT *obj = d2i_ASN1_OBJECT(NULL, &val, ecp->ulValueLen);
+    if (obj) {
+        int nid = OBJ_obj2nid(obj);
+        ASN1_OBJECT_free(obj);
+        if (nid != NID_undef) {
+            return nid;
+        }
+    }
+
+    /* it might be the parameters are encoded printable string
+     * for EdDSA which OpenSSL does not understand */
+    if (ecp->ulValueLen == ED25519_EC_PARAMS_LEN
+        && memcmp(ecp->pValue, ed25519_ec_params, ED25519_EC_PARAMS_LEN) == 0) {
+        return NID_ED25519;
+    } else if (ecp->ulValueLen == ED448_EC_PARAMS_LEN
+               && memcmp(ecp->pValue, ed448_ec_params, ED448_EC_PARAMS_LEN)
+                      == 0) {
+        return NID_ED448;
+    }
+    return NID_undef;
+}
+
 int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
                         int cmp_type)
 {
@@ -2535,7 +2560,6 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
         break;
 
     case CKK_EC:
-    case CKK_EC_EDWARDS:
         ret = cmp_attr(key1, key2, CKA_EC_PARAMS);
         if (ret != RET_OSSL_OK) {
             /* If EC_PARAMS do not match it may be due to encoding.
@@ -2589,6 +2613,50 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
             BN_CTX_free(bnctx);
             if (ret != RET_OSSL_OK) {
                 return ret;
+            }
+        }
+        if (cmp_type & OBJ_CMP_KEY_PRIVATE) {
+            /* unfortunately we can't really read private attributes
+             * and there is no comparison function int he PKCS11 API.
+             * Generally you do not have 2 identical keys stored in to two
+             * separate objects so the initial shortcircuit that matches if
+             * slotid/handle are identical will often cover this. When that
+             * fails we have no option but to fail for now. */
+            P11PROV_debug("We can't really match private keys");
+            /* OTOH if group and pub point match either this is a broken key
+             * or the private key must also match */
+            cmp_type = OBJ_CMP_KEY_PUBLIC;
+        }
+        break;
+    case CKK_EC_EDWARDS:
+        /* The EdDSA params can be encoded as printable string, which is
+         * not recognized by OpenSSL and does not have respective EC_GROUP */
+        ret = cmp_attr(key1, key2, CKA_EC_PARAMS);
+        if (ret != RET_OSSL_OK) {
+            /* If EC_PARAMS do not match it may be due to encoding. */
+            CK_ATTRIBUTE *ec_p;
+            int nid1;
+            int nid2;
+
+            ec_p = p11prov_obj_get_attr(key1, CKA_EC_PARAMS);
+            if (!ec_p) {
+                return RET_OSSL_ERR;
+            }
+            nid1 = p11prov_obj_get_ed_nid(ec_p);
+            if (nid1 == NID_undef) {
+                return RET_OSSL_ERR;
+            }
+
+            ec_p = p11prov_obj_get_attr(key2, CKA_EC_PARAMS);
+            if (!ec_p) {
+                return RET_OSSL_ERR;
+            }
+            nid2 = p11prov_obj_get_ed_nid(ec_p);
+            if (nid2 == NID_undef) {
+                return RET_OSSL_ERR;
+            }
+            if (nid1 != nid2) {
+                return RET_OSSL_ERR;
             }
         }
         if (cmp_type & OBJ_CMP_KEY_PRIVATE) {
