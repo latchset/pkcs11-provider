@@ -71,14 +71,17 @@ jobs:
               /__w/pkcs11-provider/pkcs11-provider
           git submodule update --init
           meson setup builddir
+
       - name: Build
         run:
           meson compile -C builddir
+
       - name: Test
         env:
           KRYOPTIC: ${{ steps.kryoptic_setup.outputs.KRYOPTIC }}
         run:
           meson test --num-processes 1 -C builddir
+
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

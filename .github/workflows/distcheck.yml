@@ -42,20 +42,24 @@ jobs:
                 softhsm2 opensc p11-kit libp11-kit-dev p11-kit-modules \
                 gnutls-bin
             fi
+
       - name: Checkout Repository
         uses: actions/checkout@v4
+
       - name: Setup
         run: |
           git config --global --add safe.directory \
               /__w/pkcs11-provider/pkcs11-provider
           git submodule update --init
           meson setup builddir
+
       - name: Distcheck
         run: |
           git config --global --add safe.directory \
               /__w/pkcs11-provider/pkcs11-provider
           git ls-files meson.build
           meson dist --no-tests -C builddir
+
       - name: RPM Build
         if: ${{ matrix.name == 'fedora' }}
         run: |
