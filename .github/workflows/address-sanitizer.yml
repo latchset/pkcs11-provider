@@ -24,6 +24,7 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
       - name: Install Dependencies
         run: |
           if [ -f /etc/fedora-release ]; then
@@ -42,6 +43,7 @@ jobs:
               libp11-kit-dev p11-kit-modules gnutls-bin \
               openssl-dbgsym libssl3t64-dbgsym
           fi
+
       - name: Setup
         # The detection on debian works ok, but on Fedora, we get linker script,
         # that is not compatible with LD_PRELOAD so we force the absolute path.
@@ -53,12 +55,14 @@ jobs:
             CC=gcc \
             meson setup builddir -Db_sanitize=address -Dpreload_libasan=/usr/lib/x86_64-linux-gnu/libasan.so.8.0.0
           fi
+
       - name: Build and Test
         # note, that this intentionally does not initialize submodules as
         # the tlsfuzzer test does not work under address sanitizer well
         run: |
           meson compile -C builddir
           meson test --num-processes 1 -C builddir
+
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

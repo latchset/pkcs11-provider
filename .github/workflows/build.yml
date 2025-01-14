@@ -58,6 +58,7 @@ jobs:
                   p11-kit-modules
               fi
             fi
+
       - name: Check NSS version
         id: nss-version-check
         run: |
@@ -69,9 +70,11 @@ jobs:
               fi
             fi
           fi
+
       - name: Checkout Repository
         if : ( steps.nss-version-check.outputs.skiptest != 'true' )
         uses: actions/checkout@v4
+
       - name: Setup
         if : ( steps.nss-version-check.outputs.skiptest != 'true' )
         run: |
@@ -83,11 +86,13 @@ jobs:
           else
             CC=${{ matrix.compiler }} meson setup builddir -Denable_explicit_EC_test=true
           fi
+
       - name: Build and Test
         if : ( steps.nss-version-check.outputs.skiptest != 'true' )
         run: |
           meson compile -C builddir
           meson test --num-processes 1 -C builddir
+
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -97,12 +102,14 @@ jobs:
             builddir/tests/tmp.${{ matrix.token }}/p11prov-debug.log
             builddir/tests/tmp.${{ matrix.token }}/testvars
             builddir/tests/tmp.${{ matrix.token }}/openssl.cnf
+
       - name: Run tests with valgrind
         if : ( steps.nss-version-check.outputs.skiptest != 'true' )
         run: |
             if [ "${{ matrix.compiler }}" = "gcc" ]; then
               meson test --num-processes 1 -C builddir --setup=valgrind
             fi
+
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -112,6 +119,7 @@ jobs:
             builddir/tests/tmp.${{ matrix.token }}/p11prov-debug.log
             builddir/tests/tmp.${{ matrix.token }}/testvars
             builddir/tests/tmp.${{ matrix.token }}/openssl.cnf
+
   build-macos:
     name: CI with software token
     runs-on: ${{ matrix.os }}
@@ -135,8 +143,10 @@ jobs:
           elif [ "${{ matrix.token }}" = "softhsm" ]; then
             brew install softhsm
           fi
+
       - name: Checkout Repository
         uses: actions/checkout@v4
+
       - name: Setup
         run: |
           git config --global --add safe.directory \
@@ -146,12 +156,14 @@ jobs:
           export PATH=$(brew --prefix openssl@3)/bin:$PATH
 
           CC=clang meson setup builddir
+
       - name: Build and Test
         run: |
           export PATH=$(brew --prefix openssl@3)/bin:$PATH
 
           meson compile -j$(sysctl -n hw.ncpu || echo 2) -C builddir
           meson test --num-processes 1 -C builddir
+
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
