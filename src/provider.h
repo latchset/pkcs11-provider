@@ -30,6 +30,8 @@
 #define RET_OSSL_BAD -1
 
 #define P11PROV_DEFAULT_PROPERTIES "provider=pkcs11"
+#define P11PROV_FIPS_PROPERTIES "provider=pkcs11,fips=yes"
+
 #define P11PROV_NAME_RSA "RSA"
 #define P11PROV_NAMES_RSA "RSA:rsaEncryption:1.2.840.113549.1.1.1"
 #define P11PROV_DESCS_RSA "PKCS11 RSA Implementation"
@@ -48,7 +50,6 @@
 #define P11PROV_NAME_HKDF "HKDF"
 #define P11PROV_NAMES_HKDF P11PROV_NAME_HKDF
 #define P11PROV_DESCS_HKDF "PKCS11 HKDF Implementation"
-#define P11PROV_DESCS_URI "PKCS11 URI Store"
 #define P11PROV_NAMES_ED25519 "ED25519:1.3.101.112"
 #define P11PROV_NAME_ED25519 "ED25519"
 #define P11PROV_DESCS_ED25519 "PKCS11 ED25519 Implementation"
@@ -61,6 +62,10 @@
 #define P11PROV_NAME_TLS13_KDF "TLS13-KDF"
 #define P11PROV_NAMES_TLS13_KDF P11PROV_NAME_TLS13_KDF
 #define P11PROV_DESCS_TLS13_KDF "PKCS11 TLS 1.3 HKDF Implementation"
+#define P11PROV_NAMES_DER "DER"
+#define P11PROV_DESCS_DER "DER decoder implementation in PKCS11 provider"
+#define P11PROV_NAMES_URI "pkcs11"
+#define P11PROV_DESCS_URI "PKCS11 URI Store"
 
 #define P11PROV_PARAM_URI "pkcs11_uri"
 #define P11PROV_PARAM_KEY_USAGE "pkcs11_key_usage"

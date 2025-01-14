@@ -31,6 +31,7 @@ struct p11prov_ctx {
     int cache_keys;
     int cache_sessions;
     bool encode_pkey_as_pk11_uri;
+    bool assume_fips;
     /* TODO: ui_method */
     /* TODO: fork id */
 
@@ -52,7 +53,11 @@ struct p11prov_ctx {
     OSSL_ALGORITHM *op_exchange;
     OSSL_ALGORITHM *op_signature;
     OSSL_ALGORITHM *op_asym_cipher;
+
     OSSL_ALGORITHM *op_encoder;
+    OSSL_ALGORITHM *op_decoder;
+    OSSL_ALGORITHM *op_keymgmt;
+    OSSL_ALGORITHM *op_store;
 
     pthread_rwlock_t quirk_lock;
     struct quirk *quirks;
@@ -532,12 +537,13 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
     OPENSSL_free(ctx->op_digest);
     OPENSSL_free(ctx->op_kdf);
     OPENSSL_free(ctx->op_random);
-    /* keymgmt is static */
     OPENSSL_free(ctx->op_exchange);
     OPENSSL_free(ctx->op_signature);
     OPENSSL_free(ctx->op_asym_cipher);
     OPENSSL_free(ctx->op_encoder);
-    /* store is static */
+    OPENSSL_free(ctx->op_decoder);
+    OPENSSL_free(ctx->op_keymgmt);
+    OPENSSL_free(ctx->op_store);
 
     OSSL_LIB_CTX_free(ctx->libctx);
     ctx->libctx = NULL;
@@ -803,8 +809,8 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
         operation##_idx++; \
     } while (0)
 
-#define ADD_ALGO(NAME, name, operation) \
-    ADD_ALGO_EXT(NAME, operation, P11PROV_DEFAULT_PROPERTIES, \
+#define ADD_ALGO(NAME, name, operation, prop) \
+    ADD_ALGO_EXT(NAME, operation, prop, \
                  p11prov_##name##_##operation##_functions)
 
 #define TERM_ALGO(operation) \
@@ -872,6 +878,14 @@ static void alg_rm_mechs(CK_ULONG *checklist, CK_ULONG *rmlist, int *clsize,
         alg_rm_mechs(checklist, rmlist, &cl_size, rmsize); \
     } while (0);
 
+static const char *get_default_properties(P11PROV_CTX *ctx)
+{
+    if (ctx->assume_fips) {
+        return P11PROV_FIPS_PROPERTIES;
+    }
+    return P11PROV_DEFAULT_PROPERTIES;
+}
+
 static CK_RV operations_init(P11PROV_CTX *ctx)
 {
     P11PROV_SLOTS_CTX *slots;
@@ -896,8 +910,8 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
     int exchange_idx = 0;
     int signature_idx = 0;
     int asym_cipher_idx = 0;
-    int encoder_idx = 0;
     int slot_idx = 0;
+    const char *prop = get_default_properties(ctx);
     CK_RV ret;
 
     ret = p11prov_take_slots(ctx, &slots);
@@ -980,69 +994,69 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
             case CKM_ECDSA_SHA3_256:
             case CKM_ECDSA_SHA3_384:
             case CKM_ECDSA_SHA3_512:
-                ADD_ALGO(ECDSA, ecdsa, signature);
+                ADD_ALGO(ECDSA, ecdsa, signature, prop);
                 UNCHECK_MECHS(CKM_EC_KEY_PAIR_GEN, ECDSA_SIG_MECHS);
                 break;
             case CKM_ECDH1_DERIVE:
             case CKM_ECDH1_COFACTOR_DERIVE:
-                ADD_ALGO(ECDH, ecdh, exchange);
+                ADD_ALGO(ECDH, ecdh, exchange, prop);
                 UNCHECK_MECHS(CKM_EC_KEY_PAIR_GEN, CKM_ECDH1_DERIVE,
                               CKM_ECDH1_COFACTOR_DERIVE);
                 break;
             case CKM_HKDF_DERIVE:
-                ADD_ALGO(HKDF, hkdf, kdf);
-                ADD_ALGO(TLS13_KDF, tls13, kdf);
-                ADD_ALGO(HKDF, hkdf, exchange);
+                ADD_ALGO(HKDF, hkdf, kdf, prop);
+                ADD_ALGO(TLS13_KDF, tls13, kdf, prop);
+                ADD_ALGO(HKDF, hkdf, exchange, prop);
                 UNCHECK_MECHS(CKM_HKDF_DERIVE);
                 break;
             case CKM_SHA_1:
-                ADD_ALGO(SHA1, sha1, digest);
+                ADD_ALGO(SHA1, sha1, digest, prop);
                 UNCHECK_MECHS(CKM_SHA_1);
                 break;
             case CKM_SHA224:
-                ADD_ALGO(SHA2_224, sha224, digest);
+                ADD_ALGO(SHA2_224, sha224, digest, prop);
                 UNCHECK_MECHS(CKM_SHA224);
                 break;
             case CKM_SHA256:
-                ADD_ALGO(SHA2_256, sha256, digest);
+                ADD_ALGO(SHA2_256, sha256, digest, prop);
                 UNCHECK_MECHS(CKM_SHA256);
                 break;
             case CKM_SHA384:
-                ADD_ALGO(SHA2_384, sha384, digest);
+                ADD_ALGO(SHA2_384, sha384, digest, prop);
                 UNCHECK_MECHS(CKM_SHA384);
                 break;
             case CKM_SHA512:
-                ADD_ALGO(SHA2_512, sha512, digest);
+                ADD_ALGO(SHA2_512, sha512, digest, prop);
                 UNCHECK_MECHS(CKM_SHA512);
                 break;
             case CKM_SHA512_224:
-                ADD_ALGO(SHA2_512_224, sha512_224, digest);
+                ADD_ALGO(SHA2_512_224, sha512_224, digest, prop);
                 UNCHECK_MECHS(CKM_SHA512_224);
                 break;
             case CKM_SHA512_256:
-                ADD_ALGO(SHA2_512_256, sha512_256, digest);
+                ADD_ALGO(SHA2_512_256, sha512_256, digest, prop);
                 UNCHECK_MECHS(CKM_SHA512_256);
                 break;
             case CKM_SHA3_224:
-                ADD_ALGO(SHA3_224, sha3_224, digest);
+                ADD_ALGO(SHA3_224, sha3_224, digest, prop);
                 UNCHECK_MECHS(CKM_SHA3_224);
                 break;
             case CKM_SHA3_256:
-                ADD_ALGO(SHA3_256, sha3_256, digest);
+                ADD_ALGO(SHA3_256, sha3_256, digest, prop);
                 UNCHECK_MECHS(CKM_SHA3_256);
                 break;
             case CKM_SHA3_384:
-                ADD_ALGO(SHA3_384, sha3_384, digest);
+                ADD_ALGO(SHA3_384, sha3_384, digest, prop);
                 UNCHECK_MECHS(CKM_SHA3_384);
                 break;
             case CKM_SHA3_512:
-                ADD_ALGO(SHA3_512, sha3_512, digest);
+                ADD_ALGO(SHA3_512, sha3_512, digest, prop);
                 UNCHECK_MECHS(CKM_SHA3_512);
                 break;
             case CKM_EDDSA:
-                ADD_ALGO_EXT(ED25519, signature, P11PROV_DEFAULT_PROPERTIES,
+                ADD_ALGO_EXT(ED25519, signature, prop,
                              p11prov_eddsa_signature_functions);
-                ADD_ALGO_EXT(ED448, signature, P11PROV_DEFAULT_PROPERTIES,
+                ADD_ALGO_EXT(ED448, signature, prop,
                              p11prov_eddsa_signature_functions);
                 UNCHECK_MECHS(CKM_EC_EDWARDS_KEY_PAIR_GEN, CKM_EDDSA);
                 break;
@@ -1057,10 +1071,10 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
     p11prov_return_slots(slots);
 
     if (add_rsasig) {
-        ADD_ALGO(RSA, rsa, signature);
+        ADD_ALGO(RSA, rsa, signature, prop);
     }
     if (add_rsaenc) {
-        ADD_ALGO(RSA, rsa, asym_cipher);
+        ADD_ALGO(RSA, rsa, asym_cipher, prop);
     }
     /* terminations */
     TERM_ALGO(digest);
@@ -1069,120 +1083,120 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
     TERM_ALGO(signature);
     TERM_ALGO(asym_cipher);
 
-    /* encoder/decoder */
-    ADD_ALGO_EXT(RSA, encoder, "provider=pkcs11,output=text",
-                 p11prov_rsa_encoder_text_functions);
-    ADD_ALGO_EXT(RSA, encoder, "provider=pkcs11,output=der,structure=pkcs1",
-                 p11prov_rsa_encoder_pkcs1_der_functions);
-    ADD_ALGO_EXT(RSA, encoder, "provider=pkcs11,output=pem,structure=pkcs1",
-                 p11prov_rsa_encoder_pkcs1_pem_functions);
-    ADD_ALGO_EXT(RSA, encoder,
-                 "provider=pkcs11,output=der,structure=SubjectPublicKeyInfo",
-                 p11prov_rsa_encoder_spki_der_functions);
-    ADD_ALGO_EXT(RSA, encoder,
-                 "provider=pkcs11,output=pem,structure=SubjectPublicKeyInfo",
-                 p11prov_rsa_encoder_spki_pem_functions);
-    ADD_ALGO_EXT(RSAPSS, encoder, "provider=pkcs11,output=text",
-                 p11prov_rsa_encoder_text_functions);
-    ADD_ALGO_EXT(RSAPSS, encoder, "provider=pkcs11,output=der,structure=pkcs1",
-                 p11prov_rsa_encoder_pkcs1_der_functions);
-    ADD_ALGO_EXT(RSAPSS, encoder, "provider=pkcs11,output=pem,structure=pkcs1",
-                 p11prov_rsa_encoder_pkcs1_pem_functions);
-    ADD_ALGO_EXT(RSAPSS, encoder,
-                 "provider=pkcs11,output=der,structure=SubjectPublicKeyInfo",
-                 p11prov_rsa_encoder_spki_der_functions);
-    ADD_ALGO_EXT(RSAPSS, encoder,
-                 "provider=pkcs11,output=pem,structure=SubjectPublicKeyInfo",
-                 p11prov_rsa_encoder_spki_pem_functions);
-    ADD_ALGO_EXT(EC, encoder, "provider=pkcs11,output=text",
-                 p11prov_ec_encoder_text_functions);
-    ADD_ALGO_EXT(EC, encoder, "provider=pkcs11,output=der,structure=pkcs1",
-                 p11prov_ec_encoder_pkcs1_der_functions);
-    ADD_ALGO_EXT(EC, encoder, "provider=pkcs11,output=pem,structure=pkcs1",
-                 p11prov_ec_encoder_pkcs1_pem_functions);
-    ADD_ALGO_EXT(EC, encoder,
-                 "provider=pkcs11,output=der,structure=SubjectPublicKeyInfo",
-                 p11prov_ec_encoder_spki_der_functions);
-    ADD_ALGO_EXT(ED25519, encoder, "provider=pkcs11,output=text",
-                 p11prov_ec_edwards_encoder_text_functions);
-    ADD_ALGO_EXT(ED448, encoder, "provider=pkcs11,output=text",
-                 p11prov_ec_edwards_encoder_text_functions);
-    if (ctx->encode_pkey_as_pk11_uri) {
-        ADD_ALGO_EXT(RSA, encoder,
-                     "provider=pkcs11,output=pem,structure=PrivateKeyInfo",
-                     p11prov_rsa_encoder_priv_key_info_pem_functions);
-        ADD_ALGO_EXT(RSAPSS, encoder,
-                     "provider=pkcs11,output=pem,structure=PrivateKeyInfo",
-                     p11prov_rsa_encoder_priv_key_info_pem_functions);
-        ADD_ALGO_EXT(EC, encoder,
-                     "provider=pkcs11,output=pem,structure=PrivateKeyInfo",
-                     p11prov_ec_encoder_priv_key_info_pem_functions);
-        ADD_ALGO_EXT(ED25519, encoder,
-                     "provider=pkcs11,output=pem,structure=PrivateKeyInfo",
-                     p11prov_ec_edwards_encoder_priv_key_info_pem_functions);
-        ADD_ALGO_EXT(ED448, encoder,
-                     "provider=pkcs11,output=pem,structure=PrivateKeyInfo",
-                     p11prov_ec_edwards_encoder_priv_key_info_pem_functions);
-    }
-
-    TERM_ALGO(encoder);
-
     /* handle random */
     ret = p11prov_check_random(ctx);
     if (ret == CKR_OK) {
-        ADD_ALGO_EXT(RAND, random, "provider=pkcs11", p11prov_rand_functions);
+        ADD_ALGO_EXT(RAND, random, prop, p11prov_rand_functions);
         TERM_ALGO(random);
     }
 
     return CKR_OK;
 }
 
-static const OSSL_ALGORITHM p11prov_keymgmt[] = {
-    { P11PROV_NAMES_RSA, P11PROV_DEFAULT_PROPERTIES,
-      p11prov_rsa_keymgmt_functions, P11PROV_DESCS_RSA },
-    { P11PROV_NAMES_RSAPSS, P11PROV_DEFAULT_PROPERTIES,
-      p11prov_rsapss_keymgmt_functions, P11PROV_DESCS_RSAPSS },
-    { P11PROV_NAMES_EC, P11PROV_DEFAULT_PROPERTIES,
-      p11prov_ec_keymgmt_functions, P11PROV_DESCS_EC },
-    { P11PROV_NAMES_HKDF, P11PROV_DEFAULT_PROPERTIES,
-      p11prov_hkdf_keymgmt_functions, P11PROV_DESCS_HKDF },
-    { P11PROV_NAMES_ED25519, P11PROV_DEFAULT_PROPERTIES,
-      p11prov_ed25519_keymgmt_functions, P11PROV_DESCS_ED25519 },
-    { P11PROV_NAMES_ED448, P11PROV_DEFAULT_PROPERTIES,
-      p11prov_ed448_keymgmt_functions, P11PROV_DESCS_ED448 },
-    { NULL, NULL, NULL, NULL },
-};
+static CK_RV static_operations_init(P11PROV_CTX *ctx)
+{
+    int encoder_idx = 0;
+    int decoder_idx = 0;
+    int store_idx = 0;
+    int keymgmt_idx = 0;
+    const char *prop = get_default_properties(ctx);
 
-static const OSSL_ALGORITHM p11prov_store[] = {
-    {
-        "pkcs11",
-        P11PROV_DEFAULT_PROPERTIES,
-        p11prov_store_functions,
-        P11PROV_DESCS_URI,
-    },
-    { NULL, NULL, NULL, NULL },
-};
+/* encoder */
+#define DEFAULT_PROPERTY(prop) \
+    (ctx->assume_fips ? P11PROV_FIPS_PROPERTIES prop \
+                      : P11PROV_DEFAULT_PROPERTIES prop)
 
-static const OSSL_ALGORITHM p11prov_decoders[] = {
-    { "DER", "provider=pkcs11,input=pem",
-      p11prov_pem_decoder_p11prov_der_functions },
-    { P11PROV_NAMES_RSA,
-      "provider=pkcs11,input=der,structure=" P11PROV_DER_STRUCTURE,
-      p11prov_der_decoder_p11prov_rsa_functions },
-    { P11PROV_NAMES_RSAPSS,
-      "provider=pkcs11,input=der,structure=" P11PROV_DER_STRUCTURE,
-      p11prov_der_decoder_p11prov_rsa_functions },
-    { P11PROV_NAMES_EC,
-      "provider=pkcs11,input=der,structure=" P11PROV_DER_STRUCTURE,
-      p11prov_der_decoder_p11prov_ec_functions },
-    { P11PROV_NAMES_ED25519,
-      "provider=pkcs11,input=der,structure=" P11PROV_DER_STRUCTURE,
-      p11prov_der_decoder_p11prov_ed25519_functions },
-    { P11PROV_NAMES_ED448,
-      "provider=pkcs11,input=der,structure=" P11PROV_DER_STRUCTURE,
-      p11prov_der_decoder_p11prov_ed448_functions },
-    { NULL, NULL, NULL }
-};
+    ADD_ALGO_EXT(RSA, encoder, DEFAULT_PROPERTY(",output=text"),
+                 p11prov_rsa_encoder_text_functions);
+    ADD_ALGO_EXT(RSA, encoder, DEFAULT_PROPERTY(",output=der,structure=pkcs1"),
+                 p11prov_rsa_encoder_pkcs1_der_functions);
+    ADD_ALGO_EXT(RSA, encoder, DEFAULT_PROPERTY(",output=pem,structure=pkcs1"),
+                 p11prov_rsa_encoder_pkcs1_pem_functions);
+    ADD_ALGO_EXT(RSA, encoder,
+                 DEFAULT_PROPERTY(",output=der,structure=SubjectPublicKeyInfo"),
+                 p11prov_rsa_encoder_spki_der_functions);
+    ADD_ALGO_EXT(RSA, encoder,
+                 DEFAULT_PROPERTY(",output=pem,structure=SubjectPublicKeyInfo"),
+                 p11prov_rsa_encoder_spki_pem_functions);
+    ADD_ALGO_EXT(RSAPSS, encoder, DEFAULT_PROPERTY(",output=text"),
+                 p11prov_rsa_encoder_text_functions);
+    ADD_ALGO_EXT(RSAPSS, encoder,
+                 DEFAULT_PROPERTY(",output=der,structure=pkcs1"),
+                 p11prov_rsa_encoder_pkcs1_der_functions);
+    ADD_ALGO_EXT(RSAPSS, encoder,
+                 DEFAULT_PROPERTY(",output=pem,structure=pkcs1"),
+                 p11prov_rsa_encoder_pkcs1_pem_functions);
+    ADD_ALGO_EXT(RSAPSS, encoder,
+                 DEFAULT_PROPERTY(",output=der,structure=SubjectPublicKeyInfo"),
+                 p11prov_rsa_encoder_spki_der_functions);
+    ADD_ALGO_EXT(RSAPSS, encoder,
+                 DEFAULT_PROPERTY(",output=pem,structure=SubjectPublicKeyInfo"),
+                 p11prov_rsa_encoder_spki_pem_functions);
+    ADD_ALGO_EXT(EC, encoder, DEFAULT_PROPERTY(",output=text"),
+                 p11prov_ec_encoder_text_functions);
+    ADD_ALGO_EXT(EC, encoder, DEFAULT_PROPERTY(",output=der,structure=pkcs1"),
+                 p11prov_ec_encoder_pkcs1_der_functions);
+    ADD_ALGO_EXT(EC, encoder, DEFAULT_PROPERTY(",output=pem,structure=pkcs1"),
+                 p11prov_ec_encoder_pkcs1_pem_functions);
+    ADD_ALGO_EXT(EC, encoder,
+                 DEFAULT_PROPERTY(",output=der,structure=SubjectPublicKeyInfo"),
+                 p11prov_ec_encoder_spki_der_functions);
+    ADD_ALGO_EXT(ED25519, encoder, DEFAULT_PROPERTY(",output=text"),
+                 p11prov_ec_edwards_encoder_text_functions);
+    ADD_ALGO_EXT(ED448, encoder, DEFAULT_PROPERTY(",output=text"),
+                 p11prov_ec_edwards_encoder_text_functions);
+    if (ctx->encode_pkey_as_pk11_uri) {
+        ADD_ALGO_EXT(RSA, encoder,
+                     DEFAULT_PROPERTY(",output=pem,structure=PrivateKeyInfo"),
+                     p11prov_rsa_encoder_priv_key_info_pem_functions);
+        ADD_ALGO_EXT(RSAPSS, encoder,
+                     DEFAULT_PROPERTY(",output=pem,structure=PrivateKeyInfo"),
+                     p11prov_rsa_encoder_priv_key_info_pem_functions);
+        ADD_ALGO_EXT(EC, encoder,
+                     DEFAULT_PROPERTY(",output=pem,structure=PrivateKeyInfo"),
+                     p11prov_ec_encoder_priv_key_info_pem_functions);
+        ADD_ALGO_EXT(ED25519, encoder,
+                     DEFAULT_PROPERTY(",output=pem,structure=PrivateKeyInfo"),
+                     p11prov_ec_edwards_encoder_priv_key_info_pem_functions);
+        ADD_ALGO_EXT(ED448, encoder,
+                     DEFAULT_PROPERTY(",output=pem,structure=PrivateKeyInfo"),
+                     p11prov_ec_edwards_encoder_priv_key_info_pem_functions);
+    }
+
+    TERM_ALGO(encoder);
+
+#define DER_DECODER_PROP ",input=der,structure=" P11PROV_DER_STRUCTURE
+    /* decoder */
+    ADD_ALGO_EXT(DER, decoder, DEFAULT_PROPERTY(",input=pem"),
+                 p11prov_pem_decoder_p11prov_der_functions);
+    ADD_ALGO_EXT(RSA, decoder, DEFAULT_PROPERTY(DER_DECODER_PROP),
+                 p11prov_der_decoder_p11prov_rsa_functions);
+    ADD_ALGO_EXT(RSAPSS, decoder, DEFAULT_PROPERTY(DER_DECODER_PROP),
+                 p11prov_der_decoder_p11prov_rsa_functions);
+    ADD_ALGO_EXT(EC, decoder, DEFAULT_PROPERTY(DER_DECODER_PROP),
+                 p11prov_der_decoder_p11prov_ec_functions);
+    ADD_ALGO_EXT(ED25519, decoder, DEFAULT_PROPERTY(DER_DECODER_PROP),
+                 p11prov_der_decoder_p11prov_ed25519_functions);
+    ADD_ALGO_EXT(ED448, decoder, DEFAULT_PROPERTY(DER_DECODER_PROP),
+                 p11prov_der_decoder_p11prov_ed448_functions);
+    TERM_ALGO(decoder);
+#undef DEFAULT_PROPERTY
+
+    /* store */
+    ADD_ALGO_EXT(URI, store, prop, p11prov_store_functions);
+    TERM_ALGO(store);
+
+    /* keymgmt */
+    ADD_ALGO(RSA, rsa, keymgmt, prop);
+    ADD_ALGO(RSAPSS, rsapss, keymgmt, prop);
+    ADD_ALGO(EC, ec, keymgmt, prop);
+    ADD_ALGO(HKDF, hkdf, keymgmt, prop);
+    ADD_ALGO_EXT(ED25519, keymgmt, prop, p11prov_ed25519_keymgmt_functions);
+    ADD_ALGO_EXT(ED448, keymgmt, prop, p11prov_ed448_keymgmt_functions);
+    TERM_ALGO(keymgmt);
+
+    return CKR_OK;
+}
 
 static const char *p11prov_block_ops_names[OSSL_OP__HIGHEST + 1] = {
     [OSSL_OP_DIGEST] = "digest",
@@ -1229,7 +1243,7 @@ p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
         return ctx->op_random;
     case OSSL_OP_KEYMGMT:
         *no_cache = 0;
-        return p11prov_keymgmt;
+        return ctx->op_keymgmt;
     case OSSL_OP_KEYEXCH:
         *no_cache = ctx->status == P11PROV_UNINITIALIZED ? 1 : 0;
         return ctx->op_exchange;
@@ -1240,14 +1254,14 @@ p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
         *no_cache = ctx->status == P11PROV_UNINITIALIZED ? 1 : 0;
         return ctx->op_asym_cipher;
     case OSSL_OP_ENCODER:
-        *no_cache = ctx->status == P11PROV_UNINITIALIZED ? 1 : 0;
+        *no_cache = 0;
         return ctx->op_encoder;
     case OSSL_OP_DECODER:
         *no_cache = 0;
-        return p11prov_decoders;
+        return ctx->op_decoder;
     case OSSL_OP_STORE:
         *no_cache = 0;
-        return p11prov_store;
+        return ctx->op_store;
     }
     *no_cache = 0;
     return NULL;
@@ -1409,6 +1423,7 @@ enum p11prov_cfg_enum {
     P11PROV_CFG_CACHE_SESSIONS,
     P11PROV_CFG_ENCODE_PROVIDER_URI_TO_PEM,
     P11PROV_CFG_BLOCK_OPS,
+    P11PROV_CFG_ASSUME_FIPS,
     P11PROV_CFG_SIZE,
 };
 
@@ -1427,6 +1442,7 @@ static struct p11prov_cfg_names {
     { "pkcs11-module-cache-sessions" },
     { "pkcs11-module-encode-provider-uri-to-pem" },
     { "pkcs11-module-block-operations" },
+    { "pkcs11-module-assume-fips" },
 };
 
 int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
@@ -1647,6 +1663,15 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
     }
     P11PROV_debug("Cache Sessions: %d", ctx->cache_sessions);
 
+    if (cfg[P11PROV_CFG_ASSUME_FIPS] != NULL
+        && strcmp(cfg[P11PROV_CFG_ASSUME_FIPS], "true") == 0) {
+        ctx->assume_fips = true;
+    } else {
+        ctx->assume_fips = false;
+    }
+    P11PROV_debug("Assuming FIPS token is%s used",
+                  ctx->assume_fips ? "" : " not");
+
     if (cfg[P11PROV_CFG_ENCODE_PROVIDER_URI_TO_PEM] != NULL
         && strcmp(cfg[P11PROV_CFG_ENCODE_PROVIDER_URI_TO_PEM], "true") == 0) {
         ctx->encode_pkey_as_pk11_uri = true;
@@ -1696,6 +1721,16 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         }
     } else {
         P11PROV_debug("Blocked Operations: None");
+    }
+
+    /* These operations need to be initialized when we return here for OpenSSL
+     * to work. They do not need the token so they will not slow down
+     * initialization.
+     */
+    ret = static_operations_init(ctx);
+    if (ret != CKR_OK) {
+        p11prov_ctx_free(ctx);
+        return RET_OSSL_ERR;
     }
 
     /* PAY ATTENTION: do this as the last thing */
