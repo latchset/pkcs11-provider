@@ -223,6 +223,21 @@ Example:
 (Disables digest mechanisms, which will be instead routed to the OpenSSL
 default provider in most configurtions)
 
+## pkcs11-module-assume-fips
+
+Assume the token used by the PKCS#11 module is FIPS certified.
+
+Due to the incomplete specification for signalization of the certification
+from the pkcs11 modules, this can not be determined automatically. If you
+know your token is FIPS certified, you need to set this configuration option
+to true. Otherwise the pkcs11-provider will not work in FIPS Mode.
+
+Default: False
+
+Example:
+
+```pkcs11-module-assume-fips = true```
+
 
 ENVIRONMENT VARIABLES
 =====================
@@ -292,20 +307,20 @@ EXAMPLES
 openssl.cnf:
 
     HOME = .
-    
+
     # Use this in order to automatically load providers.
     openssl_conf = openssl_init
-    
+
     [openssl_init]
     providers = provider_sect
-    
+
     [provider_sect]
     default = default_sect
     pkcs11 = pkcs11_sect
-    
+
     [default_sect]
     activate = 1
-    
+
     [pkcs11_sect]
     module = /usr/lib64/ossl-modules/pkcs11.so
     pkcs11-module-path = /usr/lib64/pkcs11/vendor_pkcs11.so
