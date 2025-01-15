@@ -140,7 +140,7 @@ tests = {
   'hkdf': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'imported' : {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'rsapss': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
-  'rsapssam': {'suites': ['softhsm']},
+  'rsapssam': {'suites': ['softhsm', 'kryoptic']},
   'genkey': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
   'session': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
   'rand': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},

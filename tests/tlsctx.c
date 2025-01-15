@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
     SSL_CTX_free(ctx);
 
     env = getenv("SUPPORT_RSA_PKCS1_ENCRYPTION");
-    if (env && env[0] == "1") {
+    if (env && env[0] == '1') {
         test_pkcs1_with_tls_padding();
     }
 
