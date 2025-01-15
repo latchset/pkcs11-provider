@@ -120,6 +120,25 @@ jobs:
             builddir/tests/tmp.${{ matrix.token }}/testvars
             builddir/tests/tmp.${{ matrix.token }}/openssl.cnf
 
+      - name: Run tests in FIPS Mode (on CentOS + gcc only)
+        if : ( steps.nss-version-check.outputs.skiptest != 'true' )
+        run: |
+            if [ "${{ matrix.compiler }}" = "gcc" -a \( "${{ matrix.name }}" = "centos9" -o "${{ matrix.name }}" = "centos10" \) ]; then
+              OPENSSL_FORCE_FIPS_MODE=1 \
+              meson test --num-processes 1 -C builddir
+            fi
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Test valgrind logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
+          path: |
+            builddir/meson-logs/
+            builddir/tests/tmp.${{ matrix.token }}/p11prov-debug.log
+            builddir/tests/tmp.${{ matrix.token }}/testvars
+            builddir/tests/tmp.${{ matrix.token }}/openssl.cnf
+
+
   build-macos:
     name: CI with software token
     runs-on: ${{ matrix.os }}
