@@ -22,8 +22,12 @@ ossl 'pkey -in ${TMPPDIR}/file.ec.key.pem
 title LINE "Generate RSA keypair in files"
 # older versions of openssl don't support -outpubkey ...
 # .. so we'll use two steps
+export OPTS=""
+if [[ "${SUPPORT_RSA_KEYGEN_PUBLIC_EXPONENT}" = "1" ]]; then
+    export OPTS="-pkeyopt rsa_keygen_pubexp:3"
+fi
 ossl 'genpkey -algorithm RSA -out ${TMPPDIR}/file.rsa.key.pem
-              -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_keygen_pubexp:3'
+              -pkeyopt rsa_keygen_bits:2048 ${OPTS}'
 ossl 'pkey -in ${TMPPDIR}/file.rsa.key.pem
            -pubout -out ${TMPPDIR}/file.rsa.pub.key.pem'
 

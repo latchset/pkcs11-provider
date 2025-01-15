@@ -107,6 +107,7 @@ static void test_pkcs1_with_tls_padding(void)
 int main(int argc, char *argv[])
 {
     SSL_CTX *ctx;
+    char *env;
 
     ctx = SSL_CTX_new(TLS_server_method());
     if (!ctx) {
@@ -119,7 +120,10 @@ int main(int argc, char *argv[])
 
     SSL_CTX_free(ctx);
 
-    test_pkcs1_with_tls_padding();
+    env = getenv("SUPPORT_RSA_PKCS1_ENCRYPTION");
+    if (env && env[0] == "1") {
+        test_pkcs1_with_tls_padding();
+    }
 
     exit(EXIT_SUCCESS);
 }

@@ -67,20 +67,21 @@ pkeyutl -verify -inkey "${PUBURI}"
                 -rawin
                 -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
 
+if [[ "$SUPPORT_RSA_PKCS1_ENCRYPTION" = "1" ]]; then
+    SECRETFILE=${TMPPDIR}/rsasecret.txt
+    echo "Super Secret" > "${SECRETFILE}"
 
-SECRETFILE=${TMPPDIR}/rsasecret.txt
-echo "Super Secret" > "${SECRETFILE}"
-
-title LINE "RSA basic encrypt and decrypt"
-ossl '
-pkeyutl -encrypt -inkey "${PUBURI}" -pubin
-                 -in ${SECRETFILE}
-                 -out ${SECRETFILE}.enc'
-ossl '
-pkeyutl -decrypt -inkey "${PRIURI}"
-                 -in ${SECRETFILE}.enc
-                 -out ${SECRETFILE}.dec'
-diff "${SECRETFILE}" "${SECRETFILE}.dec"
+    title LINE "RSA basic encrypt and decrypt"
+    ossl '
+    pkeyutl -encrypt -inkey "${PUBURI}" -pubin
+                     -in ${SECRETFILE}
+                     -out ${SECRETFILE}.enc'
+    ossl '
+    pkeyutl -decrypt -inkey "${PRIURI}"
+                     -in ${SECRETFILE}.enc
+                     -out ${SECRETFILE}.dec'
+    diff "${SECRETFILE}" "${SECRETFILE}.dec"
+fi
 
 title PARA "Test Disallow Public Export"
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
