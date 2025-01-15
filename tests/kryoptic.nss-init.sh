@@ -23,5 +23,5 @@ export TOKENLABELURI="Kryoptic%20Soft%20Token"
 source "${TESTSSRCDIR}/kryoptic-init.sh"
 
 export TOKENCONFIGVARS="export KRYOPTIC_CONF=${TMPPDIR}/kryoptic.conf"
-export TOKENOPTIONS="pkcs11-module-quirks = no-allowed-mechanisms"
+export TOKENOPTIONS="${TOKENOPTIONS}\npkcs11-module-quirks = no-allowed-mechanisms"
 export TESTPORT="36000"

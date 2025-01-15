@@ -11,6 +11,41 @@ fi
 
 TOKENTYPE=$1
 
+# defaults -- overridden below or in the per-token setup
+SUPPORT_ED25519=1
+SUPPORT_ED448=1
+SUPPORT_RSA_PKCS1_ENCRYPTION=1
+SUPPORT_RSA_KEYGEN_PUBLIC_EXPONENT=1
+SUPPORT_TLSFUZZER=1
+
+# Ed448 requires OpenSC 0.26.0, which is not available in Ubuntu and CentOS 9
+if [[ -f /etc/debian_version ]] && grep Ubuntu /etc/lsb-release; then
+    SUPPORT_ED448=0
+elif [[ -f /etc/redhat-release ]] && grep "release 9" /etc/redhat-release; then
+    SUPPORT_ED448=0
+fi
+
+# FIPS Mode
+if [[ "${OPENSSL_FORCE_FIPS_MODE}" = "1" || "$(cat /proc/sys/crypto/fips_enabled)" = "1" ]]; then
+    # We can not use Edwards curves in FIPS mode
+    SUPPORT_ED25519=0
+    SUPPORT_ED448=0
+
+    # The FIPS does not allow the RSA-PKCS1.5 encryption
+    SUPPORT_RSA_PKCS1_ENCRYPTION=0
+
+    # The FIPS does not allow to set custom public exponent during key
+    # generation
+    SUPPORT_RSA_KEYGEN_PUBLIC_EXPONENT=0
+
+    # TLS Fuzzer does not work well in FIPS mode
+    SUPPORT_TLSFUZZER=0
+
+    # We also need additional configuration in openssl.cnf to assume the token
+    # is FIPS token
+    TOKENOPTIONS="pkcs11-module-assume-fips = true"
+fi
+
 # Temporary dir and Token data dir
 TMPPDIR="${TESTBLDDIR}/${TOKENTYPE}"
 TOKDIR="$TMPPDIR/tokens"
@@ -207,8 +242,7 @@ echo ""
 
 
 ## Softtokn does not support edwards curves yet
-if [ "${TOKENTYPE}" != "softokn" ]; then
-
+if [ "${SUPPORT_ED25519}" -eq 1 ]; then
     # generate ED25519
     KEYID='0004'
     URIKEYID="%00%04"
@@ -232,37 +266,32 @@ if [ "${TOKENTYPE}" != "softokn" ]; then
     echo "${EDPUBURI}"
     echo "${EDPRIURI}"
     echo "${EDCRTURI}"
+fi
 
-    # this requires OpenSC 0.26.0, which is not available in Ubuntu and CentOS 9
-    if [[ -f /etc/debian_version ]] && grep Ubuntu /etc/lsb-release; then
-        echo "Ed448 not supported in Ubuntu's OpenSC version"
-    elif [[ -f /etc/redhat-release ]] && grep "release 9" /etc/redhat-release; then
-        echo "Ed448 not supported in EL9's OpenSC version"
-    else
-        # generate ED448
-        KEYID='0009'
-        URIKEYID="%00%09"
-        ED2CRTN="ed2Cert"
+if [ "${SUPPORT_ED448}" -eq 1 ]; then
+    # generate ED448
+    KEYID='0009'
+    URIKEYID="%00%09"
+    ED2CRTN="ed2Cert"
 
-        pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:Ed448" \
-            --label="${ED2CRTN}" --id="$KEYID"
-        ca_sign $ED2CRTN "My ED448 Cert" $KEYID
+    pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:Ed448" \
+        --label="${ED2CRTN}" --id="$KEYID"
+    ca_sign $ED2CRTN "My ED448 Cert" $KEYID
 
-        ED2BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
-        ED2BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
-        ED2BASEURI="pkcs11:id=${URIKEYID}"
-        ED2PUBURI="pkcs11:type=public;id=${URIKEYID}"
-        ED2PRIURI="pkcs11:type=private;id=${URIKEYID}"
-        ED2CRTURI="pkcs11:type=cert;object=${ED2CRTN}"
+    ED2BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+    ED2BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
+    ED2BASEURI="pkcs11:id=${URIKEYID}"
+    ED2PUBURI="pkcs11:type=public;id=${URIKEYID}"
+    ED2PRIURI="pkcs11:type=private;id=${URIKEYID}"
+    ED2CRTURI="pkcs11:type=cert;object=${ED2CRTN}"
 
-        title LINE "ED448 PKCS11 URIS"
-        echo "${ED2BASEURIWITHPINVALUE}"
-        echo "${ED2BASEURIWITHPINSOURCE}"
-        echo "${ED2BASEURI}"
-        echo "${ED2PUBURI}"
-        echo "${ED2PRIURI}"
-        echo "${ED2CRTURI}"
-    fi
+    title LINE "ED448 PKCS11 URIS"
+    echo "${ED2BASEURIWITHPINVALUE}"
+    echo "${ED2BASEURIWITHPINSOURCE}"
+    echo "${ED2BASEURI}"
+    echo "${ED2PUBURI}"
+    echo "${ED2PRIURI}"
+    echo "${ED2CRTURI}"
 fi
 
 title PARA "generate RSA key pair, self-signed certificate, remove public key"
@@ -394,6 +423,12 @@ export PKCS11_PROVIDER_DEBUG="file:${TMPPDIR}/p11prov-debug.log"
 export OPENSSL_CONF="${OPENSSL_CONF}"
 export TESTSSRCDIR="${TESTSSRCDIR}"
 export TESTBLDDIR="${TESTBLDDIR}"
+
+export SUPPORT_ED25519="${SUPPORT_ED25519}"
+export SUPPORT_ED448="${SUPPORT_ED448}"
+export SUPPORT_RSA_PKCS1_ENCRYPTION="${SUPPORT_RSA_PKCS1_ENCRYPTION}"
+export SUPPORT_RSA_KEYGEN_PUBLIC_EXPONENT="${SUPPORT_RSA_KEYGEN_PUBLIC_EXPONENT}"
+export SUPPORT_TLSFUZZER="${SUPPORT_TLSFUZZER}"
 
 export TESTPORT="${TESTPORT}"
 

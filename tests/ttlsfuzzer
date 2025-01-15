@@ -9,6 +9,11 @@ if [[ ! -d "${TESTSSRCDIR}/../tlsfuzzer/tlsfuzzer" ]]; then
     exit 77;
 fi
 
+if [[ "${SUPPORT_TLSFUZZER}" = "0" ]]; then
+    title "TLS fuzzer does not work in FIPS Mode"
+    exit 77;
+fi
+
 TMPFILE="${TMPPDIR}/tls-fuzzer.$$.tmp"
 PORT="$TESTPORT"
 PYTHON=$(which python3)

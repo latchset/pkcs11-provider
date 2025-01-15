@@ -4,6 +4,10 @@
 
 source "${TESTSSRCDIR}/helpers.sh"
 
+if [[ "${SUPPORT_ED25519}" = "0" ]]; then
+    exit 77;
+fi
+
 title PARA "Export ED25519 Public key to a file"
 ossl 'pkey -in $EDPUBURI -pubin -pubout -out ${TMPPDIR}/edout.pub'
 
@@ -65,7 +69,7 @@ fi
 if [[ -n $ED2BASEURI ]]; then
     title PARA "Export ED448 Public key to a file"
     ossl 'pkey -in $ED2PUBURI -pubin -pubout -out ${TMPPDIR}/ed2out.pub'
-    
+
     title LINE "Print ED448 Public key from private"
     ossl 'pkey -in $ED2PRIURI -pubout -text' $helper_emit
     output="$helper_output"
@@ -79,7 +83,7 @@ if [[ -n $ED2BASEURI ]]; then
         echo
         exit 1
     fi
-    
+
     title PARA "DigestSign and DigestVerify with ED448"
     ossl '
     pkeyutl -sign -inkey "${ED2BASEURI}"
@@ -91,16 +95,16 @@ if [[ -n $ED2BASEURI ]]; then
                     -in ${RAND64FILE}
                     -rawin
                     -sigfile ${TMPPDIR}/sha256-eddgstsig.bin'
-    
+
     title PARA "Test CSR generation from private ED448 keys"
     ossl '
     req -new -batch -key "${ED2PRIURI}" -out ${TMPPDIR}/ed448_csr.pem'
     ossl '
     req -in ${TMPPDIR}/ed448_csr.pem -verify -noout'
-    
+
     title PARA "Test EVP_PKEY_eq on public Edwards key both on token"
     $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ED2PUBURI" "$ED2PUBURI"
-    
+
     title PARA "Test EVP_PKEY_eq on public ED448 key via import"
     $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ED2PUBURI" "${TMPPDIR}"/ed2out.pub
     title PARA "Match private ED448 key against public key"
