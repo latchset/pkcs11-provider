@@ -45,12 +45,6 @@ ossl 'pkeyutl -verify -pubin
               -sigfile ${TMPPDIR}/file.ec.sig.bin
               -in ${TMPPDIR}/sha256.bin'
 
-#After key generation force all operations to happen on the token
-ORIG_OPENSSL_CONF=${OPENSSL_CONF}
-sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
-    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
-OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
-
 title LINE "Test Signing with private RSA key imported from file"
 ossl 'pkeyutl -sign
               -inkey ${TMPPDIR}/file.rsa.key.pem
