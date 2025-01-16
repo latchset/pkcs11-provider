@@ -243,6 +243,7 @@ CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
             && (slot->token.flags & CKF_TOKEN_INITIALIZED)
             && (!(slot->token.flags & CKF_USER_PIN_LOCKED))) {
             sctx->default_slot = slot->id;
+            P11PROV_debug("Slot(%lu) set as a default slot", slot->id);
         }
 
         P11PROV_debug_slot(ctx, slot->id, &slot->slot, &slot->token,
