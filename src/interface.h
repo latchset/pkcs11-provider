@@ -84,11 +84,24 @@ CK_RV p11prov_Encrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                       CK_BYTE_PTR pData, CK_ULONG ulDataLen,
                       CK_BYTE_PTR pEncryptedData,
                       CK_ULONG_PTR pulEncryptedDataLen);
+CK_RV p11prov_EncryptUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                            CK_BYTE_PTR pPart, CK_ULONG ulPartLen,
+                            CK_BYTE_PTR pEncryptedPart,
+                            CK_ULONG_PTR pulEncryptedPartLen);
+CK_RV p11prov_EncryptFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                           CK_BYTE_PTR pLastEncryptedPart,
+                           CK_ULONG_PTR pulLastEncryptedPartLen);
 CK_RV p11prov_DecryptInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                           CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey);
 CK_RV p11prov_Decrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                       CK_BYTE_PTR pEncryptedData, CK_ULONG ulEncryptedDataLen,
                       CK_BYTE_PTR pData, CK_ULONG_PTR pulDataLen);
+CK_RV p11prov_DecryptUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                            CK_BYTE_PTR pEncryptedPart,
+                            CK_ULONG ulEncryptedPartLen, CK_BYTE_PTR pPart,
+                            CK_ULONG_PTR pulPartLen);
+CK_RV p11prov_DecryptFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                           CK_BYTE_PTR pLastPart, CK_ULONG_PTR pulLastPartLen);
 CK_RV p11prov_DigestInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                          CK_MECHANISM_PTR pMechanism);
 CK_RV p11prov_DigestUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
