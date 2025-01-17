@@ -110,8 +110,13 @@ run_tests() {
     run_test "$ECPRIURI" "$ECCRTURI"
 
     if [[ -n "$EDBASEURI" ]]; then
-        title PARA "Run sanity test with default values (EdDSA)"
+        title PARA "Run sanity test with default values (Ed25519)"
         run_test "$EDPRIURI" "$EDCRTURI"
+    fi
+
+    if [[ -n "$ED2BASEURI" ]]; then
+        title PARA "Run sanity test with default values (Ed448)"
+        run_test "$ED2PRIURI" "$ED2CRTURI"
     fi
 
     title PARA "Run test with TLS 1.2"

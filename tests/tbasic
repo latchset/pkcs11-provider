@@ -129,12 +129,14 @@ ossl 'pkey -in $BASEURIWITHPINVALUE -pubin -pubout -out ${TMPPDIR}/rsa.pub.uripi
 ossl 'pkey -in $ECBASEURIWITHPINVALUE -pubin -pubout -out ${TMPPDIR}/ec.pub.uripin.pem'
 [[ -n $ECXBASEURIWITHPINVALUE ]] && ossl 'pkey -in $ECXBASEURIWITHPINVALUE -pubin -pubout -out ${TMPPDIR}/ecx.pub.uripin.pem'
 [[ -n $EDBASEURIWITHPINVALUE ]] && ossl 'pkey -in $EDBASEURIWITHPINVALUE -pubin -pubout -out ${TMPPDIR}/ed.pub.uripin.pem'
+[[ -n $ED2BASEURIWITHPINVALUE ]] && ossl 'pkey -in $ED2BASEURIWITHPINVALUE -pubin -pubout -out ${TMPPDIR}/ed2.pub.uripin.pem'
 
 title PARA "Test fetching public keys with a PIN source in URI"
 ossl 'pkey -in $BASEURIWITHPINSOURCE -pubin -pubout -out ${TMPPDIR}/rsa.pub.uripinsource.pem'
 ossl 'pkey -in $ECBASEURIWITHPINSOURCE -pubin -pubout -out ${TMPPDIR}/ec.pub.uripinsource.pem'
 [[ -n $ECXBASEURIWITHPINSOURCE ]] && ossl 'pkey -in $ECXBASEURIWITHPINSOURCE -pubin -pubout -out ${TMPPDIR}/ecx.pub.uripinsource.pem'
 [[ -n $EDBASEURIWITHPINSOURCE ]] && ossl 'pkey -in $EDBASEURIWITHPINSOURCE -pubin -pubout -out ${TMPPDIR}/ed.pub.uripinsource.pem'
+[[ -n $ED2BASEURIWITHPINSOURCE ]] && ossl 'pkey -in $ED2BASEURIWITHPINSOURCE -pubin -pubout -out ${TMPPDIR}/ed2.pub.uripinsource.pem'
 
 title PARA "Test prompting without PIN in config files"
 output=$(expect -c "spawn -noecho $CHECKER openssl pkey -in \"${PRIURI}\" -text -noout;
