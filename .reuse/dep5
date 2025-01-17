@@ -31,7 +31,8 @@ Files: .github/*
        tests/cert.json.in
        tests/cert.json.rsa.in
        tests/cert.json.ecdsa.in
-       tests/cert.json.eddsa.in
+       tests/cert.json.ed25519.in
+       tests/cert.json.ed448.in
        scripts/clean-dist.sh
 Copyright: (C) 2022 - 2024 Simo Sorce <simo@redhat.com>
 License: Apache-2.0
