@@ -670,7 +670,7 @@ static char *uri_component(const char *name, const char *val, size_t vlen,
     return c;
 }
 
-char *p11prov_key_to_uri(P11PROV_CTX *ctx, P11PROV_OBJ *key)
+char *p11prov_key_to_uri(P11PROV_CTX *ctx, P11PROV_OBJ *key, int selection)
 {
     P11PROV_SLOTS_CTX *slots;
     P11PROV_SLOT *slot;
@@ -691,7 +691,11 @@ char *p11prov_key_to_uri(P11PROV_CTX *ctx, P11PROV_OBJ *key)
     size_t size_hint = 0;
     CK_RV ret;
 
-    class = p11prov_obj_get_class(key);
+    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+        class = CKO_PUBLIC_KEY;
+    } else {
+        class = p11prov_obj_get_class(key);
+    }
     slot_id = p11prov_obj_get_slotid(key);
     cka_id = p11prov_obj_get_attr(key, CKA_ID);
     cka_label = p11prov_obj_get_attr(key, CKA_LABEL);

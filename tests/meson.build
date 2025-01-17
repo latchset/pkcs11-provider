@@ -115,6 +115,7 @@ test_programs = {
   'tcmpkeys': ['tcmpkeys.c', 'util.c'],
   'tfork': ['tfork.c'],
   'pincache': ['pincache.c'],
+  'tgetinfopkey': ['tgetinfopkey.c']
 }
 
 test_executables = []
@@ -142,6 +143,7 @@ tests = {
   'rsapss': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
   'rsapssam': {'suites': ['softhsm']},
   'genkey': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
+  'getinfopkey': {'suites': ['softokn', 'softhsm']},
   'session': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
   'rand': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
   'readkeys': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
