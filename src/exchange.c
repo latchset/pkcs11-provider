@@ -213,12 +213,13 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     CK_BBOOL val_true = CK_TRUE;
     CK_BBOOL val_false = CK_FALSE;
     CK_ULONG key_size = outlen;
-    CK_ATTRIBUTE key_template[5] = {
+    CK_ATTRIBUTE key_template[6] = {
         { CKA_CLASS, &key_class, sizeof(key_class) },
         { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
         { CKA_SENSITIVE, &val_false, sizeof(val_false) },
         { CKA_EXTRACTABLE, &val_true, sizeof(val_true) },
         { CKA_VALUE_LEN, &key_size, sizeof(key_size) },
+        { CKA_TOKEN, &val_false, sizeof(val_false) },
     };
     CK_MECHANISM mechanism;
     P11PROV_SESSION *session = NULL;
@@ -280,7 +281,7 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     }
 
     ret = p11prov_derive_key(ecdhctx->provctx, slotid, &mechanism, handle,
-                             key_template, 5, &session, &secret_handle);
+                             key_template, 6, &session, &secret_handle);
     if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }
