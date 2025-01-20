@@ -14,11 +14,11 @@ import re
 from asn1crypto import pem
 from .. import uri2pem
 
-tokens = pathlib.Path("../tests/tmp.softokn/tokens/key4.db")
+tokens = pathlib.Path("../tests/softokn/tokens/key4.db")
 
 
 if not tokens.exists():
-    print("Run 'make check' first to create a NSS softoken in tests/tmp.softokn/tokens")
+    print("Run 'make check' first to create a NSS softoken in tests/softokn/tokens")
     raise SystemExit(1)
 
 

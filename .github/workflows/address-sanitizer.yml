@@ -70,7 +70,10 @@ jobs:
           path: |
             builddir/meson-logs/
             builddir/tests/*.log
-            builddir/tests/tmp.${{ matrix.token }}/p11prov-debug.log
-            builddir/tests/tmp.${{ matrix.token }}/testvars
-            builddir/tests/tmp.${{ matrix.token }}/openssl.cnf
+            builddir/tests/softhsm/p11prov-debug.log
+            builddir/tests/softhsm/testvars
+            builddir/tests/softhsm/openssl.cnf
+            builddir/tests/softtokn/p11prov-debug.log
+            builddir/tests/softtokn/testvars
+            builddir/tests/softtokn/openssl.cnf
 

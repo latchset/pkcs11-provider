@@ -99,9 +99,9 @@ jobs:
           name: Test logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
           path: |
             builddir/meson-logs/
-            builddir/tests/tmp.${{ matrix.token }}/p11prov-debug.log
-            builddir/tests/tmp.${{ matrix.token }}/testvars
-            builddir/tests/tmp.${{ matrix.token }}/openssl.cnf
+            builddir/tests/${{ matrix.token }}/p11prov-debug.log
+            builddir/tests/${{ matrix.token }}/testvars
+            builddir/tests/${{ matrix.token }}/openssl.cnf
 
       - name: Run tests with valgrind
         if : ( steps.nss-version-check.outputs.skiptest != 'true' )
@@ -116,9 +116,9 @@ jobs:
           name: Test valgrind logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
           path: |
             builddir/meson-logs/
-            builddir/tests/tmp.${{ matrix.token }}/p11prov-debug.log
-            builddir/tests/tmp.${{ matrix.token }}/testvars
-            builddir/tests/tmp.${{ matrix.token }}/openssl.cnf
+            builddir/tests/${{ matrix.token }}/p11prov-debug.log
+            builddir/tests/${{ matrix.token }}/testvars
+            builddir/tests/${{ matrix.token }}/openssl.cnf
 
       - name: Run tests in FIPS Mode (on CentOS + gcc only)
         if : ( steps.nss-version-check.outputs.skiptest != 'true' )
@@ -134,9 +134,9 @@ jobs:
           name: Test FIPS Mode logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
           path: |
             builddir/meson-logs/
-            builddir/tests/tmp.${{ matrix.token }}/p11prov-debug.log
-            builddir/tests/tmp.${{ matrix.token }}/testvars
-            builddir/tests/tmp.${{ matrix.token }}/openssl.cnf
+            builddir/tests/${{ matrix.token }}/p11prov-debug.log
+            builddir/tests/${{ matrix.token }}/testvars
+            builddir/tests/${{ matrix.token }}/openssl.cnf
 
 
   build-macos:
@@ -190,7 +190,7 @@ jobs:
           path: |
             builddir/meson-logs/*
             builddir/tests/*.log
-            builddir/tests/tmp.${{ matrix.token }}/p11prov-debug.log
-            builddir/tests/tmp.${{ matrix.token }}/testvars
-            builddir/tests/tmp.${{ matrix.token }}/openssl.cnf
+            builddir/tests/${{ matrix.token }}/p11prov-debug.log
+            builddir/tests/${{ matrix.token }}/testvars
+            builddir/tests/${{ matrix.token }}/openssl.cnf
 

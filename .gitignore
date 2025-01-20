@@ -1,8 +1,10 @@
 # project-specific ignore patterns
 tests/openssl.cnf
 tests/openssl.cnf.softhsm
-tests/tmp.softhsm
-tests/tmp.softokn
+tests/softhsm
+tests/softokn
+tests/kryoptic
+tests/kryoptic.nss
 tests/tdigests
 tests/tdigest_dupctx
 tests/tsession
