@@ -131,7 +131,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: Test valgrind logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
+          name: Test FIPS Mode logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
           path: |
             builddir/meson-logs/
             builddir/tests/tmp.${{ matrix.token }}/p11prov-debug.log
