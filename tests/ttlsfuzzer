@@ -30,7 +30,7 @@ prepare_test() {
     KEY="$2"
     CERT="$3"
     # Prepare the tlsfuzzer configuration
-    sed -e "s|@PRIURI@|$KEY|g" -e "s/@CRTURI@/$CERT/g" \
+    sed -e "s|@PRIURI@|$KEY|g" -e "s|@CRTURI@|$CERT|g" \
         -e "s/@PORT@/$PORT/g" \
         -e "s/@PROPQ@/$PROPQ/g" \
         -e "s/@SIGALGS@/$SIGALGS/g" "${TESTSSRCDIR}/${TEMPLATE}" >>"${TMPFILE}"
@@ -61,6 +61,35 @@ run_tests() {
 
     title PARA "Prepare test for RSA"
     prepare_test cert.json.rsa.in "$PRIURI" "$CRTURI"
+
+    if [[ -n "$RSAPSSBASEURI" ]]; then
+        title PARA "Prepare test for RSA-PSS"
+
+        # do selfsign now using openssl as certool can not create SPKI using
+        # RSA-PSS
+        TMPCA=${TMPPDIR}/tmpca
+        TMP_OPENSSL_CONF=${OPENSSL_CONF}
+        sed -e "s|^dir .*|dir = ${TMPCA}|" \
+            "${OPENSSL_CONF}" > "${OPENSSL_CONF}.tmpca"
+        export OPENSSL_CONF=${OPENSSL_CONF}.tmpca
+
+        mkdir -p "${TMPCA}/newcerts" "${TMPCA}/private"
+        if [ ! -e "${TMPCA}/serial" ]; then
+            echo "01" > "${TMPCA}/serial"
+        fi
+        touch "${TMPCA}/index.txt"
+
+        title PARA "Generating a new CSR with existing RSA-PSS key in token"
+        ossl 'req -batch -noenc -x509 -new -key ${RSAPSSPRIURI}
+            -sigopt rsa_padding_mode:pss
+            -sigopt digest:sha256
+            -sigopt rsa_pss_saltlen:-1
+            -out ${TMPCA}/rsapss-cacert.pem'
+        OPENSSL_CONF=${TMP_OPENSSL_CONF}
+
+        prepare_test cert.json.rsapss.in \
+            "$RSAPSSPRIURI" "${TMPCA}/rsapss-cacert.pem"
+    fi
 
     title PARA "Prepare test for ECDSA"
     # Note, that tlsfuzzer expects the homogeneous CA and server keys

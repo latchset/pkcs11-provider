@@ -30,6 +30,7 @@ Files: .github/*
        tests/*.pem
        tests/cert.json.in
        tests/cert.json.rsa.in
+       tests/cert.json.rsapss.in
        tests/cert.json.ecdsa.in
        tests/cert.json.ed25519.in
        tests/cert.json.ed448.in

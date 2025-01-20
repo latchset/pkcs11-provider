@@ -256,7 +256,8 @@ static X509_PUBKEY *p11prov_rsa_pubkey_to_x509(P11PROV_OBJ *key)
     X509_PUBKEY *pubkey;
     unsigned char *der = NULL;
     int derlen = 0;
-    int ret;
+    int ret, nid, ptype;
+    ASN1_STRING *pval = NULL;
 
     ret = p11prov_rsa_pubkey_to_der(key, &der, &derlen);
     if (ret != RET_OSSL_OK) {
@@ -269,8 +270,19 @@ static X509_PUBKEY *p11prov_rsa_pubkey_to_x509(P11PROV_OBJ *key)
         return NULL;
     }
 
-    ret = X509_PUBKEY_set0_param(pubkey, OBJ_nid2obj(NID_rsaEncryption),
-                                 V_ASN1_NULL, NULL, der, derlen);
+    if (p11prov_obj_is_rsa_pss(key)) {
+        nid = NID_rsassaPss;
+        /* This is RSA-PSS key without additional restrictions */
+        pval = NULL;
+        ptype = V_ASN1_UNDEF;
+        /* TODO implement restrictions here based on ALLOWED_MECHANISMS */
+    } else {
+        /* this is generic RSA key without restrictions */
+        nid = NID_rsaEncryption;
+        ptype = V_ASN1_NULL;
+    }
+    ret = X509_PUBKEY_set0_param(pubkey, OBJ_nid2obj(nid), ptype, pval, der,
+                                 derlen);
     if (ret != RET_OSSL_OK) {
         OPENSSL_free(der);
         X509_PUBKEY_free(pubkey);

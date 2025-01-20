@@ -5,6 +5,10 @@
 #define _KEYMGMT_H
 
 /* keymgmt */
+
+#define P11PROV_N_RSAPSS_MECHS 10
+extern const CK_MECHANISM_TYPE p11prov_rsapss_mechs[P11PROV_N_RSAPSS_MECHS];
+
 #define DISPATCH_KEYMGMT_FN(type, name) \
     DECL_DISPATCH_FUNC(keymgmt, p11prov_##type, name)
 #define DISPATCH_KEYMGMT_ELEM(type, NAME, name) \

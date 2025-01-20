@@ -558,6 +558,37 @@ CK_KEY_TYPE p11prov_obj_get_key_type(P11PROV_OBJ *obj)
     return CK_UNAVAILABLE_INFORMATION;
 }
 
+bool p11prov_obj_is_rsa_pss(P11PROV_OBJ *obj)
+{
+    CK_ATTRIBUTE *am = p11prov_obj_get_attr(obj, CKA_ALLOWED_MECHANISMS);
+    CK_MECHANISM_TYPE *allowed;
+    int am_nmechs;
+
+    if (am == NULL || am->ulValueLen == 0) {
+        /* no limitations or no support for allowed mechs
+         * TODO we can try also certificate restrictions */
+        return false;
+    }
+    allowed = (CK_MECHANISM_TYPE *)am->pValue;
+    am_nmechs = am->ulValueLen / sizeof(CK_MECHANISM_TYPE);
+    for (int i = 0; i < am_nmechs; i++) {
+        bool found = false;
+        for (int j = 0; j < P11PROV_N_RSAPSS_MECHS; j++) {
+            if (allowed[i] == p11prov_rsapss_mechs[j]) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            /* this is not a RSA-PSS mechanism. We can not enforce any
+             * limitations */
+            return false;
+        }
+    }
+    /* all allowed mechanisms fit into the list of RSA-PSS ones */
+    return true;
+}
+
 CK_ULONG p11prov_obj_get_key_bit_size(P11PROV_OBJ *obj)
 {
     if (obj) {
@@ -1723,9 +1754,9 @@ static int p11prov_obj_export_public_rsa_key(P11PROV_OBJ *obj,
                                              OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
     CK_ATTRIBUTE attrs[RSA_PUB_ATTRS] = { 0 };
-    OSSL_PARAM params[RSA_PUB_ATTRS + 1];
+    OSSL_PARAM params[RSA_PUB_ATTRS + 2];
     CK_RV rv;
-    int ret;
+    int ret, n = 0;
 
     if (p11prov_obj_get_key_type(obj) != CKK_RSA) {
         return RET_OSSL_ERR;
@@ -1741,12 +1772,21 @@ static int p11prov_obj_export_public_rsa_key(P11PROV_OBJ *obj,
     }
 
     byteswap_buf(attrs[0].pValue, attrs[0].pValue, attrs[0].ulValueLen);
-    params[0] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N, attrs[0].pValue,
-                                        attrs[0].ulValueLen);
+    params[n++] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N,
+                                          attrs[0].pValue, attrs[0].ulValueLen);
     byteswap_buf(attrs[1].pValue, attrs[1].pValue, attrs[1].ulValueLen);
-    params[1] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_E, attrs[1].pValue,
-                                        attrs[1].ulValueLen);
-    params[RSA_PUB_ATTRS] = OSSL_PARAM_construct_end();
+    params[n++] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_E,
+                                          attrs[1].pValue, attrs[1].ulValueLen);
+    /* If this is an RSA-PSS limited key, OpenSSL need some more signs here.
+     * The PKCS#11 specification is not compatible with what OpenSSL expects
+     * (unless we would have just one mechanisms specified in
+     * ALLOWED_MECHANISMS) */
+    if (p11prov_obj_is_rsa_pss(obj)) {
+        params[n++] = OSSL_PARAM_construct_utf8_string(
+            OSSL_PKEY_PARAM_RSA_MASKGENFUNC, (char *)SN_mgf1, strlen(SN_mgf1));
+        /* TODO add the other params if restricted? */
+    }
+    params[n++] = OSSL_PARAM_construct_end();
 
     ret = cb_fn(params, cb_arg);
 

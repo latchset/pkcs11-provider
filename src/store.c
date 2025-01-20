@@ -360,7 +360,11 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
         type = p11prov_obj_get_key_type(obj);
         switch (type) {
         case CKK_RSA:
-            data_type = (char *)P11PROV_NAME_RSA;
+            if (p11prov_obj_is_rsa_pss(obj)) {
+                data_type = (char *)P11PROV_NAME_RSAPSS;
+            } else {
+                data_type = (char *)P11PROV_NAME_RSA;
+            }
             break;
         case CKK_EC:
             data_type = (char *)P11PROV_NAME_EC;
