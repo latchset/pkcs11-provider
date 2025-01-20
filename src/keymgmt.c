@@ -131,6 +131,14 @@ struct key_generator {
     void *cb_arg;
 };
 
+const CK_MECHANISM_TYPE p11prov_rsapss_mechs[P11PROV_N_RSAPSS_MECHS] = {
+    CKM_SHA1_RSA_PKCS_PSS,     CKM_SHA224_RSA_PKCS_PSS,
+    CKM_SHA256_RSA_PKCS_PSS,   CKM_SHA384_RSA_PKCS_PSS,
+    CKM_SHA512_RSA_PKCS_PSS,   CKM_SHA3_224_RSA_PKCS_PSS,
+    CKM_SHA3_256_RSA_PKCS_PSS, CKM_SHA3_384_RSA_PKCS_PSS,
+    CKM_SHA3_512_RSA_PKCS_PSS, CKM_RSA_PKCS_PSS
+};
+
 static int p11prov_common_gen_set_params(void *genctx,
                                          const OSSL_PARAM params[])
 {
@@ -784,7 +792,7 @@ static int p11prov_rsa_export(void *keydata, int selection,
     P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
     CK_OBJECT_CLASS class = p11prov_obj_get_class(key);
 
-    P11PROV_debug("rsa export %p", keydata);
+    P11PROV_debug("rsa export %p, selection= %d", keydata, selection);
 
     if (key == NULL) {
         return RET_OSSL_ERR;
@@ -998,21 +1006,14 @@ DISPATCH_KEYMGMT_FN(rsa, gen_settable_params);
 
 static CK_RV set_default_rsapss_mechanisms(struct key_generator *ctx)
 {
-    CK_MECHANISM_TYPE rsapss_mechs[] = {
-        CKM_SHA1_RSA_PKCS_PSS,     CKM_SHA224_RSA_PKCS_PSS,
-        CKM_SHA256_RSA_PKCS_PSS,   CKM_SHA384_RSA_PKCS_PSS,
-        CKM_SHA512_RSA_PKCS_PSS,   CKM_SHA3_224_RSA_PKCS_PSS,
-        CKM_SHA3_256_RSA_PKCS_PSS, CKM_SHA3_384_RSA_PKCS_PSS,
-        CKM_SHA3_512_RSA_PKCS_PSS, CKM_RSA_PKCS_PSS
-    };
-
-    ctx->data.rsa.allowed_types = OPENSSL_malloc(sizeof(rsapss_mechs));
+    size_t mechs_size = sizeof(CK_MECHANISM_TYPE) * P11PROV_N_RSAPSS_MECHS;
+    ctx->data.rsa.allowed_types = OPENSSL_malloc(mechs_size);
     if (ctx->data.rsa.allowed_types == NULL) {
         P11PROV_raise(ctx->provctx, CKR_HOST_MEMORY, "Allocating data");
         return CKR_HOST_MEMORY;
     }
-    memcpy(ctx->data.rsa.allowed_types, rsapss_mechs, sizeof(rsapss_mechs));
-    ctx->data.rsa.allowed_types_size = sizeof(rsapss_mechs);
+    memcpy(ctx->data.rsa.allowed_types, p11prov_rsapss_mechs, mechs_size);
+    ctx->data.rsa.allowed_types_size = mechs_size;
 
     return CKR_OK;
 }

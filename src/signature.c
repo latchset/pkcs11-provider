@@ -208,6 +208,7 @@ static void p11prov_sig_freectx(void *ctx)
 #define DER_OBJECT 0x06
 #define DER_NULL 0x05
 #define DER_OCTET_STRING 0x04
+#define DER_INTEGER 0x02
 
 /* iso(1) member-body(2) us(840) rsadsi(113549) pkcs(1) pkcs-1(1) */
 #define DER_RSADSI_PKCS1 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01
@@ -244,6 +245,23 @@ static void p11prov_sig_freectx(void *ctx)
           DER_OCTET_STRING, digest_size \
     };
 
+#define DEFINE_DER_RSA_PSS_PARAMS(name, obj_base, obj_alg, obj_len, digest_len) \
+    static const unsigned char der_rsa_pss_params_##name[] = { \
+        DER_SEQUENCE, 25 + DER_RSASSA_PSS_LEN + DER_MGF1_LEN + obj_len + obj_len, \
+            DER_OBJECT, DER_RSASSA_PSS_LEN, DER_RSASSA_PSS, \
+            DER_SEQUENCE, 21 + DER_MGF1_LEN + obj_len + obj_len, \
+                0xA0, 4 + obj_len, \
+                    DER_SEQUENCE, 2 + obj_len, \
+                        DER_OBJECT, obj_len, obj_base, obj_alg, \
+                0xA1, 8 + DER_MGF1_LEN + obj_len, \
+                    DER_SEQUENCE, 6 + DER_MGF1_LEN + obj_len, \
+                        DER_OBJECT, DER_MGF1_LEN, DER_MGF1, \
+                        DER_SEQUENCE, 2 + obj_len, \
+                            DER_OBJECT, obj_len, obj_base, obj_alg, \
+                0xA2, 3, \
+                    DER_INTEGER, 1, digest_len, \
+    };
+
 #define DEFINE_DER_SEQ_SHA(bits, rsa_algid, ecdsa_algid, digestinfo_algid) \
     static const unsigned char der_rsa_sha##bits[] = { \
         DER_SEQUENCE, DER_RSADSI_PKCS1_LEN+5, \
@@ -254,7 +272,9 @@ static void p11prov_sig_freectx(void *ctx)
         DER_SEQUENCE, DER_ANSIX962_SHA2_SIG_LEN+3, \
             DER_OBJECT, DER_ANSIX962_SHA2_SIG_LEN+1, DER_ANSIX962_SHA2_SIG, ecdsa_algid, \
     }; \
-    DEFINE_DER_DIGESTINFO(sha##bits, digestinfo_algid, bits/8)
+    DEFINE_DER_DIGESTINFO(sha##bits, digestinfo_algid, bits/8) \
+    DEFINE_DER_RSA_PSS_PARAMS(sha##bits, DER_NIST_HASHALGS, digestinfo_algid, \
+        DER_NIST_HASHALGS_LEN+1, SHA##bits##_DIGEST_LENGTH)
 
 #define DEFINE_DER_SEQ_SHA3(bits, rsa_algid, ecdsa_algid, digestinfo_algid) \
     static const unsigned char der_rsa_sha3_##bits[] = { \
@@ -266,7 +286,17 @@ static void p11prov_sig_freectx(void *ctx)
         DER_SEQUENCE, DER_NIST_SIGALGS_LEN+3, \
             DER_OBJECT, DER_NIST_SIGALGS_LEN+1, DER_NIST_SIGALGS, ecdsa_algid \
     }; \
-    DEFINE_DER_DIGESTINFO(sha3_##bits, digestinfo_algid, bits/8)
+    DEFINE_DER_DIGESTINFO(sha3_##bits, digestinfo_algid, bits/8) \
+    DEFINE_DER_RSA_PSS_PARAMS(sha3_##bits, DER_NIST_HASHALGS, digestinfo_algid, \
+        DER_NIST_HASHALGS_LEN+1, SHA##bits##_DIGEST_LENGTH)
+
+/* ... pkcs(1) 10 (id-RSASSA-PSS) */
+#define DER_RSASSA_PSS DER_RSADSI_PKCS1, 0x0A
+#define DER_RSASSA_PSS_LEN (DER_RSADSI_PKCS1_LEN + 1)
+
+/* ... pkcs(1) 8 (id-RSASSA-PSS) */
+#define DER_MGF1 DER_RSADSI_PKCS1, 0x08
+#define DER_MGF1_LEN (DER_RSADSI_PKCS1_LEN + 1)
 
 static const unsigned char der_rsa_sha1[] = {
     DER_SEQUENCE, DER_RSADSI_PKCS1_LEN+5,
@@ -277,14 +307,21 @@ static const unsigned char der_ecdsa_sha1[] = {
     DER_SEQUENCE, DER_ANSIX962_SIG_LEN+3,
         DER_OBJECT, DER_ANSIX962_SIG_LEN+1, DER_ANSIX962_SIG, 0x01
 };
+/* iso(1) org(3) oiw(14) secsig(3) algorithms(2) */
+#define DER_SECSIG_ALGO 1 * 40 + 3, 14, 3, 2
+#define DER_SECSIG_ALGO_LEN 4
 /* iso(1) org(3) oiw(14) secsig(3) algorithms(2) hashAlgorithmIdentifier(26) */
+#define ID_SHA1 DER_SECSIG_ALGO, 26
+#define ID_SHA1_LEN DER_SECSIG_ALGO_LEN+1
 static const unsigned char der_digestinfo_sha1[] = {
     DER_SEQUENCE, 0x0d + SHA_DIGEST_LENGTH,
         DER_SEQUENCE, 0x09,
-        DER_OBJECT, 0x05, 1 * 40 + 3, 14, 3, 2, 26,
+        DER_OBJECT, ID_SHA1_LEN, ID_SHA1,
         DER_NULL, 0x00,
     DER_OCTET_STRING, SHA_DIGEST_LENGTH
 };
+
+DEFINE_DER_RSA_PSS_PARAMS(sha1, DER_SECSIG_ALGO, 26, DER_SECSIG_ALGO_LEN, SHA_DIGEST_LENGTH);
 /* clang-format on */
 
 DEFINE_DER_SEQ_SHA(512, 0x0D, 0x04, 0x03);
@@ -299,27 +336,35 @@ DEFINE_DER_SEQ_SHA3(224, 0x0D, 0x09, 0x07);
 
 #define DM_ELEM_SHA(bits) \
     { \
-        .digest = CKM_SHA##bits, .pkcs_mech = CKM_SHA##bits##_RSA_PKCS, \
+        .digest = CKM_SHA##bits, \
+        .pkcs_mech = CKM_SHA##bits##_RSA_PKCS, \
         .pkcs_pss = CKM_SHA##bits##_RSA_PKCS_PSS, \
-        .ecdsa_mech = CKM_ECDSA_SHA##bits, .mgf = CKG_MGF1_SHA##bits, \
+        .ecdsa_mech = CKM_ECDSA_SHA##bits, \
+        .mgf = CKG_MGF1_SHA##bits, \
         .der_rsa_algorithm_id = der_rsa_sha##bits, \
         .der_rsa_algorithm_id_len = sizeof(der_rsa_sha##bits), \
         .der_ecdsa_algorithm_id = der_ecdsa_sha##bits, \
         .der_ecdsa_algorithm_id_len = sizeof(der_ecdsa_sha##bits), \
         .der_digestinfo = der_digestinfo_sha##bits, \
         .der_digestinfo_len = sizeof(der_digestinfo_sha##bits), \
+        .der_rsa_pss_params = der_rsa_pss_params_sha##bits, \
+        .der_rsa_pss_params_len = sizeof(der_rsa_pss_params_sha##bits), \
     }
 #define DM_ELEM_SHA3(bits) \
     { \
-        .digest = CKM_SHA3_##bits, .pkcs_mech = CKM_SHA3_##bits##_RSA_PKCS, \
+        .digest = CKM_SHA3_##bits, \
+        .pkcs_mech = CKM_SHA3_##bits##_RSA_PKCS, \
         .pkcs_pss = CKM_SHA3_##bits##_RSA_PKCS_PSS, \
-        .ecdsa_mech = CKM_ECDSA_SHA3_##bits, .mgf = CKG_MGF1_SHA3_##bits, \
+        .ecdsa_mech = CKM_ECDSA_SHA3_##bits, \
+        .mgf = CKG_MGF1_SHA3_##bits, \
         .der_rsa_algorithm_id = der_rsa_sha3_##bits, \
         .der_rsa_algorithm_id_len = sizeof(der_rsa_sha3_##bits), \
         .der_ecdsa_algorithm_id = der_ecdsa_sha3_##bits, \
         .der_ecdsa_algorithm_id_len = sizeof(der_ecdsa_sha3_##bits), \
         .der_digestinfo = der_digestinfo_sha3_##bits, \
         .der_digestinfo_len = sizeof(der_digestinfo_sha3_##bits), \
+        .der_rsa_pss_params = der_rsa_pss_params_sha3_##bits, \
+        .der_rsa_pss_params_len = sizeof(der_rsa_pss_params_sha3_##bits), \
     }
 
 /* only the ones we can support */
@@ -335,6 +380,8 @@ struct p11prov_mech {
     int der_ecdsa_algorithm_id_len;
     const unsigned char *der_digestinfo;
     int der_digestinfo_len;
+    const unsigned char *der_rsa_pss_params;
+    int der_rsa_pss_params_len;
 };
 typedef struct p11prov_mech P11PROV_MECH;
 
@@ -347,10 +394,21 @@ static const P11PROV_MECH mech_map[] = {
     DM_ELEM_SHA(512),
     DM_ELEM_SHA(384),
     DM_ELEM_SHA(224),
-    { CKM_SHA_1, CKM_SHA1_RSA_PKCS, CKM_SHA1_RSA_PKCS_PSS, CKM_ECDSA_SHA1,
-      CKG_MGF1_SHA1, der_rsa_sha1, sizeof(der_rsa_sha1), der_ecdsa_sha1,
-      sizeof(der_ecdsa_sha1), der_digestinfo_sha1,
-      sizeof(der_digestinfo_sha1) },
+    {
+        CKM_SHA_1,
+        CKM_SHA1_RSA_PKCS,
+        CKM_SHA1_RSA_PKCS_PSS,
+        CKM_ECDSA_SHA1,
+        CKG_MGF1_SHA1,
+        der_rsa_sha1,
+        sizeof(der_rsa_sha1),
+        der_ecdsa_sha1,
+        sizeof(der_ecdsa_sha1),
+        der_digestinfo_sha1,
+        sizeof(der_digestinfo_sha1),
+        der_rsa_pss_params_sha1,
+        sizeof(der_rsa_pss_params_sha1),
+    },
     { CK_UNAVAILABLE_INFORMATION, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
@@ -507,11 +565,13 @@ static CK_RV pss_defaults(P11PROV_SIG_CTX *sigctx, CK_MECHANISM *mechanism,
         sigctx->pss_params.sLen = size;
     }
 
-    mechanism->pParameter = &sigctx->pss_params;
-    mechanism->ulParameterLen = sizeof(sigctx->pss_params);
+    if (mechanism) {
+        mechanism->pParameter = &sigctx->pss_params;
+        mechanism->ulParameterLen = sizeof(sigctx->pss_params);
 
-    if (set_mech) {
-        mechanism->mechanism = mech->pkcs_pss;
+        if (set_mech) {
+            mechanism->mechanism = mech->pkcs_pss;
+        }
     }
 
     return CKR_OK;
@@ -1330,15 +1390,82 @@ static struct {
     { CK_UNAVAILABLE_INFORMATION, 0, NULL },
 };
 
+static unsigned char *
+p11prov_encode_rsa_pss_algorithm_id(CK_MECHANISM_TYPE digest, int saltlen,
+                                    size_t *outlen)
+{
+    unsigned char *buffer = NULL;
+    const P11PROV_MECH *mech;
+    int ret;
+
+    ret = p11prov_mech_by_mechanism(digest, &mech);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
+
+    buffer = OPENSSL_malloc(mech->der_rsa_pss_params_len);
+    if (buffer == NULL) {
+        return NULL;
+    }
+
+    memcpy(buffer, mech->der_rsa_pss_params, mech->der_rsa_pss_params_len);
+    *outlen = mech->der_rsa_pss_params_len;
+    /* The last byte of Algorithm Identifier is the salt length, which is
+     * not hardcoded and needs to be fitted here */
+    buffer[mech->der_rsa_pss_params_len - 1] = saltlen;
+    return buffer;
+}
+
+static unsigned char *
+p11prov_rsapss_encode_algorithm_id(P11PROV_SIG_CTX *sigctx, size_t *outlen)
+{
+    const P11PROV_MECH *mech, *mgf_mech;
+    int ret;
+
+    /* when OpenSSL calls this before it makes the signature, we still might not
+     * have the defaults set so do it now */
+    ret = pss_defaults(sigctx, NULL, false);
+    if (ret != CKR_OK) {
+        P11PROV_raise(sigctx->provctx, ret, "Failed to set PSS defaults");
+        goto err;
+    }
+
+    ret = p11prov_mech_by_mechanism(sigctx->pss_params.hashAlg, &mech);
+    if (ret != CKR_OK) {
+        P11PROV_raise(sigctx->provctx, ret, "Failed to get mech for digest %lx",
+                      sigctx->pss_params.hashAlg);
+        goto err;
+    }
+
+    ret = p11prov_mech_by_mgf(sigctx->pss_params.mgf, &mgf_mech);
+    if (ret != CKR_OK) {
+        P11PROV_raise(sigctx->provctx, ret, "Failed to get mech for mgf %lx",
+                      sigctx->pss_params.mgf);
+        goto err;
+    }
+    /* Here we assume that the hashAlg and mgf1 hash algorithms are the same.
+     * If not, it will need some more love */
+    if (mech != mgf_mech) {
+        P11PROV_raise(sigctx->provctx, ret,
+                      "Inconsistent digest (%lx) and mgf1 (%lx) combination",
+                      sigctx->pss_params.hashAlg, sigctx->pss_params.mgf);
+        goto err;
+    }
+
+    return p11prov_encode_rsa_pss_algorithm_id(sigctx->pss_params.hashAlg,
+                                               sigctx->pss_params.sLen, outlen);
+
+err:
+    return NULL;
+}
+
 static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
     OSSL_PARAM *p;
+    size_t len;
+    unsigned char *algorithm_id = NULL;
     int ret;
-
-    /* todo sig params:
-        OSSL_SIGNATURE_PARAM_ALGORITHM_ID
-     */
 
     P11PROV_debug("rsasig get ctx params (ctx=%p, params=%p)", ctx, params);
 
@@ -1369,8 +1496,21 @@ static int p11prov_rsasig_get_ctx_params(void *ctx, OSSL_PARAM *params)
         case CKM_RSA_X_509:
             return RET_OSSL_ERR;
         case CKM_RSA_PKCS_PSS:
-            /* TODO */
-            return RET_OSSL_ERR;
+            /* The AlgorithmIdentifier here needs to contain also the
+             * information about the RSA-PSS parameters as defined in
+             * https://datatracker.ietf.org/doc/html/rfc8017#appendix-A.2.3 */
+            algorithm_id = p11prov_rsapss_encode_algorithm_id(sigctx, &len);
+            if (algorithm_id == NULL) {
+                P11PROV_raise(sigctx->provctx, CKR_GENERAL_ERROR,
+                              "Failed to encode algorithm ID for RSA-PSS");
+                return RET_OSSL_ERR;
+            }
+            ret = OSSL_PARAM_set_octet_string(p, algorithm_id, len);
+            OPENSSL_free(algorithm_id);
+            if (ret != RET_OSSL_OK) {
+                return ret;
+            }
+            break;
         }
     }
 

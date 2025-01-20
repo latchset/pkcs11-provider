@@ -1,0 +1,27 @@
+,
+    {"server_command": [
+       @CHECKER@"openssl", "s_server", @PROPQ@"-www", "-port", "@PORT@",
+       "-key", "@PRIURI@", "-cert", "@CRTURI@"],
+     "comment": "Run test with RSA-PSS key without certificate verify",
+     "environment": {"PYTHONPATH" : "."},
+     "server_hostname": "localhost",
+     "server_port": @PORT@,
+     "common_arguments": ["-p", "@PORT@"],
+     "tests" : [
+       {"name" : "test-tls13-conversation.py"},
+       {"name" : "test-tls13-rsapss-signatures.py"},
+       {"name" : "test-conversation.py",
+        "arguments" : ["-d"]},
+       {"name" : "test-sig-algs.py",
+        "comment" : "the server has just one certificate installed",
+        "arguments" : [
+          "-n", "0",
+          "-x", "rsa_pss_rsae_sha256 only",
+          "-x", "rsa_pss_rsae_sha384 only",
+          "-x", "rsa_pss_rsae_sha512 only"]
+       },
+       {"name" : "test-tls13-signature-algorithms.py",
+        "arguments" : ["-n", "0"]}
+     ]
+    }
+

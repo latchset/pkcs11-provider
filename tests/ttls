@@ -106,6 +106,31 @@ run_tests() {
     title PARA "Run sanity test with default values (RSA)"
     run_test "$PRIURI" "$CRTURI"
 
+    if [[ -n "$RSAPSSPRIURI" ]]; then
+        title PARA "Run sanity test with default values (RSA-PSS)"
+        TMPCA=${TMPPDIR}/tmpca
+        TMP_OPENSSL_CONF=${OPENSSL_CONF}
+        sed -e "s|^dir .*|dir = ${TMPCA}|" \
+            "${OPENSSL_CONF}" > "${OPENSSL_CONF}.tmpca"
+        export OPENSSL_CONF=${OPENSSL_CONF}.tmpca
+
+        mkdir -p "${TMPCA}/newcerts" "${TMPCA}/private"
+        if [ ! -e "${TMPCA}/serial" ]; then
+            echo "01" > "${TMPCA}/serial"
+        fi
+        touch "${TMPCA}/index.txt"
+
+        title PARA "Generating a new CSR with existing RSA-PSS key in token"
+        ossl 'req -batch -noenc -x509 -new -key ${RSAPSSPRIURI}
+            -sigopt rsa_padding_mode:pss
+            -sigopt digest:sha256
+            -sigopt rsa_pss_saltlen:-1
+            -out ${TMPCA}/rsapss-cacert.pem'
+        OPENSSL_CONF=${TMP_OPENSSL_CONF}
+
+        run_test "$RSAPSSPRIURI" "${TMPCA}/rsapss-cacert.pem"
+    fi
+
     title PARA "Run sanity test with default values (ECDSA)"
     run_test "$ECPRIURI" "$ECCRTURI"
 

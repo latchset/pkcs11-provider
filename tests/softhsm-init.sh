@@ -67,3 +67,5 @@ export TOKENOPTIONS="${TOKENOPTIONS}\npkcs11-module-quirks = no-deinit no-operat
 export TOKENCONFIGVARS="export SOFTHSM2_CONF=${TMPPDIR}/softhsm.conf"
 
 export TESTPORT="32000"
+
+export SUPPORT_ALLOWED_MECHANISMS=1

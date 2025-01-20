@@ -35,3 +35,26 @@ pkeyutl -verify -inkey "${PUBURI}"
                 -in ${RAND64FILE}
                 -rawin
                 -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
+
+title PARA "DigestSign and DigestVerify with RSA PSS with default params"
+ossl '
+pkeyutl -sign -inkey "${BASEURI}"
+              -pkeyopt pad-mode:pss
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/def-dgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${BASEURI}" -pubin
+                -pkeyopt pad-mode:pss
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/def-dgstsig.bin'
+title LINE "Re-verify using OpenSSL default provider"
+#(-pubin causes us to export a public key and OpenSSL to import it in the default provider)
+ossl '
+pkeyutl -verify -inkey "${PUBURI}"
+                -pubin
+                -pkeyopt pad-mode:pss
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/def-dgstsig.bin'
