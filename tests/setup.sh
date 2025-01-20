@@ -18,10 +18,9 @@ SUPPORT_RSA_PKCS1_ENCRYPTION=1
 SUPPORT_RSA_KEYGEN_PUBLIC_EXPONENT=1
 SUPPORT_TLSFUZZER=1
 
-# Ed448 requires OpenSC 0.26.0, which is not available in Ubuntu and CentOS 9
-if [[ -f /etc/debian_version ]] && grep Ubuntu /etc/lsb-release; then
-    SUPPORT_ED448=0
-elif [[ -f /etc/redhat-release ]] && grep "release 9" /etc/redhat-release; then
+# Ed448 requires OpenSC 0.26.0
+OPENSC_VERSION=$(opensc-tool -i | grep OpenSC | sed -e "s/OpenSC 0\.\([0-9]*\).*/\1/")
+if [[ "$OPENSC_VERSION" -le "25" ]]; then
     SUPPORT_ED448=0
 fi
 
