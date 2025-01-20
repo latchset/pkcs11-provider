@@ -88,7 +88,7 @@ jobs:
           name: Test logs kryoptic
           path: |
             builddir/meson-logs/
-            builddir/tests/tmp.kryoptic/p11prov-debug.log
-            builddir/tests/tmp.kryoptic/testvars
-            builddir/tests/tmp.kryoptic/openssl.cnf
+            builddir/tests/kryoptic*/p11prov-debug.log
+            builddir/tests/kryoptic*/testvars
+            builddir/tests/kryoptic*/openssl.cnf
             builddir/tests/*.log
