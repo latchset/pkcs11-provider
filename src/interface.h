@@ -126,6 +126,10 @@ CK_RV p11prov_VerifyUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                            CK_BYTE_PTR pPart, CK_ULONG ulPartLen);
 CK_RV p11prov_VerifyFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                           CK_BYTE_PTR pSignature, CK_ULONG ulSignatureLen);
+CK_RV p11prov_GenerateKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                          CK_MECHANISM_PTR pMechanism,
+                          CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount,
+                          CK_OBJECT_HANDLE_PTR phKey);
 CK_RV p11prov_GenerateKeyPair(
     P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism,
     CK_ATTRIBUTE_PTR pPublicKeyTemplate, CK_ULONG ulPublicKeyAttributeCount,
@@ -200,6 +204,7 @@ CK_INFO p11prov_module_ck_info(P11PROV_MODULE *mctx);
 #define P11PROV_BLOCK_Verify 0b0000000000000000
 #define P11PROV_BLOCK_VerifyUpdate 0b0000000000000000
 #define P11PROV_BLOCK_VerifyFinal 0b0000000000000000
+#define P11PROV_BLOCK_GenerateKey 0b0000000000000000
 #define P11PROV_BLOCK_GenerateKeyPair 0b0000000000000000
 #define P11PROV_BLOCK_DeriveKey 0b0000000000000000
 #define P11PROV_BLOCK_SeedRandom 0b0000000000000000
