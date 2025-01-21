@@ -142,4 +142,7 @@ CK_RV p11prov_digest_util(P11PROV_CTX *provctx, const char *digest,
                           const char *properties, data_buffer data[],
                           data_buffer *output);
 
+void p11prov_set_attr_bool(CK_ATTRIBUTE *tmpl, CK_ATTRIBUTE_TYPE type, bool v);
+CK_RV p11prov_usage_to_template(CK_ATTRIBUTE *tmpl, size_t *size, size_t max,
+                                CK_FLAGS usage);
 #endif /* _UTIL_H */
