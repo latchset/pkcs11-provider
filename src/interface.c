@@ -74,6 +74,7 @@ struct p11prov_interface {
     CK_C_Verify Verify;
     CK_C_VerifyUpdate VerifyUpdate;
     CK_C_VerifyFinal VerifyFinal;
+    CK_C_GenerateKey GenerateKey;
     CK_C_GenerateKeyPair GenerateKeyPair;
     CK_C_DeriveKey DeriveKey;
     CK_C_SeedRandom SeedRandom;
@@ -150,6 +151,7 @@ static void populate_interface(P11PROV_INTERFACE *intf, CK_INTERFACE *ck_intf)
     ASSIGN_FN(Verify);
     ASSIGN_FN(VerifyUpdate);
     ASSIGN_FN(VerifyFinal);
+    ASSIGN_FN(GenerateKey);
     ASSIGN_FN(GenerateKeyPair);
     ASSIGN_FN(DeriveKey);
     ASSIGN_FN(SeedRandom);
