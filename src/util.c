@@ -1270,3 +1270,45 @@ done:
     EVP_MD_free(md);
     return rv;
 }
+
+static const CK_BBOOL val_true = CK_TRUE;
+static const CK_BBOOL val_false = CK_FALSE;
+
+void p11prov_set_attr_bool(CK_ATTRIBUTE *tmpl, CK_ATTRIBUTE_TYPE type, bool v)
+{
+    tmpl->type = type;
+    if (v) {
+        tmpl->pValue = (void *)&val_true;
+        tmpl->ulValueLen = sizeof(val_true);
+    } else {
+        tmpl->pValue = (void *)&val_false;
+        tmpl->ulValueLen = sizeof(val_false);
+    }
+}
+
+CK_RV p11prov_usage_to_template(CK_ATTRIBUTE *tmpl, size_t *size, size_t max,
+                                CK_FLAGS usage)
+{
+    static struct flag_to_attr {
+        CK_FLAGS flag;
+        CK_ATTRIBUTE_TYPE type;
+    } flag_to_attr[] = {
+        { CKF_ENCRYPT, CKA_ENCRYPT }, { CKF_DECRYPT, CKA_DECRYPT },
+        { CKF_SIGN, CKA_SIGN },       { CKF_VERIFY, CKA_VERIFY },
+        { CKF_WRAP, CKA_WRAP },       { CKF_UNWRAP, CKA_UNWRAP },
+        { CKF_DERIVE, CKA_DERIVE },   { 0, 0 },
+    };
+    size_t idx = *size;
+
+    for (int i = 0; flag_to_attr[i].flag != 0; i++) {
+        if (usage & flag_to_attr[i].flag) {
+            if (idx >= max) {
+                return CKR_HOST_MEMORY;
+            }
+            p11prov_set_attr_bool(&tmpl[idx++], flag_to_attr[i].type, true);
+        }
+    }
+
+    *size = idx;
+    return CKR_OK;
+}
