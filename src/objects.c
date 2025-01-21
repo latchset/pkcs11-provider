@@ -1033,6 +1033,36 @@ static CK_RV fetch_certificate(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     return CKR_OK;
 }
 
+static CK_RV fetch_secret_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
+                              CK_OBJECT_HANDLE object, P11PROV_OBJ *key)
+{
+    struct fetch_attrs attrs[BASE_KEY_ATTRS_NUM];
+    int num;
+    CK_RV ret;
+
+    key->attrs = OPENSSL_zalloc(BASE_KEY_ATTRS_NUM * sizeof(CK_ATTRIBUTE));
+    if (key->attrs == NULL) {
+        return CKR_HOST_MEMORY;
+    }
+
+    num = 0;
+    FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
+
+    ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Failed to query key attributes (%lu)", ret);
+        p11prov_fetch_attrs_free(attrs, num);
+        return ret;
+    }
+
+    key->numattrs = 0;
+    p11prov_move_alloc_attrs(attrs, num, key->attrs, &key->numattrs);
+
+    return CKR_OK;
+}
+
 /* TODO: may want to have a hashmap with cached objects */
 CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                               CK_OBJECT_HANDLE handle, P11PROV_OBJ **object)
@@ -1082,6 +1112,7 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
 
     case CKO_PUBLIC_KEY:
     case CKO_PRIVATE_KEY:
+    case CKO_SECRET_KEY:
         switch (obj->data.key.type) {
         case CKK_RSA:
             ret = fetch_rsa_key(ctx, session, handle, obj);
@@ -1098,6 +1129,26 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                 return ret;
             }
             break;
+        case CKK_GENERIC_SECRET:
+        case CKK_AES:
+        case CKK_SHA_1_HMAC:
+        case CKK_SHA256_HMAC:
+        case CKK_SHA384_HMAC:
+        case CKK_SHA512_HMAC:
+        case CKK_SHA224_HMAC:
+        case CKK_SHA512_224_HMAC:
+        case CKK_SHA512_256_HMAC:
+        case CKK_SHA3_224_HMAC:
+        case CKK_SHA3_256_HMAC:
+        case CKK_SHA3_384_HMAC:
+        case CKK_SHA3_512_HMAC:
+            ret = fetch_secret_key(ctx, session, handle, obj);
+            if (ret != CKR_OK) {
+                p11prov_obj_free(obj);
+                return ret;
+            }
+            break;
+
         default:
             /* unknown key type, we can't handle it */
             P11PROV_debug("Unsupported key type (%lu)", obj->data.key.type);
@@ -1168,6 +1219,7 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
     case CKO_CERTIFICATE:
     case CKO_PUBLIC_KEY:
     case CKO_PRIVATE_KEY:
+    case CKO_SECRET_KEY:
         CKATTR_ASSIGN(template[tsize], CKA_CLASS, &class, sizeof(class));
         tsize++;
         break;
@@ -1430,6 +1482,7 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
         break;
     case CKO_PUBLIC_KEY:
     case CKO_PRIVATE_KEY:
+    case CKO_SECRET_KEY:
         obj->data.key = tmp->data.key;
         break;
     default:
@@ -1817,6 +1870,7 @@ static CK_RV get_public_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int num)
     /* we couldn't get all of them, start fallback logic */
     switch (obj->class) {
     case CKO_PUBLIC_KEY:
+    case CKO_SECRET_KEY:
         return get_all_attrs(obj, attrs, num);
     case CKO_PRIVATE_KEY:
         rv = get_all_attrs(obj, attrs, num);
