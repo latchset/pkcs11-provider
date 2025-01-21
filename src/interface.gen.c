@@ -1234,6 +1234,36 @@ CK_RV p11prov_VerifyFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     return ret;
 }
 
+CK_RV p11prov_GenerateKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                          CK_MECHANISM_PTR pMechanism,
+                          CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount,
+                          CK_OBJECT_HANDLE_PTR phKey)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GenerateKey)) {
+        P11PROV_debug("C_%s is blocked", "GenerateKey");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->GenerateKey) {
+        P11PROV_debug("C_%s is not available", "GenerateKey");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "GenerateKey");
+    ret = intf->GenerateKey(hSession, pMechanism, pTemplate, ulCount, phKey);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "GenerateKey",
+                      ret);
+    }
+    return ret;
+}
+
 CK_RV p11prov_GenerateKeyPair(
     P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism,
     CK_ATTRIBUTE_PTR pPublicKeyTemplate, CK_ULONG ulPublicKeyAttributeCount,
