@@ -7,3 +7,8 @@ option('enable_explicit_EC_test',
        type: 'boolean',
        value: false,
        description: 'Enable explicit EC tests')
+
+option('default_pkcs11_module',
+    type : 'string',
+    value : '',
+    description : 'Path to the default PKCS11 module')
