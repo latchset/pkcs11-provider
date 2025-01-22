@@ -26,10 +26,12 @@ find_kryoptic \
 
 title LINE "Creating Kryoptic database"
 
+SLOTID=${SLOTID:-0}
+
 # Kryoptic configuration
 cat << EOF > "$TOKDIR/kryoptic.conf"
 [[slots]]
-slot = 0
+slot = $SLOTID
 dbtype = "sqlite"
 dbargs = "$TOKDIR/kryoptic.sql"
 #mechanisms
@@ -40,10 +42,11 @@ export TOKENLABEL="${TOKENLABEL:-Kryoptic Token}"
 export TOKENLABELURI="${TOKENLABELURI:-Kryoptic%20Token}"
 
 # init token
-ptool --init-token --label "${TOKENLABEL}" --so-pin "${PINVALUE}" 2>&1
+ptool --init-token --slot "${SLOTID}" --label "${TOKENLABEL}" \
+      --so-pin "${PINVALUE}" 2>&1
 # set user pin
-ptool --so-pin "${PINVALUE}" --login --login-type so --init-pin \
-      --pin "${PINVALUE}" 2>&1
+ptool --so-pin "${PINVALUE}" --slot "${SLOTID}" --login --login-type so \
+      --init-pin --pin "${PINVALUE}" 2>&1
 
 export TOKENCONFIGVARS="export KRYOPTIC_CONF=$TOKDIR/kryoptic.conf"
 

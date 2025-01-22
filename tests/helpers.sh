@@ -117,6 +117,9 @@ ptool() {
     if [ -n "$P11DEFLOGIN" ]; then
         CMDOPTS+=("${P11DEFLOGIN[@]}")
     fi
+    if [ -n "$SLOTID" ]; then
+        CMDOPTS+=("--slot=${SLOTID}")
+    fi
     CMDOPTS+=("$@")
     # when running sanitizer tests libasan is linked via pkcs11-provider into
     # openssl and pkcs11-tool is linked to libcrypto, so we need to break the

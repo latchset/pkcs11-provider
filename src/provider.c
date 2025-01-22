@@ -33,6 +33,7 @@ struct p11prov_ctx {
     int cache_sessions;
     bool encode_pkey_as_pk11_uri;
     bool assume_fips;
+    CK_SLOT_ID default_slotid;
     /* TODO: ui_method */
     /* TODO: fork id */
 
@@ -461,6 +462,11 @@ P11PROV_INTERFACE *p11prov_ctx_get_interface(P11PROV_CTX *ctx)
         return NULL;
     }
     return p11prov_module_get_interface(ctx->module);
+}
+
+CK_SLOT_ID p11prov_ctx_get_default_slotid(P11PROV_CTX *ctx)
+{
+    return ctx->default_slotid;
 }
 
 P11PROV_SLOTS_CTX *p11prov_ctx_get_slots(P11PROV_CTX *ctx)
@@ -1778,6 +1784,7 @@ enum p11prov_cfg_enum {
     P11PROV_CFG_ENCODE_PROVIDER_URI_TO_PEM,
     P11PROV_CFG_BLOCK_OPS,
     P11PROV_CFG_ASSUME_FIPS,
+    P11PROV_CFG_DEFAULT_SLOT_ID,
     P11PROV_CFG_SIZE,
 };
 
@@ -1797,6 +1804,7 @@ static struct p11prov_cfg_names {
     { "pkcs11-module-encode-provider-uri-to-pem" },
     { "pkcs11-module-block-operations" },
     { "pkcs11-module-assume-fips" },
+    { "pkcs11-module-default-slot-id" },
 };
 
 int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
@@ -2088,6 +2096,24 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
     if (ret != CKR_OK) {
         p11prov_ctx_free(ctx);
         return RET_OSSL_ERR;
+    }
+
+    if (cfg[P11PROV_CFG_DEFAULT_SLOT_ID] != NULL) {
+        char *end = NULL;
+        errno = 0;
+        ctx->default_slotid =
+            strtoul(cfg[P11PROV_CFG_DEFAULT_SLOT_ID], &end, 0);
+        if (errno != 0 || *end != '\0') {
+            P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Invalid value for %s: (%s)",
+                          p11prov_cfg_names[P11PROV_CFG_DEFAULT_SLOT_ID].name,
+                          cfg[P11PROV_CFG_DEFAULT_SLOT_ID]);
+            p11prov_ctx_free(ctx);
+            return RET_OSSL_ERR;
+        }
+        P11PROV_debug("Default slot ID: %lu", ctx->default_slotid);
+    } else {
+        ctx->default_slotid = CK_UNAVAILABLE_INFORMATION;
+        P11PROV_debug("Default slot ID: None");
     }
 
     /* PAY ATTENTION: do this as the last thing */

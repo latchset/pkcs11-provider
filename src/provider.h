@@ -268,6 +268,7 @@ P11PROV_INTERFACE *p11prov_ctx_get_interface(P11PROV_CTX *ctx);
 CK_UTF8CHAR_PTR p11prov_ctx_pin(P11PROV_CTX *ctx);
 OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx);
 CK_RV p11prov_ctx_status(P11PROV_CTX *ctx);
+CK_SLOT_ID p11prov_ctx_get_default_slotid(P11PROV_CTX *ctx);
 P11PROV_SLOTS_CTX *p11prov_ctx_get_slots(P11PROV_CTX *ctx);
 void p11prov_ctx_set_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX *slots);
 CK_RV p11prov_ctx_get_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,

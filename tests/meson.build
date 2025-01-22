@@ -104,6 +104,7 @@ test_programs = {
   'treadkeys': ['treadkeys.c'],
   'tcmpkeys': ['tcmpkeys.c', 'util.c'],
   'tfork': ['tfork.c', 'util.c'],
+  'tstorepubkey': ['tstorepubkey.c', 'util.c'],
   'tpkey': ['tpkey.c', 'util.c'],
   'pincache': ['pincache.c'],
   'ccerts': ['ccerts.c', 'util.c'],
@@ -123,7 +124,7 @@ endforeach
 
 setup_script=find_program('setup.sh')
 all_suites=['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']
-foreach suite : all_suites
+foreach suite : all_suites + ['kryoptic.multislot']
   test(
     'setup',
     setup_script,
@@ -169,6 +170,7 @@ tests = {
   'pinlock': {'suites': ['kryoptic']},
   'aead': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'op_state': {'suites': all_suites},
+  'defaultslot': {'suites': ['kryoptic.multislot']},
 }
 
 test_wrapper = find_program('test-wrapper')

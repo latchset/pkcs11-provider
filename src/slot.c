@@ -173,6 +173,10 @@ CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
     }
 
     sctx->default_slot = CK_UNAVAILABLE_INFORMATION;
+    CK_SLOT_ID prov_default_slotid =
+        p11prov_ctx_get_default_slotid(sctx->provctx);
+    if (prov_default_slotid != CK_UNAVAILABLE_INFORMATION)
+        sctx->default_slot = prov_default_slotid;
 
     for (size_t i = 0; i < num; i++) {
         P11PROV_SLOT *slot;

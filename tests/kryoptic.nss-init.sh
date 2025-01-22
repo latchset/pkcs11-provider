@@ -3,10 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+export SLOTID=42
+export SLOTSCOUNT=1
+
 export KRYOPTIC_CONF="${TMPPDIR}/kryoptic.conf"
 cat >"${KRYOPTIC_CONF}" <<_EOF
 [[slots]]
-slot = 42
+slot = ${SLOTID}
 dbtype = "nssdb"
 dbargs = "configDir='${TOKDIR}' flags='passwordRequired'"
 description = "Kryoptic Soft Token"
