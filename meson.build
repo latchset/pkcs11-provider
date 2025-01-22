@@ -67,10 +67,15 @@ if host_machine.endian() == 'big'
 endif
 
 p11_kit = dependency('p11-kit-1', required: false)
-if p11_kit.found()
-  default_pkcs11_module = p11_kit.get_variable(pkgconfig: 'proxy_module')
-  conf.set_quoted('DEFAULT_PKCS11_MODULE', default_pkcs11_module)
+default_pkcs11_module = get_option('default_pkcs11_module')
+if default_pkcs11_module == 'no'
+  if p11_kit.found()
+    default_pkcs11_module = p11_kit.get_variable(pkgconfig: 'proxy_module')
+  else
+    error('default_pkcs11_module is empty')
+  endif
 endif
+conf.set_quoted('DEFAULT_PKCS11_MODULE', default_pkcs11_module)
 
 headers = [
   'dlfcn.h',
