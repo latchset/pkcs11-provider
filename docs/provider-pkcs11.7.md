@@ -242,6 +242,23 @@ Example:
 
 ```pkcs11-module-assume-fips = true```
 
+## pkcs11-module-default-slot-id
+
+The slot ID for the default slot.
+
+The default slot is used for any objects that do not have an explicitly
+selected slot. Such objects include, for example, public keys.
+
+This option is useful when multiple slots with different PINs are used. In such
+cases, it allows you to ensure that pkcs11-module-token-pin points to the
+expected slot.
+
+If no value is specified, the first listed slot is used.
+
+Default: none
+
+```pkcs11-module-default-slot-id = 12345```
+
 
 ENVIRONMENT VARIABLES
 =====================
