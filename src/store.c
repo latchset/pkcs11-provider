@@ -260,11 +260,13 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
     }
 
     while (ctx->fetched < ctx->num_objs) {
+        CK_OBJECT_CLASS class;
         obj = ctx->objects[ctx->fetched];
         ctx->fetched++;
 
         /* Supported search types in OSSL_STORE_SEARCH(3) */
-        switch (p11prov_obj_get_class(obj)) {
+        class = p11prov_obj_get_class(obj);
+        switch (class) {
         case CKO_CERTIFICATE:
             if (ctx->subject.type == CKA_SUBJECT) {
                 CK_ATTRIBUTE *subject;
@@ -332,6 +334,9 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
             break;
         case CKO_PUBLIC_KEY:
         case CKO_PRIVATE_KEY:
+#ifdef OSSL_OBJECT_SKEY
+        case CKO_SECRET_KEY:
+#endif
             /* ctx->digest */
             /* ctx->fingerprint */
             if (ctx->alias) {
@@ -343,6 +348,9 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
                 }
             }
             break;
+        default:
+            P11PROV_debug("Unsupported object of class %lx, skipping!", class);
+            continue;
         }
 
         /* if we get here it means the object matched */
@@ -387,6 +395,23 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
         }
         p11prov_obj_to_store_reference(obj, &reference, &reference_sz);
         break;
+#ifdef OSSL_OBJECT_SKEY
+    case CKO_SECRET_KEY:
+        object_type = OSSL_OBJECT_SKEY;
+        type = p11prov_obj_get_key_type(obj);
+        switch (type) {
+        case CKK_GENERIC_SECRET:
+            data_type = (char *)P11PROV_NAME_GENERIC_SECRET;
+            break;
+        case CKK_AES:
+            data_type = (char *)P11PROV_NAME_AES;
+            break;
+        default:
+            return RET_OSSL_ERR;
+        }
+        p11prov_obj_to_store_reference(obj, &reference, &reference_sz);
+        break;
+#endif
     case CKO_CERTIFICATE:
         object_type = OSSL_OBJECT_CERT;
         data_type = (char *)P11PROV_NAME_CERTIFICATE;
