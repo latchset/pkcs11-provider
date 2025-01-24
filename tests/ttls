@@ -108,27 +108,20 @@ run_tests() {
 
     if [[ -n "$RSAPSSPRIURI" ]]; then
         title PARA "Run sanity test with default values (RSA-PSS)"
-        TMPCA=${TMPPDIR}/tmpca
-        TMP_OPENSSL_CONF=${OPENSSL_CONF}
-        sed -e "s|^dir .*|dir = ${TMPCA}|" \
-            "${OPENSSL_CONF}" > "${OPENSSL_CONF}.tmpca"
-        export OPENSSL_CONF=${OPENSSL_CONF}.tmpca
+        selfsign_cert "${RSAPSSPRIURI}" "${TMPPDIR}/rsapss-default.pem" \
+            "-sigopt rsa_padding_mode:pss"
 
-        mkdir -p "${TMPCA}/newcerts" "${TMPCA}/private"
-        if [ ! -e "${TMPCA}/serial" ]; then
-            echo "01" > "${TMPCA}/serial"
-        fi
-        touch "${TMPCA}/index.txt"
+        run_test "$RSAPSSPRIURI" "${TMPPDIR}/rsapss-default.pem"
+    fi
 
-        title PARA "Generating a new CSR with existing RSA-PSS key in token"
-        ossl 'req -batch -noenc -x509 -new -key ${RSAPSSPRIURI}
-            -sigopt rsa_padding_mode:pss
-            -sigopt digest:sha256
-            -sigopt rsa_pss_saltlen:-1
-            -out ${TMPCA}/rsapss-cacert.pem'
-        OPENSSL_CONF=${TMP_OPENSSL_CONF}
+    if [[ -n "$RSAPSS2PRIURI" ]]; then
+        title PARA "Run sanity test with RSA-PSS and SHA256"
+        selfsign_cert "${RSAPSS2PRIURI}" "${TMPPDIR}/rsapss-sha256.pem" \
+            "-sigopt rsa_padding_mode:pss" \
+            "-sigopt digest:sha256" \
+            "-sigopt rsa_pss_saltlen:-1"
 
-        run_test "$RSAPSSPRIURI" "${TMPCA}/rsapss-cacert.pem"
+        run_test "$RSAPSS2PRIURI" "${TMPPDIR}/rsapss-sha256.pem"
     fi
 
     title PARA "Run sanity test with default values (ECDSA)"

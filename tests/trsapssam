@@ -4,20 +4,13 @@
 
 source "${TESTSSRCDIR}/helpers.sh"
 
-#Need to enable this or genpkey fails because it can't output the private key
-sed -e "s/#pkcs11-module-encode-provider-uri-to-pem/pkcs11-module-encode-provider-uri-to-pem = true/" \
-    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.rsapss_genpkey"
-OPENSSL_CONF=${OPENSSL_CONF}.rsapss_genpkey
+if [[ "${SUPPORT_ALLOWED_MECHANISMS}" = "0" ]]; then
+    exit 77;
+fi
 
-title PARA "Generate RSA PSS key restricted to SHA256"
+title PARA "DigestSign and DigestVerify with RSA PSS (SHA256 restriction)"
 ossl '
-genpkey -propquery "?provider=pkcs11"
-        -algorithm "RSA-PSS" -pkeyopt "rsa_pss_keygen_md:SHA256"
-        -pkeyopt "pkcs11_uri:pkcs11:object=Test-RSA-PSS-Restrictions"'
-
-title PARA "DigestSign and DigestVerify with RSA PSS"
-ossl '
-pkeyutl -sign -inkey "pkcs11:object=Test-RSA-PSS-Restrictions;type=private"
+pkeyutl -sign -inkey "${RSAPSS2PRIURI}"
               -digest sha256
               -pkeyopt pad-mode:pss
               -pkeyopt mgf1-digest:sha256
@@ -26,7 +19,7 @@ pkeyutl -sign -inkey "pkcs11:object=Test-RSA-PSS-Restrictions;type=private"
               -rawin
               -out ${TMPPDIR}/sha256-rsapps-genpkey-dgstsig.bin'
 ossl '
-pkeyutl -verify -inkey "pkcs11:object=Test-RSA-PSS-Restrictions;type=public" -pubin
+pkeyutl -verify -inkey "${RSAPSS2PUBURI}" -pubin
                 -digest sha256
                 -pkeyopt pad-mode:pss
                 -pkeyopt mgf1-digest:sha256
@@ -38,7 +31,7 @@ pkeyutl -verify -inkey "pkcs11:object=Test-RSA-PSS-Restrictions;type=public" -pu
 FAIL=0
 title PARA "Fail DigestSign with RSA PSS because of restricted Digest"
 ossl '
-pkeyutl -sign -inkey "pkcs11:object=Test-RSA-PSS-Restrictions;type=private"
+pkeyutl -sign -inkey "${RSAPSS2PRIURI}"
               -digest sha384
               -pkeyopt pad-mode:pss
               -pkeyopt mgf1-digest:sha384
@@ -59,16 +52,10 @@ if [ $FAIL -ne 0 ]; then
     exit 1
 fi
 
-title PARA "Generate RSA PSS key"
-ossl '
-genpkey -propquery "?provider=pkcs11"
-        -algorithm "RSA-PSS"
-        -pkeyopt "pkcs11_uri:pkcs11:object=Test-RSA-PSS-Only"'
-
 FAIL=0
 title PARA "Fail Signing with RSA PKCS1 mech and RSA-PSS key"
 ossl '
-pkeyutl -sign -inkey "pkcs11:object=Test-RSA-PSS-Only;type=private"
+pkeyutl -sign -inkey "${RSAPSSPRIURI}"
               -digest sha256
               -pkeyopt rsa_padding_mode:pkcs1
               -in ${RAND64FILE}
