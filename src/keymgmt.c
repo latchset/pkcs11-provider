@@ -1194,6 +1194,7 @@ const OSSL_DISPATCH p11prov_rsapss_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(rsa, LOAD, load),
     DISPATCH_KEYMGMT_ELEM(rsa, FREE, free),
     DISPATCH_KEYMGMT_ELEM(rsa, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(rsa, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(rsa, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(rsa, IMPORT_TYPES, import_types),
     DISPATCH_KEYMGMT_ELEM(rsa, EXPORT, export),
