@@ -41,6 +41,7 @@ struct p11prov_obj {
     CK_BBOOL cka_token;
 
     P11PROV_URI *refresh_uri;
+    char *public_uri;
 
     union {
         struct p11prov_key key;
@@ -472,6 +473,7 @@ void p11prov_obj_free(P11PROV_OBJ *obj)
     }
     OPENSSL_free(obj->attrs);
 
+    OPENSSL_free(obj->public_uri);
     p11prov_uri_free(obj->refresh_uri);
 
     p11prov_obj_free(obj->assoc_obj);
@@ -723,6 +725,14 @@ void p11prov_obj_set_associated(P11PROV_OBJ *obj, P11PROV_OBJ *assoc)
     }
 
     obj->assoc_obj = p11prov_obj_ref_no_cache(assoc);
+}
+
+const char *p11prov_obj_get_public_uri(P11PROV_OBJ *obj)
+{
+    if (!obj->public_uri) {
+        obj->public_uri = p11prov_obj_to_uri(obj);
+    }
+    return obj->public_uri;
 }
 
 /* CKA_ID
@@ -1488,6 +1498,8 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
     default:
         break;
     }
+    OPENSSL_free(obj->public_uri);
+    obj->public_uri = NULL;
     /* FIXME: How do we refresh attrs? What happens if a pointer
      * to an attr value was saved somewhere? Freeing ->attrs would
      * cause use-after-free issues */

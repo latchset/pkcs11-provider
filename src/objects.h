@@ -35,6 +35,7 @@ P11PROV_OBJ *p11prov_obj_from_reference(const void *reference,
 P11PROV_CTX *p11prov_obj_get_prov_ctx(P11PROV_OBJ *obj);
 P11PROV_OBJ *p11prov_obj_get_associated(P11PROV_OBJ *obj);
 void p11prov_obj_set_associated(P11PROV_OBJ *obj, P11PROV_OBJ *assoc);
+const char *p11prov_obj_get_public_uri(P11PROV_OBJ *obj);
 
 typedef CK_RV (*store_obj_callback)(void *, P11PROV_OBJ *);
 CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,

@@ -12,6 +12,7 @@ DISPATCH_SKEYMGMT_FN(aes, free);
 DISPATCH_SKEYMGMT_FN(aes, import);
 DISPATCH_SKEYMGMT_FN(aes, export);
 DISPATCH_SKEYMGMT_FN(aes, generate);
+DISPATCH_SKEYMGMT_FN(aes, get_key_id);
 DISPATCH_SKEYMGMT_FN(aes, gen_settable_params);
 DISPATCH_SKEYMGMT_FN(aes, imp_settable_params);
 
@@ -247,6 +248,13 @@ done:
     return key;
 }
 
+static const char *p11prov_aes_get_key_id(void *keydata)
+{
+    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
+
+    return p11prov_obj_get_public_uri(key);
+}
+
 static const OSSL_PARAM aes_import_params[] = {
     OSSL_PARAM_octet_string(OSSL_SKEY_PARAM_RAW_BYTES, NULL, 0), OSSL_PARAM_END
 };
@@ -273,6 +281,7 @@ const OSSL_DISPATCH p11prov_aes_skeymgmt_functions[] = {
     DISPATCH_SKEYMGMT_ELEM(aes, IMPORT, import),
     DISPATCH_SKEYMGMT_ELEM(aes, EXPORT, export),
     DISPATCH_SKEYMGMT_ELEM(aes, GENERATE, generate),
+    DISPATCH_SKEYMGMT_ELEM(aes, GET_KEY_ID, get_key_id),
     DISPATCH_SKEYMGMT_ELEM(aes, IMP_SETTABLE_PARAMS, imp_settable_params),
     DISPATCH_SKEYMGMT_ELEM(aes, GEN_SETTABLE_PARAMS, gen_settable_params),
     { 0, NULL },
