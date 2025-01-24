@@ -121,6 +121,21 @@ if [[ -n $RSAPSS2PRIURI ]]; then
     #fi
 fi
 
+if [[ -n $RSAPSS2PRIURI ]]; then
+    title PARA "Generating a new CSR with existing RSA-PSS key in token"
+    ossl '
+    req -batch -noenc -new -key ${RSAPSS2PRIURI} -sigopt rsa_padding_mode:pss
+        -subj "/CN=testing-rsapss-signing/O=PKCS11 Provider/C=US"
+        -out ${DEMOCA}/cert-rsa-pss2.csr
+        -sigopt rsa_padding_mode:pss
+        -sigopt digest:sha256
+        -sigopt rsa_pss_saltlen:-2'
+
+    title PARA "Signing the new RSA-PSS key certificate"
+    ossl '
+    ca -batch -in ${DEMOCA}/cert-rsa-pss.csr -keyfile ${PRIURI} -out ${DEMOCA}/cert.pem'
+fi
+
 title PARA "Set up OCSP"
 ossl '
 req -batch -noenc -new -subj "/CN=OCSP/O=PKCS11 Provider/C=US"

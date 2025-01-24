@@ -415,7 +415,7 @@ echo "${ECCRT3URI}"
 echo ""
 
 if [ "${SUPPORT_ALLOWED_MECHANISMS}" -eq 1 ]; then
-    # generate RSA-PSS key pair and self-signed RSA-PSS certificate
+    # generate unrestricted RSA-PSS key pair and self-signed RSA-PSS certificate
     KEYID='0010'
     URIKEYID="%00%10"
     TSTCRTN="testRsaPssCert"
@@ -439,6 +439,34 @@ if [ "${SUPPORT_ALLOWED_MECHANISMS}" -eq 1 ]; then
     echo "${RSAPSSPUBURI}"
     echo "${RSAPSSPRIURI}"
     echo "${RSAPSSCRTURI}"
+    echo ""
+
+    # generate RSA-PSS (3k) key pair restricted to SHA256 digests
+    # and self-signed RSA-PSS certificate
+    KEYID='0011'
+    URIKEYID="%00%11"
+    TSTCRTN="testRsaPss2Cert"
+
+    pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="RSA:3092" \
+        --label="${TSTCRTN}" --id="$KEYID" --allowed-mechanisms \
+        SHA256-RSA-PKCS-PSS
+    ca_sign "${TSTCRTN}" "My RsaPss2 Cert" $KEYID \
+        "--sign-params=RSA-PSS" "--hash=SHA256"
+
+    RSAPSS2BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+    RSAPSS2BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
+    RSAPSS2BASEURI="pkcs11:id=${URIKEYID}"
+    RSAPSS2PUBURI="pkcs11:type=public;id=${URIKEYID}"
+    RSAPSS2PRIURI="pkcs11:type=private;id=${URIKEYID}"
+    RSAPSS2CRTURI="pkcs11:type=cert;object=${TSTCRTN}"
+
+    title LINE "RSA-PSS 2 PKCS11 URIS"
+    echo "${RSAPSS2BASEURIWITHPINVALUE}"
+    echo "${RSAPSS2BASEURIWITHPINSOURCE}"
+    echo "${RSAPSS2BASEURI}"
+    echo "${RSAPSS2PUBURI}"
+    echo "${RSAPSS2PRIURI}"
+    echo "${RSAPSS2CRTURI}"
     echo ""
 fi
 
@@ -580,6 +608,13 @@ export RSAPSSBASEURI="${RSAPSSBASEURI}"
 export RSAPSSPUBURI="${RSAPSSPUBURI}"
 export RSAPSSPRIURI="${RSAPSSPRIURI}"
 export RSAPSSCRTURI="${RSAPSSCRTURI}"
+
+export RSAPSS2BASEURIWITHPINVALUE="${RSAPSS2BASEURIWITHPINVALUE}"
+export RSAPSS2BASEURIWITHPINSOURCE="${RSAPSS2BASEURIWITHPINSOURCE}"
+export RSAPSS2BASEURI="${RSAPSS2BASEURI}"
+export RSAPSS2PUBURI="${RSAPSS2PUBURI}"
+export RSAPSS2PRIURI="${RSAPSS2PRIURI}"
+export RSAPSS2CRTURI="${RSAPSS2CRTURI}"
 DBGSCRIPT
 fi
 

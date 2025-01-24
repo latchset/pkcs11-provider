@@ -67,28 +67,13 @@ run_tests() {
 
         # do selfsign now using openssl as certool can not create SPKI using
         # RSA-PSS
-        TMPCA=${TMPPDIR}/tmpca
-        TMP_OPENSSL_CONF=${OPENSSL_CONF}
-        sed -e "s|^dir .*|dir = ${TMPCA}|" \
-            "${OPENSSL_CONF}" > "${OPENSSL_CONF}.tmpca"
-        export OPENSSL_CONF=${OPENSSL_CONF}.tmpca
-
-        mkdir -p "${TMPCA}/newcerts" "${TMPCA}/private"
-        if [ ! -e "${TMPCA}/serial" ]; then
-            echo "01" > "${TMPCA}/serial"
-        fi
-        touch "${TMPCA}/index.txt"
-
-        title PARA "Generating a new CSR with existing RSA-PSS key in token"
-        ossl 'req -batch -noenc -x509 -new -key ${RSAPSSPRIURI}
-            -sigopt rsa_padding_mode:pss
-            -sigopt digest:sha256
-            -sigopt rsa_pss_saltlen:-1
-            -out ${TMPCA}/rsapss-cacert.pem'
-        OPENSSL_CONF=${TMP_OPENSSL_CONF}
+        selfsign_cert "${RSAPSSPRIURI}" "${TMPPDIR}/rsapss-default.pem" \
+            "-sigopt rsa_padding_mode:pss" \
+            "-sigopt digest:sha256" \
+            "-sigopt rsa_pss_saltlen:-1"
 
         prepare_test cert.json.rsapss.in \
-            "$RSAPSSPRIURI" "${TMPCA}/rsapss-cacert.pem"
+            "$RSAPSSPRIURI" "${TMPPDIR}/rsapss-default.pem"
     fi
 
     title PARA "Prepare test for ECDSA"
