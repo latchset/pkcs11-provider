@@ -103,7 +103,7 @@ static int p11prov_rsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
     CK_KEY_TYPE type;
     CK_OBJECT_CLASS class;
     CK_ULONG keysize;
-    char *uri = NULL;
+    const char *uri = NULL;
     BIO *out;
     int ret;
 
@@ -154,10 +154,9 @@ static int p11prov_rsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
         }
     }
 
-    uri = p11prov_key_to_uri(ctx->provctx, key);
+    uri = p11prov_obj_get_public_uri(key);
     if (uri) {
         BIO_printf(out, "URI %s\n", uri);
-        OPENSSL_free(uri);
     }
 
 done:
@@ -500,11 +499,11 @@ static P11PROV_PK11_URI *p11prov_encoder_private_key_to_asn1(P11PROV_CTX *pctx,
                                                              P11PROV_OBJ *key)
 {
     P11PROV_PK11_URI *out = NULL;
-    char *uri = NULL;
+    const char *uri = NULL;
     size_t uri_len;
     int ret = RET_OSSL_ERR;
 
-    uri = p11prov_key_to_uri(pctx, key);
+    uri = p11prov_obj_get_public_uri(key);
     if (!uri) {
         goto done;
     }
@@ -528,7 +527,6 @@ static P11PROV_PK11_URI *p11prov_encoder_private_key_to_asn1(P11PROV_CTX *pctx,
     ret = RET_OSSL_OK;
 
 done:
-    OPENSSL_free(uri);
     if (ret != RET_OSSL_OK) {
         P11PROV_PK11_URI_free(out);
         out = NULL;
@@ -890,7 +888,7 @@ static int p11prov_ec_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
     CK_KEY_TYPE type;
     CK_OBJECT_CLASS class;
     CK_ULONG keysize;
-    char *uri = NULL;
+    const char *uri = NULL;
     BIO *out;
     int ret;
 
@@ -940,10 +938,9 @@ static int p11prov_ec_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
         }
     }
 
-    uri = p11prov_key_to_uri(ctx->provctx, key);
+    uri = p11prov_obj_get_public_uri(key);
     if (uri) {
         BIO_printf(out, "URI %s\n", uri);
-        OPENSSL_free(uri);
     }
 
 done:
@@ -1020,7 +1017,7 @@ static int p11prov_ec_edwards_encoder_encode_text(
     CK_OBJECT_CLASS class;
     CK_ULONG keysize;
     const char *type_name = ED25519;
-    char *uri = NULL;
+    const char *uri = NULL;
     BIO *out;
     int ret;
 
@@ -1076,10 +1073,9 @@ static int p11prov_ec_edwards_encoder_encode_text(
         }
     }
 
-    uri = p11prov_key_to_uri(ctx->provctx, key);
+    uri = p11prov_obj_get_public_uri(key);
     if (uri) {
         BIO_printf(out, "URI %s\n", uri);
-        OPENSSL_free(uri);
     }
 
 done:
