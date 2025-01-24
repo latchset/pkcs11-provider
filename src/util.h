@@ -54,7 +54,7 @@ void p11prov_fetch_attrs_free(struct fetch_attrs *attrs, int num);
 #define MAX_PIN_LENGTH 32
 int parse_ulong(P11PROV_CTX *ctx, const char *str, size_t len, void **output);
 P11PROV_URI *p11prov_parse_uri(P11PROV_CTX *ctx, const char *uri);
-char *p11prov_key_to_uri(P11PROV_CTX *ctx, P11PROV_OBJ *key);
+char *p11prov_obj_to_uri(P11PROV_OBJ *key);
 void p11prov_uri_free(P11PROV_URI *parsed_uri);
 CK_OBJECT_CLASS p11prov_uri_get_class(P11PROV_URI *uri);
 void p11prov_uri_set_class(P11PROV_URI *uri, CK_OBJECT_CLASS class);
