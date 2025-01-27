@@ -145,9 +145,9 @@ tests = {
   'session': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
   'rand': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
   'readkeys': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
-  'tls': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss'], 'is_parallel': false},
-  'tlsfuzzer': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
-  'uri': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
+  'tls': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss'], 'is_parallel': false, 'timeout': 60},
+  'tlsfuzzer': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss'], 'timeout': 90},
+  'uri': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss'], 'timeout': 90},
   'ecxc': {'suites': ['softhsm', 'kryoptic', 'kryoptic.nss']},
   'cms': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'pinlock': {'suites': ['kryoptic']},
@@ -157,6 +157,7 @@ test_wrapper = find_program('test-wrapper')
 
 foreach t, extra_args : tests
   is_parallel = extra_args.get('is_parallel', true)
+  timeout = extra_args.get('timeout', 30)
   foreach suite : extra_args.get('suites', [])
     test(
       t,
@@ -166,7 +167,7 @@ foreach t, extra_args : tests
       env: test_env,
       depends: test_executables,
       is_parallel: false,
-      timeout: 60,
+      timeout: timeout,
     )
   endforeach
 endforeach
