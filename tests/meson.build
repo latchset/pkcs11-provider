@@ -107,13 +107,14 @@ endif
 
 test_programs = {
   'tsession': ['tsession.c'],
-  'tgenkey': ['tgenkey.c'],
+  'tgenkey': ['tgenkey.c', 'util.c'],
   'tlsctx': ['tlsctx.c', 'util.c'],
   'tlssetkey': ['tlssetkey.c', 'util.c'],
   'tdigests': ['tdigests.c'],
   'treadkeys': ['treadkeys.c'],
   'tcmpkeys': ['tcmpkeys.c', 'util.c'],
-  'tfork': ['tfork.c'],
+  'tfork': ['tfork.c', 'util.c'],
+  'tpkey': ['tpkey.c', 'util.c'],
   'pincache': ['pincache.c'],
 }
 
@@ -142,6 +143,7 @@ tests = {
   'rsapss': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
   'rsapssam': {'suites': ['softhsm', 'kryoptic']},
   'genkey': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
+  'pkey': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
   'session': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
   'rand': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
   'readkeys': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},

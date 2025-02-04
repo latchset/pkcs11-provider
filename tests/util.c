@@ -1,10 +1,13 @@
 /* Copyright (C) 2024 Simo Sorce <simo@redhat.com>
    SPDX-License-Identifier: Apache-2.0 */
 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdbool.h>
 #include <openssl/err.h>
 #include <openssl/store.h>
+#include <openssl/evp.h>
+#include <openssl/rand.h>
 #include "util.h"
 
 void ossl_err_print(void)
@@ -138,4 +141,78 @@ X509 *load_cert(const char *uri)
     OSSL_STORE_close(store);
 
     return cert;
+}
+
+void hexify(char *out, unsigned char *byte, size_t len)
+{
+    char c[2], s;
+
+    for (size_t i = 0; i < len; i++) {
+        out[i * 3] = '%';
+        c[0] = byte[i] >> 4;
+        c[1] = byte[i] & 0x0f;
+        for (int j = 0; j < 2; j++) {
+            if (c[j] < 0x0A) {
+                s = '0';
+            } else {
+                s = 'a' - 10;
+            }
+            out[i * 3 + 1 + j] = c[j] + s;
+        }
+    }
+    out[len * 3] = '\0';
+}
+
+EVP_PKEY *util_gen_key(const char *label)
+{
+    unsigned char id[16];
+    char idhex[16 * 3 + 1];
+    char *uri;
+    size_t rsa_bits = 3072;
+    OSSL_PARAM params[3];
+    EVP_PKEY_CTX *ctx;
+    EVP_PKEY *key = NULL;
+    int ret;
+
+    /* RSA */
+    ret = RAND_bytes(id, 16);
+    if (ret != 1) {
+        PRINTERROSSL("Failed to set generate key id\n");
+        exit(EXIT_FAILURE);
+    }
+
+    hexify(idhex, id, 16);
+    ret = asprintf(&uri, "pkcs11:object=%s;id=%s", label, idhex);
+    if (ret == -1) {
+        fprintf(stderr, "Failed to allocate uri\n");
+        exit(EXIT_FAILURE);
+    }
+
+    params[0] = OSSL_PARAM_construct_utf8_string("pkcs11_uri", uri, 0);
+    params[1] = OSSL_PARAM_construct_size_t("rsa_keygen_bits", &rsa_bits);
+    params[2] = OSSL_PARAM_construct_end();
+
+    ctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", "provider=pkcs11");
+    if (ctx == NULL) {
+        PRINTERROSSL("Failed to init PKEY context\n");
+        exit(EXIT_FAILURE);
+    }
+
+    ret = EVP_PKEY_keygen_init(ctx);
+    if (ret != 1) {
+        PRINTERROSSL("Failed to init keygen\n");
+        exit(EXIT_FAILURE);
+    }
+
+    EVP_PKEY_CTX_set_params(ctx, params);
+
+    ret = EVP_PKEY_generate(ctx, &key);
+    EVP_PKEY_CTX_free(ctx);
+    if (ret != 1) {
+        PRINTERROSSL("Failed to generate key\n");
+        exit(EXIT_FAILURE);
+    }
+
+    free(uri);
+    return key;
 }
