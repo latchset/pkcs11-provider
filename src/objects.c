@@ -52,6 +52,8 @@ struct p11prov_obj {
 
     int refcnt;
     int poolid;
+
+    P11PROV_OBJ *assoc_obj;
 };
 
 struct p11prov_obj_pool {
@@ -454,6 +456,8 @@ void p11prov_obj_free(P11PROV_OBJ *obj)
 
     p11prov_uri_free(obj->refresh_uri);
 
+    p11prov_obj_free(obj->assoc_obj);
+
     OPENSSL_clear_free(obj, sizeof(P11PROV_OBJ));
 }
 
@@ -641,6 +645,27 @@ P11PROV_CTX *p11prov_obj_get_prov_ctx(P11PROV_OBJ *obj)
         return NULL;
     }
     return obj->ctx;
+}
+
+P11PROV_OBJ *p11prov_obj_get_associated(P11PROV_OBJ *obj)
+{
+    return obj->assoc_obj;
+}
+
+void p11prov_obj_set_associated(P11PROV_OBJ *obj, P11PROV_OBJ *assoc)
+{
+    if (obj == NULL) {
+        return;
+    }
+
+    p11prov_obj_free(obj->assoc_obj);
+    obj->assoc_obj = NULL;
+
+    if (assoc == NULL) {
+        return;
+    }
+
+    obj->assoc_obj = p11prov_obj_ref_no_cache(assoc);
 }
 
 /* CKA_ID
@@ -1183,6 +1208,17 @@ static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
 
     P11PROV_debug("Find associated object");
 
+    /* check if we have one already */
+    retobj = p11prov_obj_get_associated(obj);
+    if (retobj) {
+        if (p11prov_obj_get_class(retobj) == class) {
+            /* BINGO */
+            return p11prov_obj_ref_no_cache(retobj);
+        } else {
+            retobj = NULL;
+        }
+    }
+
     id = p11prov_obj_get_attr(obj, CKA_ID);
     if (!id || id->ulValueLen == 0) {
         P11PROV_raise(provctx, CKR_GENERAL_ERROR, "No CKA_ID in source object");
@@ -1229,6 +1265,11 @@ static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
     ret = p11prov_obj_from_handle(provctx, session, handle, &retobj);
     if (ret != CKR_OK) {
         P11PROV_raise(provctx, ret, "Failed to get object from handle");
+    }
+
+    /* associate it so we do not have to search again on repeat calls */
+    if (retobj && obj->assoc_obj == NULL) {
+        obj->assoc_obj = p11prov_obj_ref_no_cache(retobj);
     }
 
 done:
@@ -1341,6 +1382,11 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
      * cause use-after-free issues */
     p11prov_obj_free(tmp);
     obj->raf = false;
+
+    /* Refresh the associated object too if there is one */
+    if (obj->assoc_obj && obj->assoc_obj->raf) {
+        p11prov_obj_refresh(obj->assoc_obj);
+    }
 
 done:
     p11prov_return_session(session);
@@ -2125,6 +2171,15 @@ int p11prov_obj_get_ed_pub_key(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub)
         return RET_OSSL_ERR;
     }
 
+    /* check if we have a pub key associated to a private key */
+    if (obj->class == CKO_PRIVATE_KEY) {
+        P11PROV_OBJ *pobj = p11prov_obj_get_associated(obj);
+        if (pobj && pobj->class == CKO_PUBLIC_KEY) {
+            /* replace obj with the public one */
+            obj = pobj;
+        }
+    }
+
     /* See if we have cached attributes first */
     a = p11prov_obj_get_attr(obj, CKA_P11PROV_PUB_KEY);
     if (!a) {
@@ -2166,6 +2221,15 @@ int p11prov_obj_get_ec_public_x_y(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub_x,
     if (obj->data.key.type != CKK_EC) {
         P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Unsupported key type");
         return RET_OSSL_ERR;
+    }
+
+    /* check if we have a pub key associated to a private key */
+    if (obj->class == CKO_PRIVATE_KEY) {
+        P11PROV_OBJ *pub = p11prov_obj_get_associated(obj);
+        if (pub && pub->class == CKO_PUBLIC_KEY) {
+            /* replace obj with the public one */
+            obj = pub;
+        }
     }
 
     /* See if we have cached attributes first */
@@ -2302,6 +2366,15 @@ CK_ATTRIBUTE *p11prov_obj_get_ec_public_raw(P11PROV_OBJ *key)
     if (key->class != CKO_PRIVATE_KEY && key->class != CKO_PUBLIC_KEY) {
         P11PROV_raise(key->ctx, CKR_GENERAL_ERROR, "Invalid Object Class");
         return NULL;
+    }
+
+    /* check if we have a pub key associated to a private key */
+    if (key->class == CKO_PRIVATE_KEY) {
+        P11PROV_OBJ *pub = p11prov_obj_get_associated(key);
+        if (pub && pub->class == CKO_PUBLIC_KEY) {
+            /* replace obj with the public one */
+            key = pub;
+        }
     }
 
     pub_key = p11prov_obj_get_attr(key, CKA_P11PROV_PUB_KEY);
@@ -4125,87 +4198,6 @@ CK_RV p11prov_obj_copy_specific_attr(P11PROV_OBJ *pub_key,
     priv_key->numattrs++;
 
     return ret;
-}
-
-/*
- *Copy attributes from public key to private key
- *so that the public key can be reconstructed from
- *a private key directly.
- */
-#define RSA_PRIV_ATTRS_NUM 2
-
-#define EC_PRIV_ATTRS_NUM 3
-CK_RV p11prov_merge_pub_attrs_into_priv(P11PROV_OBJ *pub_key,
-                                        P11PROV_OBJ *priv_key)
-{
-    CK_RV ret = CKR_OK;
-
-    if (!pub_key || !priv_key) {
-        P11PROV_debug(
-            "Empty keys. Cannot copy public key attributes into private key");
-        return CKR_ARGUMENTS_BAD;
-    }
-
-    switch (pub_key->data.key.type) {
-    case CKK_RSA:
-        priv_key->attrs = OPENSSL_realloc(
-            priv_key->attrs,
-            (priv_key->numattrs + RSA_PRIV_ATTRS_NUM) * sizeof(CK_ATTRIBUTE));
-        if (!priv_key->attrs) {
-            ret = CKR_HOST_MEMORY;
-            P11PROV_raise(priv_key->ctx, ret, "Failed allocation");
-            return ret;
-        }
-
-        ret = p11prov_obj_copy_specific_attr(pub_key, priv_key, CKA_MODULUS);
-        if (ret != CKR_OK) {
-            goto err;
-        }
-
-        ret = p11prov_obj_copy_specific_attr(pub_key, priv_key,
-                                             CKA_PUBLIC_EXPONENT);
-        if (ret != CKR_OK) {
-            goto err;
-        }
-        break;
-    case CKK_EC:
-    case CKK_EC_EDWARDS:
-        priv_key->attrs = OPENSSL_realloc(
-            priv_key->attrs,
-            (priv_key->numattrs + EC_PRIV_ATTRS_NUM) * sizeof(CK_ATTRIBUTE));
-        if (!priv_key->attrs) {
-            ret = CKR_HOST_MEMORY;
-            P11PROV_raise(priv_key->ctx, ret, "Failed allocation");
-            return ret;
-        }
-
-        ret = p11prov_obj_copy_specific_attr(pub_key, priv_key, CKA_EC_POINT);
-        if (ret != CKR_OK) {
-            goto err;
-        }
-
-        ret = p11prov_obj_copy_specific_attr(pub_key, priv_key, CKA_EC_PARAMS);
-        if (ret != CKR_OK) {
-            goto err;
-        }
-
-        ret = p11prov_obj_copy_specific_attr(pub_key, priv_key,
-                                             CKA_P11PROV_PUB_KEY);
-        if (ret != CKR_OK) {
-            goto err;
-        }
-        break;
-    default:
-        /* unknown key type, we can't copy public key attributes */
-        P11PROV_debug("Unsupported key type (%lu)", pub_key->data.key.type);
-        return CKR_ARGUMENTS_BAD;
-    }
-
-    return ret;
-
-err:
-    P11PROV_raise(priv_key->ctx, ret, "Failed attr copy");
-    return CKR_GENERAL_ERROR;
 }
 
 /* creates an empty (no public point) Public EC Key, (OpenSSL paramgen

@@ -746,11 +746,7 @@ static CK_RV p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
         return ret;
     }
 
-    sigctx->key = p11prov_obj_ref(key);
-    if (sigctx->key == NULL) {
-        return CKR_KEY_NEEDED;
-    }
-    class = p11prov_obj_get_class(sigctx->key);
+    class = p11prov_obj_get_class(key);
     switch (operation) {
     case CKF_SIGN:
         if (class != CKO_PRIVATE_KEY) {
@@ -759,11 +755,18 @@ static CK_RV p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
         break;
     case CKF_VERIFY:
         if (class != CKO_PUBLIC_KEY) {
-            return CKR_KEY_TYPE_INCONSISTENT;
+            key = p11prov_obj_get_associated(key);
+            if (!key || p11prov_obj_get_class(key) != CKO_PUBLIC_KEY) {
+                return CKR_KEY_TYPE_INCONSISTENT;
+            }
         }
         break;
     default:
         return CKR_GENERAL_ERROR;
+    }
+    sigctx->key = p11prov_obj_ref(key);
+    if (sigctx->key == NULL) {
+        return CKR_KEY_NEEDED;
     }
     sigctx->operation = operation;
 
