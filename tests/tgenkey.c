@@ -9,26 +9,7 @@
 #include <openssl/evp.h>
 #include <openssl/store.h>
 #include <openssl/rand.h>
-
-static void hexify(char *out, unsigned char *byte, size_t len)
-{
-    char c[2], s;
-
-    for (size_t i = 0; i < len; i++) {
-        out[i * 3] = '%';
-        c[0] = byte[i] >> 4;
-        c[1] = byte[i] & 0x0f;
-        for (int j = 0; j < 2; j++) {
-            if (c[j] < 0x0A) {
-                s = '0';
-            } else {
-                s = 'a' - 10;
-            }
-            out[i * 3 + 1 + j] = c[j] + s;
-        }
-    }
-    out[len * 3] = '\0';
-}
+#include "util.h"
 
 static void check_rsa_key(EVP_PKEY *pubkey)
 {
