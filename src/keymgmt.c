@@ -489,7 +489,12 @@ static int p11prov_common_gen(struct key_generator *ctx,
         goto done;
     }
 
-    ret = p11prov_merge_pub_attrs_into_priv(pub_key, priv_key);
+    /* set the public key object as associated object of the private key,
+     * this way a public key can always be found from the private key and
+     * operations that assume an EVP_PKEY represent both can find what
+     * they need.
+     * This operation takes a reference so we can safely free pub_key */
+    p11prov_obj_set_associated(priv_key, pub_key);
 
 done:
     if (ret != CKR_OK) {

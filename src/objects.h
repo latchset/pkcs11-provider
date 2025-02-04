@@ -33,6 +33,8 @@ void p11prov_obj_to_store_reference(P11PROV_OBJ *obj, void **reference,
 P11PROV_OBJ *p11prov_obj_from_reference(const void *reference,
                                         size_t reference_sz);
 P11PROV_CTX *p11prov_obj_get_prov_ctx(P11PROV_OBJ *obj);
+P11PROV_OBJ *p11prov_obj_get_associated(P11PROV_OBJ *obj);
+void p11prov_obj_set_associated(P11PROV_OBJ *obj, P11PROV_OBJ *assoc);
 
 typedef CK_RV (*store_obj_callback)(void *, P11PROV_OBJ *);
 CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
@@ -80,9 +82,6 @@ CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
 CK_RV p11prov_obj_copy_specific_attr(P11PROV_OBJ *pub_key,
                                      P11PROV_OBJ *priv_key,
                                      CK_ATTRIBUTE_TYPE type);
-
-CK_RV p11prov_merge_pub_attrs_into_priv(P11PROV_OBJ *pub_key,
-                                        P11PROV_OBJ *priv_key);
 
 #define ED25519 "ED25519"
 #define ED25519_BIT_SIZE 256
