@@ -289,8 +289,8 @@ fi
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
 title PARA "Test Key generation"
-output=$($CHECKER "${TESTBLDDIR}"/tgenkey "RSA,RSA-PSS,EC,RSAKeyUsage" 2>&1)
 FAIL=0
+output=$($CHECKER "${TESTBLDDIR}"/tgenkey "RSA,RSA-PSS,EC,RSAKeyUsage" 2>&1) || FAIL=1
 echo "$output" | grep "Performed tests: 4" || FAIL=1
 if [ $FAIL -ne 0 ]; then
     echo
