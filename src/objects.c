@@ -914,7 +914,7 @@ static CK_RV fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     } else {
         /* known vendor optimization to avoid storing
          * EC public key on HSM; can avoid
-         * find_associated_obj later
+         * p11prov_obj_find_associated later
          */
         FA_SET_BUF_ALLOC(attrs, num, CKA_EC_POINT, false);
         FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
@@ -1193,8 +1193,8 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
     return result;
 }
 
-static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
-                                        CK_OBJECT_CLASS class)
+P11PROV_OBJ *p11prov_obj_find_associated(P11PROV_OBJ *obj,
+                                         CK_OBJECT_CLASS class)
 {
     CK_ATTRIBUTE template[2] = { 0 };
     CK_ATTRIBUTE *id;
@@ -1221,7 +1221,8 @@ static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
 
     id = p11prov_obj_get_attr(obj, CKA_ID);
     if (!id || id->ulValueLen == 0) {
-        P11PROV_raise(provctx, CKR_GENERAL_ERROR, "No CKA_ID in source object");
+        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR,
+                      "No CKA_ID in source object");
         goto done;
     }
 
@@ -1230,7 +1231,7 @@ static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
 
     slotid = p11prov_obj_get_slotid(obj);
 
-    ret = p11prov_get_session(provctx, &slotid, NULL, NULL,
+    ret = p11prov_get_session(obj->ctx, &slotid, NULL, NULL,
                               CK_UNAVAILABLE_INFORMATION, NULL, NULL, true,
                               false, &session);
     if (ret != CKR_OK) {
@@ -1239,32 +1240,32 @@ static P11PROV_OBJ *find_associated_obj(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
 
     sess = p11prov_session_handle(session);
 
-    ret = p11prov_FindObjectsInit(provctx, sess, template, 2);
+    ret = p11prov_FindObjectsInit(obj->ctx, sess, template, 2);
     if (ret != CKR_OK) {
         goto done;
     }
 
     /* we expect a single entry */
-    ret = p11prov_FindObjects(provctx, sess, &handle, 1, &objcount);
+    ret = p11prov_FindObjects(obj->ctx, sess, &handle, 1, &objcount);
 
-    fret = p11prov_FindObjectsFinal(provctx, sess);
+    fret = p11prov_FindObjectsFinal(obj->ctx, sess);
     if (fret != CKR_OK) {
         /* this is not fatal */
-        P11PROV_raise(provctx, fret, "Failed to terminate object search");
+        P11PROV_raise(obj->ctx, fret, "Failed to terminate object search");
     }
 
     if (ret != CKR_OK) {
         goto done;
     }
     if (objcount != 1) {
-        P11PROV_raise(provctx, ret, "Error in C_FindObjects (count=%ld)",
+        P11PROV_raise(obj->ctx, ret, "Error in C_FindObjects (count=%ld)",
                       objcount);
         goto done;
     }
 
-    ret = p11prov_obj_from_handle(provctx, session, handle, &retobj);
+    ret = p11prov_obj_from_handle(obj->ctx, session, handle, &retobj);
     if (ret != CKR_OK) {
-        P11PROV_raise(provctx, ret, "Failed to get object from handle");
+        P11PROV_raise(obj->ctx, ret, "Failed to get object from handle");
     }
 
     /* associate it so we do not have to search again on repeat calls */
@@ -1766,14 +1767,14 @@ static CK_RV get_public_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int num)
             return rv;
         }
         /* public attributes unavailable, try to find public key */
-        tmp = find_associated_obj(obj->ctx, obj, CKO_PUBLIC_KEY);
+        tmp = p11prov_obj_find_associated(obj, CKO_PUBLIC_KEY);
         if (tmp) {
             rv = get_all_attrs(tmp, attrs, num);
             p11prov_obj_free(tmp);
             return rv;
         }
         /* no public key, try to find certificate */
-        tmp = find_associated_obj(obj->ctx, obj, CKO_CERTIFICATE);
+        tmp = p11prov_obj_find_associated(obj, CKO_CERTIFICATE);
         if (tmp) {
             rv = get_all_from_cert(tmp, attrs, num);
             p11prov_obj_free(tmp);
@@ -2485,7 +2486,7 @@ static int match_key_with_cert(P11PROV_OBJ *priv_key, P11PROV_OBJ *pub_key)
     int num = 0;
     int ret = RET_OSSL_ERR;
 
-    cert = find_associated_obj(priv_key->ctx, priv_key, CKO_CERTIFICATE);
+    cert = p11prov_obj_find_associated(priv_key, CKO_CERTIFICATE);
     if (!cert) {
         P11PROV_raise(priv_key->ctx, CKR_GENERAL_ERROR,
                       "Could not find associated certificate object");
@@ -2581,8 +2582,7 @@ static int match_public_keys(P11PROV_OBJ *key1, P11PROV_OBJ *key2)
         return RET_OSSL_ERR;
     }
 
-    assoc_pub_key =
-        find_associated_obj(priv_key->ctx, priv_key, CKO_PUBLIC_KEY);
+    assoc_pub_key = p11prov_obj_find_associated(priv_key, CKO_PUBLIC_KEY);
     if (!assoc_pub_key) {
         P11PROV_raise(priv_key->ctx, CKR_GENERAL_ERROR,
                       "Could not find associated public key object");
