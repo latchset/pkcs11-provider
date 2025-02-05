@@ -470,7 +470,7 @@ static int p11prov_store_export_object(void *loaderctx, const void *reference,
 
     /* we can only export public bits, so that's all we do */
     return p11prov_obj_export_public_key(obj, CK_UNAVAILABLE_INFORMATION, false,
-                                         cb_fn, cb_arg);
+                                         false, cb_fn, cb_arg);
 }
 
 static const OSSL_PARAM *p11prov_store_settable_ctx_params(void *provctx)
