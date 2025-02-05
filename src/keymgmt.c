@@ -809,7 +809,8 @@ static int p11prov_rsa_export(void *keydata, int selection,
 
     /* if anything else is asked for we can't provide it, so be strict */
     if ((class == CKO_PUBLIC_KEY) || (selection & ~(PUBLIC_PARAMS)) == 0) {
-        return p11prov_obj_export_public_key(key, CKK_RSA, true, cb_fn, cb_arg);
+        return p11prov_obj_export_public_key(key, CKK_RSA, true, false, cb_fn,
+                                             cb_arg);
     }
 
     return RET_OSSL_ERR;
@@ -1407,7 +1408,7 @@ static int p11prov_ec_import_genr(CK_KEY_TYPE key_type, void *keydata,
                                   int selection, const OSSL_PARAM params[])
 {
     P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
-    CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
+    CK_OBJECT_CLASS class = CK_UNAVAILABLE_INFORMATION;
     CK_RV rv;
 
     P11PROV_debug("ec import %p", key);
@@ -1418,6 +1419,10 @@ static int p11prov_ec_import_genr(CK_KEY_TYPE key_type, void *keydata,
 
     if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
         class = CKO_PRIVATE_KEY;
+    } else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+        class = CKO_PUBLIC_KEY;
+    } else if (selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) {
+        class = CKO_DOMAIN_PARAMETERS;
     }
 
     /* NOTE: the following is needed because of bug:
@@ -1431,6 +1436,13 @@ static int p11prov_ec_import_genr(CK_KEY_TYPE key_type, void *keydata,
             /* not really a private key */
             class = CKO_PUBLIC_KEY;
         }
+    }
+
+    if (class == CKO_DOMAIN_PARAMETERS && key_type != CKK_EC) {
+        /* There are no Domain parameters associated with an
+         * ECX or RSA key in OpenSSL, so there is nothing really
+         * we can import */
+        return RET_OSSL_ERR;
     }
 
     rv = p11prov_obj_import_key(key, key_type, class, params);
@@ -1451,7 +1463,7 @@ static int p11prov_ec_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
 {
     P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
     P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
-    CK_OBJECT_CLASS class = p11prov_obj_get_class(key);
+    bool params_only = true;
 
     P11PROV_debug("ec export %p", keydata);
 
@@ -1459,16 +1471,21 @@ static int p11prov_ec_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
         return RET_OSSL_ERR;
     }
 
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
+        /* can't export private keys */
+        return RET_OSSL_ERR;
+    }
+
     if (p11prov_ctx_allow_export(ctx) & DISALLOW_EXPORT_PUBLIC) {
         return RET_OSSL_ERR;
     }
 
-    /* this will return the public EC_POINT as well as DOMAIN_PARAMTERS */
-    if ((class == CKO_PUBLIC_KEY) || (selection & ~(PUBLIC_PARAMS)) == 0) {
-        return p11prov_obj_export_public_key(key, CKK_EC, true, cb_fn, cb_arg);
+    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+        params_only = false;
     }
 
-    return RET_OSSL_ERR;
+    return p11prov_obj_export_public_key(key, CKK_EC, true, params_only, cb_fn,
+                                         cb_arg);
 }
 
 static const OSSL_PARAM p11prov_ec_key_types[] = {
@@ -1907,7 +1924,7 @@ static int p11prov_ed_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
 {
     P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
     P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
-    CK_OBJECT_CLASS class = p11prov_obj_get_class(key);
+    bool params_only = true;
 
     P11PROV_debug("ed export %p", keydata);
 
@@ -1915,17 +1932,21 @@ static int p11prov_ed_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
         return RET_OSSL_ERR;
     }
 
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
+        /* can't export private keys */
+        return RET_OSSL_ERR;
+    }
+
     if (p11prov_ctx_allow_export(ctx) & DISALLOW_EXPORT_PUBLIC) {
         return RET_OSSL_ERR;
     }
 
-    /* this will return the public EC_POINT */
-    if ((class == CKO_PUBLIC_KEY) || (selection & ~(PUBLIC_PARAMS)) == 0) {
-        return p11prov_obj_export_public_key(key, CKK_EC_EDWARDS, true, cb_fn,
-                                             cb_arg);
+    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+        params_only = false;
     }
 
-    return RET_OSSL_ERR;
+    return p11prov_obj_export_public_key(key, CKK_EC_EDWARDS, true, params_only,
+                                         cb_fn, cb_arg);
 }
 
 static int p11prov_ed_import(void *keydata, int selection,
