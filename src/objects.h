@@ -83,6 +83,9 @@ CK_RV p11prov_obj_copy_specific_attr(P11PROV_OBJ *pub_key,
                                      P11PROV_OBJ *priv_key,
                                      CK_ATTRIBUTE_TYPE type);
 
+P11PROV_OBJ *p11prov_obj_find_associated(P11PROV_OBJ *obj,
+                                         CK_OBJECT_CLASS class);
+
 #define ED25519 "ED25519"
 #define ED25519_BIT_SIZE 256
 #define ED25519_BYTE_SIZE ED25519_BIT_SIZE / 8
