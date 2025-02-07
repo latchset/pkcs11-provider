@@ -18,6 +18,6 @@
 
 void ossl_err_print(void);
 EVP_PKEY *load_key(const char *uri);
-X509 *load_cert(const char *uri);
+X509 *load_cert(const char *uri, const UI_METHOD *ui_method, void *ui_data);
 void hexify(char *out, unsigned char *byte, size_t len);
 EVP_PKEY *util_gen_key(const char *label);

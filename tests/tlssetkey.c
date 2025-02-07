@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Usage: tlssetkey [certuri] [pkeyuri]\n");
         exit(EXIT_FAILURE);
     }
-    cert = load_cert(argv[1]);
+    cert = load_cert(argv[1], NULL, NULL);
     pkey = load_key(argv[2]);
 
     ctx = SSL_CTX_new(TLS_client_method());
