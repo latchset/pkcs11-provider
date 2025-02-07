@@ -97,7 +97,8 @@ static void store_fetch(struct p11prov_store_ctx *ctx,
         || login_behavior == PUBKEY_LOGIN_ALWAYS) {
         login = true;
     }
-    if (p11prov_uri_get_class(ctx->parsed_uri) == CKO_PUBLIC_KEY
+    if ((p11prov_uri_get_class(ctx->parsed_uri) == CKO_PUBLIC_KEY
+         || p11prov_uri_get_class(ctx->parsed_uri) == CKO_CERTIFICATE)
         && login_behavior != PUBKEY_LOGIN_ALWAYS) {
         login = false;
     }
