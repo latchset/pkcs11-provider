@@ -43,4 +43,11 @@ if [[ ! ${DATA} =~ "Total found: 1" ]]; then
 fi
 done
 
+title PARA "Test fetching certificate without PIN in config files"
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed "s/^pkcs11-module-token-pin.*$/##nopin/" "${OPENSSL_CONF}" > "${OPENSSL_CONF}.nopin"
+OPENSSL_CONF=${OPENSSL_CONF}.nopin
+ossl 'x509 -in $CRTURI -subject -out ${TMPPDIR}/crt-subj-nopin.txt'
+
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 exit 0
