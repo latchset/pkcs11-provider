@@ -49,5 +49,8 @@ sed "s/^pkcs11-module-token-pin.*$/##nopin/" "${OPENSSL_CONF}" > "${OPENSSL_CONF
 OPENSSL_CONF=${OPENSSL_CONF}.nopin
 ossl 'x509 -in $CRTURI -subject -out ${TMPPDIR}/crt-subj-nopin.txt'
 
+title PARA "Test fetching certificate via STORE api"
+$CHECKER "${TESTBLDDIR}/ccerts" "${CRTURI}" nopin
+
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 exit 0

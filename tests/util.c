@@ -97,7 +97,7 @@ EVP_PKEY *load_key(const char *uri)
     return key;
 }
 
-X509 *load_cert(const char *uri)
+X509 *load_cert(const char *uri, const UI_METHOD *ui_method, void *ui_data)
 {
     OSSL_STORE_CTX *store;
     OSSL_STORE_INFO *info;
@@ -109,7 +109,7 @@ X509 *load_cert(const char *uri)
         exit(EXIT_FAILURE);
     }
 
-    store = OSSL_STORE_open(uri, NULL, NULL, NULL, NULL);
+    store = OSSL_STORE_open(uri, ui_method, ui_data, NULL, NULL);
     if (store == NULL) {
         fprintf(stderr, "Failed to open store: %s\n", uri);
         ossl_err_print();
