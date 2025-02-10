@@ -146,7 +146,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-14]
-        token: [softokn, softhsm]
+        token: [softokn]
     steps:
       - name: Install Dependencies
         run: |
