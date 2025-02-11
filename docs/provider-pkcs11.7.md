@@ -2,7 +2,7 @@
 
 NAME
 ====
-pkcs11-provider - An OpenSSL provider that allows to directly interface
+pkcs11-provider - An OpenSSL provider that allows one to directly interface
 with pkcs11 drivers.
 
 
@@ -72,7 +72,7 @@ cat /etc/pki/pin.txt
 
 ## pkcs11-module-allow-export
 
-Whether the pkcs11 provider will allow to export public keys through
+Whether the pkcs11 provider will allow one to export public keys through
 OpenSSL.
 OpenSSL often tries to export public keys from non-default providers to
 the default provider, and then use OpenSSL own functions to handle
@@ -128,7 +128,7 @@ Example:
 (Will cache a pin that has been entered manually)
 
 ## pkcs11-module-cache-sessions
-Allows to tune how many pkcs11 sessions may be kept open and cached for
+Allows one to tune how many pkcs11 sessions may be kept open and cached for
 rapid use. This parameter is adjusted based on the maximum number of
 sessions the token declares as supported. Note that the login session is
 always cached to keep the token operable.
@@ -207,7 +207,7 @@ Example:
 (Disables deinitialization, blocks context duplication)
 
 ## pkcs11-module-block-operations
-Allows to block specific "provider operations" even if the token actually
+Allows one to block specific "provider operations" even if the token actually
 supports the necessary mechanisms. This is useful to work around cases
 where one wants to enforce use of the token for all operations by setting
 ?provider=pkcs11 in the default properties but wants an exception for a
@@ -295,7 +295,7 @@ In tools/uri2pem.py there is a sample python script that can take a key
 URI and produce a PEM file that references it. Note that storing PINs
 within these PEM files is not secure. These files are not encrypted.
 
-The follwing command can be used to list all keys on a token and print
+The following command can be used to list all keys on a token and print
 their identifying URI:
 
     openssl storeutl -keys -text pkcs11:

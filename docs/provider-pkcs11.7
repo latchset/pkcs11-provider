@@ -2,7 +2,7 @@
 .\"
 .TH "provider\-pkcs11" "7" "" "" "Configuration directives"
 .SH NAME
-pkcs11\-provider \- An OpenSSL provider that allows to directly
+pkcs11\-provider \- An OpenSSL provider that allows one to directly
 interface with pkcs11 drivers.
 .SH DESCRIPTION
 Starting with version 3.0 the OpenSSL project introduced a new modular
@@ -60,7 +60,7 @@ cat /etc/pki/pin.txt
 123456
 .EE
 .SS pkcs11\-module\-allow\-export
-Whether the pkcs11 provider will allow to export public keys through
+Whether the pkcs11 provider will allow one to export public keys through
 OpenSSL.
 OpenSSL often tries to export public keys from non\-default providers to
 the default provider, and then use OpenSSL own functions to handle
@@ -109,7 +109,7 @@ Example:
 \f[CR]pkcs11\-module\-cache\-pins = cache\f[R] (Will cache a pin that
 has been entered manually)
 .SS pkcs11\-module\-cache\-sessions
-Allows to tune how many pkcs11 sessions may be kept open and cached for
+Allows one to tune how many pkcs11 sessions may be kept open and cached for
 rapid use.
 This parameter is adjusted based on the maximum number of sessions the
 token declares as supported.
@@ -182,7 +182,7 @@ Example:
 \f[CR]pkcs11\-module\-quirks = no\-deinit no\-operation\-state\f[R]
 (Disables deinitialization, blocks context duplication)
 .SS pkcs11\-module\-block\-operations
-Allows to block specific \[lq]provider operations\[rq] even if the token
+Allows one to block specific \[lq]provider operations\[rq] even if the token
 actually supports the necessary mechanisms.
 This is useful to work around cases where one wants to enforce use of
 the token for all operations by setting ?provider=pkcs11 in the default
@@ -263,7 +263,7 @@ URI and produce a PEM file that references it.
 Note that storing PINs within these PEM files is not secure.
 These files are not encrypted.
 .PP
-The follwing command can be used to list all keys on a token and print
+The following command can be used to list all keys on a token and print
 their identifying URI:
 .IP
 .EX
