@@ -7,7 +7,6 @@
 #include <string.h>
 
 int debug_level = -1;
-static bool debug_time = false;
 static FILE *stddebug = NULL;
 
 /* this function relies on being called by P11PROV_debug, after
@@ -23,7 +22,7 @@ void p11prov_debug_init(void)
     const char *env = getenv("PKCS11_PROVIDER_DEBUG");
     const char *next;
     char fname[1024];
-    int dbg_level = 0, dbg_time = 0;
+    int dbg_level = 0;
     int orig;
     if (env) {
         do {
@@ -46,8 +45,6 @@ void p11prov_debug_init(void)
                 }
             } else if (strncmp(env, "level:", 6) == 0) {
                 dbg_level = atoi(env + 6);
-            } else if (strncmp(env, "time:", 5) == 0) {
-                dbg_time = atoi(env + 5);
             }
             if (next) {
                 env = next + 1;
@@ -57,7 +54,6 @@ void p11prov_debug_init(void)
         if (dbg_level < 1) {
             dbg_level = 1;
         }
-        debug_time = dbg_time > 0;
         if (stddebug == NULL) {
             stddebug = stderr;
         }
@@ -73,18 +69,15 @@ void p11prov_debug(const char *file, int line, const char *func,
 {
     const char newline[] = "\n";
     va_list args;
+    struct timespec ts;
+    struct tm tm_info;
+    char timebuf[64];
 
-    if (debug_time) {
-        struct timespec ts;
-        struct tm tm_info;
-        char timebuf[64];
+    clock_gettime(CLOCK_REALTIME, &ts);
+    localtime_r(&ts.tv_sec, &tm_info);
+    strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", &tm_info);
 
-        clock_gettime(CLOCK_REALTIME, &ts);
-        localtime_r(&ts.tv_sec, &tm_info);
-        strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", &tm_info);
-
-        fprintf(stddebug, "[%s.%03ld] ", timebuf, ts.tv_nsec / 1000000);
-    }
+    fprintf(stddebug, "[%s.%03ld] ", timebuf, ts.tv_nsec / 1000000);
 
     if (file) {
         fprintf(stddebug, "[%s:%d] ", file, line);
