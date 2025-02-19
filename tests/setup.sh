@@ -79,52 +79,35 @@ dd if=/dev/urandom of="${SEEDFILE}" bs=2048 count=1 >/dev/null 2>&1
 RAND64FILE="${TMPPDIR}/64krandom.bin"
 dd if=/dev/urandom of="${RAND64FILE}" bs=2048 count=32 >/dev/null 2>&1
 
-# On macOS, /usr/bin/certtool is a different program. Both MacPorts and
-# Homebrew rename GnuTLS' certtool to gnutls-certtool, so check for that first.
-#
-# https://github.com/macports/macports-ports/blob/4494b720a4807ddfc18bddf876620a5c6b24ce4f/devel/gnutls/Portfile#L206-L209
-# https://github.com/Homebrew/homebrew-core/blob/83be349adb47980b4046258b74fa8c1e99ca96a3/Formula/gnutls.rb#L56-L58
-if [ "$(uname)" == "Darwin" ]; then
-    certtool=$(type -p gnutls-certtool)
-else
-    certtool=$(type -p certtool)
-fi
-if [ -z "$certtool" ]; then
-    echo "Missing GnuTLS certtool (on macOS, commonly installed as gnutls-certtool)"
-    exit 0
-fi
-
 # NSS uses the second slot for certificates, so we need to provide the token
 # label in the args to allow pkcs11-tool to find the right slot
 P11DEFARGS=("--module=${P11LIB}" "--login" "--pin=${PINVALUE}" "--token-label=${TOKENLABEL}")
 
-# prepare certtool configuration
-cat >> "${TMPPDIR}/cacert.cfg" <<HEREDOC
-ca
-cn = "Issuer"
-serial = 1
-expiration_days = 365
-email = "testcert@example.org"
-signing_key
-encryption_key
-cert_signing_key
-HEREDOC
+title LINE "Generate openssl config file"
+export PKCS11_PROVIDER_MODULE=${P11LIB}
+export OPENSSL_CONF=${TMPPDIR}/openssl.cnf
+sed -e "s|@libtoollibs@|${LIBSPATH}|g" \
+    -e "s|@testsblddir@|${TESTBLDDIR}|g" \
+    -e "s|@testsdir@|${TMPPDIR}|g" \
+    -e "s|@SHARED_EXT@|${SHARED_EXT}|g" \
+    -e "s|@PINFILE@|${PINFILE}|g" \
+    -e "s|##TOKENOPTIONS|${TOKENOPTIONS}|g" \
+    "${TESTSSRCDIR}/openssl.cnf.in" > "${OPENSSL_CONF}"
 
 # Serial = 1 is the CA
-SERIAL=1
+SERIAL=0
 
 crt_selfsign() {
     LABEL=$1
     CN=$2
     KEYID=$3
     ((SERIAL+=1))
-    sed -e "s|cn = .*|cn = $CN|g" \
-        -e "s|serial = .*|serial = $SERIAL|g" \
-        "${sed_inplace[@]}" "${TMPPDIR}/cacert.cfg"
-    "${certtool}" --generate-self-signed --outfile="${TMPPDIR}/${LABEL}.crt" \
-        --template="${TMPPDIR}/cacert.cfg" --provider="$P11LIB" \
-	--load-privkey "pkcs11:object=$LABEL;token=$TOKENLABELURI;type=private" \
-        --load-pubkey "pkcs11:object=$LABEL;token=$TOKENLABELURI;type=public" --outder 2>&1
+    CERTSUBJ="/CN=$CN/"
+    SIGNKEY="pkcs11:object=$LABEL;token=$TOKENLABELURI;type=private"
+    openssl x509 -new -subj "${CERTSUBJ}" -days 365 -set_serial "${SERIAL}" \
+                 -extensions v3_ca -extfile "${OPENSSL_CONF}" \
+                 -out "${TMPPDIR}/${LABEL}.crt" -outform DER \
+                 -signkey "${SIGNKEY}" 2>&1
     pkcs11-tool "${P11DEFARGS[@]}" --write-object "${TMPPDIR}/${LABEL}.crt" --type=cert \
         --id="$KEYID" --label="$LABEL" 2>&1
 }
@@ -158,31 +141,19 @@ echo "${CAPRIURI}"
 echo "${CACRTURI}"
 echo ""
 
-
-cat "${TMPPDIR}/cacert.cfg" > "${TMPPDIR}/cert.cfg"
-# the organization identification is not in the CA
-echo 'organization = "PKCS11 Provider"' >> "${TMPPDIR}/cert.cfg"
-# the cert_signing_key and "ca" should be only on the CA
-sed -e "/^cert_signing_key$/d" -e "/^ca$/d" "${sed_inplace[@]}" "${TMPPDIR}/cert.cfg"
-
 ca_sign() {
     LABEL=$1
     CN=$2
     KEYID=$3
     shift 3
     ((SERIAL+=1))
-    sed -e "s|cn = .*|cn = $CN|g" \
-        -e "s|serial = .*|serial = $SERIAL|g" \
-        -e "/^ca$/d" \
-        "${sed_inplace[@]}" \
-        "${TMPPDIR}/cert.cfg"
-    "${certtool}" --generate-certificate --outfile="${TMPPDIR}/${LABEL}.crt" \
-        --template="${TMPPDIR}/cert.cfg" --provider="$P11LIB" \
-	--load-privkey "pkcs11:object=$LABEL;token=$TOKENLABELURI;type=private" \
-        --load-pubkey "pkcs11:object=$LABEL;token=$TOKENLABELURI;type=public" --outder \
-        --load-ca-certificate "${CACRT}" --inder \
-        --load-ca-privkey="pkcs11:object=$CACRTN;token=$TOKENLABELURI;type=private" \
-        "$@"
+    CERTSUBJ="/O=PKCS11 Provider/CN=$CN/"
+    SIGNKEY="pkcs11:object=$CACRTN;token=$TOKENLABELURI;type=private"
+    CERTPUBKEY="pkcs11:object=$LABEL;token=$TOKENLABELURI;type=public"
+    openssl x509 -new -subj "${CERTSUBJ}" -days 365 -set_serial "${SERIAL}" \
+                 -extensions v3_req -extfile "${OPENSSL_CONF}" \
+                 -out "${TMPPDIR}/${LABEL}.crt" -outform DER \
+                 -force_pubkey "${CERTPUBKEY}" -signkey "${SIGNKEY}" "$@" 2>&1
     pkcs11-tool "${P11DEFARGS[@]}" --write-object "${TMPPDIR}/${LABEL}.crt" --type=cert \
         --id="$KEYID" --label="$LABEL" 2>&1
 }
@@ -423,7 +394,7 @@ if [ "${SUPPORT_ALLOWED_MECHANISMS}" -eq 1 ]; then
     pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="RSA:2048" \
         --label="${TSTCRTN}" --id="$KEYID" --allowed-mechanisms \
         RSA-PKCS-PSS,SHA1-RSA-PKCS-PSS,SHA224-RSA-PKCS-PSS,SHA256-RSA-PKCS-PSS,SHA384-RSA-PKCS-PSS,SHA512-RSA-PKCS-PSS
-    ca_sign "${TSTCRTN}" "My RsaPss Cert" $KEYID "--sign-params=RSA-PSS"
+    ca_sign "${TSTCRTN}" "My RsaPss Cert" $KEYID -sigopt rsa_padding_mode:pss
 
     RSAPSSBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
     RSAPSSBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -450,8 +421,7 @@ if [ "${SUPPORT_ALLOWED_MECHANISMS}" -eq 1 ]; then
     pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="RSA:3092" \
         --label="${TSTCRTN}" --id="$KEYID" --allowed-mechanisms \
         SHA256-RSA-PKCS-PSS
-    ca_sign "${TSTCRTN}" "My RsaPss2 Cert" $KEYID \
-        "--sign-params=RSA-PSS" "--hash=SHA256"
+    ca_sign "${TSTCRTN}" "My RsaPss2 Cert" $KEYID "-sha256" -sigopt rsa_padding_mode:pss
 
     RSAPSS2BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
     RSAPSS2BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -475,18 +445,6 @@ title PARA "Show contents of ${TOKENTYPE} token"
 echo " ----------------------------------------------------------------------------------------------------"
 pkcs11-tool "${P11DEFARGS[@]}" -O
 echo " ----------------------------------------------------------------------------------------------------"
-
-title PARA "Output configurations"
-OPENSSL_CONF=${TMPPDIR}/openssl.cnf
-
-title LINE "Generate openssl config file"
-sed -e "s|@libtoollibs@|${LIBSPATH}|g" \
-    -e "s|@testsblddir@|${TESTBLDDIR}|g" \
-    -e "s|@testsdir@|${TMPPDIR}|g" \
-    -e "s|@SHARED_EXT@|${SHARED_EXT}|g" \
-    -e "s|@PINFILE@|${PINFILE}|g" \
-    -e "s|##TOKENOPTIONS|${TOKENOPTIONS}|g" \
-    "${TESTSSRCDIR}/openssl.cnf.in" > "${OPENSSL_CONF}"
 
 title LINE "Export test variables to ${TMPPDIR}/testvars"
 cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
