@@ -4,7 +4,7 @@
 
 source "${TESTSSRCDIR}/helpers.sh"
 
-title PARA "Check we can fetch certifiatce objects"
+title PARA "Check we can fetch certificate objects"
 
 ossl '
 x509 -in ${CRTURI} -subject -out ${TMPPDIR}/crt-subj.txt'

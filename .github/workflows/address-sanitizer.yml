@@ -30,7 +30,7 @@ jobs:
           if [ -f /etc/fedora-release ]; then
             dnf -y install git clang gcc pkgconf-pkg-config meson \
               openssl-devel openssl diffutils expect \
-              softhsm opensc p11-kit-devel p11-kit-server gnutls-utils \
+              softhsm opensc p11-kit-devel p11-kit-server \
               nss-softokn nss-tools nss-softokn-devel \
               dnf-command\(debuginfo-install\) libasan
             dnf -y debuginfo-install openssl
@@ -40,7 +40,7 @@ jobs:
             apt-get -yq install git gcc clang meson \
               pkg-config libssl-dev openssl expect \
               procps libnss3 libnss3-tools libnss3-dev softhsm2 opensc p11-kit \
-              libp11-kit-dev p11-kit-modules gnutls-bin \
+              libp11-kit-dev p11-kit-modules \
               openssl-dbgsym libssl3t64-dbgsym
           fi
 
