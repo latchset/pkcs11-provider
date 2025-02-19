@@ -81,9 +81,7 @@ basicConstraints = critical,CA:true
 # left out by default.
 # keyUsage = cRLSign, keyCertSign
 # Include email address in subject alt name: another PKIX recommendation
-subjectAltName=email:copy
-# Copy issuer details
-issuerAltName=issuer:copy
+subjectAltName=email:pkcs11-provider-tests@example.org
 
 
 

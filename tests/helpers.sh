@@ -93,23 +93,11 @@ fi
 selfsign_cert() {
     KEY="$1"
     export CERT="$2"
-    shift 2
+    export SUBJ="$3"
+    shift 3
     export AARGS="$*"
 
-    TMPCA=${TMPPDIR}/tmpca
-    TMP_OPENSSL_CONF=${OPENSSL_CONF}
-    sed -e "s|^dir .*|dir = ${TMPCA}|" \
-        "${OPENSSL_CONF}" > "${OPENSSL_CONF}.tmpca"
-    export OPENSSL_CONF=${OPENSSL_CONF}.tmpca
-
-    mkdir -p "${TMPCA}/newcerts" "${TMPCA}/private"
-    if [ ! -e "${TMPCA}/serial" ]; then
-        echo "01" > "${TMPCA}/serial"
-    fi
-    touch "${TMPCA}/index.txt"
-
     title PARA "Generating a new selfsigned certificate for ${KEY}"
-    ossl 'req -batch -noenc -x509 -new -key ${KEY} ${AARGS} -out ${CERT}'
+    ossl 'x509 -new -subj /CN=${SUBJ}/ -days 365 -extensions v3_ca -extfile ${OPENSSL_CONF} -out ${CERT} -outform PEM -signkey ${KEY} ${AARGS}'
     echo "$helper_output"
-    OPENSSL_CONF=${TMP_OPENSSL_CONF}
 }

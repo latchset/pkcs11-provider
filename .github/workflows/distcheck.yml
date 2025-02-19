@@ -33,14 +33,13 @@ jobs:
                 pkgconf-pkg-config openssl-devel openssl xz \
                 nss-softokn nss-tools nss-softokn-devel \
                 softhsm opensc p11-kit-devel p11-kit-server \
-                rpm-build nss-devel gnutls-utils
+                rpm-build nss-devel
             elif [ -f /etc/debian_version ]; then
               apt-get -q update
               apt-get -yq install git gcc meson expect \
                 pkg-config libssl-dev openssl \
                 xz-utils libnss3 libnss3-tools libnss3-dev \
-                softhsm2 opensc p11-kit libp11-kit-dev p11-kit-modules \
-                gnutls-bin
+                softhsm2 opensc p11-kit libp11-kit-dev p11-kit-modules
             fi
 
       - name: Checkout Repository
