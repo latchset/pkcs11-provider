@@ -68,6 +68,7 @@ run_tests() {
         # do selfsign now using openssl as certool can not create SPKI using
         # RSA-PSS
         selfsign_cert "${RSAPSSPRIURI}" "${TMPPDIR}/rsapss-default.pem" \
+            "RSA-PSS_CERT" \
             "-sigopt rsa_padding_mode:pss" \
             "-sigopt digest:sha256" \
             "-sigopt rsa_pss_saltlen:-1"

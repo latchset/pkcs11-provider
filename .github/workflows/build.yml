@@ -39,7 +39,7 @@ jobs:
               dnf -y install $dnf_opts \
                 git ${{ matrix.compiler }} meson which \
                 pkgconf-pkg-config openssl-devel openssl \
-                diffutils expect valgrind opensc gnutls-utils python3-six
+                diffutils expect valgrind opensc python3-six
               if [ "${{ matrix.token }}" = "softokn" ]; then
                 dnf -y install nss-softokn nss-tools nss-softokn-devel \
                   nss-devel
@@ -50,7 +50,7 @@ jobs:
               apt-get -q update
               apt-get -yq install git ${{ matrix.compiler }} meson \
                 pkg-config libssl-dev openssl expect \
-                valgrind procps opensc gnutls-bin python3-six
+                valgrind procps opensc python3-six
               if [ "${{ matrix.token }}" = "softokn" ]; then
                 apt-get -yq install libnss3 libnss3-tools libnss3-dev
               elif [ "${{ matrix.token }}" = "softhsm" ]; then

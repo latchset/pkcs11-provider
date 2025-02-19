@@ -29,7 +29,7 @@ jobs:
       - name: Install Dependencies
         run: |
             dnf -y install clang git meson cargo expect pkgconf-pkg-config \
-              openssl-devel openssl opensc p11-kit-devel gnutls-utils \
+              openssl-devel openssl opensc p11-kit-devel \
               gcc g++ sqlite-devel python3-six which
 
       - name: Checkout Repository
