@@ -4,6 +4,11 @@
 
 source "${TESTSSRCDIR}/helpers.sh"
 
+if [[ "$NSS_FIPS" = "1" ]] && [[ "$TOKENTYPE" = "softokn" ]]; then
+    title "ECDH tests are not supported in FIPS for softokn token -- skipping"
+    exit 77;
+fi
+
 MESSAGEFILE=${TMPPDIR}/cms-message.txt
 echo "CMS Test Message" > "${MESSAGEFILE}"
 
