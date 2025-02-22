@@ -26,7 +26,7 @@ if [[ "$OPENSC_VERSION" -le "25" ]]; then
 fi
 
 # FIPS Mode
-if [[ "${OPENSSL_FORCE_FIPS_MODE}" = "1" || "$(cat /proc/sys/crypto/fips_enabled)" = "1" ]]; then
+if [[ "${PKCS11_PROVIDER_FORCE_FIPS_MODE}" = "1" || "$(cat /proc/sys/crypto/fips_enabled)" = "1" ]]; then
     # We can not use Edwards curves in FIPS mode
     SUPPORT_ED25519=0
     SUPPORT_ED448=0
@@ -44,6 +44,17 @@ if [[ "${OPENSSL_FORCE_FIPS_MODE}" = "1" || "$(cat /proc/sys/crypto/fips_enabled
     # We also need additional configuration in openssl.cnf to assume the token
     # is FIPS token
     TOKENOPTIONS="pkcs11-module-assume-fips = true"
+
+    # Force OpenSSL FIPS mode
+    export OPENSSL_FORCE_FIPS_MODE=1
+
+    # Force NSS softokn FIPS mode
+    export NSS_FIPS=1
+
+    # NSS softokn requires stronger PIN in FIPS mode
+    PINVALUE="fo0m4nchU"
+else
+    PINVALUE="12345678"
 fi
 
 # Temporary dir and Token data dir
@@ -55,7 +66,6 @@ fi
 mkdir "${TMPPDIR}"
 mkdir "${TOKDIR}"
 
-PINVALUE="12345678"
 PINFILE="${TMPPDIR}/pinfile.txt"
 echo ${PINVALUE} > "${PINFILE}"
 export GNUTLS_PIN=$PINVALUE
@@ -475,6 +485,7 @@ title LINE "Export test variables to ${TMPPDIR}/testvars"
 cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
 ${TOKENCONFIGVARS}
 export P11LIB="${P11LIB}"
+export TOKENTYPE="${TOKENTYPE}"
 export TOKENLABEL="${TOKENLABEL}"
 export PKCS11_PROVIDER_MODULE=${P11LIB}
 export PPDBGFILE=${TMPPDIR}/p11prov-debug.log
@@ -607,6 +618,19 @@ cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
 #export PKCS11SPY="${P11LIB}"
 #export PKCS11_PROVIDER_MODULE=/usr/lib64/pkcs11-spy.so
 DBGSCRIPT
+
+if [ -n "${OPENSSL_FORCE_FIPS_MODE}" ]; then
+    cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
+export OPENSSL_FORCE_FIPS_MODE=1
+DBGSCRIPT
+fi
+
+if [ -n "${NSS_FIPS}" ]; then
+    cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
+export NSS_FIPS=1
+DBGSCRIPT
+fi
+
 gen_unsetvars
 
 title ENDSECTION
