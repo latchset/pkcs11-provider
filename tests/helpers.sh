@@ -101,3 +101,14 @@ selfsign_cert() {
     ossl 'x509 -new -subj /CN=${SUBJ}/ -days 365 -extensions v3_ca -extfile ${OPENSSL_CONF} -out ${CERT} -outform PEM -signkey ${KEY} ${AARGS}'
     echo "$helper_output"
 }
+
+ptool() {
+    # NSS uses the second slot for certificates, so we need to provide the token
+    # label in the args to allow pkcs11-tool to find the right slot
+    CMDOPTS=(--module="${P11LIB}" --token-label="${TOKENLABEL}")
+    if [ -n "$P11DEFLOGIN" ]; then
+        CMDOPTS+=("${P11DEFLOGIN[@]}")
+    fi
+    CMDOPTS+=("$@")
+    $CHECKER pkcs11-tool "${CMDOPTS[@]}"
+}
