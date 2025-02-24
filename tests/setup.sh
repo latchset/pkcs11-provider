@@ -79,9 +79,7 @@ dd if=/dev/urandom of="${SEEDFILE}" bs=2048 count=1 >/dev/null 2>&1
 RAND64FILE="${TMPPDIR}/64krandom.bin"
 dd if=/dev/urandom of="${RAND64FILE}" bs=2048 count=32 >/dev/null 2>&1
 
-# NSS uses the second slot for certificates, so we need to provide the token
-# label in the args to allow pkcs11-tool to find the right slot
-P11DEFARGS=("--module=${P11LIB}" "--login" "--pin=${PINVALUE}" "--token-label=${TOKENLABEL}")
+P11DEFLOGIN=("--login" "--pin=${PINVALUE}")
 
 title LINE "Generate openssl config file"
 export PKCS11_PROVIDER_MODULE=${P11LIB}
@@ -101,29 +99,37 @@ crt_selfsign() {
     LABEL=$1
     CN=$2
     KEYID=$3
+
     ((SERIAL+=1))
+
     CERTSUBJ="/CN=$CN/"
     SIGNKEY="pkcs11:object=$LABEL;token=$TOKENLABELURI;type=private"
-    openssl x509 -new -subj "${CERTSUBJ}" -days 365 -set_serial "${SERIAL}" \
-                 -extensions v3_ca -extfile "${OPENSSL_CONF}" \
-                 -out "${TMPPDIR}/${LABEL}.crt" -outform DER \
-                 -signkey "${SIGNKEY}" 2>&1
-    pkcs11-tool "${P11DEFARGS[@]}" --write-object "${TMPPDIR}/${LABEL}.crt" --type=cert \
-        --id="$KEYID" --label="$LABEL" 2>&1
+
+    OPENSSL_CMD="x509
+        -new -subj \"${CERTSUBJ}\" -days 365 -set_serial \"${SERIAL}\"
+        -extensions v3_ca -extfile \"${OPENSSL_CONF}\"
+        -out \"${TMPPDIR}/${LABEL}.crt\" -outform DER
+        -signkey \"${SIGNKEY}\""
+
+    ossl "${OPENSSL_CMD}" 2>&1
+    ptool --write-object "${TMPPDIR}/${LABEL}.crt" --type=cert --id="$KEYID" \
+          --label="$LABEL" 2>&1
 }
 
 title LINE "Creating new Self Sign CA"
 KEYID='0000'
 URIKEYID="%00%00"
 CACRTN="caCert"
-pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="RSA:2048" \
-	--label="${CACRTN}" --id="${KEYID}" 2>&1
+ptool --keypairgen --key-type="RSA:2048" --id="${KEYID}" \
+      --label="${CACRTN}" 2>&1
 crt_selfsign $CACRTN "Issuer" $KEYID
 
 # convert the DER cert to PEM
 CACRT_PEM="${TMPPDIR}/${CACRTN}.pem"
-CACRT="${TMPPDIR}/${CACRTN}.crt"
-openssl x509 -inform DER -in "$CACRT" -outform PEM -out "$CACRT_PEM"
+OPENSSL_CMD='x509
+    -inform DER -in "${TMPPDIR}/${CACRTN}.crt"
+    -outform PEM -out "$CACRT_PEM"'
+ossl "$OPENSSL_CMD"
 
 CABASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 CABASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -145,17 +151,27 @@ ca_sign() {
     LABEL=$1
     CN=$2
     KEYID=$3
-    shift 3
+    SIGOPT=$4
+
     ((SERIAL+=1))
+
     CERTSUBJ="/O=PKCS11 Provider/CN=$CN/"
     SIGNKEY="pkcs11:object=$CACRTN;token=$TOKENLABELURI;type=private"
     CERTPUBKEY="pkcs11:object=$LABEL;token=$TOKENLABELURI;type=public"
-    openssl x509 -new -subj "${CERTSUBJ}" -days 365 -set_serial "${SERIAL}" \
-                 -extensions v3_req -extfile "${OPENSSL_CONF}" \
-                 -out "${TMPPDIR}/${LABEL}.crt" -outform DER \
-                 -force_pubkey "${CERTPUBKEY}" -signkey "${SIGNKEY}" "$@" 2>&1
-    pkcs11-tool "${P11DEFARGS[@]}" --write-object "${TMPPDIR}/${LABEL}.crt" --type=cert \
-        --id="$KEYID" --label="$LABEL" 2>&1
+
+    OPENSSL_CMD="x509
+        -new -subj \"${CERTSUBJ}\" -days 365 -set_serial \"${SERIAL}\"
+        -extensions v3_req -extfile \"${OPENSSL_CONF}\"
+        -out \"${TMPPDIR}/${LABEL}.crt\" -outform DER
+        -force_pubkey \"${CERTPUBKEY}\" -signkey \"${SIGNKEY}\""
+
+    if [ "$SIGOPT" = "PSS" ]; then
+        OPENSSL_CMD+=" -sigopt rsa_padding_mode:pss"
+    fi
+
+    ossl "${OPENSSL_CMD}" 2>&1
+    ptool --write-object "${TMPPDIR}/${LABEL}.crt" --type=cert --id="$KEYID" \
+          --label="$LABEL" 2>&1
 }
 
 
@@ -164,8 +180,8 @@ KEYID='0001'
 URIKEYID="%00%01"
 TSTCRTN="testCert"
 
-pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="RSA:2048" \
-	--label="${TSTCRTN}" --id="$KEYID"
+ptool --keypairgen --key-type="RSA:2048" --id="$KEYID" \
+      --label="${TSTCRTN}" 2>&1
 ca_sign "${TSTCRTN}" "My Test Cert" $KEYID
 
 BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
@@ -189,8 +205,8 @@ KEYID='0002'
 URIKEYID="%00%02"
 ECCRTN="ecCert"
 
-pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:secp256r1" \
-	--label="${ECCRTN}" --id="$KEYID"
+ptool --keypairgen --key-type="EC:secp256r1" --id="$KEYID" \
+      --label="${ECCRTN}" 2>&1
 ca_sign $ECCRTN "My EC Cert" $KEYID
 
 ECBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
@@ -204,8 +220,8 @@ KEYID='0003'
 URIKEYID="%00%03"
 ECPEERCRTN="ecPeerCert"
 
-pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:secp256r1" \
-	--label="$ECPEERCRTN" --id="$KEYID"
+ptool --keypairgen --key-type="EC:secp256r1" --id="$KEYID" \
+      --label="$ECPEERCRTN" 2>&1
 crt_selfsign $ECPEERCRTN "My Peer EC Cert" $KEYID
 
 ECPEERBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
@@ -238,8 +254,8 @@ if [ "${SUPPORT_ED25519}" -eq 1 ]; then
     URIKEYID="%00%04"
     EDCRTN="edCert"
 
-    pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:edwards25519" \
-    	--label="${EDCRTN}" --id="$KEYID"
+    ptool --keypairgen --key-type="EC:edwards25519" --id="$KEYID" \
+    	  --label="${EDCRTN}" 2>&1
     ca_sign $EDCRTN "My ED25519 Cert" $KEYID
 
     EDBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
@@ -264,8 +280,8 @@ if [ "${SUPPORT_ED448}" -eq 1 ]; then
     URIKEYID="%00%09"
     ED2CRTN="ed2Cert"
 
-    pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:Ed448" \
-        --label="${ED2CRTN}" --id="$KEYID"
+    ptool --keypairgen --key-type="EC:Ed448" --id="$KEYID" \
+          --label="${ED2CRTN}" 2>&1
     ca_sign $ED2CRTN "My ED448 Cert" $KEYID
 
     ED2BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
@@ -289,10 +305,10 @@ KEYID='0005'
 URIKEYID="%00%05"
 TSTCRTN="testCert2"
 
-pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="RSA:2048" \
-	--label="${TSTCRTN}" --id="$KEYID"
+ptool --keypairgen --key-type="RSA:2048" --id="$KEYID" \
+      --label="${TSTCRTN}" 2>&1
 ca_sign $TSTCRTN "My Test Cert 2" $KEYID
-pkcs11-tool "${P11DEFARGS[@]}" --delete-object --type pubkey --id 0005
+ptool --delete-object --type pubkey --id 0005 2>&1
 
 BASE2URIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 BASE2URIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=${PINFILE}"
@@ -313,10 +329,10 @@ KEYID='0006'
 URIKEYID="%00%06"
 TSTCRTN="ecCert2"
 
-pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:secp384r1" \
-	--label="${TSTCRTN}" --id="$KEYID"
+ptool --keypairgen --key-type="EC:secp384r1" --id="$KEYID" \
+      --label="${TSTCRTN}" 2>&1
 ca_sign $TSTCRTN "My EC Cert 2" $KEYID
-pkcs11-tool "${P11DEFARGS[@]}" --delete-object --type pubkey --id 0006
+ptool --delete-object --type pubkey --id 0006 2>&1
 
 ECBASE2URIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECBASE2URIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file${PINFILE}"
@@ -342,10 +358,10 @@ else
     URIKEYID="%00%07"
     ECXCRTN="ecExplicitCert"
 
-    pkcs11-tool "${P11DEFARGS[@]}" --write-object="${TESTSSRCDIR}/explicit_ec.key.der" --type=privkey \
-        --label="${ECXCRTN}" --id="$KEYID"
-    pkcs11-tool "${P11DEFARGS[@]}" --write-object="${TESTSSRCDIR}/explicit_ec.pub.der" --type=pubkey \
-        --label="${ECXCRTN}" --id="$KEYID"
+    ptool --write-object="${TESTSSRCDIR}/explicit_ec.key.der" --type=privkey \
+          --id="$KEYID" --label="${ECXCRTN}" 2>&1
+    ptool --write-object="${TESTSSRCDIR}/explicit_ec.pub.der" --type=pubkey \
+          --id="$KEYID" --label="${ECXCRTN}" 2>&1
 
     ECXBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
     ECXBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -365,8 +381,8 @@ KEYID='0008'
 URIKEYID="%00%08"
 TSTCRTN="ecCert3"
 
-pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="EC:secp521r1" \
-	--label="${TSTCRTN}" --id="$KEYID" --always-auth
+ptool --keypairgen --key-type="EC:secp521r1" --id="$KEYID" \
+      --label="${TSTCRTN}" --always-auth 2>&1
 ca_sign $TSTCRTN "My EC Cert 3" $KEYID
 
 ECBASE3URIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
@@ -390,11 +406,13 @@ if [ "${SUPPORT_ALLOWED_MECHANISMS}" -eq 1 ]; then
     KEYID='0010'
     URIKEYID="%00%10"
     TSTCRTN="testRsaPssCert"
+    MECHS="RSA-PKCS-PSS"
+    MECHS+=",SHA1-RSA-PKCS-PSS,SHA224-RSA-PKCS-PSS"
+    MECHS+=",SHA256-RSA-PKCS-PSS,SHA384-RSA-PKCS-PSS,SHA512-RSA-PKCS-PSS"
 
-    pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="RSA:2048" \
-        --label="${TSTCRTN}" --id="$KEYID" --allowed-mechanisms \
-        RSA-PKCS-PSS,SHA1-RSA-PKCS-PSS,SHA224-RSA-PKCS-PSS,SHA256-RSA-PKCS-PSS,SHA384-RSA-PKCS-PSS,SHA512-RSA-PKCS-PSS
-    ca_sign "${TSTCRTN}" "My RsaPss Cert" $KEYID -sigopt rsa_padding_mode:pss
+    ptool --keypairgen --key-type="RSA:2048" --id="$KEYID" \
+          --label="${TSTCRTN}" --allowed-mechanisms "$MECHS" 2>&1
+    ca_sign "${TSTCRTN}" "My RsaPss Cert" $KEYID "PSS"
 
     RSAPSSBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
     RSAPSSBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -417,11 +435,11 @@ if [ "${SUPPORT_ALLOWED_MECHANISMS}" -eq 1 ]; then
     KEYID='0011'
     URIKEYID="%00%11"
     TSTCRTN="testRsaPss2Cert"
+    MECHS="SHA256-RSA-PKCS-PSS"
 
-    pkcs11-tool "${P11DEFARGS[@]}" --keypairgen --key-type="RSA:3092" \
-        --label="${TSTCRTN}" --id="$KEYID" --allowed-mechanisms \
-        SHA256-RSA-PKCS-PSS
-    ca_sign "${TSTCRTN}" "My RsaPss2 Cert" $KEYID "-sha256" -sigopt rsa_padding_mode:pss
+    ptool --keypairgen --key-type="RSA:3092" --id="$KEYID" \
+          --label="${TSTCRTN}" --allowed-mechanisms "$MECHS" 2>&1
+    ca_sign "${TSTCRTN}" "My RsaPss2 Cert" $KEYID "-sha256" "PSS"
 
     RSAPSS2BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
     RSAPSS2BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -443,7 +461,7 @@ fi
 
 title PARA "Show contents of ${TOKENTYPE} token"
 echo " ----------------------------------------------------------------------------------------------------"
-pkcs11-tool "${P11DEFARGS[@]}" -O
+ptool -O
 echo " ----------------------------------------------------------------------------------------------------"
 
 title LINE "Export test variables to ${TMPPDIR}/testvars"

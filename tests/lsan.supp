@@ -4,3 +4,4 @@
 leak:/usr/lib/softhsm/libsofthsm2.so
 # and this is the path on Fedora
 leak:/usr/lib64/pkcs11/libsofthsm2.so
+leak:/usr/bin/pkcs11-tool

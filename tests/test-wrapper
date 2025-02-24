@@ -31,11 +31,6 @@ else
     COMMAND="${TESTBLDDIR}/t${TEST_NAME}"
 fi
 
-# Run the tests under valgrind with appropriate flags
-if [ -n "$VALGRIND" ] && [ -n "$LOG_COMPILER" ]; then
-    CHECKER="$LOG_COMPILER"
-fi
-
 # for compiled tests, we need to add valgrind/checker
 if [ -f "${TEST_PATH}/t${TEST_NAME}.c" ]; then
     COMMAND="$CHECKER $COMMAND"
