@@ -32,8 +32,7 @@ jobs:
                 git gcc meson expect python3 python3-six which \
                 pkgconf-pkg-config openssl-devel openssl xz \
                 nss-softokn nss-tools nss-softokn-devel \
-                softhsm opensc p11-kit-devel p11-kit-server \
-                rpm-build nss-devel
+                softhsm opensc p11-kit-devel rpm-build nss-devel
             elif [ -f /etc/debian_version ]; then
               apt-get -q update
               apt-get -yq install git gcc meson expect \

@@ -82,7 +82,7 @@ libssh_test()
 }
 
 # shellcheck disable=SC2317
-cleanup() 
+cleanup()
 {
     title PARA "Clean-up"
 
