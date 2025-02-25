@@ -599,6 +599,7 @@ static int p11prov_sig_set_mechanism(P11PROV_SIG_CTX *sigctx, bool digest_sign,
         }
         break;
     case CKM_RSA_X_509:
+        result = CKR_OK;
         break;
     case CKM_RSA_PKCS_PSS:
         result = pss_defaults(sigctx, mechanism, digest_sign);

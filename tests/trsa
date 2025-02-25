@@ -1,8 +1,26 @@
 #!/bin/bash -e
-# Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+# Copyright (C) 2025 Simo Sorce <simo@redhat.com>
 # SPDX-License-Identifier: Apache-2.0
 
 source "${TESTSSRCDIR}/helpers.sh"
+
+title PARA "Raw Sign"
+#Ensure the first byte is small otherwise there is a 50/50 change the random
+#value will exceed the numeric value of the modulus.
+dd if=/dev/zero of="${TMPPDIR}/255Brandom.bin" bs=1 count=1 >/dev/null 2>&1
+dd if=/dev/urandom of="${TMPPDIR}/255Brandom.bin" seek=1 bs=1 count=255 >/dev/null 2>&1
+ossl '
+rsautl -sign -inkey "${PRIURI}" -raw
+              -in ${TMPPDIR}/255Brandom.bin
+              -out ${TMPPDIR}/raw-sig.bin'
+
+title PARA "Raw Verify"
+ossl '
+rsautl -verify -inkey "${PUBURI}" -pubin -raw
+              -in ${TMPPDIR}/raw-sig.bin
+              -out ${TMPPDIR}/raw-text.out'
+diff "${TMPPDIR}/255Brandom.bin" "${TMPPDIR}/raw-text.out"
+
 
 title PARA "Raw Sign check error"
 dd if=/dev/urandom of="${TMPPDIR}/64Brandom.bin" bs=64 count=1 >/dev/null 2>&1
@@ -11,7 +29,7 @@ ossl '
 pkeyutl -sign -inkey "${BASEURI}"
               -pkeyopt pad-mode:none
               -in ${TMPPDIR}/64Brandom.bin
-              -out ${TMPPDIR}/raw-sig.bin' || FAIL=1
+              -out ${TMPPDIR}/no-raw-sig.bin' || FAIL=1
 if [ $FAIL -eq 0 ]; then
     echo "Raw signature should not allow data != modulus size"
     exit 1
@@ -82,3 +100,5 @@ if [[ "$SUPPORT_RSA_PKCS1_ENCRYPTION" = "1" ]]; then
                      -out ${SECRETFILE}.dec'
     diff "${SECRETFILE}" "${SECRETFILE}.dec"
 fi
+
+
