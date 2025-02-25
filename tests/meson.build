@@ -126,7 +126,8 @@ foreach t, sources : test_programs
 endforeach
 
 setup_script=find_program('setup.sh')
-foreach suite : ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']
+all_suites=['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']
+foreach suite : all_suites
   test(
     'setup',
     setup_script,
@@ -139,29 +140,29 @@ foreach suite : ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']
 endforeach
 
 tests = {
-  'basic': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
-  'pubkey': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
-  'certs': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
-  'ecc': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
+  'basic': {'suites': all_suites},
+  'pubkey': {'suites': all_suites},
+  'certs': {'suites': all_suites},
+  'ecc': {'suites': all_suites},
   'edwards': {'suites': ['softhsm', 'kryoptic', 'kryoptic.nss']},
   'ecdh': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
-  'democa': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss'], 'is_parallel': false},
-  'digest': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
-  'fork': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
+  'democa': {'suites': all_suites, 'is_parallel': false},
+  'digest': {'suites': all_suites},
+  'fork': {'suites': all_suites},
   'oaepsha2': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'hkdf': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'imported' : {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
-  'rsa': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
-  'rsapss': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
+  'rsa': {'suites': all_suites},
+  'rsapss': {'suites': all_suites},
   'rsapssam': {'suites': ['softhsm', 'kryoptic']},
-  'genkey': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
-  'pkey': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
-  'session': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
-  'rand': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
-  'readkeys': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
-  'tls': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss'], 'is_parallel': false, 'timeout': 60},
-  'tlsfuzzer': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss'], 'timeout': 90},
-  'uri': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss'], 'timeout': 90},
+  'genkey': {'suites': all_suites},
+  'pkey': {'suites': all_suites},
+  'session': {'suites': all_suites},
+  'rand': {'suites': all_suites},
+  'readkeys': {'suites': all_suites},
+  'tls': {'suites': all_suites, 'is_parallel': false, 'timeout': 60},
+  'tlsfuzzer': {'suites': all_suites, 'timeout': 90},
+  'uri': {'suites': all_suites, 'timeout': 90},
   'ecxc': {'suites': ['softhsm', 'kryoptic', 'kryoptic.nss']},
   'cms': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'pinlock': {'suites': ['kryoptic']},
