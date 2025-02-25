@@ -151,6 +151,7 @@ tests = {
   'oaepsha2': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'hkdf': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'imported' : {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
+  'rsa': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
   'rsapss': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
   'rsapssam': {'suites': ['softhsm', 'kryoptic']},
   'genkey': {'suites': ['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']},
