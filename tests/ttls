@@ -106,24 +106,12 @@ run_tests() {
     title PARA "Run sanity test with default values (RSA)"
     run_test "$PRIURI" "$CRTURI"
 
-    if [[ -n "$RSAPSSPRIURI" ]]; then
+    if [[ -n "$RSAPSSBASEURI" ]]; then
         title PARA "Run sanity test with default values (RSA-PSS)"
-        selfsign_cert "${RSAPSSPRIURI}" "${TMPPDIR}/rsapss-default.pem" \
-            "RSA-PSS_Default_Digest" \
-            "-sigopt rsa_padding_mode:pss"
+        run_test "$RSAPSSPRIURI" "$RSAPSSCRTURI"
 
-        run_test "$RSAPSSPRIURI" "${TMPPDIR}/rsapss-default.pem"
-    fi
-
-    if [[ -n "$RSAPSS2PRIURI" ]]; then
         title PARA "Run sanity test with RSA-PSS and SHA256"
-        selfsign_cert "${RSAPSS2PRIURI}" "${TMPPDIR}/rsapss-sha256.pem" \
-            "RSA-PSS_SHA256_Digest" \
-            "-sigopt rsa_padding_mode:pss" \
-            "-sigopt digest:sha256" \
-            "-sigopt rsa_pss_saltlen:-1"
-
-        run_test "$RSAPSS2PRIURI" "${TMPPDIR}/rsapss-sha256.pem"
+        run_test "$RSAPSS2PRIURI" "$RSAPSS2CRTURI"
     fi
 
     title PARA "Run sanity test with default values (ECDSA)"
