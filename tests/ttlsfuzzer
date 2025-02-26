@@ -72,17 +72,7 @@ run_tests() {
 
     if [[ -n "$RSAPSSBASEURI" ]]; then
         title PARA "Prepare test for RSA-PSS"
-
-        # do selfsign now using openssl as certool can not create SPKI using
-        # RSA-PSS
-        selfsign_cert "${RSAPSSPRIURI}" "${TMPPDIR}/rsapss-default.pem" \
-            "RSA-PSS_CERT" \
-            "-sigopt rsa_padding_mode:pss" \
-            "-sigopt digest:sha256" \
-            "-sigopt rsa_pss_saltlen:-1"
-
-        prepare_test cert.json.rsapss.in \
-            "$RSAPSSPRIURI" "${TMPPDIR}/rsapss-default.pem"
+        prepare_test cert.json.rsapss.in  "$RSAPSSPRIURI" "$RSAPSSCRTURI"
     fi
 
     title PARA "Prepare test for ECDSA"
