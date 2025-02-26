@@ -157,16 +157,20 @@ ca_sign() {
 
     CERTSUBJ="/O=PKCS11 Provider/CN=$CN/"
     SIGNKEY="pkcs11:object=$CACRTN;token=$TOKENLABELURI;type=private"
+    CACRT="pkcs11:object=$CACRTN;token=$TOKENLABELURI;type=cert"
     CERTPUBKEY="pkcs11:object=$LABEL;token=$TOKENLABELURI;type=public"
 
     OPENSSL_CMD="x509
         -new -subj \"${CERTSUBJ}\" -days 365 -set_serial \"${SERIAL}\"
         -extensions v3_req -extfile \"${OPENSSL_CONF}\"
         -out \"${TMPPDIR}/${LABEL}.crt\" -outform DER
-        -force_pubkey \"${CERTPUBKEY}\" -signkey \"${SIGNKEY}\""
+        -force_pubkey \"${CERTPUBKEY}\" -CAkey \"${SIGNKEY}\"
+        -CA \"${CACRT}\""
 
     if [ "$SIGOPT" = "PSS" ]; then
         OPENSSL_CMD+=" -sigopt rsa_padding_mode:pss"
+    elif [ "$SIGOPT" = "PSS-SHA256" ]; then
+        OPENSSL_CMD+=" -sigopt rsa_padding_mode:pss -sigopt digest:sha256"
     fi
 
     ossl "${OPENSSL_CMD}" 2>&1
@@ -402,7 +406,7 @@ echo "${ECCRT3URI}"
 echo ""
 
 if [ "${SUPPORT_ALLOWED_MECHANISMS}" -eq 1 ]; then
-    # generate unrestricted RSA-PSS key pair and self-signed RSA-PSS certificate
+    # generate unrestricted RSA-PSS key pair and RSA-PSS certificate
     KEYID='0010'
     URIKEYID="%00%10"
     TSTCRTN="testRsaPssCert"
@@ -431,7 +435,7 @@ if [ "${SUPPORT_ALLOWED_MECHANISMS}" -eq 1 ]; then
     echo ""
 
     # generate RSA-PSS (3k) key pair restricted to SHA256 digests
-    # and self-signed RSA-PSS certificate
+    # and RSA-PSS certificate
     KEYID='0011'
     URIKEYID="%00%11"
     TSTCRTN="testRsaPss2Cert"
@@ -439,7 +443,7 @@ if [ "${SUPPORT_ALLOWED_MECHANISMS}" -eq 1 ]; then
 
     ptool --keypairgen --key-type="RSA:3092" --id="$KEYID" \
           --label="${TSTCRTN}" --allowed-mechanisms "$MECHS" 2>&1
-    ca_sign "${TSTCRTN}" "My RsaPss2 Cert" $KEYID "-sha256" "PSS"
+    ca_sign "${TSTCRTN}" "My RsaPss2 Cert" $KEYID "PSS-SHA256"
 
     RSAPSS2BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
     RSAPSS2BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
