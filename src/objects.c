@@ -1845,15 +1845,17 @@ static int p11prov_obj_export_public_rsa_key(P11PROV_OBJ *obj,
     byteswap_buf(attrs[1].pValue, attrs[1].pValue, attrs[1].ulValueLen);
     params[n++] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_E,
                                           attrs[1].pValue, attrs[1].ulValueLen);
-    /* If this is an RSA-PSS limited key, OpenSSL need some more signs here.
+    /* TODO: Add RSA-PSS restrictions if there is only one allowed mechanisms.
      * The PKCS#11 specification is not compatible with what OpenSSL expects
      * (unless we would have just one mechanisms specified in
-     * ALLOWED_MECHANISMS) */
+     * ALLOWED_MECHANISMS) so its better to not add any restrictions now. */
+#if 0
     if (p11prov_obj_is_rsa_pss(obj)) {
         params[n++] = OSSL_PARAM_construct_utf8_string(
             OSSL_PKEY_PARAM_RSA_MASKGENFUNC, (char *)SN_mgf1, strlen(SN_mgf1));
-        /* TODO add the other params if restricted? */
+        /* TODO other restrictions */
     }
+#endif
     params[n++] = OSSL_PARAM_construct_end();
 
     ret = cb_fn(params, cb_arg);
