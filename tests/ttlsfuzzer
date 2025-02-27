@@ -18,11 +18,19 @@ TMPFILE="${TMPPDIR}/tls-fuzzer.$$.tmp"
 PORT="$TESTPORT"
 PYTHON=$(which python3)
 
-if [[ -f /etc/debian_version ]] && grep Ubuntu /etc/lsb-release; then
-    # the ubuntu builds miss Brainpool curves, but Debian has them already
+OPENSSL_VERSION=$(openssl version | sed 's/^OpenSSL \([0-9]*\)\.\([0-9]*\).*$/\1 \2/')
+OPENSSL_VERSION_MAJOR=$(echo "$OPENSSL_VERSION" | cut -d ' ' -f 1)
+OPENSSL_VERSION_MINOR=$(echo "$OPENSSL_VERSION" | cut -d ' ' -f 2)
+
+# It is safe to assume that openssl version is at least 3.0
+if [[ $OPENSSL_VERSION_MAJOR -eq 3 ]] && [[ $OPENSSL_VERSION_MINOR -lt 2 ]]; then
     SIGALGS="ecdsa_secp256r1_sha256 ecdsa_secp384r1_sha384 ecdsa_secp521r1_sha512 ed25519 ed448 rsa_pss_pss_sha256 rsa_pss_pss_sha384 rsa_pss_pss_sha512 rsa_pss_rsae_sha256 rsa_pss_rsae_sha384 rsa_pss_rsae_sha512 rsa_pkcs1_sha256 rsa_pkcs1_sha384 rsa_pkcs1_sha512 ecdsa_sha224 rsa_pkcs1_sha224"
-else
+elif [[ $OPENSSL_VERSION_MAJOR -eq 3 ]] && [[ $OPENSSL_VERSION_MINOR -lt 5 ]]; then
+    # Algorithms with brainpool curves added
     SIGALGS="ecdsa_secp256r1_sha256 ecdsa_secp384r1_sha384 ecdsa_secp521r1_sha512 ed25519 ed448 8+26 8+27 8+28 rsa_pss_pss_sha256 rsa_pss_pss_sha384 rsa_pss_pss_sha512 rsa_pss_rsae_sha256 rsa_pss_rsae_sha384 rsa_pss_rsae_sha512 rsa_pkcs1_sha256 rsa_pkcs1_sha384 rsa_pkcs1_sha512 ecdsa_sha224 rsa_pkcs1_sha224"
+else
+    # PQC algorithms added
+    SIGALGS="ecdsa_secp256r1_sha256 ecdsa_secp384r1_sha384 ecdsa_secp521r1_sha512 ed25519 ed448 8+26 8+27 8+28 rsa_pss_pss_sha256 rsa_pss_pss_sha384 rsa_pss_pss_sha512 rsa_pss_rsae_sha256 rsa_pss_rsae_sha384 rsa_pss_rsae_sha512 rsa_pkcs1_sha256 rsa_pkcs1_sha384 rsa_pkcs1_sha512 ecdsa_sha224 rsa_pkcs1_sha224 9+4 9+5 9+6"
 fi
 
 prepare_test() {
