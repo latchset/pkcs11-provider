@@ -566,12 +566,31 @@ bool p11prov_obj_is_rsa_pss(P11PROV_OBJ *obj)
 {
     CK_ATTRIBUTE *am = p11prov_obj_get_attr(obj, CKA_ALLOWED_MECHANISMS);
     CK_MECHANISM_TYPE *allowed;
+    P11PROV_OBJ *priv = NULL;
     int am_nmechs;
 
     if (am == NULL || am->ulValueLen == 0) {
-        /* no limitations or no support for allowed mechs
-         * TODO we can try also certificate restrictions */
-        return false;
+        /* The ALLOWED_MECHANISMS should be on both of the keys. But more
+         * commonly they are available only on the private key. Check if we
+         * have a priv key associated to this pub key and if so, use that one.
+         * TODO we can try also certificate restrictions
+         */
+        if (obj->class == CKO_PRIVATE_KEY) {
+            /* no limitations or no support for allowed mechs */
+            return false;
+        }
+
+        priv = p11prov_obj_find_associated(obj, CKO_PRIVATE_KEY);
+        if (priv == NULL) {
+            return false;
+        }
+
+        am = p11prov_obj_get_attr(priv, CKA_ALLOWED_MECHANISMS);
+        if (am == NULL || am->ulValueLen == 0) {
+            /* no limitations or no support for allowed mechs */
+            p11prov_obj_free(priv);
+            return false;
+        }
     }
     allowed = (CK_MECHANISM_TYPE *)am->pValue;
     am_nmechs = am->ulValueLen / sizeof(CK_MECHANISM_TYPE);
@@ -586,10 +605,12 @@ bool p11prov_obj_is_rsa_pss(P11PROV_OBJ *obj)
         if (!found) {
             /* this is not a RSA-PSS mechanism. We can not enforce any
              * limitations */
+            p11prov_obj_free(priv);
             return false;
         }
     }
     /* all allowed mechanisms fit into the list of RSA-PSS ones */
+    p11prov_obj_free(priv);
     return true;
 }
 
@@ -1062,7 +1083,8 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
             if (ret == CKR_OK) {
                 obj->attrs[obj->numattrs] = a[0].attr;
                 obj->numattrs++;
-            } else if (ret == CKR_ATTRIBUTE_TYPE_INVALID) {
+            } else if (ret == CKR_ATTRIBUTE_TYPE_INVALID
+                       && obj->class == CKO_PRIVATE_KEY) {
                 token_supports_allowed_mechs = CK_FALSE;
                 (void)p11prov_token_sup_attr(ctx, obj->slotid, SET_ATTR,
                                              CKA_ALLOWED_MECHANISMS,
@@ -1824,15 +1846,17 @@ static int p11prov_obj_export_public_rsa_key(P11PROV_OBJ *obj,
     byteswap_buf(attrs[1].pValue, attrs[1].pValue, attrs[1].ulValueLen);
     params[n++] = OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_E,
                                           attrs[1].pValue, attrs[1].ulValueLen);
-    /* If this is an RSA-PSS limited key, OpenSSL need some more signs here.
+    /* TODO: Add RSA-PSS restrictions if there is only one allowed mechanisms.
      * The PKCS#11 specification is not compatible with what OpenSSL expects
      * (unless we would have just one mechanisms specified in
-     * ALLOWED_MECHANISMS) */
+     * ALLOWED_MECHANISMS) so its better to not add any restrictions now. */
+    /*
     if (p11prov_obj_is_rsa_pss(obj)) {
         params[n++] = OSSL_PARAM_construct_utf8_string(
             OSSL_PKEY_PARAM_RSA_MASKGENFUNC, (char *)SN_mgf1, strlen(SN_mgf1));
-        /* TODO add the other params if restricted? */
+        // TODO other restrictions
     }
+    */
     params[n++] = OSSL_PARAM_construct_end();
 
     ret = cb_fn(params, cb_arg);

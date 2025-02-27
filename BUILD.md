@@ -9,7 +9,7 @@ This package requires the following:
 - a C compiler that supports at least C11 semantics
 - meson
 - pkg-config
-- p11-kit, p11-kit-server, p11-kit-devel, opensc and softhsm (for testing)
+- p11-kit, p11-kit-devel, opensc and softhsm (for testing)
 - Kryoptic softoken (for testing)
 
 ### Build
