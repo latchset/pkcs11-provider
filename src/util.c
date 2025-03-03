@@ -84,8 +84,13 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                         return ret;
                     }
                 } else {
-                    attrs[i].attr.pValue =
-                        OPENSSL_zalloc(attrs[i].attr.ulValueLen + 1);
+                    CK_ULONG len = attrs[i].attr.ulValueLen;
+                    if (len == CK_UNAVAILABLE_INFORMATION) {
+                        /* The attribute is known to the module, but not
+                         * available on this object */
+                        continue;
+                    }
+                    attrs[i].attr.pValue = OPENSSL_zalloc(len + 1);
                     if (!attrs[i].attr.pValue) {
                         ret = CKR_HOST_MEMORY;
                         P11PROV_raise(ctx, ret, "Failed to get attributes");
