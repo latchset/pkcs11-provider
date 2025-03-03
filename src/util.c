@@ -83,6 +83,9 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                     if (attrs[i].required) {
                         return ret;
                     }
+                    /* Invalid attribute: No need to call the function again for
+                     * this attribute */
+                    continue;
                 } else {
                     CK_ULONG len = attrs[i].attr.ulValueLen;
                     if (len == CK_UNAVAILABLE_INFORMATION) {
