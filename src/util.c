@@ -34,10 +34,13 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         unsigned long retrnums = 0;
         for (size_t i = 0; i < attrnums; i++) {
             if (q[i].ulValueLen == CK_UNAVAILABLE_INFORMATION) {
-                /* This can't happen according to the algorithm described
-                 * in the spec when the call returns CKR_OK. */
+                /* This means the attribute is valid, but not available for a
+                 * given object. Just skip it, unless it is required */
+                if (!attrs[i].required) {
+                    continue;
+                }
                 ret = CKR_GENERAL_ERROR;
-                P11PROV_raise(ctx, ret, "Failed to get attributes");
+                P11PROV_raise(ctx, ret, "Failed to get required attributes");
                 goto done;
             }
             if (attrs[i].allocate) {
