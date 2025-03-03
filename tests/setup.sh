@@ -83,6 +83,9 @@ P11DEFLOGIN=("--login" "--pin=${PINVALUE}")
 
 title LINE "Generate openssl config file"
 export PKCS11_PROVIDER_MODULE=${P11LIB}
+#export PKCS11SPY="${P11LIB}"
+#export PKCS11_PROVIDER_MODULE=/usr/lib64/pkcs11/pkcs11-spy.so
+export PKCS11_PROVIDER_DEBUG="file:${TMPPDIR}/p11prov-debug.log"
 export OPENSSL_CONF=${TMPPDIR}/openssl.cnf
 sed -e "s|@libtoollibs@|${LIBSPATH}|g" \
     -e "s|@testsblddir@|${TESTBLDDIR}|g" \
