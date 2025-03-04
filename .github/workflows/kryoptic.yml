@@ -23,7 +23,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            /var/cache/dnf
+            /var/cache/libdnf5
           key: ${{ runner.os }}-dnf-${{ steps.get-date.outputs.date }}
 
       - name: Install Dependencies
