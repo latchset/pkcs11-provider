@@ -32,6 +32,7 @@ struct p11prov_crt {
 struct p11prov_obj {
     P11PROV_CTX *ctx;
     bool raf; /* re-init after fork */
+    bool dup; /* duplicated */
 
     CK_SLOT_ID slotid;
     CK_OBJECT_HANDLE handle;
@@ -220,8 +221,8 @@ static void obj_rm_from_pool(P11PROV_OBJ *obj)
     P11PROV_OBJ_POOL *pool;
     CK_RV ret;
 
-    if (obj->slotid == CK_UNAVAILABLE_INFORMATION) {
-        /* a mock object */
+    if (obj->dup || obj->slotid == CK_UNAVAILABLE_INFORMATION) {
+        /* a duplicate or a mock object */
         return;
     }
 
@@ -3395,6 +3396,7 @@ static CK_RV return_dup_key(P11PROV_OBJ *dst, P11PROV_OBJ *src)
         }
         dst->numattrs++;
     }
+    dst->dup = true;
 
     return CKR_OK;
 }
