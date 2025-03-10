@@ -191,8 +191,9 @@ static CK_RV obj_add_to_pool(P11PROV_OBJ *obj)
         pool->first_free = 0;
     }
 
+    int idx;
     for (int i = 0; i < pool->size; i++) {
-        int idx = (i + pool->first_free) % pool->size;
+        idx = (i + pool->first_free) % pool->size;
         if (pool->objects[idx] == NULL) {
             pool->objects[idx] = obj;
             pool->num++;
@@ -211,6 +212,12 @@ static CK_RV obj_add_to_pool(P11PROV_OBJ *obj)
 done:
     (void)MUTEX_UNLOCK(pool);
     /* ------------- LOCKED SECTION */
+
+    if (ret == CKR_OK) {
+        P11PROV_debug(
+            "Object added to pool (idx=%d, first_free=%d, obj=%p, num=%d)", idx,
+            pool->first_free, obj, pool->num);
+    }
 
     return ret;
 }
@@ -236,22 +243,39 @@ static void obj_rm_from_pool(P11PROV_OBJ *obj)
     }
 
     /* LOCKED SECTION ------------- */
-    if (obj->poolid >= pool->size || pool->objects[obj->poolid] != obj) {
+    int idx = obj->poolid;
+    if (idx >= pool->size || pool->objects[idx] != obj) {
         ret = CKR_GENERAL_ERROR;
-        P11PROV_raise(pool->provctx, ret, "Objects pool in inconsistent state");
+        if (obj->poolid >= pool->size) {
+            P11PROV_raise(pool->provctx, ret,
+                          "Objects pool in inconsistent state - small pool "
+                          "(idx=%d, size=%d)",
+                          idx, pool->size);
+        } else {
+            P11PROV_raise(pool->provctx, ret,
+                          "Objects pool in inconsistent state - obj already "
+                          "removed (idx=%d, pool_obj=%p, obj=%p)",
+                          idx, pool->objects[idx], obj);
+        }
         goto done;
     }
 
-    pool->objects[obj->poolid] = NULL;
+    pool->objects[idx] = NULL;
     pool->num--;
-    if (pool->first_free > obj->poolid) {
-        pool->first_free = obj->poolid;
+    if (pool->first_free > idx) {
+        pool->first_free = idx;
     }
     obj->poolid = 0;
 
 done:
     (void)MUTEX_UNLOCK(pool);
     /* ------------- LOCKED SECTION */
+
+    if (ret == CKR_OK) {
+        P11PROV_debug(
+            "Object removed from pool (idx=%d, first_free=%d, obj=%p)", idx,
+            pool->first_free, obj);
+    }
 }
 
 static CK_RV p11prov_obj_store_public_key(P11PROV_OBJ *key);
@@ -3343,6 +3367,10 @@ static CK_RV return_dup_key(P11PROV_OBJ *dst, P11PROV_OBJ *src)
 {
     CK_RV rv;
 
+    P11PROV_debug("duplicating obj key (dst=%p, src=%p, handle=%lu, "
+                  "slotid=%lu, raf=%d, numattrs=%d)",
+                  dst, src, src->handle, src->slotid, src->raf, src->numattrs);
+
     dst->slotid = src->slotid;
     dst->handle = src->handle;
     dst->class = src->class;
@@ -3411,6 +3439,8 @@ static CK_RV fix_ec_key_import(P11PROV_OBJ *key, int allocattrs)
     key->attrs[key->numattrs].ulValueLen = len;
     key->numattrs++;
 
+    P11PROV_debug("fixing EC key %p import", key);
+
     return CKR_OK;
 }
 
@@ -3436,6 +3466,7 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
 
     switch (type) {
     case CKK_RSA:
+        P11PROV_debug("obj import of RSA public key %p", key);
         rv = prep_rsa_find(ctx, params, &findctx);
         if (rv != CKR_OK) {
             goto done;
@@ -3444,6 +3475,7 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
         break;
 
     case CKK_EC:
+        P11PROV_debug("obj import of EC public key %p", key);
         rv = prep_ec_find(ctx, params, &findctx);
         if (rv != CKR_OK) {
             goto done;
@@ -3452,6 +3484,7 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
         break;
 
     case CKK_EC_EDWARDS:
+        P11PROV_debug("obj import of ED public key %p", key);
         rv = prep_ed_find(ctx, params, &findctx);
         if (rv != CKR_OK) {
             goto done;
@@ -3497,6 +3530,7 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
      * the key can be imported on the fly in the correct slot at the time the
      * operation needs to be performed.
      */
+    P11PROV_debug("public key %p not found in the pool - using mock", key);
 
     /* move data */
     key->class = findctx.class;
