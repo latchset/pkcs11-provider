@@ -1439,6 +1439,8 @@ static int p11prov_ec_import_genr(CK_KEY_TYPE key_type, void *keydata,
     }
 
     if (class == CKO_DOMAIN_PARAMETERS && key_type != CKK_EC) {
+        P11PROV_debug("ec import of key %p domain parameters is not for EC",
+                      key);
         /* There are no Domain parameters associated with an
          * ECX or RSA key in OpenSSL, so there is nothing really
          * we can import */
