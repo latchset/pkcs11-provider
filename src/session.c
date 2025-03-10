@@ -316,20 +316,24 @@ static CK_RV session_check(P11PROV_SESSION *session, CK_FLAGS flags)
     int ret;
 
     if (!session) {
+        P11PROV_debug("Checked session not set");
         return CKR_GENERAL_ERROR;
     }
 
     /* lockless check, if this fails in any way it is bad regardless */
     if (!session->in_use) {
+        P11PROV_debug("Checked session %lu in use", session->session);
         return CKR_GENERAL_ERROR;
     }
 
     /* no handle, nothing to check */
     if (session->session == CK_INVALID_HANDLE) {
+        P11PROV_debug("Checked session %lu handle invalid", session->session);
         return CKR_OK;
     }
 
     /* check that the pkcs11 session is still ok */
+    P11PROV_debug("Checking session %lu", session->session);
     ret = p11prov_GetSessionInfo(session->provctx, session->session,
                                  &session_info);
     if (ret == CKR_OK) {
@@ -779,6 +783,8 @@ static CK_RV slot_login(P11PROV_SLOT *slot, P11PROV_URI *uri,
     CK_FLAGS flags = DEFLT_SESSION_FLAGS;
     int num_open_sessions = 0;
     CK_RV ret;
+
+    P11PROV_debug("Slot login (slot=%p, uri=%p)", slot, uri);
 
     /* try to get a login_session */
     ret = fetch_session(pool, flags, true, &session);

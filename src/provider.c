@@ -1464,6 +1464,9 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
     }
     ctx->handle = handle;
 
+    P11PROV_debug("Starting provider %s %d.%d", PACKAGE_NAME, PACKAGE_MAJOR,
+                  PACKAGE_MINOR);
+
     ret = pthread_rwlock_init(&ctx->quirk_lock, NULL);
     if (ret != 0) {
         ret = errno;
