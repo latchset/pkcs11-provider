@@ -110,8 +110,8 @@ void p11prov_obj_pool_free(P11PROV_OBJ_POOL *pool)
         }
         OPENSSL_free(pool->objects);
         (void)MUTEX_UNLOCK(pool);
-        /* ------------- LOCKED SECTION */ }
-    else {
+        /* ------------- LOCKED SECTION */
+    } else {
         P11PROV_debug("Failed to lock object pool, leaking it!");
         return;
     }
