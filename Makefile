@@ -1,3 +1,6 @@
+CLANG_FORMAT ?= clang-format
+CLANG_FORMAT_DIFF ?= clang-format-diff
+
 .PHONY: all check check-style check-style-show check-style-fix clean generate-code generate-docs
 
 all:
@@ -13,7 +16,7 @@ clean:
 	rm -rf builddir
 
 check-style:
-	@lines=`git diff -U0 --no-color --relative origin/main -- ':!src/pkcs11.h' | clang-format-diff -p1 |wc -l`; \
+	@lines=`git diff -U0 --no-color --relative origin/main -- ':!src/pkcs11.h' | $(CLANG_FORMAT_DIFF) -p1 |wc -l`; \
 	if [ "$$lines" != "0" ]; then \
 		echo "Coding Style issues detected"; \
 		exit 1; \
@@ -22,10 +25,10 @@ check-style:
 	fi
 
 check-style-show:
-	git diff -U0 --no-color --relative origin/main -- ':!src/pkcs11.h' | clang-format-diff -p1
+	git diff -U0 --no-color --relative origin/main -- ':!src/pkcs11.h' | $(CLANG_FORMAT_DIFF) -p1
 
 check-style-fix:
-	git diff -U0 --no-color --relative origin/main -- ':!src/pkcs11.h' | clang-format-diff -i -p1
+	git diff -U0 --no-color --relative origin/main -- ':!src/pkcs11.h' | $(CLANG_FORMAT_DIFF) -i -p1
 
 generate-code:
 	for pfile in src/*.pre; do \
@@ -36,7 +39,7 @@ generate-code:
 		sed -i -n -e '/^BEGIN:$$/,$$p' "$${gfile}.tmp"; \
 		sed -i 's/^BEGIN:$$//' "$${gfile}.tmp"; \
 		cat "$${gfile}.tmp" >> $${gfile}; \
-		clang-format -i --verbose "$${gfile}"; \
+		$(CLANG_FORMAT) -i --verbose "$${gfile}"; \
 		rm "$${gfile}.tmp"; \
 	done
 
