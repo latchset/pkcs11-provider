@@ -63,5 +63,5 @@ jobs:
         run: |
           mkdir -p rpmbuild/SOURCES
           cp builddir/meson-dist/pkcs11-provider*tar.xz rpmbuild/SOURCES/
-          rpmbuild --define "_topdir $PWD/rpmbuild" -ba \
+          rpmbuild --define "_topdir $PWD/rpmbuild" -ba --without=gpgcheck \
               packaging/pkcs11-provider.spec

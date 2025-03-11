@@ -1,5 +1,5 @@
 #Enable gpg signature verification
-%bcond_with gpgcheck
+%bcond gpgcheck 1
 
 Name:          pkcs11-provider
 Version:       1.0
