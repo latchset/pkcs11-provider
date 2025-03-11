@@ -14,10 +14,8 @@ extern P11PROV_RSA_PUBKEY *d2i_P11PROV_RSA_PUBKEY(P11PROV_RSA_PUBKEY **a,
 extern int i2d_P11PROV_RSA_PUBKEY(const P11PROV_RSA_PUBKEY *a,
                                   unsigned char **out);
 extern const ASN1_ITEM *P11PROV_RSA_PUBKEY_it(void);
-
-P11PROV_RSA_PUBKEY
-*d2i_P11PROV_RSA_PUBKEY(P11PROV_RSA_PUBKEY **a, const unsigned char **in,
-                        long len)
+P11PROV_RSA_PUBKEY *d2i_P11PROV_RSA_PUBKEY(P11PROV_RSA_PUBKEY **a,
+                                           const unsigned char **in, long len)
 {
     return (P11PROV_RSA_PUBKEY *)ASN1_item_d2i((ASN1_VALUE **)a, in, len,
                                                (P11PROV_RSA_PUBKEY_it()));
@@ -26,8 +24,7 @@ int i2d_P11PROV_RSA_PUBKEY(const P11PROV_RSA_PUBKEY *a, unsigned char **out)
 {
     return ASN1_item_i2d((const ASN1_VALUE *)a, out, (P11PROV_RSA_PUBKEY_it()));
 }
-P11PROV_RSA_PUBKEY
-*P11PROV_RSA_PUBKEY_new(void)
+P11PROV_RSA_PUBKEY *P11PROV_RSA_PUBKEY_new(void)
 {
     return (P11PROV_RSA_PUBKEY *)ASN1_item_new((P11PROV_RSA_PUBKEY_it()));
 }
@@ -37,10 +34,8 @@ void P11PROV_RSA_PUBKEY_free(P11PROV_RSA_PUBKEY *a)
 }
 
 static const ASN1_TEMPLATE P11PROV_RSA_PUBKEY_seq_tt[] = {
-
     { (0), (0), __builtin_offsetof(P11PROV_RSA_PUBKEY, n), "n",
       (ASN1_INTEGER_it) },
-
     { (0), (0), __builtin_offsetof(P11PROV_RSA_PUBKEY, e), "e",
       (ASN1_INTEGER_it) },
 };
