@@ -124,7 +124,7 @@ jobs:
         if : ( steps.nss-version-check.outputs.skiptest != 'true' )
         run: |
             if [ "${{ matrix.compiler }}" = "gcc" -a \( "${{ matrix.name }}" = "centos9" -o "${{ matrix.name }}" = "centos10" \) ]; then
-              OPENSSL_FORCE_FIPS_MODE=1 \
+              PKCS11_PROVIDER_FORCE_FIPS_MODE=1 \
               meson test --num-processes 1 -C builddir
             fi
 
