@@ -112,7 +112,7 @@ int main(int argc, char *argv[])
     pid_t pid;
     int status;
 
-    key = util_gen_key("Fork-Test");
+    key = util_gen_key("RSA", "Fork-Test");
 
     /* test a simple op first */
     sign_op(key, -1);
