@@ -2477,6 +2477,39 @@ CK_ATTRIBUTE *p11prov_obj_get_ec_public_raw(P11PROV_OBJ *key)
     return pub_key;
 }
 
+static int cmp_bn_attr(P11PROV_OBJ *key1, P11PROV_OBJ *key2,
+                       CK_ATTRIBUTE_TYPE attr)
+{
+    BIGNUM *bx1;
+    BIGNUM *bx2;
+    CK_ATTRIBUTE *x1, *x2;
+    int rc = RET_OSSL_ERR;
+
+    /* is BN ?*/
+    if (attr != CKA_MODULUS && attr != CKA_PUBLIC_EXPONENT) {
+        return rc;
+    }
+
+    x1 = p11prov_obj_get_attr(key1, attr);
+    x2 = p11prov_obj_get_attr(key2, attr);
+
+    if (!x1 || !x2) {
+        return rc;
+    }
+
+    bx1 = BN_native2bn(x1->pValue, x1->ulValueLen, NULL);
+    bx2 = BN_native2bn(x2->pValue, x2->ulValueLen, NULL);
+
+    if (BN_cmp(bx1, bx2) == 0) {
+        rc = RET_OSSL_OK;
+    }
+
+    BN_free(bx1);
+    BN_free(bx2);
+
+    return rc;
+}
+
 static int cmp_attr(P11PROV_OBJ *key1, P11PROV_OBJ *key2,
                     CK_ATTRIBUTE_TYPE attr)
 {
@@ -2505,11 +2538,11 @@ static int cmp_public_key_values(P11PROV_OBJ *pub_key1, P11PROV_OBJ *pub_key2)
         /* pub_key1 pub_key2 could be CKO_PRIVATE_KEY here but
          *  nevertheless contain these two attributes
          */
-        ret = cmp_attr(pub_key1, pub_key2, CKA_MODULUS);
+        ret = cmp_bn_attr(pub_key1, pub_key2, CKA_MODULUS);
         if (ret == RET_OSSL_ERR) {
             break;
         }
-        ret = cmp_attr(pub_key1, pub_key2, CKA_PUBLIC_EXPONENT);
+        ret = cmp_bn_attr(pub_key1, pub_key2, CKA_PUBLIC_EXPONENT);
         break;
     case CKK_EC:
     case CKK_EC_EDWARDS:
