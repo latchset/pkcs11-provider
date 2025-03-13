@@ -114,6 +114,30 @@ static void check_public_info(EVP_PKEY *key)
     BIO_free(membio);
 }
 
+static int check_peer_ec_key_copy(void)
+{
+    EVP_PKEY *key;
+    size_t key_bits;
+    EVP_PKEY *peer_key;
+    size_t peer_key_bits;
+
+    key = util_gen_key("P-256", "Pkey peer copy Test");
+    key_bits = EVP_PKEY_bits(key);
+
+    peer_key = EVP_PKEY_new();
+    EVP_PKEY_copy_parameters(peer_key, key);
+    peer_key_bits = EVP_PKEY_bits(peer_key);
+
+    if (key_bits != peer_key_bits) {
+        fprintf(stderr, "key_bits(%ld) != peer_key_bits(%ld)\n", key_bits,
+                peer_key_bits);
+        exit(EXIT_FAILURE);
+    }
+
+    EVP_PKEY_free(peer_key);
+    EVP_PKEY_free(key);
+}
+
 int main(int argc, char *argv[])
 {
     const char *data = "Sign Me!";
@@ -121,7 +145,7 @@ int main(int argc, char *argv[])
     size_t siglen;
     EVP_PKEY *key;
 
-    key = util_gen_key("Pkey sigver Test");
+    key = util_gen_key("RSA", "Pkey sigver Test");
 
     /* test a simple op first */
     sign_op(key, data, sizeof(data), &sig, &siglen);
@@ -129,6 +153,10 @@ int main(int argc, char *argv[])
     verify_op(key, data, sizeof(data), sig, siglen);
 
     check_public_info(key);
+
+    check_peer_ec_key_copy();
+
+    EVP_PKEY_free(key);
 
     PRINTERR("ALL A-OK!\n");
     exit(EXIT_SUCCESS);

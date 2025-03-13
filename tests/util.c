@@ -163,18 +163,21 @@ void hexify(char *out, unsigned char *byte, size_t len)
     out[len * 3] = '\0';
 }
 
-EVP_PKEY *util_gen_key(const char *label)
+EVP_PKEY *util_gen_key(const char *type, const char *label)
 {
     unsigned char id[16];
     char idhex[16 * 3 + 1];
     char *uri;
+    const char *name = NULL;
+    const char *ec_name = "EC";
+    const char *named_curve = "named_curve";
     size_t rsa_bits = 3072;
-    OSSL_PARAM params[3];
+    OSSL_PARAM params[4];
     EVP_PKEY_CTX *ctx;
     EVP_PKEY *key = NULL;
+    int pnum = 0;
     int ret;
 
-    /* RSA */
     ret = RAND_bytes(id, 16);
     if (ret != 1) {
         PRINTERROSSL("Failed to set generate key id\n");
@@ -188,11 +191,21 @@ EVP_PKEY *util_gen_key(const char *label)
         exit(EXIT_FAILURE);
     }
 
-    params[0] = OSSL_PARAM_construct_utf8_string("pkcs11_uri", uri, 0);
-    params[1] = OSSL_PARAM_construct_size_t("rsa_keygen_bits", &rsa_bits);
-    params[2] = OSSL_PARAM_construct_end();
+    params[pnum++] = OSSL_PARAM_construct_utf8_string("pkcs11_uri", uri, 0);
+    if (strcmp(type, "RSA") == 0) {
+        params[pnum++] =
+            OSSL_PARAM_construct_size_t("rsa_keygen_bits", &rsa_bits);
+        name = type;
+    } else if (strcmp(type, "P-256") == 0) {
+        params[pnum++] =
+            OSSL_PARAM_construct_utf8_string("ec_paramgen_curve", type, 0);
+        params[pnum++] =
+            OSSL_PARAM_construct_utf8_string("ec_param_enc", named_curve, 0);
+        name = ec_name;
+    }
+    params[pnum++] = OSSL_PARAM_construct_end();
 
-    ctx = EVP_PKEY_CTX_new_from_name(NULL, "RSA", "provider=pkcs11");
+    ctx = EVP_PKEY_CTX_new_from_name(NULL, name, "provider=pkcs11");
     if (ctx == NULL) {
         PRINTERROSSL("Failed to init PKEY context\n");
         exit(EXIT_FAILURE);
