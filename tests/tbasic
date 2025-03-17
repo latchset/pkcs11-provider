@@ -82,6 +82,21 @@ if [ $FAIL -ne 0 ]; then
     exit 1
 fi
 
+# regression test for https://github.com/latchset/pkcs11-provider/issues/547
+title PARA "Make sure we are not prompted for pin to read public RSA key"
+# shellcheck disable=SC2153 # PUBURI is assigned in testvars
+expect -c "spawn -noecho $CHECKER openssl pkey -in \"${PUBURI}\" -pubin -pubout -out -;
+    expect {
+        \"Enter PIN for PKCS#11 Token (Slot *:\" {
+            exit 1; }
+        timeout { exit 2; }
+        eof { exit 0; }
+    }" || {
+    echo "Unexpected pin prompt received!"
+    exit 1
+}
+
+
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
 title PARA "Test EVP_PKEY_eq on public RSA key both on token"
