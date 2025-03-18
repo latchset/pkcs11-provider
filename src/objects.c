@@ -583,11 +583,25 @@ CK_KEY_TYPE p11prov_obj_get_key_type(P11PROV_OBJ *obj)
 
 bool p11prov_obj_is_rsa_pss(P11PROV_OBJ *obj)
 {
-    CK_ATTRIBUTE *am = p11prov_obj_get_attr(obj, CKA_ALLOWED_MECHANISMS);
+    CK_BBOOL token_supports_allowed_mechs = CK_TRUE;
+    CK_ATTRIBUTE *am = NULL;
     CK_MECHANISM_TYPE *allowed;
     P11PROV_OBJ *priv = NULL;
     int am_nmechs;
+    CK_RV ret;
 
+    /* If the token does not support this attribute, do not even try to figure
+     * out the subtype. */
+    ret = p11prov_token_sup_attr(obj->ctx, obj->slotid, GET_ATTR,
+                                 CKA_ALLOWED_MECHANISMS,
+                                 &token_supports_allowed_mechs);
+    if (ret != CKR_OK) {
+        P11PROV_raise(obj->ctx, ret, "Failed to probe quirk");
+    } else if (token_supports_allowed_mechs == CK_FALSE) {
+        return false;
+    }
+
+    am = p11prov_obj_get_attr(obj, CKA_ALLOWED_MECHANISMS);
     if (am == NULL || am->ulValueLen == 0) {
         /* The ALLOWED_MECHANISMS should be on both of the keys. But more
          * commonly they are available only on the private key. Check if we
@@ -595,10 +609,11 @@ bool p11prov_obj_is_rsa_pss(P11PROV_OBJ *obj)
          * TODO we can try also certificate restrictions
          */
         if (obj->class == CKO_PRIVATE_KEY) {
-            /* no limitations or no support for allowed mechs */
+            /* no limitations */
             return false;
         }
 
+        /* Try to find private key */
         priv = p11prov_obj_find_associated(obj, CKO_PRIVATE_KEY);
         if (priv == NULL) {
             return false;
@@ -606,7 +621,7 @@ bool p11prov_obj_is_rsa_pss(P11PROV_OBJ *obj)
 
         am = p11prov_obj_get_attr(priv, CKA_ALLOWED_MECHANISMS);
         if (am == NULL || am->ulValueLen == 0) {
-            /* no limitations or no support for allowed mechs */
+            /* no limitations */
             p11prov_obj_free(priv);
             return false;
         }
