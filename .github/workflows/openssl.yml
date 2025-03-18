@@ -1,0 +1,83 @@
+---
+name: OpenSSL master
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    name: CI with openssl master 
+    runs-on: ubuntu-22.04
+    container: fedora:latest
+    steps:
+      - name: Get Date for DNF cache entry
+        id: get-date-dnf
+        run: |
+          echo "date=$(/bin/date -u "+%Y%V")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: DNF cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/libdnf5
+          key: ${{ runner.os }}-dnf-${{ steps.get-date-dnf.outputs.date }}
+
+      - name: Install Dependencies
+        run: |
+            dnf -y install perl-FindBin perl-IPC-Cmd perl-File-Compare \
+              perl-File-Copy perl-Pod-Html clang git meson cargo expect \
+              pkgconf-pkg-config opensc p11-kit-devel gcc g++ sqlite-devel \
+              python3-six which cmake nss-softokn nss-tools nss-softokn-devel \
+              nss-devel softhsm
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Get Date for /opt cache entry
+        id: get-date-opt
+        run: |
+          echo "date=$(/bin/date -u "+%Y%m%d")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: /opt cache
+        id: cache-opt
+        uses: actions/cache@v4
+        with:
+          path: /opt
+          key: ${{ runner.os }}-opt-${{ steps.get-date-opt.outputs.date }}
+      
+      - name: Get OpenSSL
+        if: steps.cache-opt.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/openssl/openssl.git
+
+      - name: Config, build and install OpenSSL
+        if: steps.cache-opt.outputs.cache-hit != 'true'
+        run: |
+          cd openssl
+          ./config --prefix=/opt && make && make install_sw
+
+      - name: Setup and build pkcs11-provider
+        run: |
+          export LD_LIBRARY_PATH="/opt/lib64/:$LD_LIBRARY_PATH"
+          export PATH="/opt/bin:$PATH"
+          export PKG_CONFIG_PATH="/opt/lib64/pkgconfig" 
+          meson setup builddir
+          meson compile -C builddir
+
+      - name: Test
+        run: |
+          export LD_LIBRARY_PATH="/opt/lib64/:$LD_LIBRARY_PATH"
+          export PATH="/opt/bin:$PATH"
+          meson test --num-processes 1 -C builddir
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Test logs
+          path: |
+            builddir/meson-logs/
