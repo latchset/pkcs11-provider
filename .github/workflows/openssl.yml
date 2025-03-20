@@ -24,7 +24,7 @@ jobs:
         with:
           path: |
             /var/cache/libdnf5
-          key: ${{ runner.os }}-dnf-${{ steps.get-date-dnf.outputs.date }}
+          key: ${{ runner.os }}-dnf-openssl-${{ steps.get-date-dnf.outputs.date }}
 
       - name: Install Dependencies
         run: |
