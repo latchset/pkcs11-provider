@@ -1289,7 +1289,7 @@ P11PROV_OBJ *p11prov_obj_find_associated(P11PROV_OBJ *obj,
     slotid = p11prov_obj_get_slotid(obj);
 
     ret = p11prov_get_session(obj->ctx, &slotid, NULL, NULL,
-                              CK_UNAVAILABLE_INFORMATION, NULL, NULL, true,
+                              CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
                               false, &session);
     if (ret != CKR_OK) {
         goto done;
