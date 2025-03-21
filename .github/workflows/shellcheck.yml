@@ -20,6 +20,7 @@ jobs:
           additional_files: >-
             tbasic
             tcerts
+            tcms
             tdemoca
             tdigest
             tecc
@@ -27,14 +28,20 @@ jobs:
             tecxc
             tedwards
             test-wrapper
+            tforking
             thkdf
+            timported
             toaepsha2
             top_state
             tpem_encoder
+            tpinlock
             tpubkey
             trand
+            trsa
             trsapss
+            trsapssam
             ttls
+            ttlsfuzzer
             turi
           check_together: 'yes'
         env:

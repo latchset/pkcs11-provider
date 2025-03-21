@@ -170,15 +170,13 @@ ca_sign() {
 
     CERTSUBJ="/O=PKCS11 Provider/CN=$CN/"
     SIGNKEY="pkcs11:object=$CACRTN;token=$TOKENLABELURI;type=private"
-    CACRT="pkcs11:object=$CACRTN;token=$TOKENLABELURI;type=cert"
     CERTPUBKEY="pkcs11:object=$LABEL;token=$TOKENLABELURI;type=public"
 
     OPENSSL_CMD="x509
         -new -subj \"${CERTSUBJ}\" -days 365 -set_serial \"${SERIAL}\"
         -extensions v3_req -extfile \"${OPENSSL_CONF}\"
         -out \"${TMPPDIR}/${LABEL}.crt\" -outform DER
-        -force_pubkey \"${CERTPUBKEY}\" -CAkey \"${SIGNKEY}\"
-        -CA \"${CACRT}\""
+        -force_pubkey \"${CERTPUBKEY}\" -signkey \"${SIGNKEY}\""
 
     if [ "$SIGOPT" = "PSS" ]; then
         OPENSSL_CMD+=" -sigopt rsa_padding_mode:pss"
