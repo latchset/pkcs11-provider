@@ -30,6 +30,9 @@ check-style-show:
 check-style-fix:
 	git diff -U0 --no-color --relative origin/main -- ':!src/pkcs11.h' | $(CLANG_FORMAT_DIFF) -i -p1
 
+shellcheck:
+	shellcheck -P tests -e SC2016 tests/*.sh tests/test-wrapper tests/t{basic,certs,cms,democa,digest,ecc,ecdh,ecxc,edwards,forking,hkdf,imported,oaepsha2,op_state,pem_encoder,pinlock,pubkey,rand,rsa,rsapss,rsapssam,tls,tlsfuzzer,uri}
+
 generate-code:
 	for pfile in src/*.pre; do \
 		gfile=`echo $${pfile} | sed s/\.pre/\.gen\.c/`; \
