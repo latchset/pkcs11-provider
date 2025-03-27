@@ -4,6 +4,7 @@
 
 source "${TESTSSRCDIR}/helpers.sh"
 
+echo "SUPPORT_SKEY = ${SUPPORT_SKEY}"
 # Run tests only if OpenSSL does have SKEY support
 if [[ "${SUPPORT_SKEY}" = "0" ]]; then
     exit 77
