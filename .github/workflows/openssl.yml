@@ -11,7 +11,7 @@ jobs:
   setup:
     name: Build OpenSSL from master branch 
     runs-on: ubuntu-22.04
-    container: fedora:latest
+    container: fedora:rawhide
     steps:
       - name: Get Date for DNF cache entry
         id: get-date-dnf
@@ -62,7 +62,7 @@ jobs:
     name: Build and test pkcs11-provider
     needs: setup
     runs-on: ubuntu-22.04
-    container: fedora:latest
+    container: fedora:rawhide
     steps:
       - name: Get Date for DNF cache entry
         id: get-date-dnf
@@ -81,7 +81,8 @@ jobs:
         run: |
             dnf -y install clang meson cargo expect pkgconf-pkg-config opensc \
               p11-kit-devel gcc g++ sqlite-devel python3-six which cmake \
-              nss-softokn nss-tools nss-softokn-devel nss-devel softhsm
+              nss-softokn nss-tools nss-softokn-devel nss-devel softhsm \
+              kryoptic
 
       - name: Checkout Repository
         uses: actions/checkout@v4
