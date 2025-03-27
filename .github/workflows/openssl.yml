@@ -11,7 +11,7 @@ jobs:
   build:
     name: CI with openssl master 
     runs-on: ubuntu-22.04
-    container: fedora:latest
+    container: fedora:rawhide
     steps:
       - name: Get Date for DNF cache entry
         id: get-date-dnf
@@ -32,7 +32,7 @@ jobs:
               perl-File-Copy perl-Pod-Html clang git meson cargo expect \
               pkgconf-pkg-config opensc p11-kit-devel gcc g++ sqlite-devel \
               python3-six which cmake nss-softokn nss-tools nss-softokn-devel \
-              nss-devel softhsm
+              nss-devel softhsm kryoptic
 
       - name: Checkout Repository
         uses: actions/checkout@v4
