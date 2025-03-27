@@ -14,6 +14,10 @@ BEGIN:
         P11PROV_debug("C_%s is blocked", #name); \
         return CKR_FUNCTION_NOT_SUPPORTED; \
     } \
+    if (!intf->name) { \
+        P11PROV_debug("C_%s is not available", #name); \
+        return CKR_FUNCTION_NOT_SUPPORTED; \
+    } \
     P11PROV_debug("Calling C_" #name);
 #define IMPL_CALL_EPILOG(name) \
     if (ret != CKR_OK) { \
@@ -159,12 +163,27 @@ IMPL_INTERFACE_FN_5_ARG(Encrypt, CK_SESSION_HANDLE, hSession, CK_BYTE_PTR,
                         pData, CK_ULONG, ulDataLen, CK_BYTE_PTR, pEncryptedData,
                         CK_ULONG_PTR, pulEncryptedDataLen)
 
+IMPL_INTERFACE_FN_5_ARG(EncryptUpdate, CK_SESSION_HANDLE, hSession, CK_BYTE_PTR,
+                        pPart, CK_ULONG, ulPartLen, CK_BYTE_PTR, pEncryptedPart,
+                        CK_ULONG_PTR, pulEncryptedPartLen)
+
+IMPL_INTERFACE_FN_3_ARG(EncryptFinal, CK_SESSION_HANDLE, hSession, CK_BYTE_PTR,
+                        pLastEncryptedPart, CK_ULONG_PTR,
+                        pulLastEncryptedPartLen)
+
 IMPL_INTERFACE_FN_3_ARG(DecryptInit, CK_SESSION_HANDLE, hSession,
                         CK_MECHANISM_PTR, pMechanism, CK_OBJECT_HANDLE, hKey)
 
 IMPL_INTERFACE_FN_5_ARG(Decrypt, CK_SESSION_HANDLE, hSession, CK_BYTE_PTR,
                         pEncryptedData, CK_ULONG, ulEncryptedDataLen,
                         CK_BYTE_PTR, pData, CK_ULONG_PTR, pulDataLen)
+
+IMPL_INTERFACE_FN_5_ARG(DecryptUpdate, CK_SESSION_HANDLE, hSession, CK_BYTE_PTR,
+                        pEncryptedPart, CK_ULONG, ulEncryptedPartLen,
+                        CK_BYTE_PTR, pPart, CK_ULONG_PTR, pulPartLen)
+
+IMPL_INTERFACE_FN_3_ARG(DecryptFinal, CK_SESSION_HANDLE, hSession, CK_BYTE_PTR,
+                        pLastPart, CK_ULONG_PTR, pulLastPartLen)
 
 IMPL_INTERFACE_FN_2_ARG(DigestInit, CK_SESSION_HANDLE, hSession,
                         CK_MECHANISM_PTR, pMechanism)
@@ -200,6 +219,11 @@ IMPL_INTERFACE_FN_3_ARG(VerifyUpdate, CK_SESSION_HANDLE, hSession, CK_BYTE_PTR,
 
 IMPL_INTERFACE_FN_3_ARG(VerifyFinal, CK_SESSION_HANDLE, hSession, CK_BYTE_PTR,
                         pSignature, CK_ULONG, ulSignatureLen)
+
+IMPL_INTERFACE_FN_5_ARG(GenerateKey, CK_SESSION_HANDLE, hSession,
+                        CK_MECHANISM_PTR, pMechanism, CK_ATTRIBUTE_PTR,
+                        pTemplate, CK_ULONG, ulCount, CK_OBJECT_HANDLE_PTR,
+                        phKey)
 
 IMPL_INTERFACE_FN_8_ARG(GenerateKeyPair, CK_SESSION_HANDLE, hSession,
                         CK_MECHANISM_PTR, pMechanism, CK_ATTRIBUTE_PTR,

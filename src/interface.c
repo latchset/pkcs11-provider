@@ -57,8 +57,12 @@ struct p11prov_interface {
     CK_C_FindObjectsFinal FindObjectsFinal;
     CK_C_EncryptInit EncryptInit;
     CK_C_Encrypt Encrypt;
+    CK_C_EncryptUpdate EncryptUpdate;
+    CK_C_EncryptFinal EncryptFinal;
     CK_C_DecryptInit DecryptInit;
     CK_C_Decrypt Decrypt;
+    CK_C_DecryptUpdate DecryptUpdate;
+    CK_C_DecryptFinal DecryptFinal;
     CK_C_DigestInit DigestInit;
     CK_C_DigestUpdate DigestUpdate;
     CK_C_DigestFinal DigestFinal;
@@ -70,6 +74,7 @@ struct p11prov_interface {
     CK_C_Verify Verify;
     CK_C_VerifyUpdate VerifyUpdate;
     CK_C_VerifyFinal VerifyFinal;
+    CK_C_GenerateKey GenerateKey;
     CK_C_GenerateKeyPair GenerateKeyPair;
     CK_C_DeriveKey DeriveKey;
     CK_C_SeedRandom SeedRandom;
@@ -142,12 +147,17 @@ static void populate_interface(P11PROV_INTERFACE *intf, CK_INTERFACE *ck_intf)
     ASSIGN_FN(Verify);
     ASSIGN_FN(VerifyUpdate);
     ASSIGN_FN(VerifyFinal);
+    ASSIGN_FN(GenerateKey);
     ASSIGN_FN(GenerateKeyPair);
     ASSIGN_FN(DeriveKey);
     ASSIGN_FN(SeedRandom);
     ASSIGN_FN(GenerateRandom);
     if (intf->version.major == 3) {
         ASSIGN_FN_3_0(GetInterface);
+        ASSIGN_FN_3_0(EncryptUpdate);
+        ASSIGN_FN_3_0(EncryptFinal);
+        ASSIGN_FN_3_0(DecryptUpdate);
+        ASSIGN_FN_3_0(DecryptFinal);
     }
 }
 

@@ -41,6 +41,7 @@ struct p11prov_obj {
     CK_BBOOL cka_token;
 
     P11PROV_URI *refresh_uri;
+    char *public_uri;
 
     union {
         struct p11prov_key key;
@@ -472,6 +473,7 @@ void p11prov_obj_free(P11PROV_OBJ *obj)
     }
     OPENSSL_free(obj->attrs);
 
+    OPENSSL_free(obj->public_uri);
     p11prov_uri_free(obj->refresh_uri);
 
     p11prov_obj_free(obj->assoc_obj);
@@ -723,6 +725,14 @@ void p11prov_obj_set_associated(P11PROV_OBJ *obj, P11PROV_OBJ *assoc)
     }
 
     obj->assoc_obj = p11prov_obj_ref_no_cache(assoc);
+}
+
+const char *p11prov_obj_get_public_uri(P11PROV_OBJ *obj)
+{
+    if (!obj->public_uri) {
+        obj->public_uri = p11prov_obj_to_uri(obj);
+    }
+    return obj->public_uri;
 }
 
 /* CKA_ID
@@ -1033,6 +1043,36 @@ static CK_RV fetch_certificate(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     return CKR_OK;
 }
 
+static CK_RV fetch_secret_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
+                              CK_OBJECT_HANDLE object, P11PROV_OBJ *key)
+{
+    struct fetch_attrs attrs[BASE_KEY_ATTRS_NUM];
+    int num;
+    CK_RV ret;
+
+    key->attrs = OPENSSL_zalloc(BASE_KEY_ATTRS_NUM * sizeof(CK_ATTRIBUTE));
+    if (key->attrs == NULL) {
+        return CKR_HOST_MEMORY;
+    }
+
+    num = 0;
+    FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
+
+    ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Failed to query key attributes (%lu)", ret);
+        p11prov_fetch_attrs_free(attrs, num);
+        return ret;
+    }
+
+    key->numattrs = 0;
+    p11prov_move_alloc_attrs(attrs, num, key->attrs, &key->numattrs);
+
+    return CKR_OK;
+}
+
 /* TODO: may want to have a hashmap with cached objects */
 CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                               CK_OBJECT_HANDLE handle, P11PROV_OBJ **object)
@@ -1082,6 +1122,7 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
 
     case CKO_PUBLIC_KEY:
     case CKO_PRIVATE_KEY:
+    case CKO_SECRET_KEY:
         switch (obj->data.key.type) {
         case CKK_RSA:
             ret = fetch_rsa_key(ctx, session, handle, obj);
@@ -1097,7 +1138,27 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                 p11prov_obj_free(obj);
                 return ret;
             }
+        case CKK_GENERIC_SECRET:
+        case CKK_AES:
+        case CKK_SHA_1_HMAC:
+        case CKK_SHA256_HMAC:
+        case CKK_SHA384_HMAC:
+        case CKK_SHA512_HMAC:
+        case CKK_SHA224_HMAC:
+        case CKK_SHA512_224_HMAC:
+        case CKK_SHA512_256_HMAC:
+        case CKK_SHA3_224_HMAC:
+        case CKK_SHA3_256_HMAC:
+        case CKK_SHA3_384_HMAC:
+        case CKK_SHA3_512_HMAC:
             break;
+            ret = fetch_secret_key(ctx, session, handle, obj);
+            if (ret != CKR_OK) {
+                p11prov_obj_free(obj);
+                return ret;
+            }
+            break;
+
         default:
             /* unknown key type, we can't handle it */
             P11PROV_debug("Unsupported key type (%lu)", obj->data.key.type);
@@ -1168,6 +1229,7 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
     case CKO_CERTIFICATE:
     case CKO_PUBLIC_KEY:
     case CKO_PRIVATE_KEY:
+    case CKO_SECRET_KEY:
         CKATTR_ASSIGN(template[tsize], CKA_CLASS, &class, sizeof(class));
         tsize++;
         break;
@@ -1430,11 +1492,14 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
         break;
     case CKO_PUBLIC_KEY:
     case CKO_PRIVATE_KEY:
+    case CKO_SECRET_KEY:
         obj->data.key = tmp->data.key;
         break;
     default:
         break;
     }
+    OPENSSL_free(obj->public_uri);
+    obj->public_uri = NULL;
     /* FIXME: How do we refresh attrs? What happens if a pointer
      * to an attr value was saved somewhere? Freeing ->attrs would
      * cause use-after-free issues */
@@ -1817,6 +1882,7 @@ static CK_RV get_public_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int num)
     /* we couldn't get all of them, start fallback logic */
     switch (obj->class) {
     case CKO_PUBLIC_KEY:
+    case CKO_SECRET_KEY:
         return get_all_attrs(obj, attrs, num);
     case CKO_PRIVATE_KEY:
         rv = get_all_attrs(obj, attrs, num);
@@ -4342,6 +4408,127 @@ CK_RV p11prov_obj_import_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
         return CKR_KEY_INDIGESTIBLE;
     }
 }
+
+#if SKEY_SUPPORT
+
+static CK_RV p11prov_store_aes_key(P11PROV_CTX *provctx, P11PROV_OBJ **ret,
+                                   const unsigned char *secret,
+                                   size_t secretlen, char *label,
+                                   CK_FLAGS usage, bool session_key)
+{
+    CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
+    CK_KEY_TYPE key_type = CKK_AES;
+    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
+    P11PROV_SLOTS_CTX *slots = NULL;
+    P11PROV_SESSION *session = NULL;
+    CK_OBJECT_HANDLE key_handle;
+    P11PROV_OBJ *obj;
+    CK_RV rv;
+    CK_ATTRIBUTE tmpl[12] = {
+        { CKA_CLASS, &key_class, sizeof(key_class) },
+        { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
+        { CKA_VALUE, (void *)secret, secretlen },
+        { 0 },
+    };
+    size_t tmax = sizeof(tmpl) / sizeof(CK_ATTRIBUTE);
+    size_t tsize = 3;
+
+    P11PROV_debug("Creating secret key (%p[%zu]), token: %b, flags: %x", secret,
+                  secretlen, !session_key, usage);
+
+    /* CKA_TOKEN */
+    if (session_key) {
+        p11prov_set_attr_bool(&tmpl[tsize++], CKA_TOKEN, false);
+    } else {
+        p11prov_set_attr_bool(&tmpl[tsize++], CKA_TOKEN, true);
+    }
+
+    if (usage) {
+        rv = p11prov_usage_to_template(tmpl, &tsize, tmax, usage);
+        if (rv != CKR_OK) {
+            P11PROV_raise(provctx, rv, "Failed to set key usage");
+            return CKR_GENERAL_ERROR;
+        }
+    } else {
+        rv = CKR_ARGUMENTS_BAD;
+        P11PROV_raise(provctx, rv, "No key usage specified");
+        return CKR_GENERAL_ERROR;
+    }
+
+    slots = p11prov_ctx_get_slots(provctx);
+    if (!slots) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    slot = p11prov_get_default_slot(slots);
+    if (slot == CK_UNAVAILABLE_INFORMATION) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    rv = p11prov_take_login_session(provctx, slot, &session);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    rv = p11prov_CreateObject(provctx, p11prov_session_handle(session), tmpl,
+                              tsize, &key_handle);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    obj = p11prov_obj_new(provctx, slot, key_handle, key_class);
+    if (obj == NULL) {
+        rv = CKR_HOST_MEMORY;
+        goto done;
+    }
+    obj->data.key.type = key_type;
+    obj->data.key.bit_size = secretlen * 8;
+    obj->data.key.size = secretlen;
+
+    *ret = obj;
+    rv = CKR_OK;
+
+done:
+    p11prov_return_session(session);
+    return rv;
+}
+
+P11PROV_OBJ *p11prov_obj_import_secret_key(P11PROV_CTX *ctx, CK_KEY_TYPE type,
+                                           const unsigned char *key,
+                                           size_t keylen)
+{
+    CK_RV rv = CKR_KEY_INDIGESTIBLE;
+    P11PROV_OBJ *obj = NULL;
+    CK_FLAGS usage = CKF_ENCRYPT | CKF_DECRYPT | CKF_SIGN | CKF_VERIFY
+                     | CKF_WRAP | CKF_UNWRAP | CKF_DECRYPT;
+
+    /* TODO: cache find, see other key types */
+
+    switch (type) {
+    case CKK_AES:
+        rv = p11prov_store_aes_key(ctx, &obj, key, keylen, NULL, usage, true);
+        if (rv != CKR_OK) {
+            P11PROV_raise(ctx, rv, "Failed to import");
+            goto done;
+        }
+        break;
+
+    default:
+        P11PROV_raise(ctx, rv, "Unsupported key type: %08lx", type);
+        goto done;
+    }
+
+done:
+    if (rv != CKR_OK) {
+        p11prov_obj_free(obj);
+        obj = NULL;
+    }
+    return obj;
+}
+
+#endif /* SKEY_SUPPORT */
 
 CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
                                             const void *pubkey,

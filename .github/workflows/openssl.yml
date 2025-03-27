@@ -11,7 +11,7 @@ jobs:
   build:
     name: CI with openssl master 
     runs-on: ubuntu-22.04
-    container: fedora:latest
+    container: fedora:rawhide
     steps:
       - name: Get Date for DNF cache entry
         id: get-date-dnf
@@ -32,7 +32,7 @@ jobs:
               perl-File-Copy perl-Pod-Html clang git meson cargo expect \
               pkgconf-pkg-config opensc p11-kit-devel gcc g++ sqlite-devel \
               python3-six which cmake nss-softokn nss-tools nss-softokn-devel \
-              nss-devel softhsm
+              nss-devel softhsm kryoptic
 
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
         with:
           path: /opt
           key: ${{ runner.os }}-opt-${{ steps.get-date-opt.outputs.date }}
-      
+
       - name: Get OpenSSL
         if: steps.cache-opt.outputs.cache-hit != 'true'
         run: |
@@ -65,7 +65,7 @@ jobs:
         run: |
           export LD_LIBRARY_PATH="/opt/lib64/:$LD_LIBRARY_PATH"
           export PATH="/opt/bin:$PATH"
-          export PKG_CONFIG_PATH="/opt/lib64/pkgconfig" 
+          export PKG_CONFIG_PATH="/opt/lib64/pkgconfig"
           meson setup builddir
           meson compile -C builddir
 
@@ -81,3 +81,4 @@ jobs:
           name: Test logs
           path: |
             builddir/meson-logs/
+            builddir/tests/*.log

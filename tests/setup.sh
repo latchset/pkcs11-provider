@@ -24,6 +24,7 @@ OPENSC_VERSION=$(opensc-tool -i | grep OpenSC | sed -e "s/OpenSC 0\.\([0-9]*\).*
 if [[ "$OPENSC_VERSION" -le "25" ]]; then
     SUPPORT_ED448=0
 fi
+SUPPORT_ED448=0
 
 # FIPS Mode
 if [[ "${PKCS11_PROVIDER_FORCE_FIPS_MODE}" = "1" || "$(cat /proc/sys/crypto/fips_enabled)" = "1" ]]; then
@@ -56,6 +57,10 @@ if [[ "${PKCS11_PROVIDER_FORCE_FIPS_MODE}" = "1" || "$(cat /proc/sys/crypto/fips
 else
     PINVALUE="12345678"
 fi
+
+# Check if openssl supports skey
+SUPPORT_SKEY=0
+openssl skeyutl -h >/dev/null 2>&1 && SUPPORT_SKEY=1
 
 # Temporary dir and Token data dir
 TMPPDIR="${TESTBLDDIR}/${TOKENTYPE}"
@@ -498,6 +503,7 @@ export SUPPORT_RSA_PKCS1_ENCRYPTION="${SUPPORT_RSA_PKCS1_ENCRYPTION}"
 export SUPPORT_RSA_KEYGEN_PUBLIC_EXPONENT="${SUPPORT_RSA_KEYGEN_PUBLIC_EXPONENT}"
 export SUPPORT_TLSFUZZER="${SUPPORT_TLSFUZZER}"
 export SUPPORT_ALLOWED_MECHANISMS="${SUPPORT_ALLOWED_MECHANISMS}"
+export SUPPORT_SKEY="${SUPPORT_SKEY}"
 
 export TESTPORT="${TESTPORT}"
 

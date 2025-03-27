@@ -84,11 +84,24 @@ CK_RV p11prov_Encrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                       CK_BYTE_PTR pData, CK_ULONG ulDataLen,
                       CK_BYTE_PTR pEncryptedData,
                       CK_ULONG_PTR pulEncryptedDataLen);
+CK_RV p11prov_EncryptUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                            CK_BYTE_PTR pPart, CK_ULONG ulPartLen,
+                            CK_BYTE_PTR pEncryptedPart,
+                            CK_ULONG_PTR pulEncryptedPartLen);
+CK_RV p11prov_EncryptFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                           CK_BYTE_PTR pLastEncryptedPart,
+                           CK_ULONG_PTR pulLastEncryptedPartLen);
 CK_RV p11prov_DecryptInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                           CK_MECHANISM_PTR pMechanism, CK_OBJECT_HANDLE hKey);
 CK_RV p11prov_Decrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                       CK_BYTE_PTR pEncryptedData, CK_ULONG ulEncryptedDataLen,
                       CK_BYTE_PTR pData, CK_ULONG_PTR pulDataLen);
+CK_RV p11prov_DecryptUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                            CK_BYTE_PTR pEncryptedPart,
+                            CK_ULONG ulEncryptedPartLen, CK_BYTE_PTR pPart,
+                            CK_ULONG_PTR pulPartLen);
+CK_RV p11prov_DecryptFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                           CK_BYTE_PTR pLastPart, CK_ULONG_PTR pulLastPartLen);
 CK_RV p11prov_DigestInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                          CK_MECHANISM_PTR pMechanism);
 CK_RV p11prov_DigestUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
@@ -113,6 +126,10 @@ CK_RV p11prov_VerifyUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                            CK_BYTE_PTR pPart, CK_ULONG ulPartLen);
 CK_RV p11prov_VerifyFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                           CK_BYTE_PTR pSignature, CK_ULONG ulSignatureLen);
+CK_RV p11prov_GenerateKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                          CK_MECHANISM_PTR pMechanism,
+                          CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount,
+                          CK_OBJECT_HANDLE_PTR phKey);
 CK_RV p11prov_GenerateKeyPair(
     P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism,
     CK_ATTRIBUTE_PTR pPublicKeyTemplate, CK_ULONG ulPublicKeyAttributeCount,
@@ -187,6 +204,7 @@ CK_INFO p11prov_module_ck_info(P11PROV_MODULE *mctx);
 #define P11PROV_BLOCK_Verify 0b0000000000000000
 #define P11PROV_BLOCK_VerifyUpdate 0b0000000000000000
 #define P11PROV_BLOCK_VerifyFinal 0b0000000000000000
+#define P11PROV_BLOCK_GenerateKey 0b0000000000000000
 #define P11PROV_BLOCK_GenerateKeyPair 0b0000000000000000
 #define P11PROV_BLOCK_DeriveKey 0b0000000000000000
 #define P11PROV_BLOCK_SeedRandom 0b0000000000000000

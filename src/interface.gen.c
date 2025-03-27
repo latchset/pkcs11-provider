@@ -13,6 +13,10 @@ CK_RV p11prov_Initialize(P11PROV_CTX *ctx, CK_VOID_PTR pInitArgs)
         P11PROV_debug("C_%s is blocked", "Initialize");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->Initialize) {
+        P11PROV_debug("C_%s is not available", "Initialize");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "Initialize");
     ret = intf->Initialize(pInitArgs);
@@ -36,6 +40,10 @@ CK_RV p11prov_Finalize(P11PROV_CTX *ctx, CK_VOID_PTR pReserved)
         P11PROV_debug("C_%s is blocked", "Finalize");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->Finalize) {
+        P11PROV_debug("C_%s is not available", "Finalize");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "Finalize");
     ret = intf->Finalize(pReserved);
@@ -57,6 +65,10 @@ CK_RV p11prov_GetInfo(P11PROV_CTX *ctx, CK_INFO_PTR pInfo)
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetInfo)) {
         P11PROV_debug("C_%s is blocked", "GetInfo");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->GetInfo) {
+        P11PROV_debug("C_%s is not available", "GetInfo");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -84,6 +96,10 @@ CK_RV p11prov_GetInterface(P11PROV_CTX *ctx, CK_UTF8CHAR_PTR pInterfaceName,
         P11PROV_debug("C_%s is blocked", "GetInterface");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->GetInterface) {
+        P11PROV_debug("C_%s is not available", "GetInterface");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "GetInterface");
     ret = intf->GetInterface(pInterfaceName, pVersion, ppInterface, flags);
@@ -106,6 +122,10 @@ CK_RV p11prov_GetFunctionList(P11PROV_CTX *ctx,
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetFunctionList)) {
         P11PROV_debug("C_%s is blocked", "GetFunctionList");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->GetFunctionList) {
+        P11PROV_debug("C_%s is not available", "GetFunctionList");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -132,6 +152,10 @@ CK_RV p11prov_GetSlotList(P11PROV_CTX *ctx, CK_BBOOL tokenPresent,
         P11PROV_debug("C_%s is blocked", "GetSlotList");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->GetSlotList) {
+        P11PROV_debug("C_%s is not available", "GetSlotList");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "GetSlotList");
     ret = intf->GetSlotList(tokenPresent, pSlotList, pulCount);
@@ -156,6 +180,10 @@ CK_RV p11prov_GetSlotInfo(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
         P11PROV_debug("C_%s is blocked", "GetSlotInfo");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->GetSlotInfo) {
+        P11PROV_debug("C_%s is not available", "GetSlotInfo");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "GetSlotInfo");
     ret = intf->GetSlotInfo(slotID, pInfo);
@@ -178,6 +206,10 @@ CK_RV p11prov_GetTokenInfo(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetTokenInfo)) {
         P11PROV_debug("C_%s is blocked", "GetTokenInfo");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->GetTokenInfo) {
+        P11PROV_debug("C_%s is not available", "GetTokenInfo");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -205,6 +237,10 @@ CK_RV p11prov_GetMechanismList(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
         P11PROV_debug("C_%s is blocked", "GetMechanismList");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->GetMechanismList) {
+        P11PROV_debug("C_%s is not available", "GetMechanismList");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "GetMechanismList");
     ret = intf->GetMechanismList(slotID, pMechanismList, pulCount);
@@ -228,6 +264,10 @@ CK_RV p11prov_GetMechanismInfo(P11PROV_CTX *ctx, CK_SLOT_ID slotID,
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetMechanismInfo)) {
         P11PROV_debug("C_%s is blocked", "GetMechanismInfo");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->GetMechanismInfo) {
+        P11PROV_debug("C_%s is not available", "GetMechanismInfo");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -255,6 +295,10 @@ CK_RV p11prov_OpenSession(P11PROV_CTX *ctx, CK_SLOT_ID slotID, CK_FLAGS flags,
         P11PROV_debug("C_%s is blocked", "OpenSession");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->OpenSession) {
+        P11PROV_debug("C_%s is not available", "OpenSession");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "OpenSession");
     ret = intf->OpenSession(slotID, flags, pApplication, Notify, phSession);
@@ -276,6 +320,10 @@ CK_RV p11prov_CloseSession(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession)
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_CloseSession)) {
         P11PROV_debug("C_%s is blocked", "CloseSession");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->CloseSession) {
+        P11PROV_debug("C_%s is not available", "CloseSession");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -302,6 +350,10 @@ CK_RV p11prov_GetSessionInfo(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "GetSessionInfo");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->GetSessionInfo) {
+        P11PROV_debug("C_%s is not available", "GetSessionInfo");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "GetSessionInfo");
     ret = intf->GetSessionInfo(hSession, pInfo);
@@ -325,6 +377,10 @@ CK_RV p11prov_GetOperationState(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GetOperationState)) {
         P11PROV_debug("C_%s is blocked", "GetOperationState");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->GetOperationState) {
+        P11PROV_debug("C_%s is not available", "GetOperationState");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -355,6 +411,10 @@ CK_RV p11prov_SetOperationState(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "SetOperationState");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->SetOperationState) {
+        P11PROV_debug("C_%s is not available", "SetOperationState");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "SetOperationState");
     ret =
@@ -382,6 +442,10 @@ CK_RV p11prov_Login(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "Login");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->Login) {
+        P11PROV_debug("C_%s is not available", "Login");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "Login");
     ret = intf->Login(hSession, userType, pPin, ulPinLen);
@@ -405,6 +469,10 @@ CK_RV p11prov_CreateObject(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_CreateObject)) {
         P11PROV_debug("C_%s is blocked", "CreateObject");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->CreateObject) {
+        P11PROV_debug("C_%s is not available", "CreateObject");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -432,6 +500,10 @@ CK_RV p11prov_CopyObject(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "CopyObject");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->CopyObject) {
+        P11PROV_debug("C_%s is not available", "CopyObject");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "CopyObject");
     ret = intf->CopyObject(hSession, hObject, pTemplate, ulCount, phNewObject);
@@ -454,6 +526,10 @@ CK_RV p11prov_DestroyObject(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DestroyObject)) {
         P11PROV_debug("C_%s is blocked", "DestroyObject");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->DestroyObject) {
+        P11PROV_debug("C_%s is not available", "DestroyObject");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -481,6 +557,10 @@ CK_RV p11prov_GetAttributeValue(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "GetAttributeValue");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->GetAttributeValue) {
+        P11PROV_debug("C_%s is not available", "GetAttributeValue");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "GetAttributeValue");
     ret = intf->GetAttributeValue(hSession, hObject, pTemplate, ulCount);
@@ -506,6 +586,10 @@ CK_RV p11prov_SetAttributeValue(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "SetAttributeValue");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->SetAttributeValue) {
+        P11PROV_debug("C_%s is not available", "SetAttributeValue");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "SetAttributeValue");
     ret = intf->SetAttributeValue(hSession, hObject, pTemplate, ulCount);
@@ -528,6 +612,10 @@ CK_RV p11prov_FindObjectsInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_FindObjectsInit)) {
         P11PROV_debug("C_%s is blocked", "FindObjectsInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->FindObjectsInit) {
+        P11PROV_debug("C_%s is not available", "FindObjectsInit");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -556,6 +644,10 @@ CK_RV p11prov_FindObjects(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "FindObjects");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->FindObjects) {
+        P11PROV_debug("C_%s is not available", "FindObjects");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "FindObjects");
     ret =
@@ -580,6 +672,10 @@ CK_RV p11prov_FindObjectsFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession)
         P11PROV_debug("C_%s is blocked", "FindObjectsFinal");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->FindObjectsFinal) {
+        P11PROV_debug("C_%s is not available", "FindObjectsFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "FindObjectsFinal");
     ret = intf->FindObjectsFinal(hSession);
@@ -602,6 +698,10 @@ CK_RV p11prov_EncryptInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_EncryptInit)) {
         P11PROV_debug("C_%s is blocked", "EncryptInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->EncryptInit) {
+        P11PROV_debug("C_%s is not available", "EncryptInit");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -630,6 +730,10 @@ CK_RV p11prov_Encrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "Encrypt");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->Encrypt) {
+        P11PROV_debug("C_%s is not available", "Encrypt");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "Encrypt");
     ret = intf->Encrypt(hSession, pData, ulDataLen, pEncryptedData,
@@ -637,6 +741,67 @@ CK_RV p11prov_Encrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     if (ret != CKR_OK) {
         P11PROV_debug("Error %ld returned by C_"
                       "Encrypt",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_EncryptUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                            CK_BYTE_PTR pPart, CK_ULONG ulPartLen,
+                            CK_BYTE_PTR pEncryptedPart,
+                            CK_ULONG_PTR pulEncryptedPartLen)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_EncryptUpdate)) {
+        P11PROV_debug("C_%s is blocked", "EncryptUpdate");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->EncryptUpdate) {
+        P11PROV_debug("C_%s is not available", "EncryptUpdate");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "EncryptUpdate");
+    ret = intf->EncryptUpdate(hSession, pPart, ulPartLen, pEncryptedPart,
+                              pulEncryptedPartLen);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "EncryptUpdate",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_EncryptFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                           CK_BYTE_PTR pLastEncryptedPart,
+                           CK_ULONG_PTR pulLastEncryptedPartLen)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_EncryptFinal)) {
+        P11PROV_debug("C_%s is blocked", "EncryptFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->EncryptFinal) {
+        P11PROV_debug("C_%s is not available", "EncryptFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "EncryptFinal");
+    ret = intf->EncryptFinal(hSession, pLastEncryptedPart,
+                             pulLastEncryptedPartLen);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "EncryptFinal",
                       ret);
     }
     return ret;
@@ -653,6 +818,10 @@ CK_RV p11prov_DecryptInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DecryptInit)) {
         P11PROV_debug("C_%s is blocked", "DecryptInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->DecryptInit) {
+        P11PROV_debug("C_%s is not available", "DecryptInit");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -680,6 +849,10 @@ CK_RV p11prov_Decrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "Decrypt");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->Decrypt) {
+        P11PROV_debug("C_%s is not available", "Decrypt");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "Decrypt");
     ret = intf->Decrypt(hSession, pEncryptedData, ulEncryptedDataLen, pData,
@@ -687,6 +860,65 @@ CK_RV p11prov_Decrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     if (ret != CKR_OK) {
         P11PROV_debug("Error %ld returned by C_"
                       "Decrypt",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_DecryptUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                            CK_BYTE_PTR pEncryptedPart,
+                            CK_ULONG ulEncryptedPartLen, CK_BYTE_PTR pPart,
+                            CK_ULONG_PTR pulPartLen)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DecryptUpdate)) {
+        P11PROV_debug("C_%s is blocked", "DecryptUpdate");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->DecryptUpdate) {
+        P11PROV_debug("C_%s is not available", "DecryptUpdate");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "DecryptUpdate");
+    ret = intf->DecryptUpdate(hSession, pEncryptedPart, ulEncryptedPartLen,
+                              pPart, pulPartLen);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "DecryptUpdate",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_DecryptFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                           CK_BYTE_PTR pLastPart, CK_ULONG_PTR pulLastPartLen)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DecryptFinal)) {
+        P11PROV_debug("C_%s is blocked", "DecryptFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->DecryptFinal) {
+        P11PROV_debug("C_%s is not available", "DecryptFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "DecryptFinal");
+    ret = intf->DecryptFinal(hSession, pLastPart, pulLastPartLen);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "DecryptFinal",
                       ret);
     }
     return ret;
@@ -703,6 +935,10 @@ CK_RV p11prov_DigestInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DigestInit)) {
         P11PROV_debug("C_%s is blocked", "DigestInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->DigestInit) {
+        P11PROV_debug("C_%s is not available", "DigestInit");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -729,6 +965,10 @@ CK_RV p11prov_DigestUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "DigestUpdate");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->DigestUpdate) {
+        P11PROV_debug("C_%s is not available", "DigestUpdate");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "DigestUpdate");
     ret = intf->DigestUpdate(hSession, pPart, ulPartLen);
@@ -753,6 +993,10 @@ CK_RV p11prov_DigestFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "DigestFinal");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->DigestFinal) {
+        P11PROV_debug("C_%s is not available", "DigestFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "DigestFinal");
     ret = intf->DigestFinal(hSession, pDigest, pulDigestLen);
@@ -775,6 +1019,10 @@ CK_RV p11prov_SignInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_SignInit)) {
         P11PROV_debug("C_%s is blocked", "SignInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->SignInit) {
+        P11PROV_debug("C_%s is not available", "SignInit");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -802,6 +1050,10 @@ CK_RV p11prov_Sign(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "Sign");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->Sign) {
+        P11PROV_debug("C_%s is not available", "Sign");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "Sign");
     ret = intf->Sign(hSession, pData, ulDataLen, pSignature, pulSignatureLen);
@@ -824,6 +1076,10 @@ CK_RV p11prov_SignUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_SignUpdate)) {
         P11PROV_debug("C_%s is blocked", "SignUpdate");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->SignUpdate) {
+        P11PROV_debug("C_%s is not available", "SignUpdate");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -850,6 +1106,10 @@ CK_RV p11prov_SignFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "SignFinal");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->SignFinal) {
+        P11PROV_debug("C_%s is not available", "SignFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "SignFinal");
     ret = intf->SignFinal(hSession, pSignature, pulSignatureLen);
@@ -872,6 +1132,10 @@ CK_RV p11prov_VerifyInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_VerifyInit)) {
         P11PROV_debug("C_%s is blocked", "VerifyInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->VerifyInit) {
+        P11PROV_debug("C_%s is not available", "VerifyInit");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -899,6 +1163,10 @@ CK_RV p11prov_Verify(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "Verify");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->Verify) {
+        P11PROV_debug("C_%s is not available", "Verify");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "Verify");
     ret = intf->Verify(hSession, pData, ulDataLen, pSignature, ulSignatureLen);
@@ -921,6 +1189,10 @@ CK_RV p11prov_VerifyUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_VerifyUpdate)) {
         P11PROV_debug("C_%s is blocked", "VerifyUpdate");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->VerifyUpdate) {
+        P11PROV_debug("C_%s is not available", "VerifyUpdate");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -947,12 +1219,46 @@ CK_RV p11prov_VerifyFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "VerifyFinal");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->VerifyFinal) {
+        P11PROV_debug("C_%s is not available", "VerifyFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "VerifyFinal");
     ret = intf->VerifyFinal(hSession, pSignature, ulSignatureLen);
     if (ret != CKR_OK) {
         P11PROV_debug("Error %ld returned by C_"
                       "VerifyFinal",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_GenerateKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                          CK_MECHANISM_PTR pMechanism,
+                          CK_ATTRIBUTE_PTR pTemplate, CK_ULONG ulCount,
+                          CK_OBJECT_HANDLE_PTR phKey)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GenerateKey)) {
+        P11PROV_debug("C_%s is blocked", "GenerateKey");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->GenerateKey) {
+        P11PROV_debug("C_%s is not available", "GenerateKey");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "GenerateKey");
+    ret = intf->GenerateKey(hSession, pMechanism, pTemplate, ulCount, phKey);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "GenerateKey",
                       ret);
     }
     return ret;
@@ -972,6 +1278,10 @@ CK_RV p11prov_GenerateKeyPair(
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GenerateKeyPair)) {
         P11PROV_debug("C_%s is blocked", "GenerateKeyPair");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->GenerateKeyPair) {
+        P11PROV_debug("C_%s is not available", "GenerateKeyPair");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
@@ -1003,6 +1313,10 @@ CK_RV p11prov_DeriveKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "DeriveKey");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->DeriveKey) {
+        P11PROV_debug("C_%s is not available", "DeriveKey");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "DeriveKey");
     ret = intf->DeriveKey(hSession, pMechanism, hBaseKey, pTemplate,
@@ -1028,6 +1342,10 @@ CK_RV p11prov_SeedRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
         P11PROV_debug("C_%s is blocked", "SeedRandom");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
+    if (!intf->SeedRandom) {
+        P11PROV_debug("C_%s is not available", "SeedRandom");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
     P11PROV_debug("Calling C_"
                   "SeedRandom");
     ret = intf->SeedRandom(hSession, pSeed, ulSeedLen);
@@ -1050,6 +1368,10 @@ CK_RV p11prov_GenerateRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     }
     if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_GenerateRandom)) {
         P11PROV_debug("C_%s is blocked", "GenerateRandom");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->GenerateRandom) {
+        P11PROV_debug("C_%s is not available", "GenerateRandom");
         return CKR_FUNCTION_NOT_SUPPORTED;
     }
     P11PROV_debug("Calling C_"
