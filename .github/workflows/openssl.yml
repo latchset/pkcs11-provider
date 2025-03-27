@@ -46,7 +46,7 @@ jobs:
         with:
           path: /opt
           key: ${{ runner.os }}-opt-${{ steps.get-date-opt.outputs.date }}
-      
+
       - name: Get OpenSSL
         if: steps.cache-opt.outputs.cache-hit != 'true'
         run: |
@@ -104,7 +104,7 @@ jobs:
         run: |
           export LD_LIBRARY_PATH="/opt/lib64/:$LD_LIBRARY_PATH"
           export PATH="/opt/bin:$PATH"
-          export PKG_CONFIG_PATH="/opt/lib64/pkgconfig" 
+          export PKG_CONFIG_PATH="/opt/lib64/pkgconfig"
           meson setup builddir
           meson compile -C builddir
 
@@ -120,3 +120,4 @@ jobs:
           name: Test logs
           path: |
             builddir/meson-logs/
+            builddir/tests/*.log
