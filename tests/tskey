@@ -4,6 +4,11 @@
 
 source "${TESTSSRCDIR}/helpers.sh"
 
+# Run tests only if OpenSSL does have SKEY support
+if [[ "${SUPPORT_SKEY}" = "0" ]]; then
+    exit 77
+fi
+
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
 # We need to force the provider and configure early loading otherwise no
 # ciphers are loaded, and operations will fail
@@ -12,7 +17,7 @@ sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_prop
     "${OPENSSL_CONF}" > "${OPENSSL_CONF}.ciphers"
 OPENSSL_CONF=${OPENSSL_CONF}.ciphers
 
-echo "plaintext" > ${TMPPDIR}/aes128cbc.txt
+echo "plaintext" > "${TMPPDIR}/aes128cbc.txt"
 
 title PARA "Test Symmetric Encryption on the token (legacy init)"
 ossl 'enc -e -aes128
@@ -29,7 +34,7 @@ ossl 'enc -d -aes128
              -out ${TMPPDIR}/aes128cbc.txt.dec
              -propquery "provider=pkcs11"'
 
-diff ${TMPPDIR}/aes128cbc.txt ${TMPPDIR}/aes128cbc.txt.dec
+diff "${TMPPDIR}/aes128cbc.txt" "${TMPPDIR}/aes128cbc.txt.dec"
 
 title PARA "Test Symmetric Encryption on the token (skey init)"
 ossl 'enc -e -aes128 -skeymgmt AES
@@ -46,7 +51,7 @@ ossl 'enc -d -aes128 -skeymgmt AES
              -out ${TMPPDIR}/aes128cbc.txt.skey.dec
              -propquery "provider=pkcs11"'
 
-diff ${TMPPDIR}/aes128cbc.txt ${TMPPDIR}/aes128cbc.txt.skey.dec
+diff "${TMPPDIR}/aes128cbc.txt" "${TMPPDIR}/aes128cbc.txt.skey.dec"
 
 title PARA "Test Symmetric Key Generation"
 openssl skeyutl -genkey -skeymgmt AES -cipher aes128 -skeyopt 'pkcs11_uri:pkcs11:id=%55%33;object=SECRET-SKEY' -skeyopt 'pkcs11_ephemeral:0'
