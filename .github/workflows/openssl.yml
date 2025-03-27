@@ -8,8 +8,8 @@ on:
     branches: ["main"]
 
 jobs:
-  build:
-    name: CI with openssl master 
+  setup:
+    name: Build OpenSSL from master branch 
     runs-on: ubuntu-22.04
     container: fedora:latest
     steps:
@@ -29,10 +29,7 @@ jobs:
       - name: Install Dependencies
         run: |
             dnf -y install perl-FindBin perl-IPC-Cmd perl-File-Compare \
-              perl-File-Copy perl-Pod-Html clang git meson cargo expect \
-              pkgconf-pkg-config opensc p11-kit-devel gcc g++ sqlite-devel \
-              python3-six which cmake nss-softokn nss-tools nss-softokn-devel \
-              nss-devel softhsm
+              perl-File-Copy perl-Pod-Html git clang
 
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -60,6 +57,48 @@ jobs:
         run: |
           cd openssl
           ./config --prefix=/opt && make && make install_sw
+
+  build:
+    name: Build and test pkcs11-provider
+    needs: setup
+    runs-on: ubuntu-22.04
+    container: fedora:latest
+    steps:
+      - name: Get Date for DNF cache entry
+        id: get-date-dnf
+        run: |
+          echo "date=$(/bin/date -u "+%Y%V")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: DNF cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/libdnf5
+          key: ${{ runner.os }}-dnf-openssl-${{ steps.get-date-dnf.outputs.date }}
+
+      - name: Install Dependencies
+        run: |
+            dnf -y install clang meson cargo expect pkgconf-pkg-config opensc \
+              p11-kit-devel gcc g++ sqlite-devel python3-six which cmake \
+              nss-softokn nss-tools nss-softokn-devel nss-devel softhsm
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Get Date for /opt cache entry
+        id: get-date-opt
+        run: |
+          echo "date=$(/bin/date -u "+%Y%m%d")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Fetch built openssl from cache
+        id: cache-opt
+        uses: actions/cache@v4
+        with:
+          path: /opt
+          key: ${{ runner.os }}-opt-${{ steps.get-date-opt.outputs.date }}
+          fail-on-cache-miss: true
 
       - name: Setup and build pkcs11-provider
         run: |
