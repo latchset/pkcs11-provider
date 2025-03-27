@@ -81,3 +81,4 @@ jobs:
           name: Test logs
           path: |
             builddir/meson-logs/
+            builddir/*.log
