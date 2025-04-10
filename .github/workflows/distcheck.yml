@@ -12,19 +12,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [fedora, debian, centos]
+        name: [fedora, debian, centos9, centos10]
         include:
           - name: fedora
             container: fedora:latest
           - name: debian
             container: debian:sid
-          - name: centos
+          - name: centos9
             container: quay.io/centos/centos:stream9
+          - name: centos10
+            container: quay.io/centos/centos:stream10
     container: ${{ matrix.container }}
     steps:
       - name: Install Dependencies
         run: |
-            if [ "${{ matrix.name }}" = centos ]; then
+            if [ "${{ matrix.name }}" = "centos9" -o "${{ matrix.name }}" = "centos10" ]; then
               dnf_opts="--enablerepo=crb"
             fi
             if [ -f /etc/redhat-release ]; then
