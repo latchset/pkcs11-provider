@@ -69,3 +69,6 @@ export TOKENCONFIGVARS="export SOFTHSM2_CONF=${TMPPDIR}/softhsm.conf"
 export TESTPORT="32000"
 
 export SUPPORT_ALLOWED_MECHANISMS=1
+
+# softhsm loops into itself badly on symmetric operation
+export SUPPORT_SYMMETRIC=0

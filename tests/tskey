@@ -19,20 +19,23 @@ OPENSSL_CONF=${OPENSSL_CONF}.ciphers
 
 echo "plaintext" > "${TMPPDIR}/aes128cbc.txt"
 
+if [[ "${SUPPORT_SYMMETRIC}" = "1" ]]; then
+    # shellcheck disable=SC2089 # Quoted quotes is intentional
+    PROP='-propquery "provider=pkcs11"'
+fi
+
 title PARA "Test Symmetric Encryption on the token (legacy init)"
 ossl 'enc -e -aes128
              -K 0102030405060708090a0b0c0d0e0f10
              -iv 100f0e0d0c0b0a090807060504030201
              -in ${TMPPDIR}/aes128cbc.txt
-             -out ${TMPPDIR}/aes128cbc.txt.enc
-             -propquery "provider=pkcs11"'
+             -out ${TMPPDIR}/aes128cbc.txt.enc' "${PROP}"
 
 ossl 'enc -d -aes128
              -K 0102030405060708090a0b0c0d0e0f10
              -iv 100f0e0d0c0b0a090807060504030201
              -in ${TMPPDIR}/aes128cbc.txt.enc
-             -out ${TMPPDIR}/aes128cbc.txt.dec
-             -propquery "provider=pkcs11"'
+             -out ${TMPPDIR}/aes128cbc.txt.dec' "${PROP}"
 
 diff "${TMPPDIR}/aes128cbc.txt" "${TMPPDIR}/aes128cbc.txt.dec"
 
@@ -41,26 +44,33 @@ ossl 'enc -e -aes128 -skeymgmt AES
              -skeyopt hexraw-bytes:0102030405060708090a0b0c0d0e0f10
              -iv 100f0e0d0c0b0a090807060504030201
              -in ${TMPPDIR}/aes128cbc.txt
-             -out ${TMPPDIR}/aes128cbc.txt.skey.enc
-             -propquery "provider=pkcs11"'
+             -out ${TMPPDIR}/aes128cbc.txt.skey.enc' "${PROP}"
 
 ossl 'enc -d -aes128 -skeymgmt AES
              -skeyopt hexraw-bytes:0102030405060708090a0b0c0d0e0f10
              -iv 100f0e0d0c0b0a090807060504030201
              -in ${TMPPDIR}/aes128cbc.txt.skey.enc
-             -out ${TMPPDIR}/aes128cbc.txt.skey.dec
-             -propquery "provider=pkcs11"'
+             -out ${TMPPDIR}/aes128cbc.txt.skey.dec' "${PROP}"
 
 diff "${TMPPDIR}/aes128cbc.txt" "${TMPPDIR}/aes128cbc.txt.skey.dec"
 
 title PARA "Test Symmetric Key Generation"
-P11DEFLOGIN=("--login" "--pin=${PINVALUE}")
-
-ossl '
-skeyutl -genkey -skeymgmt AES -cipher aes128
-                -skeyopt "pkcs11_uri:pkcs11:id=%55%33\;object=SECRET-SKEY"
-                -skeyopt "pkcs11_ephemeral:0"'
-ptool -O | grep SECRET-SKEY
+if [[ "${SUPPORT_SYMMETRIC}" = "1" ]]; then
+    ossl 'skeyutl -genkey -skeymgmt AES -cipher aes128
+                  -skeyopt "pkcs11_uri:pkcs11:id=%55%33\;object=SECRET-SKEY"
+                  -skeyopt "pkcs11_ephemeral:0"'
+    P11DEFLOGIN=("--login" "--pin=${PINVALUE}")
+    ptool -O | grep SECRET-SKEY
+else
+    FAIL=0
+    ossl 'skeyutl -genkey -skeymgmt AES -cipher aes128
+                  -skeyopt "pkcs11_uri:pkcs11:id=%55%33\;object=SECRET-SKEY"
+                  -skeyopt "pkcs11_ephemeral:0"' || FAIL=1
+    if [ $FAIL -eq 0 ]; then
+        echo "Skeyutil genkey operation should have failed"
+        exit 1
+    fi
+fi
 
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
