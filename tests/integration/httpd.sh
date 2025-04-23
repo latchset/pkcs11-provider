@@ -17,7 +17,7 @@ install_dependencies()
     title PARA "Install dependencies"
 
     dnf install -y --skip-broken \
-        meson \
+        meson awk \
         p11-kit httpd mod_ssl openssl-devel gnutls-utils nss-tools \
         p11-kit-devel opensc softhsm-devel procps-ng \
         openssl util-linux
