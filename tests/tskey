@@ -54,8 +54,13 @@ ossl 'enc -d -aes128 -skeymgmt AES
 diff "${TMPPDIR}/aes128cbc.txt" "${TMPPDIR}/aes128cbc.txt.skey.dec"
 
 title PARA "Test Symmetric Key Generation"
-openssl skeyutl -genkey -skeymgmt AES -cipher aes128 -skeyopt 'pkcs11_uri:pkcs11:id=%55%33;object=SECRET-SKEY' -skeyopt 'pkcs11_ephemeral:0'
-pkcs11-tool --module "${P11LIB}" -O --login --pin "${PINVALUE}" | grep SECRET-SKEY
+P11DEFLOGIN=("--login" "--pin=${PINVALUE}")
+
+ossl '
+skeyutl -genkey -skeymgmt AES -cipher aes128
+                -skeyopt "pkcs11_uri:pkcs11:id=%55%33\;object=SECRET-SKEY"
+                -skeyopt "pkcs11_ephemeral:0"'
+ptool -O | grep SECRET-SKEY
 
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
