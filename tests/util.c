@@ -33,8 +33,9 @@ void ossl_err_print(void)
         first = false;
     }
     if (first) {
-        fprintf(stderr, "\n");
+        fprintf(stderr, "[No errors on the OpenSSL stack]\n");
     }
+    fflush(stderr);
 }
 
 EVP_PKEY *load_key(const char *uri)
