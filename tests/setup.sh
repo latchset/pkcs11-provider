@@ -390,9 +390,9 @@ else
     ECXCRTN="ecExplicitCert"
 
     ptool --write-object="${TESTSSRCDIR}/explicit_ec.key.der" --type=privkey \
-          --id="$KEYID" --label="${ECXCRTN}" 2>&1
+          --id="$KEYID" --label="${ECXCRTN}" --usage-sign --usage-derive 2>&1
     ptool --write-object="${TESTSSRCDIR}/explicit_ec.pub.der" --type=pubkey \
-          --id="$KEYID" --label="${ECXCRTN}" 2>&1
+          --id="$KEYID" --label="${ECXCRTN}" --usage-sign --usage-derive 2>&1
 
     ECXBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
     ECXBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"

@@ -15,6 +15,8 @@ pkeyutl -derive -inkey ${ECBASEURI}
                 -peerkey ${ECPEERPUBURI}
                 -out ${TMPPDIR}/secret.ecdh.bin'
 
+title PARA "Additional test with EC keys"
+$CHECKER "${TESTBLDDIR}/tecx" "${ECPRIURI}" "${ECPEERPUBURI}"
 
 # Now test by forcing all operations on the token
 title PARA "ECDH Exchange forcing PKCS11 Provider"
