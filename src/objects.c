@@ -4264,7 +4264,7 @@ static CK_RV import_ec_params(P11PROV_OBJ *key, const OSSL_PARAM params[])
     }
 
     curve_nid = EC_GROUP_get_curve_name(group);
-    if (curve_nid == NID_undef) {
+    if (curve_nid != NID_undef) {
         curve_name = OSSL_EC_curve_nid2name(curve_nid);
         if (!curve_name) {
             P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Unknown curve");
