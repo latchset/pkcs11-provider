@@ -114,6 +114,7 @@ test_programs = {
   'tpkey': ['tpkey.c', 'util.c'],
   'pincache': ['pincache.c'],
   'ccerts': ['ccerts.c', 'util.c'],
+  'tecx': ['tecx.c', 'util.c'],
 }
 
 test_executables = []

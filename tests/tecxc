@@ -133,4 +133,8 @@ req -new -batch -key "${ECXPRIURI}" -out ${TMPPDIR}/ecdsa_csr.pem'
 ossl '
 req -in ${TMPPDIR}/ecdsa_csr.pem -verify -noout'
 
+title PARA "Additional test with Explicit EC keys"
+$CHECKER "${TESTBLDDIR}/tecx" "${ECXPRIURI}" "${ECXPUBURI}"
+
+
 exit 0
