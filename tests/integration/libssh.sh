@@ -70,11 +70,9 @@ libssh_test()
     title PARA "Run libssh pkcs11 tests"
 
     pushd "${WORKDIR}"/libssh-mirror/build
-    PKCS11_PROVIDER_DEBUG=file:$PKCS11_DEBUG_FILE ctest \
-      --output-on-failure -R \
-      '(torture_auth_pkcs11|torture_pki_rsa_uri|torture_pki_ecdsa_uri)' \
-     | tee testout.log 2>&1
-    grep -q "100% tests passed, 0 tests failed out of 3" testout.log
+    PKCS11_PROVIDER_DEBUG=file:$PKCS11_DEBUG_FILE ctest --output-on-failure \
+      -R  '(pkcs11|uri)' | tee testout.log 2>&1
+    grep -q "100% tests passed, 0 tests failed out of 4" testout.log
     test -s "$PKCS11_DEBUG_FILE"
 
     echo "Test passed"
