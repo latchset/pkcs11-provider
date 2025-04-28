@@ -88,6 +88,12 @@ else
     exit 1
 fi
 
+if [[ "${PKCS11_PROVIDER_FORCE_FIPS_MODE}" = "1" ]]; then
+    # temporarily suppress symmetric tests in FIPS mode as no FIPS provider
+    # supports SKEYMGMT yet.
+    SUPPORT_SKEY=0
+    SUPPORT_SYMMETRIC=0
+fi
 if [[ "${SUPPORT_SKEY}" = "1" ]]; then
     if [[ "${SUPPORT_SYMMETRIC}" = "0" ]]; then
         TOKENOPTIONS="pkcs11-module-block-operations = cipher skeymgmt\n$TOKENOPTIONS"
