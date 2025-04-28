@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-            dnf -y install git gcc meson pkgconf-pkg-config \
+            dnf -y install git gcc meson awk pkgconf-pkg-config \
                 openssl-devel openssl \
                 nss-softokn nss-tools nss-softokn-devel
       - name: Checkout Repository
@@ -56,7 +56,7 @@ jobs:
     steps:
       - name: Install Dependencies
         run: |
-            dnf -y install git gcc meson pkgconf-pkg-config \
+            dnf -y install git gcc meson awk pkgconf-pkg-config \
                 openssl-devel openssl \
                 nss-softokn nss-tools nss-softokn-devel \
                 gh
