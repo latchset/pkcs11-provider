@@ -19,9 +19,15 @@ OPENSSL_CONF=${OPENSSL_CONF}.ciphers
 
 echo "plaintext" > "${TMPPDIR}/aes128cbc.txt"
 
+RUN_SKEYMGMT_TEST="0"
 if [[ "${SUPPORT_SYMMETRIC}" = "1" ]]; then
     # shellcheck disable=SC2089 # Quoted quotes is intentional
     PROP='-propquery "provider=pkcs11"'
+    RUN_SKEYMGMT_TEST="1"
+else
+    if [[ "${OPENSSL_WITH_27483_FIX}" = "1" ]]; then
+        RUN_SKEYMGMT_TEST="1"
+    fi
 fi
 
 title PARA "Test Symmetric Encryption on the token (legacy init)"
@@ -39,6 +45,7 @@ ossl 'enc -d -aes128
 
 diff "${TMPPDIR}/aes128cbc.txt" "${TMPPDIR}/aes128cbc.txt.dec"
 
+if [[ "${RUN_SKEYMGMT_TEST}" = "1" ]]; then
 title PARA "Test Symmetric Encryption on the token (skey init)"
 ossl 'enc -e -aes128 -skeymgmt AES
              -skeyopt hexraw-bytes:0102030405060708090a0b0c0d0e0f10
@@ -53,6 +60,7 @@ ossl 'enc -d -aes128 -skeymgmt AES
              -out ${TMPPDIR}/aes128cbc.txt.skey.dec' "${PROP}"
 
 diff "${TMPPDIR}/aes128cbc.txt" "${TMPPDIR}/aes128cbc.txt.skey.dec"
+fi
 
 title PARA "Test Symmetric Key Generation"
 if [[ "${SUPPORT_SYMMETRIC}" = "1" ]]; then
