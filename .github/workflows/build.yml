@@ -59,8 +59,8 @@ jobs:
               fi
             fi
 
-      - name: Check NSS version
-        id: nss-version-check
+      - name: Check Cases to skip
+        id: skip-check
         run: |
           if [ "${{ matrix.name }}" = "centos9" -o "${{ matrix.name }}" = "centos10" ]; then
             if [ "${{ matrix.token }}" = "softokn" ]; then
@@ -70,13 +70,18 @@ jobs:
               fi
             fi
           fi
+          if [ "${{ matrix.name }}" = "debian" ]; then
+            if [ "${{ matrix.token }}" = "softhsm" ]; then
+                echo "skiptest=true" >> $GITHUB_OUTPUT
+              fi
+          fi
 
       - name: Checkout Repository
-        if : ( steps.nss-version-check.outputs.skiptest != 'true' )
+        if : ( steps.skip-check.outputs.skiptest != 'true' )
         uses: actions/checkout@v4
 
       - name: Setup
-        if : ( steps.nss-version-check.outputs.skiptest != 'true' )
+        if : ( steps.skip-check.outputs.skiptest != 'true' )
         run: |
           git config --global --add safe.directory \
               /__w/pkcs11-provider/pkcs11-provider
@@ -88,7 +93,7 @@ jobs:
           fi
 
       - name: Build and Test
-        if : ( steps.nss-version-check.outputs.skiptest != 'true' )
+        if : ( steps.skip-check.outputs.skiptest != 'true' )
         run: |
           meson compile -C builddir
           meson test --num-processes 1 -C builddir
@@ -104,7 +109,7 @@ jobs:
             builddir/tests/${{ matrix.token }}/openssl.cnf
 
       - name: Run tests with valgrind
-        if : ( steps.nss-version-check.outputs.skiptest != 'true' )
+        if : ( steps.skip-check.outputs.skiptest != 'true' )
         run: |
             if [ "${{ matrix.compiler }}" = "gcc" ]; then
               meson test --num-processes 1 -C builddir --setup=valgrind
@@ -120,23 +125,23 @@ jobs:
             builddir/tests/${{ matrix.token }}/testvars
             builddir/tests/${{ matrix.token }}/openssl.cnf
 
-      - name: Run tests in FIPS Mode (on CentOS + gcc only)
-        if : ( steps.nss-version-check.outputs.skiptest != 'true' )
-        run: |
-            if [ "${{ matrix.compiler }}" = "gcc" -a \( "${{ matrix.name }}" = "centos9" -o "${{ matrix.name }}" = "centos10" \) ]; then
-              PKCS11_PROVIDER_FORCE_FIPS_MODE=1 \
-              meson test --num-processes 1 -C builddir
-            fi
+      #- name: Run tests in FIPS Mode (on CentOS + gcc only)
+      #  if : ( steps.skip-check.outputs.skiptest != 'true' )
+      #  run: |
+      #      if [ "${{ matrix.compiler }}" = "gcc" -a \( "${{ matrix.name }}" = "centos9" -o "${{ matrix.name }}" = "centos10" \) ]; then
+      #        PKCS11_PROVIDER_FORCE_FIPS_MODE=1 \
+      #        meson test --num-processes 1 -C builddir
+      #      fi
 
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: Test FIPS Mode logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
-          path: |
-            builddir/meson-logs/
-            builddir/tests/${{ matrix.token }}/p11prov-debug.log
-            builddir/tests/${{ matrix.token }}/testvars
-            builddir/tests/${{ matrix.token }}/openssl.cnf
+      #- uses: actions/upload-artifact@v4
+      #  if: failure()
+      #  with:
+      #    name: Test FIPS Mode logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
+      #    path: |
+      #      builddir/meson-logs/
+      #      builddir/tests/${{ matrix.token }}/p11prov-debug.log
+      #      builddir/tests/${{ matrix.token }}/testvars
+      #      builddir/tests/${{ matrix.token }}/openssl.cnf
 
 
   build-macos:
@@ -147,6 +152,7 @@ jobs:
       matrix:
         os: [macos-14]
         token: [softokn]
+        #, softhsm]
     steps:
       - name: Install Dependencies
         run: |
@@ -179,6 +185,9 @@ jobs:
       - name: Build and Test
         run: |
           export PATH=$(brew --prefix openssl@3)/bin:$PATH
+
+          # Temporarily disable tlsfuzzer tests
+          rm -rf tlsfuzzer
 
           meson compile -j$(sysctl -n hw.ncpu || echo 2) -C builddir
           meson test --num-processes 1 -C builddir

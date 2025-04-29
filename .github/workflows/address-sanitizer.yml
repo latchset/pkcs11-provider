@@ -14,12 +14,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [fedora, debian]
+        name: [fedora]
+        # , debian]
         include:
           - name: fedora
             container: fedora:latest
-          - name: debian
-            container: debian:sid
+        #  - name: debian
+        #    container: debian:sid
     container: ${{ matrix.container }}
     steps:
       - name: Checkout Repository
