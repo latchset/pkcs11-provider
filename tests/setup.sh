@@ -73,7 +73,6 @@ mkdir "${TOKDIR}"
 
 PINFILE="${TMPPDIR}/pinfile.txt"
 echo ${PINVALUE} > "${PINFILE}"
-export GNUTLS_PIN=$PINVALUE
 
 if [ "${TOKENTYPE}" == "softhsm" ]; then
     source "${TESTSSRCDIR}/softhsm-init.sh"
