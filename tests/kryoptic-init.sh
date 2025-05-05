@@ -43,8 +43,4 @@ export TOKENCONFIGVARS="export KRYOPTIC_CONF=$TOKDIR/kryoptic.sql"
 
 export TESTPORT="34000"
 
-# Older versions of certtool do not support non-DER encoded CKA_EC_POINT
-# so set the kryoptic env var to enforce compatibility for the setup phase
-export KRYOPTIC_EC_POINT_ENCODING="DER"
-
 export SUPPORT_ALLOWED_MECHANISMS=1
