@@ -1705,12 +1705,15 @@ P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
     CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
     CK_BBOOL val_true = CK_TRUE;
+    CK_BBOOL val_false = CK_FALSE;
     CK_BBOOL val_token = session_key ? CK_FALSE : CK_TRUE;
-    CK_ATTRIBUTE key_template[5] = {
+    CK_ATTRIBUTE key_template[7] = {
         { CKA_CLASS, &key_class, sizeof(key_class) },
         { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
         { CKA_TOKEN, &val_token, sizeof(val_token) },
         { CKA_DERIVE, &val_true, sizeof(val_true) },
+        { CKA_SIGN, &val_true, sizeof(val_true) },
+        { CKA_PRIVATE, &val_false, sizeof(val_false) },
         { CKA_VALUE, (void *)secret, secretlen },
     };
     CK_OBJECT_HANDLE key_handle;
@@ -1733,7 +1736,7 @@ P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
         return NULL;
     }
 
-    ret = p11prov_CreateObject(provctx, sess, key_template, 5, &key_handle);
+    ret = p11prov_CreateObject(provctx, sess, key_template, 7, &key_handle);
     if (ret != CKR_OK) {
         return NULL;
     }

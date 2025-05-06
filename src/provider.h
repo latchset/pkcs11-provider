@@ -145,6 +145,8 @@
 #define P11PROV_DESCS_DER "DER decoder implementation in PKCS11 provider"
 #define P11PROV_NAMES_URI "pkcs11"
 #define P11PROV_DESCS_URI "PKCS11 URI Store"
+#define P11PROV_NAMES_HMAC "HMAC"
+#define P11PROV_DESCS_HMAC "PKCS11 HMAC Implementation"
 
 #define P11PROV_PARAM_URI "pkcs11_uri"
 #define P11PROV_PARAM_EPHEMERAL "pkcs11_ephemeral"
@@ -313,6 +315,7 @@ int p11prov_pop_error_to_mark(P11PROV_CTX *ctx);
 #include "slot.h"
 #include "random.h"
 #include "pk11_uri.h"
+#include "mac.h"
 
 #if SKEY_SUPPORT == 1
 #include "cipher.h"

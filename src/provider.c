@@ -62,6 +62,7 @@ struct p11prov_ctx {
     OSSL_ALGORITHM *op_cipher;
     OSSL_ALGORITHM *op_skeymgmt;
 #endif
+    OSSL_ALGORITHM *op_mac;
 
     pthread_rwlock_t quirk_lock;
     struct quirk *quirks;
@@ -863,6 +864,15 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
         CKM_AES_OFB, CKM_AES_CFB8, CKM_AES_CFB128, CKM_AES_CFB1
 #endif
 
+#define HMAC(hash) CKM_##hash##_HMAC, CKM_##hash##_HMAC_GENERAL
+#define HMAC_MECHS \
+    HMAC(BLAKE2B_160), HMAC(BLAKE2B_256), HMAC(BLAKE2B_384), \
+        HMAC(BLAKE2B_512), HMAC(MD2), HMAC(MD5), HMAC(RIPEMD128), \
+        HMAC(RIPEMD160), HMAC(SHA_1), HMAC(SHA224), HMAC(SHA256), \
+        HMAC(SHA384), HMAC(SHA512), HMAC(SHA3_224), HMAC(SHA3_256), \
+        HMAC(SHA3_384), HMAC(SHA3_512), HMAC(SHA512_224), HMAC(SHA512_256), \
+        HMAC(SHA512_T)
+
 static void alg_rm_mechs(CK_ULONG *checklist, CK_ULONG *rmlist, int *clsize,
                          int rmsize)
 {
@@ -917,9 +927,9 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                              CKM_EDDSA,
                              PQC_MECHS,
 #if SKEY_SUPPORT == 1
-                             AES_MECHS
+                             AES_MECHS,
 #endif
-    };
+                             HMAC_MECHS };
     bool add_rsasig = false;
     bool add_rsaenc = false;
     bool add_ecdsasig = false;
@@ -933,6 +943,7 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
 #if SKEY_SUPPORT == 1
     int cipher_idx = 0;
 #endif
+    int mac_idx = 0;
     int slot_idx = 0;
     const char *prop = get_default_properties(ctx);
     CK_RV ret;
@@ -1274,6 +1285,49 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                 UNCHECK_MECHS(CKM_AES_CTS);
                 break;
 #endif
+            case CKM_BLAKE2B_160_HMAC:
+            case CKM_BLAKE2B_160_HMAC_GENERAL:
+            case CKM_BLAKE2B_256_HMAC:
+            case CKM_BLAKE2B_256_HMAC_GENERAL:
+            case CKM_BLAKE2B_384_HMAC:
+            case CKM_BLAKE2B_384_HMAC_GENERAL:
+            case CKM_BLAKE2B_512_HMAC:
+            case CKM_BLAKE2B_512_HMAC_GENERAL:
+            case CKM_MD2_HMAC:
+            case CKM_MD2_HMAC_GENERAL:
+            case CKM_MD5_HMAC:
+            case CKM_MD5_HMAC_GENERAL:
+            case CKM_RIPEMD128_HMAC:
+            case CKM_RIPEMD128_HMAC_GENERAL:
+            case CKM_RIPEMD160_HMAC:
+            case CKM_RIPEMD160_HMAC_GENERAL:
+            case CKM_SHA_1_HMAC:
+            case CKM_SHA_1_HMAC_GENERAL:
+            case CKM_SHA224_HMAC:
+            case CKM_SHA224_HMAC_GENERAL:
+            case CKM_SHA256_HMAC:
+            case CKM_SHA256_HMAC_GENERAL:
+            case CKM_SHA384_HMAC:
+            case CKM_SHA384_HMAC_GENERAL:
+            case CKM_SHA512_HMAC:
+            case CKM_SHA512_HMAC_GENERAL:
+            case CKM_SHA3_224_HMAC:
+            case CKM_SHA3_224_HMAC_GENERAL:
+            case CKM_SHA3_256_HMAC:
+            case CKM_SHA3_256_HMAC_GENERAL:
+            case CKM_SHA3_384_HMAC:
+            case CKM_SHA3_384_HMAC_GENERAL:
+            case CKM_SHA3_512_HMAC:
+            case CKM_SHA3_512_HMAC_GENERAL:
+            case CKM_SHA512_224_HMAC:
+            case CKM_SHA512_224_HMAC_GENERAL:
+            case CKM_SHA512_256_HMAC:
+            case CKM_SHA512_256_HMAC_GENERAL:
+            case CKM_SHA512_T_HMAC:
+            case CKM_SHA512_T_HMAC_GENERAL:
+                ADD_ALGO(HMAC, hmac, mac, prop);
+                UNCHECK_MECHS(HMAC_MECHS);
+                break;
             default:
                 P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Unhandled mechanism %lu",
                               mech);
@@ -1302,6 +1356,7 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
 #if SKEY_SUPPORT == 1
     TERM_ALGO(cipher);
 #endif
+    TERM_ALGO(mac);
 
     /* handle random */
     ret = p11prov_check_random(ctx);
@@ -1532,6 +1587,9 @@ p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
         *no_cache = 0;
         return ctx->op_skeymgmt;
 #endif
+    case OSSL_OP_MAC:
+        *no_cache = 0;
+        return ctx->op_mac;
     }
     *no_cache = 0;
     return NULL;
