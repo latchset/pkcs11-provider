@@ -12,19 +12,19 @@ struct p11prov_mac_ctx {
     P11PROV_OBJ *key;
     P11PROV_SESSION *session;
 
-    CK_MECHANISM_TYPE mech;
-    CK_MECHANISM_TYPE hash_mech;
+    CK_MECHANISM_TYPE hmac;
 };
 
 typedef struct p11prov_mac_ctx P11PROV_MAC_CTX;
 
-#define HMAC_MECHANISM(hash_mech) \
+#define HMAC_MECHANISM(digest) \
+    { .hash = CKM_##digest, .hmac = CKM_##digest##_HMAC }, \
     { \
-        .hash = CKM_##hash_mech, .mech = CKM_##hash_mech##_HMAC \
+        .hash = CKM_##digest, .hmac = CKM_##digest##_HMAC_GENERAL \
     }
 
 static const struct {
-    CK_MECHANISM_TYPE mech;
+    CK_MECHANISM_TYPE hmac;
     CK_MECHANISM_TYPE hash;
 } hmac_mechanisms[] = { HMAC_MECHANISM(SHA_1),
                         HMAC_MECHANISM(SHA224),
@@ -47,7 +47,82 @@ static const struct {
                         HMAC_MECHANISM(SHA512_T),
 
                         { .hash = CK_UNAVAILABLE_INFORMATION,
-                          .mech = CK_UNAVAILABLE_INFORMATION } };
+                          .hmac = CK_UNAVAILABLE_INFORMATION } };
+
+static CK_ULONG hash_mech(CK_ULONG hmac)
+{
+    switch (hmac) {
+    case CKM_SHA_1_HMAC:
+    case CKM_SHA_1_HMAC_GENERAL:
+        return CKM_SHA_1;
+
+    case CKM_SHA224_HMAC:
+    case CKM_SHA224_HMAC_GENERAL:
+        return CKM_SHA224;
+
+    case CKM_SHA256_HMAC:
+    case CKM_SHA256_HMAC_GENERAL:
+        return CKM_SHA256;
+
+    case CKM_SHA384_HMAC:
+    case CKM_SHA384_HMAC_GENERAL:
+        return CKM_SHA384;
+
+    case CKM_SHA512_HMAC:
+    case CKM_SHA512_HMAC_GENERAL:
+        return CKM_SHA512;
+
+    case CKM_BLAKE2B_160_HMAC:
+    case CKM_BLAKE2B_160_HMAC_GENERAL:
+        return CKM_BLAKE2B_160;
+
+    case CKM_BLAKE2B_256_HMAC:
+    case CKM_BLAKE2B_256_HMAC_GENERAL:
+        return CKM_BLAKE2B_256;
+
+    case CKM_BLAKE2B_384_HMAC:
+    case CKM_BLAKE2B_384_HMAC_GENERAL:
+        return CKM_BLAKE2B_384;
+
+    case CKM_BLAKE2B_512_HMAC:
+    case CKM_BLAKE2B_512_HMAC_GENERAL:
+        return CKM_BLAKE2B_512;
+
+    case CKM_SHA3_224_HMAC:
+    case CKM_SHA3_224_HMAC_GENERAL:
+        return CKM_SHA3_224;
+
+    case CKM_SHA3_256_HMAC:
+    case CKM_SHA3_256_HMAC_GENERAL:
+        return CKM_SHA3_256;
+
+    case CKM_SHA3_384_HMAC:
+    case CKM_SHA3_384_HMAC_GENERAL:
+        return CKM_SHA3_384;
+
+    case CKM_SHA3_512_HMAC:
+    case CKM_SHA3_512_HMAC_GENERAL:
+        return CKM_SHA3_512;
+
+    case CKM_SHA512_224_HMAC:
+    case CKM_SHA512_224_HMAC_GENERAL:
+        return CKM_SHA512_224;
+
+    case CKM_SHA512_256_HMAC:
+    case CKM_SHA512_256_HMAC_GENERAL:
+        return CKM_SHA512_256;
+
+    case CKM_SHA512_T_HMAC:
+    case CKM_SHA512_T_HMAC_GENERAL:
+        return CKM_SHA512_T;
+
+    default:
+        P11PROV_debug("unknown hmmac %lu", hmac);
+        break;
+    }
+
+    return CK_UNAVAILABLE_INFORMATION;
+}
 
 static void *p11prov_mac_newctx(void *provctx)
 {
@@ -64,8 +139,7 @@ static void *p11prov_mac_newctx(void *provctx)
     macctx->provctx = ctx;
 
     /* default mechanism */
-    macctx->mech = CKM_SHA_1_HMAC;
-    macctx->hash_mech = CKM_SHA_1;
+    macctx->hmac = CKM_SHA_1_HMAC;
 
     return macctx;
 }
@@ -97,7 +171,8 @@ static int p11prov_hmac_get_ctx_params(void *ctx, OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate(params, OSSL_MAC_PARAM_SIZE);
     if (p) {
-        ret = p11prov_digest_get_digest_size(macctx->hash_mech, &digest_size);
+        ret = p11prov_digest_get_digest_size(hash_mech(macctx->hmac),
+                                             &digest_size);
         if (ret != CKR_OK || digest_size == 0) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
@@ -108,7 +183,8 @@ static int p11prov_hmac_get_ctx_params(void *ctx, OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate(params, OSSL_MAC_PARAM_BLOCK_SIZE);
     if (p) {
-        ret = p11prov_digest_get_block_size(macctx->hash_mech, &block_size);
+        ret =
+            p11prov_digest_get_block_size(hash_mech(macctx->hmac), &block_size);
         if (ret != CKR_OK || block_size == 0) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
@@ -138,7 +214,7 @@ static CK_RV inner_mac_key(P11PROV_MAC_CTX *macctx, const uint8_t *key,
 
     if (macctx->session == NULL) {
         ret = p11prov_get_session(macctx->provctx, &slotid, NULL, NULL,
-                                  macctx->mech, NULL, NULL, false, false,
+                                  macctx->hmac, NULL, NULL, false, false,
                                   &macctx->session);
         if (ret != CKR_OK) {
             return ret;
@@ -181,6 +257,7 @@ static int p11prov_hmac_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     p = OSSL_PARAM_locate_const(params, OSSL_MAC_PARAM_DIGEST);
     if (p) {
         const char *digest = NULL;
+        CK_ULONG hash = CK_UNAVAILABLE_INFORMATION;
         CK_RV rv;
 
         ret = OSSL_PARAM_get_utf8_string_ptr(p, &digest);
@@ -188,29 +265,29 @@ static int p11prov_hmac_set_ctx_params(void *ctx, const OSSL_PARAM params[])
             return ret;
         }
 
-        rv = p11prov_digest_get_by_name(digest, &macctx->hash_mech);
+        rv = p11prov_digest_get_by_name(digest, &hash);
         if (rv != CKR_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
-        P11PROV_debug("set digest to %lu", macctx->hash_mech);
+        P11PROV_debug("set digest to %lu", hash);
 
-        macctx->mech = CK_UNAVAILABLE_INFORMATION;
+        macctx->hmac = CK_UNAVAILABLE_INFORMATION;
         for (int i = 0; hmac_mechanisms[i].hash != CK_UNAVAILABLE_INFORMATION;
              i++) {
-            if (macctx->hash_mech == hmac_mechanisms[i].hash) {
-                macctx->mech = hmac_mechanisms[i].mech;
+            if (hash == hmac_mechanisms[i].hash) {
+                macctx->hmac = hmac_mechanisms[i].hmac;
                 break;
             }
         }
 
-        if (macctx->mech == CK_UNAVAILABLE_INFORMATION) {
+        if (macctx->hmac == CK_UNAVAILABLE_INFORMATION) {
             P11PROV_debug("No associated HMAC mechanism");
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
 
-        P11PROV_debug("set MAC to %lu", macctx->mech);
+        P11PROV_debug("set MAC to %lu", macctx->hmac);
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_MAC_PARAM_KEY);
@@ -290,7 +367,7 @@ static int p11prov_hmac_init(void *ctx, const unsigned char *key, size_t keylen,
         return RET_OSSL_ERR;
     }
 
-    mech.mechanism = macctx->mech;
+    mech.mechanism = macctx->hmac;
     mech.pParameter = NULL;
     mech.ulParameterLen = 0;
 
