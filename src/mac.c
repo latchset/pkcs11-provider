@@ -152,7 +152,9 @@ static void p11prov_mac_freectx(void *ctx)
 
     p11prov_obj_free(macctx->key);
 
-    if (macctx->session) p11prov_return_session(macctx->session);
+    if (macctx->session) {
+        p11prov_return_session(macctx->session);
+    }
 
     OPENSSL_clear_free(macctx, sizeof(*macctx));
 }
@@ -167,7 +169,9 @@ static int p11prov_hmac_get_ctx_params(void *ctx, OSSL_PARAM params[])
 
     P11PROV_debug("mac get ctx params (ctx=%p, params=%p)", macctx, params);
 
-    if (params == NULL) return RET_OSSL_OK;
+    if (params == NULL) {
+        return RET_OSSL_OK;
+    }
 
     p = OSSL_PARAM_locate(params, OSSL_MAC_PARAM_SIZE);
     if (p) {
