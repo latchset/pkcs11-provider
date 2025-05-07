@@ -37,12 +37,6 @@ static const struct {
                         HMAC_MECHANISM(BLAKE2B_384),
                         HMAC_MECHANISM(BLAKE2B_512),
 
-                        HMAC_MECHANISM(MD2),
-                        HMAC_MECHANISM(MD5),
-
-                        HMAC_MECHANISM(RIPEMD128),
-                        HMAC_MECHANISM(RIPEMD160),
-
                         HMAC_MECHANISM(SHA3_224),
                         HMAC_MECHANISM(SHA3_256),
                         HMAC_MECHANISM(SHA3_384),
