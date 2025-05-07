@@ -867,8 +867,7 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
 #define HMAC(hash) CKM_##hash##_HMAC, CKM_##hash##_HMAC_GENERAL
 #define HMAC_MECHS \
     HMAC(BLAKE2B_160), HMAC(BLAKE2B_256), HMAC(BLAKE2B_384), \
-        HMAC(BLAKE2B_512), HMAC(MD2), HMAC(MD5), HMAC(RIPEMD128), \
-        HMAC(RIPEMD160), HMAC(SHA_1), HMAC(SHA224), HMAC(SHA256), \
+        HMAC(BLAKE2B_512), HMAC(SHA_1), HMAC(SHA224), HMAC(SHA256), \
         HMAC(SHA384), HMAC(SHA512), HMAC(SHA3_224), HMAC(SHA3_256), \
         HMAC(SHA3_384), HMAC(SHA3_512), HMAC(SHA512_224), HMAC(SHA512_256), \
         HMAC(SHA512_T)
@@ -1293,14 +1292,6 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
             case CKM_BLAKE2B_384_HMAC_GENERAL:
             case CKM_BLAKE2B_512_HMAC:
             case CKM_BLAKE2B_512_HMAC_GENERAL:
-            case CKM_MD2_HMAC:
-            case CKM_MD2_HMAC_GENERAL:
-            case CKM_MD5_HMAC:
-            case CKM_MD5_HMAC_GENERAL:
-            case CKM_RIPEMD128_HMAC:
-            case CKM_RIPEMD128_HMAC_GENERAL:
-            case CKM_RIPEMD160_HMAC:
-            case CKM_RIPEMD160_HMAC_GENERAL:
             case CKM_SHA_1_HMAC:
             case CKM_SHA_1_HMAC_GENERAL:
             case CKM_SHA224_HMAC:
