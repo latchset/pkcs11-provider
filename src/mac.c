@@ -224,8 +224,8 @@ static CK_RV inner_mac_key(P11PROV_MAC_CTX *macctx, const uint8_t *key,
         return CKR_SESSION_HANDLE_INVALID;
     }
 
-    *keyobj = p11prov_create_secret_key(macctx->provctx, macctx->session, true,
-                                        (unsigned char *)key, keylen);
+    *keyobj = p11prov_create_mac_key(macctx->provctx, macctx->session, true,
+                                     (unsigned char *)key, keylen);
     if (*keyobj == NULL) {
         return CKR_KEY_HANDLE_INVALID;
     }
