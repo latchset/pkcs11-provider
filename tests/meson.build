@@ -151,6 +151,7 @@ tests = {
   'fork': {'suites': all_suites},
   'oaepsha2': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'hkdf': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
+  'hmac': {'suites': all_suites},
   'imported' : {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'rsa': {'suites': all_suites},
   'rsapss': {'suites': all_suites},
