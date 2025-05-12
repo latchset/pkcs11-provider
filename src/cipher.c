@@ -643,6 +643,23 @@ static int p11prov_aes_get_ctx_params(void *ctx, OSSL_PARAM params[])
 
 static int p11prov_aes_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 {
+    struct p11prov_cipher_ctx *cctx = (struct p11prov_cipher_ctx *)ctx;
+    OSSL_PARAM *p;
+    int ret;
+
+    p = OSSL_PARAM_locate((OSSL_PARAM *)params, OSSL_CIPHER_PARAM_PADDING);
+    if (p) {
+        unsigned int pad = 0;
+        ret = OSSL_PARAM_get_uint(p, &pad);
+        if (ret != RET_OSSL_OK) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+            return RET_OSSL_ERR;
+        }
+        cctx->pad = !!pad;
+
+    	return RET_OSSL_OK;
+    }
+
     return RET_OSSL_ERR;
 }
 
