@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [fedora, debian, centos9, centos10, ubuntu]
+        name: [fedora, debian, centos9, centos10, ubuntu, almalinux8]
         compiler: [gcc, clang]
         token: [softokn, softhsm]
         include:
@@ -28,6 +28,15 @@ jobs:
             container: quay.io/centos/centos:stream10
           - name: ubuntu
             container: ubuntu:latest
+          - name: almalinux8
+            container: almalinux:8
+        exclude:
+          # Testing EL8 on a single compler (gcc) is sufficient.
+          - name: almalinux8
+            compiler: clang
+          # For whatever reason tests fail on EL8 with SoftHSM2.
+          - name: almalinux8
+            token: softhsm
     container: ${{ matrix.container }}
     steps:
       - name: Install Dependencies
@@ -36,9 +45,15 @@ jobs:
               dnf_opts="--enablerepo=crb"
             fi
             if [ -f /etc/redhat-release ]; then
+              if [ "${{ matrix.name }}" = "almalinux8" ]; then
+                dnf -y install epel-release
+                dnf -y install openssl3-devel openssl3
+                dnf_opts="--enablerepo=powertools"
+              else
+                dnf -y install openssl-devel openssl
+              fi
               dnf -y install $dnf_opts \
-                git ${{ matrix.compiler }} meson which \
-                pkgconf-pkg-config openssl-devel openssl \
+                git ${{ matrix.compiler }} meson which pkgconf-pkg-config \
                 diffutils expect valgrind opensc python3-six
               if [ "${{ matrix.token }}" = "softokn" ]; then
                 dnf -y install nss-softokn nss-tools nss-softokn-devel \

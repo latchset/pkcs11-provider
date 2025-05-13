@@ -45,7 +45,7 @@ run_test() {
     CLNT_ARGS=$4
 
     export PKCS11_PROVIDER_DEBUG="file:${TMPPDIR}/p11prov-debug-tls-server.log"
-    expect -c "spawn $CHECKER openssl s_server $PROPQ -accept \"${PORT}\" -naccept 1 -key \"${KEY}\" -cert \"${CERT}\" $SRV_ARGS;
+    expect -c "spawn $CHECKER $OPENSSL s_server $PROPQ -accept \"${PORT}\" -naccept 1 -key \"${KEY}\" -cert \"${CERT}\" $SRV_ARGS;
         set timeout 10;
         expect {
             \"ACCEPT\" {};
@@ -83,7 +83,7 @@ run_test() {
     read -r < "${TMPPDIR}/s_server_ready"
 
     export PKCS11_PROVIDER_DEBUG="file:${TMPPDIR}/p11prov-debug-tls-client.log"
-    expect -c "spawn $CHECKER openssl s_client $PROPQ -connect \"localhost:${PORT}\" -CAfile \"${CACRT}\" $CLNT_ARGS;
+    expect -c "spawn $CHECKER $OPENSSL s_client $PROPQ -connect \"localhost:${PORT}\" -CAfile \"${CACRT}\" $CLNT_ARGS;
         set timeout 10;
         expect {
             \" TLS SUCCESSFUL \" {};

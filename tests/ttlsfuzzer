@@ -18,7 +18,7 @@ TMPFILE="${TMPPDIR}/tls-fuzzer.$$.tmp"
 PORT="$TESTPORT"
 PYTHON=$(which python3)
 
-OPENSSL_VERSION=$(openssl version | sed 's/^OpenSSL \([0-9]*\)\.\([0-9]*\).*$/\1 \2/')
+OPENSSL_VERSION=$($OPENSSL version | sed 's/^OpenSSL \([0-9]*\)\.\([0-9]*\).*$/\1 \2/')
 OPENSSL_VERSION_MAJOR=$(echo "$OPENSSL_VERSION" | cut -d ' ' -f 1)
 OPENSSL_VERSION_MINOR=$(echo "$OPENSSL_VERSION" | cut -d ' ' -f 2)
 
@@ -41,6 +41,7 @@ prepare_test() {
     sed -e "s|@PRIURI@|$KEY|g" -e "s|@CRTURI@|$CERT|g" \
         -e "s/@PORT@/$PORT/g" \
         -e "s/@PROPQ@/$PROPQ/g" \
+        -e "s|@OPENSSL@|$OPENSSL|g" \
         -e "s/@SIGALGS@/$SIGALGS/g" "${TESTSSRCDIR}/${TEMPLATE}" >>"${TMPFILE}"
 }
 
@@ -56,7 +57,7 @@ run_test() {
     pushd "${TESTSSRCDIR}/../tlsfuzzer"
     test -L ecdsa || ln -s ../python-ecdsa/src/ecdsa ecdsa
     test -L tlslite || ln -s ../tlslite-ng/tlslite tlslite 2>/dev/null
-    PYTHONPATH=. "${PYTHON}" tests/scripts_retention.py "${TMPFILE}" openssl 821
+    PYTHONPATH=. "${PYTHON}" tests/scripts_retention.py "${TMPFILE}" "${OPENSSL}" 821
     popd
 }
 
