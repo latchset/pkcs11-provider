@@ -60,7 +60,7 @@ fi
 
 # Check if openssl supports skey
 SUPPORT_SKEY=0
-openssl skeyutl -h >/dev/null 2>&1 && SUPPORT_SKEY=1
+$OPENSSL skeyutl -h >/dev/null 2>&1 && SUPPORT_SKEY=1
 
 # Temporary dir and Token data dir
 TMPPDIR="${TESTBLDDIR}/${TOKENTYPE}"

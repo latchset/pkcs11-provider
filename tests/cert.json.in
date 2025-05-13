@@ -1,5 +1,5 @@
 [
-    {"server_command": [@CHECKER@"openssl", "s_server", @PROPQ@"-www", "-port", "@PORT@",
+    {"server_command": [@CHECKER@"@OPENSSL@", "s_server", @PROPQ@"-www", "-port", "@PORT@",
                         "-key", "@PRIURI@", "-cert", "@CRTURI@",
                         "-verify", "1", "-CAfile", "tests/clientX509Cert.pem"],
      "comment": "Use ANY certificate just to ensure that server tries to authorise a client",

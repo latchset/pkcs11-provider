@@ -45,9 +45,15 @@ conf.set_quoted('PACKAGE_NAME', meson.project_name())
 conf.set('PACKAGE_MAJOR', major_version)
 conf.set('PACKAGE_MINOR', minor_version)
 
-libcrypto = dependency('libcrypto', version: '>= 3.0.7')
+libcrypto = dependency('libcrypto', version: '>= 3.0.7', required: false)
+if not libcrypto.found()
+  libcrypto = dependency('libcrypto3', version: '>= 3.0.7', required: true)
+endif
 provider_path = libcrypto.get_variable(pkgconfig: 'modulesdir')
-libssl = dependency('libssl', version: '>= 3.0.7')
+libssl = dependency('libssl', version: '>= 3.0.7', required: false)
+if not libssl.found()
+  libssl = dependency('libssl3', version: '>= 3.0.7', required: true, method: 'pkg-config')
+endif
 
 host_system = host_machine.system()
 if host_system == 'windows'

@@ -60,7 +60,7 @@ ossl 'pkey -in $ECBASEURIWITHPINSOURCE -pubin -pubout -out ${TMPPDIR}/ec.pub.uri
 [[ -n $ED2BASEURIWITHPINSOURCE ]] && ossl 'pkey -in $ED2BASEURIWITHPINSOURCE -pubin -pubout -out ${TMPPDIR}/ed2.pub.uripinsource.pem'
 
 title PARA "Test prompting without PIN in config files"
-output=$(expect -c "spawn -noecho $CHECKER openssl pkey -in \"${PRIURI}\" -text -noout;
+output=$(expect -c "spawn -noecho $CHECKER $OPENSSL pkey -in \"${PRIURI}\" -text -noout;
                    expect \"Enter pass phrase for PKCS#11 Token (Slot *:\";
                    send \"${PINVALUE}\r\";
                    expect \"Key ID:\";")
@@ -85,7 +85,7 @@ fi
 # regression test for https://github.com/latchset/pkcs11-provider/issues/547
 title PARA "Make sure we are not prompted for pin to read public RSA key"
 # shellcheck disable=SC2153 # PUBURI is assigned in testvars
-expect -c "spawn -noecho $CHECKER openssl pkey -in \"${PUBURI}\" -pubin -pubout -out -;
+expect -c "spawn -noecho $CHECKER $OPENSSL pkey -in \"${PUBURI}\" -pubin -pubout -out -;
     expect {
         \"Enter PIN for PKCS#11 Token (Slot *:\" {
             exit 1; }

@@ -1,5 +1,5 @@
 ,
-    {"server_command": [@CHECKER@"openssl", "s_server", @PROPQ@"-www", "-port", "@PORT@", "-key", "@PRIURI@", "-cert", "@CRTURI@"],
+    {"server_command": [@CHECKER@"@OPENSSL@", "s_server", @PROPQ@"-www", "-port", "@PORT@", "-key", "@PRIURI@", "-cert", "@CRTURI@"],
      "comment": "Run test with @PRIURI@ without certificate verify",
      "environment": {"PYTHONPATH" : "."},
      "server_hostname": "localhost",
