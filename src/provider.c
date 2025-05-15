@@ -911,21 +911,23 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
 {
     P11PROV_SLOTS_CTX *slots;
     P11PROV_SLOT *slot;
-    CK_ULONG checklist[] = { CKM_RSA_PKCS_KEY_PAIR_GEN,
-                             RSA_SIG_MECHS,
-                             RSAPSS_SIG_MECHS,
-                             RSA_ENC_MECHS,
-                             CKM_EC_KEY_PAIR_GEN,
-                             ECDSA_SIG_MECHS,
-                             CKM_ECDH1_DERIVE,
-                             CKM_ECDH1_COFACTOR_DERIVE,
-                             CKM_HKDF_DERIVE,
-                             DIGEST_MECHS,
-                             CKM_EDDSA,
+    CK_ULONG checklist[] = {
+        CKM_RSA_PKCS_KEY_PAIR_GEN,
+        RSA_SIG_MECHS,
+        RSAPSS_SIG_MECHS,
+        RSA_ENC_MECHS,
+        CKM_EC_KEY_PAIR_GEN,
+        ECDSA_SIG_MECHS,
+        CKM_ECDH1_DERIVE,
+        CKM_ECDH1_COFACTOR_DERIVE,
+        CKM_HKDF_DERIVE,
+        DIGEST_MECHS,
+        CKM_EDDSA,
 #if SKEY_SUPPORT == 1
-                             AES_MECHS,
+        AES_MECHS,
 #endif
-                             HMAC_MECHS };
+        HMAC_MECHS,
+    };
     bool add_rsasig = false;
     bool add_rsaenc = false;
     int cl_size = sizeof(checklist) / sizeof(CK_ULONG);
