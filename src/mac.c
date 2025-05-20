@@ -17,140 +17,6 @@ struct p11prov_mac_ctx {
 
 typedef struct p11prov_mac_ctx P11PROV_MAC_CTX;
 
-static CK_ULONG digest_to_hmac(CK_ULONG digest)
-{
-    switch (digest) {
-    case CKM_SHA_1:
-        return CKM_SHA_1_HMAC;
-
-    case CKM_SHA224:
-        return CKM_SHA224_HMAC;
-
-    case CKM_SHA256:
-        return CKM_SHA256_HMAC;
-
-    case CKM_SHA384:
-        return CKM_SHA384_HMAC;
-
-    case CKM_SHA512:
-        return CKM_SHA512_HMAC;
-
-    case CKM_BLAKE2B_160:
-        return CKM_BLAKE2B_160_HMAC;
-
-    case CKM_BLAKE2B_256:
-        return CKM_BLAKE2B_256_HMAC;
-
-    case CKM_BLAKE2B_384:
-        return CKM_BLAKE2B_384_HMAC;
-
-    case CKM_BLAKE2B_512:
-        return CKM_BLAKE2B_512_HMAC;
-
-    case CKM_SHA3_224:
-        return CKM_SHA3_224_HMAC;
-
-    case CKM_SHA3_256:
-        return CKM_SHA3_256_HMAC;
-
-    case CKM_SHA3_384:
-        return CKM_SHA3_384_HMAC;
-
-    case CKM_SHA3_512:
-        return CKM_SHA3_512_HMAC;
-
-    case CKM_SHA512_224:
-        return CKM_SHA512_224_HMAC;
-
-    case CKM_SHA512_256:
-        return CKM_SHA512_256_HMAC;
-
-    case CKM_SHA512_T:
-        return CKM_SHA512_T_HMAC;
-
-    default:
-        P11PROV_debug("unknown digest %lu", digest);
-        break;
-    }
-
-    return CK_UNAVAILABLE_INFORMATION;
-}
-
-static CK_ULONG digest_from_hmac(CK_ULONG hmac)
-{
-    switch (hmac) {
-    case CKM_SHA_1_HMAC:
-    case CKM_SHA_1_HMAC_GENERAL:
-        return CKM_SHA_1;
-
-    case CKM_SHA224_HMAC:
-    case CKM_SHA224_HMAC_GENERAL:
-        return CKM_SHA224;
-
-    case CKM_SHA256_HMAC:
-    case CKM_SHA256_HMAC_GENERAL:
-        return CKM_SHA256;
-
-    case CKM_SHA384_HMAC:
-    case CKM_SHA384_HMAC_GENERAL:
-        return CKM_SHA384;
-
-    case CKM_SHA512_HMAC:
-    case CKM_SHA512_HMAC_GENERAL:
-        return CKM_SHA512;
-
-    case CKM_BLAKE2B_160_HMAC:
-    case CKM_BLAKE2B_160_HMAC_GENERAL:
-        return CKM_BLAKE2B_160;
-
-    case CKM_BLAKE2B_256_HMAC:
-    case CKM_BLAKE2B_256_HMAC_GENERAL:
-        return CKM_BLAKE2B_256;
-
-    case CKM_BLAKE2B_384_HMAC:
-    case CKM_BLAKE2B_384_HMAC_GENERAL:
-        return CKM_BLAKE2B_384;
-
-    case CKM_BLAKE2B_512_HMAC:
-    case CKM_BLAKE2B_512_HMAC_GENERAL:
-        return CKM_BLAKE2B_512;
-
-    case CKM_SHA3_224_HMAC:
-    case CKM_SHA3_224_HMAC_GENERAL:
-        return CKM_SHA3_224;
-
-    case CKM_SHA3_256_HMAC:
-    case CKM_SHA3_256_HMAC_GENERAL:
-        return CKM_SHA3_256;
-
-    case CKM_SHA3_384_HMAC:
-    case CKM_SHA3_384_HMAC_GENERAL:
-        return CKM_SHA3_384;
-
-    case CKM_SHA3_512_HMAC:
-    case CKM_SHA3_512_HMAC_GENERAL:
-        return CKM_SHA3_512;
-
-    case CKM_SHA512_224_HMAC:
-    case CKM_SHA512_224_HMAC_GENERAL:
-        return CKM_SHA512_224;
-
-    case CKM_SHA512_256_HMAC:
-    case CKM_SHA512_256_HMAC_GENERAL:
-        return CKM_SHA512_256;
-
-    case CKM_SHA512_T_HMAC:
-    case CKM_SHA512_T_HMAC_GENERAL:
-        return CKM_SHA512_T;
-
-    default:
-        P11PROV_debug("unknown hmmac %lu", hmac);
-        break;
-    }
-
-    return CK_UNAVAILABLE_INFORMATION;
-}
-
 static void *p11prov_mac_newctx(void *provctx)
 {
     P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
@@ -191,6 +57,7 @@ static int p11prov_hmac_get_ctx_params(void *ctx, OSSL_PARAM params[])
     CK_RV ret;
     size_t digest_size = 0;
     size_t block_size = 0;
+    CK_MECHANISM_TYPE digest;
 
     P11PROV_debug("mac get ctx params (ctx=%p, params=%p)", macctx, params);
 
@@ -198,10 +65,15 @@ static int p11prov_hmac_get_ctx_params(void *ctx, OSSL_PARAM params[])
         return RET_OSSL_OK;
     }
 
+    ret = p11prov_digest_from_hmac(macctx->hmac, &digest);
+    if (ret != CKR_OK || digest == CK_UNAVAILABLE_INFORMATION) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_MAC);
+        return RET_OSSL_ERR;
+    }
+
     p = OSSL_PARAM_locate(params, OSSL_MAC_PARAM_SIZE);
     if (p) {
-        ret = p11prov_digest_get_digest_size(digest_from_hmac(macctx->hmac),
-                                             &digest_size);
+        ret = p11prov_digest_get_digest_size(digest, &digest_size);
         if (ret != CKR_OK || digest_size == 0) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
@@ -212,8 +84,7 @@ static int p11prov_hmac_get_ctx_params(void *ctx, OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate(params, OSSL_MAC_PARAM_BLOCK_SIZE);
     if (p) {
-        ret = p11prov_digest_get_block_size(digest_from_hmac(macctx->hmac),
-                                            &block_size);
+        ret = p11prov_digest_get_block_size(digest, &block_size);
         if (ret != CKR_OK || block_size == 0) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
@@ -285,24 +156,24 @@ static int p11prov_hmac_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate_const(params, OSSL_MAC_PARAM_DIGEST);
     if (p) {
-        const char *digest = NULL;
-        CK_ULONG hash = CK_UNAVAILABLE_INFORMATION;
+        const char *digest_name = NULL;
+        CK_ULONG digest = CK_UNAVAILABLE_INFORMATION;
         CK_RV rv;
 
-        ret = OSSL_PARAM_get_utf8_string_ptr(p, &digest);
+        ret = OSSL_PARAM_get_utf8_string_ptr(p, &digest_name);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
 
-        rv = p11prov_digest_get_by_name(digest, &hash);
+        rv = p11prov_digest_get_by_name(digest_name, &digest);
         if (rv != CKR_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
         }
-        P11PROV_debug("set digest to %lu", hash);
+        P11PROV_debug("set digest to %lu", digest);
 
-        macctx->hmac = digest_to_hmac(hash);
-        if (macctx->hmac == CK_UNAVAILABLE_INFORMATION) {
+        rv = p11prov_digest_to_hmac(digest, &macctx->hmac);
+        if (rv != CKR_OK || macctx->hmac == CK_UNAVAILABLE_INFORMATION) {
             P11PROV_debug("No associated HMAC mechanism");
             ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
             return RET_OSSL_ERR;
