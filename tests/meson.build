@@ -146,7 +146,7 @@ tests = {
   'certs': {'suites': all_suites},
   'ecc': {'suites': all_suites},
   'edwards': {'suites': ['softhsm', 'kryoptic', 'kryoptic.nss']},
-  'ecdh': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
+  'ecdh': {'suites': all_suites},
   'democa': {'suites': all_suites, 'is_parallel': false},
   'digest': {'suites': all_suites},
   'fork': {'suites': all_suites},
