@@ -239,7 +239,6 @@ CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
          * and the following query excludes it */
         if ((sctx->default_slot == CK_UNAVAILABLE_INFORMATION)
             && (slot->token.flags & CKF_LOGIN_REQUIRED)
-            && (slot->token.flags & CKF_USER_PIN_INITIALIZED)
             && (slot->token.flags & CKF_TOKEN_INITIALIZED)
             && (!(slot->token.flags & CKF_USER_PIN_LOCKED))) {
             sctx->default_slot = slot->id;
