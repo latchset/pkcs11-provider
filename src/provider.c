@@ -761,16 +761,14 @@ static int p11prov_get_params(void *provctx, OSSL_PARAM params[])
     }
     p = OSSL_PARAM_locate(params, OSSL_PROV_PARAM_VERSION);
     if (p != NULL) {
-        /* temporarily return the OpenSSL build version */
-        ret = OSSL_PARAM_set_utf8_ptr(p, OPENSSL_VERSION_STR);
+        ret = OSSL_PARAM_set_utf8_ptr(p, P11PROV_VERSION);
         if (ret == 0) {
             return RET_OSSL_ERR;
         }
     }
     p = OSSL_PARAM_locate(params, OSSL_PROV_PARAM_BUILDINFO);
     if (p != NULL) {
-        /* temporarily return the OpenSSL build version */
-        ret = OSSL_PARAM_set_utf8_ptr(p, OPENSSL_FULL_VERSION_STR);
+        ret = OSSL_PARAM_set_utf8_ptr(p, P11PROV_BUILDINFO);
         if (ret == 0) {
             return RET_OSSL_ERR;
         }

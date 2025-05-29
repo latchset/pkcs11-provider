@@ -55,6 +55,14 @@ if not libssl.found()
   libssl = dependency('libssl3', version: '>= 3.0.7', required: true, method: 'pkg-config')
 endif
 
+# Set build version and build info definitions
+conf.set_quoted('P11PROV_VERSION', meson.project_version())
+build_info = get_option('build_info')
+if build_info == ''
+  build_info = 'Built with OpenSSL version ' + libcrypto.version()
+endif
+conf.set_quoted('P11PROV_BUILDINFO', build_info)
+
 host_system = host_machine.system()
 if host_system == 'windows'
   shlext = '.dll'

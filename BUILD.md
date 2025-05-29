@@ -33,6 +33,10 @@ Otherwise, you can set `CFLAGS`/`LDFLAGS`:
 
 - `CFLAGS="-I$OPENSSL_DIR/include" LDFLAGS="-L$OPENSSL_DIR/lib64" meson setup builddir`
 
+A "build info" string (which can be seen via openssl list -providers -verbose) can be set
+by using the build_info option before compilation:
+- `meson configure -Dbuild_info="Build-Id: 123456789" builddir
+
 ### Installation
 
 The usual command to install is:
