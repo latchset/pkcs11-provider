@@ -83,8 +83,16 @@ jobs:
           NUMBER: ${{ github.event.number }}
         run: gh pr edit "$NUMBER" --remove-label "covscan"
 
+  on-covscan-not-needed:
+    if: ${{ contains(github.event.*.labels.*.name, 'covscan-not-needed')) }}
+    name: Coverity Scan on PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Coverity Scan Marked Successful
+        run: echo "Dummy action to report all ok and mark covscan as handled"
+
   on-no-covscan-labeled-pr:
-    if: ${{ contains(github.event.action, 'labeled') && contains(github.event.*.labels.*.name, 'covscan-ok') }}
+    if: ${{ contains(github.event.action, 'labeled') && ( contains(github.event.*.labels.*.name, 'covscan-ok') || contains(github.event.*.labels.*.name, 'covscan-not-needed')) }}
     name: Coverity Scan on PR
     runs-on: ubuntu-latest
     steps:
@@ -92,7 +100,7 @@ jobs:
         run: echo "Dummy action to report all ok and mark covscan as handled"
 
   on-synchronize-no-source-changes:
-    if: ${{ contains(github.event.action, 'synchronize') && ! contains(github.event.*.labels.*.name, 'covscan-ok') }}
+    if: ${{ contains(github.event.action, 'synchronize') && ! ( contains(github.event.*.labels.*.name, 'covscan-ok') || contains(github.event.*.labels.*.name, 'covscan-not-needed')) }}
     name: Coverity Scan on PR
     runs-on: ubuntu-latest
     steps:
@@ -136,5 +144,5 @@ jobs:
           GH_REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.number }}
         run: |
-          gh pr edit "$NUMBER" --remove-label "covscan"
+          gh pr edit "$NUMBER" --remove-label "covscan-ok"
           false
