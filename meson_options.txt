@@ -12,3 +12,8 @@ option('default_pkcs11_module',
     type : 'string',
     value : '',
     description : 'Path to the default PKCS11 module')
+
+option('build_info',
+    type : 'string',
+    value : '',
+    description : 'Optional string with build information, like a build id')
