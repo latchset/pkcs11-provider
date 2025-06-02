@@ -3,15 +3,12 @@ name: Coverity Scan
 
 on:
   pull_request_target:
-    branches: ["main"]
+    branches: ["main", "covscan"]
     types:
       - synchronize
       - labeled
   schedule:
     - cron: '41 3 * * 0'
-  pull_request:
-    types:
-      - labeled
 
 jobs:
   scheduled:
@@ -50,7 +47,7 @@ jobs:
           token: ${{ secrets.COVERITY_SCAN_TOKEN }}
 
   on-labeled-pr:
-    if: ${{ ${{ github.event_name }} == 'pull_request_target' && contains(github.event.action, 'labeled') && contains(github.event.*.labels.*.name, 'covscan') }}
+    if: ${{ contains(github.event.action, 'labeled') && contains(github.event.*.labels.*.name, 'covscan') }}
     name: Coverity Scan on PR
     runs-on: ubuntu-latest
     permissions:
@@ -86,14 +83,6 @@ jobs:
           NUMBER: ${{ github.event.number }}
         run: gh pr edit "$NUMBER" --remove-label "covscan"
 
-  on-covscan-not-needed:
-    if: ${{ contains(github.event.action, 'labeled') && contains(github.event.*.labels.*.name, 'covscan-not-needed') }}
-    name: Coverity Scan on PR
-    runs-on: ubuntu-latest
-    steps:
-      - name: Coverity Scan Marked Successful
-        run: echo "Dummy action to report all ok and mark covscan as handled"
-
   on-no-covscan-labeled-pr:
     if: ${{ contains(github.event.action, 'labeled') && ( contains(github.event.*.labels.*.name, 'covscan-ok') || contains(github.event.*.labels.*.name, 'covscan-not-needed')) }}
     name: Coverity Scan on PR
@@ -102,8 +91,8 @@ jobs:
       - name: Coverity Scan Marked Successful
         run: echo "Dummy action to report all ok and mark covscan as handled"
 
-  on-synchronize-no-source-changes:
-    if: ${{ contains(github.event.action, 'synchronize') && ! ( contains(github.event.*.labels.*.name, 'covscan-ok') || contains(github.event.*.labels.*.name, 'covscan-not-needed')) }}
+  on-synchronize-check-only-if-needed:
+    if: ${{ contains(github.event.action, 'synchronize') && ! contains(github.event.*.labels.*.name, 'covscan-not-needed') }}
     name: Coverity Scan on PR
     runs-on: ubuntu-latest
     steps:
@@ -115,20 +104,23 @@ jobs:
           files: |
             src/**
       - name: Coverity Scan not needed
-        if: steps.changed-sources.outputs.any_changed == 'false'
-        run: |
-          echo "No Source files changed, no covscan needed"
+        if: ${{ steps.changed-sources.outcome == 'success' &&  steps.changed-sources.outputs.any_changed == 'false' }}
+        run: echo "No Source files changed, no covscan needed"
       - name: Coverity Scan is needed
-        if: steps.changed-sources.outputs.any_changed == 'true'
+        if: ${{ steps.changed-sources.outcome == 'failure' || steps.changed-sources.outputs.any_changed == 'true' }}
         run: |
           echo "Source files changed, covscan is needed"
+          false
 
-  on-synchronize-covscan-ok:
-    if: ${{ ${{ github.event_name }} == 'pull_request_target' && contains(github.event.action, 'synchronize') && contains(github.event.*.labels.*.name, 'covscan-ok') }}
+  on-synchronize-check-on-covscan-ok:
+    if: ${{ contains(github.event.action, 'synchronize') && contains(github.event.*.labels.*.name, 'covscan-ok') }}
     name: Coverity Scan on PR
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.before }}
+          fetch-depth: 0
       - name: Check changed files
         id: changed-sources
         uses: tj-actions/changed-files@v44
@@ -137,6 +129,11 @@ jobs:
           files: |
             src/**
         continue-on-error: true
+      - name: Debug failures
+        if: ${{ steps.changed-sources.outcome == 'failure' }}
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github.event) }}
+        run: echo "$GITHUB_CONTEXT"
       - name: Coverity Scan not needed
         if: ${{ steps.changed-sources.outcome == 'success' &&  steps.changed-sources.outputs.any_changed == 'false' }}
         run: echo "Dummy action to report all ok and mark covscan as handled"
@@ -147,5 +144,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.number }}
         run: |
-          gh pr edit "$NUMBER" --remove-label "covscan-ok"
+          gh pr edit "$NUMBER" --remove-label "covscan-ok" || true
+          # Always error out here as the check says file have changed after
+          # covscan was deemed ok
           false
