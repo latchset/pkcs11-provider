@@ -234,47 +234,24 @@ static int set_iv(struct p11prov_cipher_ctx *ctx, const unsigned char *iv,
     return CKR_OK;
 }
 
+static int p11prov_aes_set_ctx_params(void *vctx, const OSSL_PARAM params[]);
+
 static CK_RV p11prov_cipher_prep_mech(struct p11prov_cipher_ctx *ctx,
                                       const unsigned char *iv, size_t ivlen,
                                       const OSSL_PARAM params[])
 {
-    const OSSL_PARAM *p;
     bool param_as_iv = false;
     CK_RV rv = CKR_OK;
-
-    p = OSSL_PARAM_locate_const(params, OSSL_CIPHER_PARAM_PADDING);
-    if (p) {
-        unsigned int pad;
-        int ret = OSSL_PARAM_get_uint(p, &pad);
-        if (ret != RET_OSSL_OK) {
-            rv = CKR_MECHANISM_PARAM_INVALID;
-            P11PROV_raise(ctx->provctx, rv, "Invalid padding parameter");
-            return rv;
-        }
-        ctx->pad = pad == 1;
-    }
+    int ret;
 
     switch (ctx->mech.mechanism) {
     case CKM_AES_ECB:
-        if (ctx->pad) {
-            /* FIXME: we need to do our padding as there is no _PAD mode
-             * for ECB in PKCS#11 */
-            return CKR_MECHANISM_PARAM_INVALID;
-        }
         /* ECB has no ck params */
         break;
 
     case CKM_AES_CBC:
-        if (ctx->pad) {
-            ctx->mech.mechanism = CKM_AES_CBC_PAD;
-        }
-        param_as_iv = true;
-        break;
-
     case CKM_AES_CBC_PAD:
-        if (!ctx->pad) {
-            ctx->mech.mechanism = CKM_AES_CBC;
-        }
+    case CKM_AES_CTS:
         param_as_iv = true;
         break;
 
@@ -286,23 +263,6 @@ static CK_RV p11prov_cipher_prep_mech(struct p11prov_cipher_ctx *ctx,
         /* TODO */
         return CKR_MECHANISM_INVALID;
 
-    case CKM_AES_CTS:
-        p = OSSL_PARAM_locate_const(params, OSSL_CIPHER_PARAM_CTS_MODE);
-        if (p) {
-            const char *mode;
-            int ret = OSSL_PARAM_get_utf8_ptr(p, &mode);
-            if (ret != RET_OSSL_OK) {
-                rv = CKR_MECHANISM_PARAM_INVALID;
-                P11PROV_raise(ctx->provctx, rv, "Invalid mode parameter");
-                return ret;
-            }
-            /* Currently only CS1 is supported */
-            if (strcmp(mode, OSSL_CIPHER_CTS_MODE_CS1) != 0) {
-                rv = CKR_MECHANISM_PARAM_INVALID;
-                P11PROV_raise(ctx->provctx, rv, "Unsupported mode: %s", mode);
-                return RET_OSSL_ERR;
-            }
-        }
         param_as_iv = true;
         break;
 
@@ -312,9 +272,17 @@ static CK_RV p11prov_cipher_prep_mech(struct p11prov_cipher_ctx *ctx,
 
     if (param_as_iv) {
         rv = set_iv(ctx, iv, ivlen);
+        if (rv != CKR_OK) {
+            return rv;
+        }
     }
 
-    return rv;
+    ret = p11prov_aes_set_ctx_params(ctx, params);
+    if (ret != RET_OSSL_OK) {
+        return CKR_MECHANISM_PARAM_INVALID;
+    }
+
+    return CKR_OK;
 }
 
 static CK_RV p11prov_cipher_op_init(void *ctx, void *keydata, CK_FLAGS op,
@@ -616,9 +584,12 @@ static int p11prov_aes_get_ctx_params(void *ctx, OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate(params, OSSL_CIPHER_PARAM_NUM);
     if (p) {
-        /* TODO: ? (uint) */
-        ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
-        return RET_OSSL_ERR;
+        int num = 0;
+        ret = OSSL_PARAM_set_uint(p, num);
+        if (ret != RET_OSSL_OK) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+            return RET_OSSL_ERR;
+        }
     }
 
     p = OSSL_PARAM_locate(params, OSSL_CIPHER_PARAM_KEYLEN);
@@ -641,20 +612,157 @@ static int p11prov_aes_get_ctx_params(void *ctx, OSSL_PARAM params[])
     return RET_OSSL_OK;
 }
 
-static int p11prov_aes_set_ctx_params(void *ctx, const OSSL_PARAM params[])
+static int p11prov_aes_set_ctx_params(void *vctx, const OSSL_PARAM params[])
 {
-    return RET_OSSL_ERR;
+    struct p11prov_cipher_ctx *ctx = (struct p11prov_cipher_ctx *)vctx;
+    const OSSL_PARAM *p;
+
+    if (ctx->session != NULL) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_ALREADY_INSTANTIATED);
+        return RET_OSSL_ERR;
+    }
+
+    p = OSSL_PARAM_locate_const(params, OSSL_CIPHER_PARAM_PADDING);
+    if (p) {
+        unsigned int pad;
+        int ret = OSSL_PARAM_get_uint(p, &pad);
+        if (ret != RET_OSSL_OK) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_GET_PARAMETER);
+            return RET_OSSL_ERR;
+        }
+        if (pad > 1) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_ILLEGAL_OR_UNSUPPORTED_PADDING_MODE);
+            return RET_OSSL_ERR;
+        }
+        ctx->pad = pad == 1;
+
+        switch (ctx->mech.mechanism) {
+        case CKM_AES_CBC:
+            if (ctx->pad) {
+                ctx->mech.mechanism = CKM_AES_CBC_PAD;
+            }
+            break;
+
+        case CKM_AES_CBC_PAD:
+            if (!ctx->pad) {
+                ctx->mech.mechanism = CKM_AES_CBC;
+            }
+            break;
+
+        default:
+            if (ctx->pad) {
+                /* FIXME: we need to do our padding as there is no _PAD mode
+                 * for non CBC modes in PKCS#11 */
+                ERR_raise(ERR_LIB_PROV,
+                          PROV_R_ILLEGAL_OR_UNSUPPORTED_PADDING_MODE);
+                return RET_OSSL_ERR;
+            }
+        }
+    }
+
+    if (ctx->mech.mechanism == CKM_AES_CTS) {
+        p = OSSL_PARAM_locate_const(params, OSSL_CIPHER_PARAM_CTS_MODE);
+        if (p) {
+            const char *mode;
+            int ret = OSSL_PARAM_get_utf8_ptr(p, &mode);
+            if (ret != RET_OSSL_OK) {
+                CK_RV rv = CKR_MECHANISM_PARAM_INVALID;
+                P11PROV_raise(ctx->provctx, rv, "Invalid mode parameter");
+                return RET_OSSL_ERR;
+            }
+            /* Currently only CS1 is supported */
+            if (strcmp(mode, OSSL_CIPHER_CTS_MODE_CS1) != 0) {
+                CK_RV rv = CKR_MECHANISM_PARAM_INVALID;
+                P11PROV_raise(ctx->provctx, rv, "Unsupported mode: %s", mode);
+                return RET_OSSL_ERR;
+            }
+        }
+    }
+
+    return RET_OSSL_OK;
 }
 
-static const OSSL_PARAM *p11prov_aes_gettable_ctx_params(void *ctx,
+static const OSSL_PARAM p11prov_aes_generic_gettable_ctx_params[] = {
+    OSSL_PARAM_size_t(OSSL_CIPHER_PARAM_KEYLEN, NULL),
+    OSSL_PARAM_size_t(OSSL_CIPHER_PARAM_IVLEN, NULL),
+    OSSL_PARAM_uint(OSSL_CIPHER_PARAM_PADDING, NULL),
+    OSSL_PARAM_uint(OSSL_CIPHER_PARAM_NUM, NULL),
+    OSSL_PARAM_octet_string(OSSL_CIPHER_PARAM_IV, NULL, 0),
+    OSSL_PARAM_octet_string(OSSL_CIPHER_PARAM_UPDATED_IV, NULL, 0),
+    /* Supported by OpenSSL but not here yet
+     * OSSL_CIPHER_PARAM_TLS_MAC
+     */
+    OSSL_PARAM_END
+};
+
+static const OSSL_PARAM *p11prov_aes_gettable_ctx_params(void *vctx,
                                                          void *provctx)
 {
+    struct p11prov_cipher_ctx *ctx = (struct p11prov_cipher_ctx *)vctx;
+
+    if (!ctx) {
+        /* There are some cases where openssl will ask for context
+         * parameters but will pass NULL for the context, for now
+         * we return the generic parameters, but in future we may
+         * need to allocate shim functions for each cipher in their
+         * dispatch table if it becomes important to return different
+         * results for each cipher */
+        return p11prov_aes_generic_gettable_ctx_params;
+    }
+
+    switch (ctx->mech.mechanism) {
+    case CKM_AES_ECB:
+    case CKM_AES_CBC_PAD:
+    case CKM_AES_OFB:
+    case CKM_AES_CFB128:
+    case CKM_AES_CFB1:
+    case CKM_AES_CFB8:
+    case CKM_AES_CTR:
+    case CKM_AES_CTS:
+        return p11prov_aes_generic_gettable_ctx_params;
+    }
     return NULL;
 }
 
-static const OSSL_PARAM *p11prov_aes_settable_ctx_params(void *ctx,
+#define GENERIC_SETTABLE_CTX_PARAMS() \
+    OSSL_PARAM_uint(OSSL_CIPHER_PARAM_PADDING, NULL)
+/* Supported by OpenSSL but not here:
+ * OSSL_CIPHER_PARAM_NUM (uint)
+ * OSSL_CIPHER_PARAM_USE_BITS (uint)
+ * OSSL_CIPHER_PARAM_TLS_VERSION (uint)
+ * OSSL_CIPHER_PARAM_TLS_MAC_SIZE (size_t)
+ */
+
+static const OSSL_PARAM p11prov_aes_generic_settable_ctx_params[] = {
+    GENERIC_SETTABLE_CTX_PARAMS(), OSSL_PARAM_END
+};
+
+static const OSSL_PARAM p11prov_aes_cts_settable_ctx_params[] = {
+    GENERIC_SETTABLE_CTX_PARAMS(),
+    OSSL_PARAM_utf8_string(OSSL_CIPHER_PARAM_CTS_MODE, NULL, 0), OSSL_PARAM_END
+};
+
+static const OSSL_PARAM *p11prov_aes_settable_ctx_params(void *vctx,
                                                          void *provctx)
 {
+    struct p11prov_cipher_ctx *ctx = (struct p11prov_cipher_ctx *)vctx;
+    if (!ctx) {
+        /* See the explanation in p11prov_aes_gettable_ctx_params() for
+         * why we handle this case this way */
+        return p11prov_aes_generic_settable_ctx_params;
+    }
+    switch (ctx->mech.mechanism) {
+    case CKM_AES_ECB:
+    case CKM_AES_CBC_PAD:
+    case CKM_AES_OFB:
+    case CKM_AES_CFB128:
+    case CKM_AES_CFB1:
+    case CKM_AES_CFB8:
+    case CKM_AES_CTR:
+        return p11prov_aes_generic_settable_ctx_params;
+    case CKM_AES_CTS:
+        return p11prov_aes_cts_settable_ctx_params;
+    }
     return NULL;
 }
 
