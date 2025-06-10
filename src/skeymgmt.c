@@ -22,6 +22,19 @@ static void p11prov_aes_free(void *key)
     p11prov_obj_free((P11PROV_OBJ *)key);
 }
 
+struct skey_cb_ctx {
+    P11PROV_OBJ *obj;
+};
+
+static CK_RV skey_ctx_obj(void *pctx, P11PROV_OBJ *obj)
+{
+    struct skey_cb_ctx *skey_ctx = (struct skey_cb_ctx *)pctx;
+
+    skey_ctx->obj = obj;
+
+    return CKR_OK;
+}
+
 static void *p11prov_aes_import(void *provctx, int selection,
                                 const OSSL_PARAM params[])
 {
@@ -29,6 +42,8 @@ static void *p11prov_aes_import(void *provctx, int selection,
     const OSSL_PARAM *p;
     unsigned char *key;
     size_t keylen;
+    P11PROV_URI *uri = NULL;
+    CK_RV rv = CKR_MECHANISM_PARAM_INVALID;
 
     P11PROV_debug("aes import");
 
@@ -36,10 +51,43 @@ static void *p11prov_aes_import(void *provctx, int selection,
         return NULL;
     }
 
-    if (!(selection & OSSL_SKEYMGMT_SELECT_SECRET_KEY)) {
-        /* TODO: check for hack import uri */
-        return NULL;
+    p = OSSL_PARAM_locate_const(params, P11PROV_PARAM_URI);
+    if (p) {
+           struct skey_cb_ctx skey_ctx = { 0 };
+           P11PROV_SESSION *session = NULL;
+           CK_SLOT_ID slotid;
+           const char *puri = NULL;
+           int ret;
+
+           ret = OSSL_PARAM_get_utf8_string_ptr(p, &puri);
+           if (ret != RET_OSSL_OK) {
+               P11PROV_raise(ctx, rv, "Invalid uri parameter type");
+               return NULL;
+           }
+
+           uri = p11prov_parse_uri(ctx, puri);
+           if (!uri)
+               return NULL;
+
+           slotid = p11prov_uri_get_slot_id(uri);
+           rv = p11prov_get_session(ctx, &slotid, NULL, uri, CKM_AES_CBC, NULL,
+                                    NULL, true, true, &session);
+           if (rv != CKR_OK) {
+               P11PROV_raise(ctx, rv, "Failed to get PKCS#11 session");
+               return NULL;
+           }
+
+           rv = p11prov_obj_find(ctx, session, slotid, uri, skey_ctx_obj, &skey_ctx);
+           if (rv != CKR_OK) {
+               P11PROV_raise(ctx, rv, "Failed to run obj_find");
+               return NULL;
+           }
+
+           return skey_ctx.obj;
     }
+
+    if (!(selection & OSSL_SKEYMGMT_SELECT_SECRET_KEY))
+	    return NULL;
 
     p = OSSL_PARAM_locate_const(params, OSSL_SKEY_PARAM_RAW_BYTES);
     if (p) {
@@ -256,7 +304,8 @@ static const char *p11prov_aes_get_key_id(void *keydata)
 }
 
 static const OSSL_PARAM aes_import_params[] = {
-    OSSL_PARAM_octet_string(OSSL_SKEY_PARAM_RAW_BYTES, NULL, 0), OSSL_PARAM_END
+    OSSL_PARAM_octet_string(OSSL_SKEY_PARAM_RAW_BYTES, NULL, 0),
+    OSSL_PARAM_utf8_string(P11PROV_PARAM_URI, NULL, 0), OSSL_PARAM_END
 };
 
 static const OSSL_PARAM *p11prov_aes_imp_settable_params(void *provctx)
