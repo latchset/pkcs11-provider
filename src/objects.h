@@ -43,6 +43,7 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
 CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
                        CK_SLOT_ID slotid, P11PROV_URI *uri,
                        store_obj_callback cb, void *cb_ctx);
+CK_RV p11prov_obj_refresh_invalid(P11PROV_OBJ *obj);
 P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        P11PROV_SESSION *session,
                                        bool session_key, unsigned char *secret,
