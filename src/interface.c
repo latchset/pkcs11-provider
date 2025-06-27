@@ -94,11 +94,13 @@ static CK_RV p11prov_NO_GetInterface(CK_UTF8CHAR_PTR pInterfaceName,
 
 #define ASSIGN_FN(name) intf->name = list.fns->C_##name
 #define ASSIGN_FN_3_0(name) intf->name = list.fns_3_0->C_##name
+#define ASSIGN_FN_3_2(name) intf->name = list.fns_3_2->C_##name
 static void populate_interface(P11PROV_INTERFACE *intf, CK_INTERFACE *ck_intf)
 {
     union {
         CK_FUNCTION_LIST_PTR fns;
         CK_FUNCTION_LIST_3_0_PTR fns_3_0;
+        CK_FUNCTION_LIST_3_2_PTR fns_3_2;
     } list;
 
     list.fns = (CK_FUNCTION_LIST_PTR)ck_intf->pFunctionList;
@@ -163,10 +165,12 @@ static void populate_interface(P11PROV_INTERFACE *intf, CK_INTERFACE *ck_intf)
 
 static CK_RV p11prov_interface_init(P11PROV_MODULE *mctx)
 {
-    /* Try to get 3.0 interface by default */
+    /* Try to get 3.2 interface by default,
+     * then fallback to whatever is the default version
+     * for the token */
     P11PROV_INTERFACE *intf;
     CK_UTF8CHAR_PTR intf_name = (CK_UTF8CHAR_PTR) "PKCS 11";
-    CK_VERSION version = { 3, 0 };
+    CK_VERSION version = { 3, 2 };
     CK_INTERFACE *ck_interface;
     CK_RV ret;
 
