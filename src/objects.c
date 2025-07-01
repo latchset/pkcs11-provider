@@ -1778,14 +1778,13 @@ P11PROV_OBJ *p11prov_create_mac_key(P11PROV_CTX *provctx,
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
     CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
     CK_BBOOL val_true = CK_TRUE;
-    CK_BBOOL val_false = CK_FALSE;
     CK_BBOOL val_token = session_key ? CK_FALSE : CK_TRUE;
     CK_ATTRIBUTE key_template[] = {
         { CKA_CLASS, &key_class, sizeof(key_class) },
         { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
         { CKA_TOKEN, &val_token, sizeof(val_token) },
         { CKA_SIGN, &val_true, sizeof(val_true) },
-        { CKA_PRIVATE, &val_false, sizeof(val_false) },
+        { CKA_VERIFY, &val_true, sizeof(val_true) },
         { CKA_VALUE, (void *)secret, secretlen },
     };
     CK_ULONG tsize = sizeof(key_template) / sizeof(CK_ATTRIBUTE);
