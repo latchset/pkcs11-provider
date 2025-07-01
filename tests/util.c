@@ -198,10 +198,10 @@ EVP_PKEY *util_gen_key(const char *type, const char *label)
             OSSL_PARAM_construct_size_t("rsa_keygen_bits", &rsa_bits);
         name = type;
     } else if (strcmp(type, "P-256") == 0) {
-        params[pnum++] =
-            OSSL_PARAM_construct_utf8_string("ec_paramgen_curve", type, 0);
-        params[pnum++] =
-            OSSL_PARAM_construct_utf8_string("ec_param_enc", named_curve, 0);
+        params[pnum++] = OSSL_PARAM_construct_utf8_string("ec_paramgen_curve",
+                                                          (char *)type, 0);
+        params[pnum++] = OSSL_PARAM_construct_utf8_string(
+            "ec_param_enc", (char *)named_curve, 0);
         name = ec_name;
     }
     params[pnum++] = OSSL_PARAM_construct_end();
