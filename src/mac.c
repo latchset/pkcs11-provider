@@ -114,7 +114,7 @@ static CK_RV import_mac_key(P11PROV_MAC_CTX *macctx, const uint8_t *key,
 
     if (macctx->session == NULL) {
         ret = p11prov_get_session(macctx->provctx, &slotid, NULL, NULL,
-                                  macctx->hmac, NULL, NULL, false, false,
+                                  macctx->hmac, NULL, NULL, true, false,
                                   &macctx->session);
         if (ret != CKR_OK) {
             return ret;
