@@ -101,4 +101,39 @@ if [[ "$SUPPORT_RSA_PKCS1_ENCRYPTION" = "1" ]]; then
     diff "${SECRETFILE}" "${SECRETFILE}.dec"
 fi
 
+# Test RSA fallback code to emulate digest-sign via Raw RSA
+if [[  "$TOKENTYPE" = "kryoptic" ]]; then
+    title PARA "Fallback DigestVerify  and DigestSign with RSA forced on token"
+    ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+    sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
+        "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
+    OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
 
+    ORIG_KRYOPTIC_CONF=${KRYOPTIC_CONF}
+    sed "s/#mechanisms*/mechanisms = [\"DENY\", \"CKM_SHA256_RSA_PKCS\"]/" "${KRYOPTIC_CONF}" > "${KRYOPTIC_CONF}.no_rsa_sha256"
+    KRYOPTIC_CONF=${KRYOPTIC_CONF}.no_rsa_sha256
+
+    ossl 'pkeyutl -verify -inkey "${PUBURI}"
+             -pubin
+             -digest sha256
+             -in ${RAND64FILE}
+             -rawin
+             -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
+
+    ossl 'pkeyutl -sign -inkey "${BASEURI}"
+             -digest sha256
+             -in ${RAND64FILE}
+             -rawin
+             -out ${TMPPDIR}/sha256-fbcksig.bin'
+    KRYOPTIC_CONF=${ORIG_KRYOPTIC_CONF}
+    OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
+    title LINE "Check the Generated Fallback Signature"
+    ossl 'pkeyutl -verify -inkey "${PUBURI}"
+             -pubin
+             -digest sha256
+             -in ${RAND64FILE}
+             -rawin
+             -sigfile ${TMPPDIR}/sha256-fbcksig.bin'
+
+fi
