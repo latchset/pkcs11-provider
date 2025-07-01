@@ -27,7 +27,14 @@ find_kryoptic \
 title LINE "Creating Kyroptic database"
 
 # Kryoptic configuration
-export KRYOPTIC_CONF="${KRYOPTIC_CONF:-$TOKDIR/kryoptic.sql}"
+cat << EOF > "$TOKDIR/kryoptic.conf"
+[[slots]]
+slot = 0
+dbtype = "sqlite"
+dbargs = "$TOKDIR/kryoptic.sql"
+#mechanisms
+EOF
+export KRYOPTIC_CONF="${KRYOPTIC_CONF:-$TOKDIR/kryoptic.conf}"
 
 export TOKENLABEL="${TOKENLABEL:-Kryoptic Token}"
 export TOKENLABELURI="${TOKENLABELURI:-Kryoptic%20Token}"
@@ -39,7 +46,7 @@ pkcs11-tool --module "${P11LIB}" --init-token \
 pkcs11-tool --module "${P11LIB}" --so-pin "${PINVALUE}" \
     --login --login-type so --init-pin --pin "${PINVALUE}" 2>&1
 
-export TOKENCONFIGVARS="export KRYOPTIC_CONF=$TOKDIR/kryoptic.sql"
+export TOKENCONFIGVARS="export KRYOPTIC_CONF=$TOKDIR/kryoptic.conf"
 
 export TESTPORT="34000"
 
