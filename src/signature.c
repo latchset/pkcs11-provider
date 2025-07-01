@@ -1067,6 +1067,7 @@ static CK_RV mech_fallback_final(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
     CK_BYTE digest[mdsize];
     unsigned int digest_len = mdsize;
     CK_OBJECT_HANDLE handle;
+    const char *digest_name = NULL;
     int err;
     CK_RV ret;
 
@@ -1096,7 +1097,14 @@ static CK_RV mech_fallback_final(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
         goto done;
     }
 
-    ret = p11prov_sig_op_init(subctx, sigctx->key, sigctx->operation, NULL);
+    ret = p11prov_digest_get_name(sigctx->digest, &digest_name);
+    if (ret != CKR_OK) {
+        P11PROV_raise(sigctx->provctx, ret, "Failed to get digest name");
+        goto done;
+    }
+
+    ret = p11prov_sig_op_init(subctx, sigctx->key, sigctx->operation,
+                              digest_name);
     if (ret != CKR_OK) {
         P11PROV_raise(sigctx->provctx, ret, "Failed to setup sigver fallback");
         goto done;
