@@ -4,11 +4,6 @@
 
 source "${TESTSSRCDIR}/helpers.sh"
 
-# Need to configure early loading, otherwise MACs might not be available
-sed "s/#pkcs11-module-load-behavior/pkcs11-module-load-behavior = early/" \
-    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.early_load"
-OPENSSL_CONF=${OPENSSL_CONF}.early_load
-
 title PARA "Test HMAC support"
 
 # Use a large key size, softhsm requires it to be >= digest size

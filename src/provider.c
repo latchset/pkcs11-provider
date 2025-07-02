@@ -1370,6 +1370,7 @@ static CK_RV static_operations_init(P11PROV_CTX *ctx)
 #if SKEY_SUPPORT == 1
     int skeymgmt_idx = 0;
 #endif
+    int mac_idx = 0;
     const char *prop = get_default_properties(ctx);
 
 /* encoder */
@@ -1499,6 +1500,10 @@ static CK_RV static_operations_init(P11PROV_CTX *ctx)
     ADD_ALGO(GENERIC_SECRET, generic_secret, skeymgmt, prop);
     TERM_ALGO(skeymgmt);
 #endif
+
+    /* mac */
+    ADD_ALGO(HMAC, hmac, mac, prop);
+    TERM_ALGO(mac);
 
     return CKR_OK;
 }
