@@ -21,8 +21,14 @@ static void *p11prov_mac_newctx(void *provctx)
 {
     P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
     P11PROV_MAC_CTX *macctx;
+    CK_RV ret;
 
     P11PROV_debug("mac newctx");
+
+    ret = p11prov_ctx_status(ctx);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
 
     macctx = OPENSSL_zalloc(sizeof(*macctx));
     if (macctx == NULL) {
@@ -227,11 +233,6 @@ static int p11prov_hmac_init(void *ctx, const unsigned char *key, size_t keylen,
 
     P11PROV_debug("hmac init (ctx:%p, key:%p[%zu], params:%p)", ctx, key,
                   keylen, params);
-
-    ret = p11prov_ctx_status(macctx->provctx);
-    if (ret != CKR_OK) {
-        return RET_OSSL_ERR;
-    }
 
     ret = p11prov_hmac_set_ctx_params(ctx, params);
     if (ret != RET_OSSL_OK) {
