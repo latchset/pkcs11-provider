@@ -114,7 +114,7 @@ static void check_public_info(EVP_PKEY *key)
     BIO_free(membio);
 }
 
-static int check_peer_ec_key_copy(void)
+static void check_peer_ec_key_copy(void)
 {
     EVP_PKEY *key;
     size_t key_bits;
