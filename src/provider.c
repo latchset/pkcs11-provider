@@ -966,9 +966,65 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
             case CKM_RSA_PKCS:
                 add_rsasig = true;
                 add_rsaenc = true;
-                UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_SIG_MECHS);
+                UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN);
                 UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_ENC_MECHS);
                 break;
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+            case CKM_SHA1_RSA_PKCS:
+                ADD_ALGO_EXT(RSA_SHA1, signature, prop,
+                             p11prov_rsa_sha1_signature_functions);
+                add_rsasig = true;
+                UNCHECK_MECHS(CKM_SHA1_RSA_PKCS, CKM_RSA_PKCS_KEY_PAIR_GEN);
+                break;
+            case CKM_SHA224_RSA_PKCS:
+                ADD_ALGO_EXT(RSA_SHA224, signature, prop,
+                             p11prov_rsa_sha224_signature_functions);
+                add_rsasig = true;
+                UNCHECK_MECHS(CKM_SHA224_RSA_PKCS, CKM_RSA_PKCS_KEY_PAIR_GEN);
+                break;
+            case CKM_SHA256_RSA_PKCS:
+                ADD_ALGO_EXT(RSA_SHA256, signature, prop,
+                             p11prov_rsa_sha256_signature_functions);
+                add_rsasig = true;
+                UNCHECK_MECHS(CKM_SHA256_RSA_PKCS, CKM_RSA_PKCS_KEY_PAIR_GEN);
+                break;
+            case CKM_SHA384_RSA_PKCS:
+                ADD_ALGO_EXT(RSA_SHA384, signature, prop,
+                             p11prov_rsa_sha384_signature_functions);
+                add_rsasig = true;
+                UNCHECK_MECHS(CKM_SHA384_RSA_PKCS, CKM_RSA_PKCS_KEY_PAIR_GEN);
+                break;
+            case CKM_SHA512_RSA_PKCS:
+                ADD_ALGO_EXT(RSA_SHA512, signature, prop,
+                             p11prov_rsa_sha512_signature_functions);
+                add_rsasig = true;
+                UNCHECK_MECHS(CKM_SHA512_RSA_PKCS, CKM_RSA_PKCS_KEY_PAIR_GEN);
+                break;
+            case CKM_SHA3_224_RSA_PKCS:
+                ADD_ALGO_EXT(RSA_SHA3_224, signature, prop,
+                             p11prov_rsa_sha3_224_signature_functions);
+                add_rsasig = true;
+                UNCHECK_MECHS(CKM_SHA3_224_RSA_PKCS, CKM_RSA_PKCS_KEY_PAIR_GEN);
+                break;
+            case CKM_SHA3_256_RSA_PKCS:
+                ADD_ALGO_EXT(RSA_SHA3_256, signature, prop,
+                             p11prov_rsa_sha3_256_signature_functions);
+                add_rsasig = true;
+                UNCHECK_MECHS(CKM_SHA3_256_RSA_PKCS, CKM_RSA_PKCS_KEY_PAIR_GEN);
+                break;
+            case CKM_SHA3_384_RSA_PKCS:
+                ADD_ALGO_EXT(RSA_SHA3_384, signature, prop,
+                             p11prov_rsa_sha3_384_signature_functions);
+                add_rsasig = true;
+                UNCHECK_MECHS(CKM_SHA3_384_RSA_PKCS, CKM_RSA_PKCS_KEY_PAIR_GEN);
+                break;
+            case CKM_SHA3_512_RSA_PKCS:
+                ADD_ALGO_EXT(RSA_SHA3_512, signature, prop,
+                             p11prov_rsa_sha3_512_signature_functions);
+                add_rsasig = true;
+                UNCHECK_MECHS(CKM_SHA3_512_RSA_PKCS, CKM_RSA_PKCS_KEY_PAIR_GEN);
+                break;
+#else
             case CKM_SHA1_RSA_PKCS:
             case CKM_SHA224_RSA_PKCS:
             case CKM_SHA256_RSA_PKCS:
@@ -981,6 +1037,7 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                 add_rsasig = true;
                 UNCHECK_MECHS(CKM_RSA_PKCS_KEY_PAIR_GEN, RSA_SIG_MECHS);
                 break;
+#endif
             case CKM_RSA_PKCS_PSS:
             case CKM_SHA1_RSA_PKCS_PSS:
             case CKM_SHA224_RSA_PKCS_PSS:

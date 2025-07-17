@@ -1,4 +1,4 @@
-/* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+/* Copyright (C) 2022-2025 Simo Sorce <simo@redhat.com>
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
@@ -7,6 +7,7 @@
 #include "openssl/rsa.h"
 #include "openssl/ec.h"
 #include "openssl/sha.h"
+#include "openssl/err.h"
 
 struct p11prov_sig_ctx {
     P11PROV_CTX *provctx;
@@ -25,6 +26,10 @@ struct p11prov_sig_ctx {
     /* EdDSA param data */
     CK_EDDSA_PARAMS eddsa_params;
     CK_BBOOL use_eddsa_params;
+
+    /* Signature to be verified, used by verify_message_final() */
+    unsigned char *signature;
+    size_t signature_len;
 
     /* If not NULL this indicates that the requested mechanism to calculate
      * digest+signature (C_SignUpdate/C_VerifyUpdate) is not supported by
@@ -112,6 +117,16 @@ static void *p11prov_sig_dupctx(void *ctx)
     }
     newctx->use_eddsa_params = sigctx->use_eddsa_params;
 
+    if (sigctx->signature) {
+        newctx->signature =
+            OPENSSL_memdup(sigctx->signature, sigctx->signature_len);
+        if (newctx->signature == NULL) {
+            p11prov_sig_freectx(newctx);
+            return NULL;
+        }
+        newctx->signature_len = sigctx->signature_len;
+    }
+
     if (sigctx->mechanism_fallback) {
         int err;
         newctx->mechanism_fallback = EVP_MD_CTX_new();
@@ -197,6 +212,7 @@ static void p11prov_sig_freectx(void *ctx)
 
     OPENSSL_clear_free(sigctx->eddsa_params.pContextData,
                        sigctx->eddsa_params.ulContextDataLen);
+    OPENSSL_free(sigctx->signature);
     p11prov_return_session(sigctx->session);
     EVP_MD_CTX_free(sigctx->mechanism_fallback);
     p11prov_obj_free(sigctx->key);
@@ -1193,6 +1209,13 @@ DISPATCH_RSASIG_FN(digest_sign_final);
 DISPATCH_RSASIG_FN(digest_verify_init);
 DISPATCH_RSASIG_FN(digest_verify_update);
 DISPATCH_RSASIG_FN(digest_verify_final);
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+DISPATCH_RSASIG_FN(sign_message_update);
+DISPATCH_RSASIG_FN(sign_message_final);
+DISPATCH_RSASIG_FN(verify_message_update);
+DISPATCH_RSASIG_FN(verify_message_final);
+DISPATCH_RSASIG_FN(query_key_types);
+#endif /* OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT */
 DISPATCH_RSASIG_FN(get_ctx_params);
 DISPATCH_RSASIG_FN(set_ctx_params);
 DISPATCH_RSASIG_FN(gettable_ctx_params);
@@ -1389,6 +1412,51 @@ static int p11prov_rsasig_digest_verify_final(void *ctx,
 
     return p11prov_sig_digest_final(sigctx, (void *)sig, NULL, siglen);
 }
+
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+static const char **p11prov_rsasig_query_key_types(void)
+{
+    static const char *keytypes[] = { "RSA", NULL };
+
+    return keytypes;
+}
+
+static int p11prov_rsasig_sign_message_update(void *ctx,
+                                              const unsigned char *data,
+                                              size_t datalen)
+{
+    return p11prov_rsasig_digest_sign_update(ctx, data, datalen);
+}
+
+static int p11prov_rsasig_sign_message_final(void *ctx, unsigned char *sig,
+                                             size_t *siglen, size_t sigsize)
+{
+    return p11prov_rsasig_digest_sign_final(ctx, sig, siglen, sigsize);
+}
+
+static int p11prov_rsasig_verify_message_update(void *ctx,
+                                                const unsigned char *data,
+                                                size_t datalen)
+{
+    return p11prov_rsasig_digest_verify_update(ctx, data, datalen);
+}
+
+static int p11prov_rsasig_verify_message_final(void *ctx)
+{
+    P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
+
+    P11PROV_debug("rsa message verify final (ctx=%p)", ctx);
+
+    if (sigctx == NULL || sigctx->signature == NULL) {
+        P11PROV_raise(sigctx->provctx, CKR_ARGUMENTS_BAD,
+                      "Signature not available on context");
+        return RET_OSSL_ERR;
+    }
+
+    return p11prov_sig_digest_final(sigctx, sigctx->signature, NULL,
+                                    sigctx->signature_len);
+}
+#endif /* OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT */
 
 static struct {
     CK_MECHANISM_TYPE type;
@@ -1775,6 +1843,19 @@ static int p11prov_rsasig_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         }
     }
 
+#if defined(OSSL_SIGNATURE_PARAM_SIGNATURE)
+    p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_SIGNATURE);
+    if (p) {
+        OPENSSL_free(sigctx->signature);
+        sigctx->signature = NULL;
+        ret = OSSL_PARAM_get_octet_string(p, (void **)&sigctx->signature, 0,
+                                          &sigctx->signature_len);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+#endif
+
     return RET_OSSL_OK;
 }
 
@@ -1801,6 +1882,9 @@ static const OSSL_PARAM *p11prov_rsasig_settable_ctx_params(void *ctx,
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_DIGEST, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_MGF1_DIGEST, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_PSS_SALTLEN, NULL, 0),
+#if defined(OSSL_SIGNATURE_PARAM_SIGNATURE)
+        OSSL_PARAM_octet_string(OSSL_SIGNATURE_PARAM_SIGNATURE, NULL, 0),
+#endif
         OSSL_PARAM_END,
     };
     return params;
@@ -1826,6 +1910,55 @@ const OSSL_DISPATCH p11prov_rsa_signature_functions[] = {
     DISPATCH_SIG_ELEM(rsasig, SETTABLE_CTX_PARAMS, settable_ctx_params),
     { 0, NULL },
 };
+
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+#define DEFINE_RSA_SHA_SIG(alg, digest) \
+    static int p11prov_rsasig_##alg##_sign_message_init( \
+        void *ctx, void *provkey, const OSSL_PARAM params[]) \
+    { \
+        return p11prov_rsasig_digest_sign_init(ctx, digest, provkey, params); \
+    } \
+    static int p11prov_rsasig_##alg##_verify_message_init( \
+        void *ctx, void *provkey, const OSSL_PARAM params[]) \
+    { \
+        return p11prov_rsasig_digest_verify_init(ctx, digest, provkey, \
+                                                 params); \
+    } \
+    const OSSL_DISPATCH p11prov_rsa_##alg##_signature_functions[] = { \
+        DISPATCH_SIG_ELEM(rsasig, NEWCTX, newctx), \
+        DISPATCH_SIG_ELEM(sig, FREECTX, freectx), \
+        DISPATCH_SIG_ELEM(sig, DUPCTX, dupctx), \
+        DISPATCH_SIG_ELEM(rsasig, SIGN_INIT, sign_init), \
+        DISPATCH_SIG_ELEM(rsasig, SIGN, sign), \
+        DISPATCH_SIG_ELEM(rsasig, VERIFY_INIT, verify_init), \
+        DISPATCH_SIG_ELEM(rsasig, VERIFY, verify), \
+        { OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT, \
+          (void (*)(void))p11prov_rsasig_##alg##_sign_message_init }, \
+        DISPATCH_SIG_ELEM(rsasig, SIGN_MESSAGE_UPDATE, sign_message_update), \
+        DISPATCH_SIG_ELEM(rsasig, SIGN_MESSAGE_FINAL, sign_message_final), \
+        { OSSL_FUNC_SIGNATURE_VERIFY_MESSAGE_INIT, \
+          (void (*)(void))p11prov_rsasig_##alg##_verify_message_init }, \
+        DISPATCH_SIG_ELEM(rsasig, VERIFY_MESSAGE_UPDATE, \
+                          verify_message_update), \
+        DISPATCH_SIG_ELEM(rsasig, VERIFY_MESSAGE_FINAL, verify_message_final), \
+        DISPATCH_SIG_ELEM(rsasig, QUERY_KEY_TYPES, query_key_types), \
+        DISPATCH_SIG_ELEM(rsasig, GET_CTX_PARAMS, get_ctx_params), \
+        DISPATCH_SIG_ELEM(rsasig, GETTABLE_CTX_PARAMS, gettable_ctx_params), \
+        DISPATCH_SIG_ELEM(rsasig, SET_CTX_PARAMS, set_ctx_params), \
+        DISPATCH_SIG_ELEM(rsasig, SETTABLE_CTX_PARAMS, settable_ctx_params), \
+        { 0, NULL }, \
+    }
+
+DEFINE_RSA_SHA_SIG(sha1, "SHA1");
+DEFINE_RSA_SHA_SIG(sha224, "SHA224");
+DEFINE_RSA_SHA_SIG(sha256, "SHA256");
+DEFINE_RSA_SHA_SIG(sha384, "SHA384");
+DEFINE_RSA_SHA_SIG(sha512, "SHA512");
+DEFINE_RSA_SHA_SIG(sha3_224, "SHA3-224");
+DEFINE_RSA_SHA_SIG(sha3_256, "SHA3-256");
+DEFINE_RSA_SHA_SIG(sha3_384, "SHA3-384");
+DEFINE_RSA_SHA_SIG(sha3_512, "SHA3-512");
+#endif /* OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT */
 
 DISPATCH_ECDSA_FN(newctx);
 DISPATCH_ECDSA_FN(sign_init);
