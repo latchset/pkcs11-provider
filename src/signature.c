@@ -1971,6 +1971,13 @@ DISPATCH_ECDSA_FN(digest_sign_final);
 DISPATCH_ECDSA_FN(digest_verify_init);
 DISPATCH_ECDSA_FN(digest_verify_update);
 DISPATCH_ECDSA_FN(digest_verify_final);
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+DISPATCH_ECDSA_FN(sign_message_update);
+DISPATCH_ECDSA_FN(sign_message_final);
+DISPATCH_ECDSA_FN(verify_message_update);
+DISPATCH_ECDSA_FN(verify_message_final);
+DISPATCH_ECDSA_FN(query_key_types);
+#endif /* OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT */
 DISPATCH_ECDSA_FN(get_ctx_params);
 DISPATCH_ECDSA_FN(set_ctx_params);
 DISPATCH_ECDSA_FN(gettable_ctx_params);
@@ -2276,6 +2283,51 @@ static int p11prov_ecdsa_digest_verify_final(void *ctx,
     return ret;
 }
 
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+static const char **p11prov_ecdsa_query_key_types(void)
+{
+    static const char *keytypes[] = { "EC", NULL };
+
+    return keytypes;
+}
+
+static int p11prov_ecdsa_sign_message_update(void *ctx,
+                                             const unsigned char *data,
+                                             size_t datalen)
+{
+    return p11prov_ecdsa_digest_sign_update(ctx, data, datalen);
+}
+
+static int p11prov_ecdsa_sign_message_final(void *ctx, unsigned char *sig,
+                                            size_t *siglen, size_t sigsize)
+{
+    return p11prov_ecdsa_digest_sign_final(ctx, sig, siglen, sigsize);
+}
+
+static int p11prov_ecdsa_verify_message_update(void *ctx,
+                                               const unsigned char *data,
+                                               size_t datalen)
+{
+    return p11prov_ecdsa_digest_verify_update(ctx, data, datalen);
+}
+
+static int p11prov_ecdsa_verify_message_final(void *ctx)
+{
+    P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
+
+    P11PROV_debug("ecdsa message verify final (ctx=%p)", ctx);
+
+    if (sigctx == NULL || sigctx->signature == NULL) {
+        P11PROV_raise(sigctx->provctx, CKR_ARGUMENTS_BAD,
+                      "Signature not available on context");
+        return RET_OSSL_ERR;
+    }
+
+    return p11prov_ecdsa_digest_verify_final(sigctx, sigctx->signature,
+                                             sigctx->signature_len);
+}
+#endif /* OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT */
+
 static int p11prov_ecdsa_get_ctx_params(void *ctx, OSSL_PARAM *params)
 {
     P11PROV_SIG_CTX *sigctx = (P11PROV_SIG_CTX *)ctx;
@@ -2378,6 +2430,19 @@ static int p11prov_ecdsa_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         }
     }
 
+#if defined(OSSL_SIGNATURE_PARAM_SIGNATURE)
+    p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_SIGNATURE);
+    if (p) {
+        OPENSSL_free(sigctx->signature);
+        sigctx->signature = NULL;
+        ret = OSSL_PARAM_get_octet_string(p, (void **)&sigctx->signature, 0,
+                                          &sigctx->signature_len);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+#endif
+
     return RET_OSSL_OK;
 }
 
@@ -2398,6 +2463,9 @@ static const OSSL_PARAM *p11prov_ecdsa_settable_ctx_params(void *ctx,
 {
     static const OSSL_PARAM params[] = {
         OSSL_PARAM_utf8_string(OSSL_SIGNATURE_PARAM_DIGEST, NULL, 0),
+#if defined(OSSL_SIGNATURE_PARAM_SIGNATURE)
+        OSSL_PARAM_octet_string(OSSL_SIGNATURE_PARAM_SIGNATURE, NULL, 0),
+#endif
         OSSL_PARAM_END,
     };
     return params;
@@ -2423,6 +2491,54 @@ const OSSL_DISPATCH p11prov_ecdsa_signature_functions[] = {
     DISPATCH_SIG_ELEM(ecdsa, SETTABLE_CTX_PARAMS, settable_ctx_params),
     { 0, NULL },
 };
+
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+#define DEFINE_ECDSA_SHA_SIG(alg, digest) \
+    static int p11prov_ecdsa_##alg##_sign_message_init( \
+        void *ctx, void *provkey, const OSSL_PARAM params[]) \
+    { \
+        return p11prov_ecdsa_digest_sign_init(ctx, digest, provkey, params); \
+    } \
+    static int p11prov_ecdsa_##alg##_verify_message_init( \
+        void *ctx, void *provkey, const OSSL_PARAM params[]) \
+    { \
+        return p11prov_ecdsa_digest_verify_init(ctx, digest, provkey, params); \
+    } \
+    const OSSL_DISPATCH p11prov_ecdsa_##alg##_signature_functions[] = { \
+        DISPATCH_SIG_ELEM(ecdsa, NEWCTX, newctx), \
+        DISPATCH_SIG_ELEM(sig, FREECTX, freectx), \
+        DISPATCH_SIG_ELEM(sig, DUPCTX, dupctx), \
+        DISPATCH_SIG_ELEM(ecdsa, SIGN_INIT, sign_init), \
+        DISPATCH_SIG_ELEM(ecdsa, SIGN, sign), \
+        DISPATCH_SIG_ELEM(ecdsa, VERIFY_INIT, verify_init), \
+        DISPATCH_SIG_ELEM(ecdsa, VERIFY, verify), \
+        { OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT, \
+          (void (*)(void))p11prov_ecdsa_##alg##_sign_message_init }, \
+        DISPATCH_SIG_ELEM(ecdsa, SIGN_MESSAGE_UPDATE, sign_message_update), \
+        DISPATCH_SIG_ELEM(ecdsa, SIGN_MESSAGE_FINAL, sign_message_final), \
+        { OSSL_FUNC_SIGNATURE_VERIFY_MESSAGE_INIT, \
+          (void (*)(void))p11prov_ecdsa_##alg##_verify_message_init }, \
+        DISPATCH_SIG_ELEM(ecdsa, VERIFY_MESSAGE_UPDATE, \
+                          verify_message_update), \
+        DISPATCH_SIG_ELEM(ecdsa, VERIFY_MESSAGE_FINAL, verify_message_final), \
+        DISPATCH_SIG_ELEM(ecdsa, QUERY_KEY_TYPES, query_key_types), \
+        DISPATCH_SIG_ELEM(ecdsa, GET_CTX_PARAMS, get_ctx_params), \
+        DISPATCH_SIG_ELEM(ecdsa, GETTABLE_CTX_PARAMS, gettable_ctx_params), \
+        DISPATCH_SIG_ELEM(ecdsa, SET_CTX_PARAMS, set_ctx_params), \
+        DISPATCH_SIG_ELEM(ecdsa, SETTABLE_CTX_PARAMS, settable_ctx_params), \
+        { 0, NULL }, \
+    }
+
+DEFINE_ECDSA_SHA_SIG(sha1, "SHA1");
+DEFINE_ECDSA_SHA_SIG(sha224, "SHA224");
+DEFINE_ECDSA_SHA_SIG(sha256, "SHA256");
+DEFINE_ECDSA_SHA_SIG(sha384, "SHA384");
+DEFINE_ECDSA_SHA_SIG(sha512, "SHA512");
+DEFINE_ECDSA_SHA_SIG(sha3_224, "SHA3-224");
+DEFINE_ECDSA_SHA_SIG(sha3_256, "SHA3-256");
+DEFINE_ECDSA_SHA_SIG(sha3_384, "SHA3-384");
+DEFINE_ECDSA_SHA_SIG(sha3_512, "SHA3-512");
+#endif /* OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT */
 
 DISPATCH_EDDSA_FN(newctx);
 DISPATCH_EDDSA_FN(digest_sign_init);

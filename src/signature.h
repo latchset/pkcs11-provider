@@ -31,6 +31,17 @@ extern const OSSL_DISPATCH p11prov_rsa_sha3_512_signature_functions[];
 #define DISPATCH_ECDSA_FN(name) \
     DECL_DISPATCH_FUNC(signature, p11prov_ecdsa, name)
 extern const OSSL_DISPATCH p11prov_ecdsa_signature_functions[];
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+extern const OSSL_DISPATCH p11prov_ecdsa_sha1_signature_functions[];
+extern const OSSL_DISPATCH p11prov_ecdsa_sha224_signature_functions[];
+extern const OSSL_DISPATCH p11prov_ecdsa_sha256_signature_functions[];
+extern const OSSL_DISPATCH p11prov_ecdsa_sha384_signature_functions[];
+extern const OSSL_DISPATCH p11prov_ecdsa_sha512_signature_functions[];
+extern const OSSL_DISPATCH p11prov_ecdsa_sha3_224_signature_functions[];
+extern const OSSL_DISPATCH p11prov_ecdsa_sha3_256_signature_functions[];
+extern const OSSL_DISPATCH p11prov_ecdsa_sha3_384_signature_functions[];
+extern const OSSL_DISPATCH p11prov_ecdsa_sha3_512_signature_functions[];
+#endif
 
 /* eddsa sig functions */
 #define DISPATCH_EDDSA_FN(name) \
