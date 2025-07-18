@@ -42,3 +42,4 @@ cscope.out
 cscope.in.out
 cscope.po.out
 __pycache__/
+*.swp
