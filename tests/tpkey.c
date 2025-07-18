@@ -80,8 +80,8 @@ static void verify_op(EVP_PKEY *key, const char *data, size_t len,
 }
 
 #if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
-static void sign_msg_op(EVP_PKEY *key, const char *data, size_t len,
-                        unsigned char **signature, size_t *siglen)
+static void sign_msg_op(EVP_PKEY *key, const char *sigalgname, const char *data,
+                        size_t len, unsigned char **signature, size_t *siglen)
 {
     EVP_PKEY_CTX *pctx = NULL;
     EVP_SIGNATURE *sigalg = NULL;
@@ -105,9 +105,9 @@ static void sign_msg_op(EVP_PKEY *key, const char *data, size_t len,
         exit(EXIT_FAILURE);
     }
 
-    sigalg = EVP_SIGNATURE_fetch(NULL, "RSA-SHA256", "provider=pkcs11");
+    sigalg = EVP_SIGNATURE_fetch(NULL, sigalgname, "provider=pkcs11");
     if (!sigalg) {
-        PRINTERROSSL("Failed to fetch RSA-SHA256 signature\n");
+        PRINTERROSSL("Failed to fetch %s signature\n", sigalgname);
         exit(EXIT_FAILURE);
     }
 
@@ -117,7 +117,7 @@ static void sign_msg_op(EVP_PKEY *key, const char *data, size_t len,
         exit(EXIT_FAILURE);
     }
 
-    ret = EVP_PKEY_sign_message_update(pctx, data, len);
+    ret = EVP_PKEY_sign_message_update(pctx, (unsigned const char *)data, len);
     if (ret != 1) {
         PRINTERROSSL("Failed to EVP_PKEY_sign_message_update\n");
         exit(EXIT_FAILURE);
@@ -133,7 +133,8 @@ static void sign_msg_op(EVP_PKEY *key, const char *data, size_t len,
     EVP_PKEY_CTX_free(pctx);
 }
 
-static void verify_msg_op(EVP_PKEY *key, const char *data, size_t len,
+static void verify_msg_op(EVP_PKEY *key, const char *sigalgname,
+                          const char *data, size_t len,
                           unsigned char *signature, size_t siglen)
 {
     EVP_PKEY_CTX *pctx = NULL;
@@ -146,9 +147,9 @@ static void verify_msg_op(EVP_PKEY *key, const char *data, size_t len,
         exit(EXIT_FAILURE);
     }
 
-    sigalg = EVP_SIGNATURE_fetch(NULL, "RSA-SHA256", "provider=pkcs11");
+    sigalg = EVP_SIGNATURE_fetch(NULL, sigalgname, "provider=pkcs11");
     if (!sigalg) {
-        PRINTERROSSL("Failed to fetch RSA-SHA256 signature\n");
+        PRINTERROSSL("Failed to fetch %s signature\n", sigalgname);
         exit(EXIT_FAILURE);
     }
 
@@ -158,7 +159,8 @@ static void verify_msg_op(EVP_PKEY *key, const char *data, size_t len,
         exit(EXIT_FAILURE);
     }
 
-    ret = EVP_PKEY_verify_message_update(pctx, data, len);
+    ret =
+        EVP_PKEY_verify_message_update(pctx, (unsigned const char *)data, len);
     if (ret != 1) {
         PRINTERROSSL("Failed to EVP_PKEY_verify_message_update\n");
         exit(EXIT_FAILURE);
@@ -248,16 +250,37 @@ int main(int argc, char *argv[])
     size_t siglen;
     EVP_PKEY *key;
 
-    key = util_gen_key("RSA", "Pkey sigver Test");
+    key = util_gen_key("RSA", "RSA Pkey sigver Test");
 
     /* test a simple op first */
     sign_op(key, data, sizeof(data), &sig, &siglen);
     verify_op(key, data, sizeof(data), sig, siglen);
+    OPENSSL_free(sig);
 
 #if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
     /* test message-based ops */
-    sign_msg_op(key, data, sizeof(data), &sig, &siglen);
-    verify_msg_op(key, data, sizeof(data), sig, siglen);
+    sign_msg_op(key, "RSA-SHA256", data, sizeof(data), &sig, &siglen);
+    verify_msg_op(key, "RSA-SHA256", data, sizeof(data), sig, siglen);
+    OPENSSL_free(sig);
+#endif
+
+    check_public_info(key);
+
+    EVP_PKEY_free(key);
+
+    /* again with EC key */
+    key = util_gen_key("P-256", "EC Pkey sigver Test");
+
+    /* test a simple op first */
+    sign_op(key, data, sizeof(data), &sig, &siglen);
+    verify_op(key, data, sizeof(data), sig, siglen);
+    OPENSSL_free(sig);
+
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+    /* test message-based ops */
+    sign_msg_op(key, "ECDSA-SHA256", data, sizeof(data), &sig, &siglen);
+    verify_msg_op(key, "ECDSA-SHA256", data, sizeof(data), sig, siglen);
+    OPENSSL_free(sig);
 #endif
 
     check_public_info(key);
