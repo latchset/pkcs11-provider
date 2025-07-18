@@ -245,10 +245,19 @@ static void check_peer_ec_key_copy(void)
 
 int main(int argc, char *argv[])
 {
+    const char *driver = NULL;
     const char *data = "Sign Me!";
     unsigned char *sig;
     size_t siglen;
     EVP_PKEY *key;
+
+    driver = getenv("TOKEN_DRIVER");
+    if (driver == NULL) {
+        PRINTERR("TOKEN_DRIVER Environment variable is absent");
+        driver = "NULL";
+    } else {
+        PRINTERR("Driver %s", driver);
+    }
 
     key = util_gen_key("RSA", "RSA Pkey sigver Test");
 
@@ -277,10 +286,12 @@ int main(int argc, char *argv[])
     OPENSSL_free(sig);
 
 #if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
-    /* test message-based ops */
-    sign_msg_op(key, "ECDSA-SHA256", data, sizeof(data), &sig, &siglen);
-    verify_msg_op(key, "ECDSA-SHA256", data, sizeof(data), sig, siglen);
-    OPENSSL_free(sig);
+    if (strcmp(driver, "softhsm") != 0) {
+        /* test message-based ops */
+        sign_msg_op(key, "ECDSA-SHA256", data, sizeof(data), &sig, &siglen);
+        verify_msg_op(key, "ECDSA-SHA256", data, sizeof(data), sig, siglen);
+        OPENSSL_free(sig);
+    }
 #endif
 
     check_public_info(key);
