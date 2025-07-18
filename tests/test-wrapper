@@ -12,7 +12,7 @@ BNAME=$(basename "${1}")
 # split extension
 NAME=${BNAME%.*}
 TEST_NAME=${NAME%-*}
-TOKEN_DRIVER=${NAME#*-}
+export TOKEN_DRIVER=${NAME#*-}
 
 if [ -f "${TESTBLDDIR}/${TOKEN_DRIVER}/testvars" ]; then
     # shellcheck source=/dev/null # we do not care about linting this source

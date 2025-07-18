@@ -79,6 +79,111 @@ static void verify_op(EVP_PKEY *key, const char *data, size_t len,
     EVP_MD_CTX_free(ver_md);
 }
 
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+static void sign_msg_op(EVP_PKEY *key, const char *sigalgname, const char *data,
+                        size_t len, unsigned char **signature, size_t *siglen)
+{
+    EVP_PKEY_CTX *pctx = NULL;
+    EVP_SIGNATURE *sigalg = NULL;
+    size_t size;
+    unsigned char *sig;
+    int ret;
+
+    size = EVP_PKEY_get_size(key);
+    sig = OPENSSL_zalloc(size);
+    if (!sig) {
+        PRINTERROSSL("Failed to allocate signature buffer\n");
+        exit(EXIT_FAILURE);
+    }
+
+    *signature = sig;
+    *siglen = size;
+
+    pctx = EVP_PKEY_CTX_new_from_pkey(NULL, key, NULL);
+    if (!pctx) {
+        PRINTERROSSL("Failed to create pkey ctx\n");
+        exit(EXIT_FAILURE);
+    }
+
+    sigalg = EVP_SIGNATURE_fetch(NULL, sigalgname, "provider=pkcs11");
+    if (!sigalg) {
+        PRINTERROSSL("Failed to fetch %s signature\n", sigalgname);
+        exit(EXIT_FAILURE);
+    }
+
+    ret = EVP_PKEY_sign_message_init(pctx, sigalg, NULL);
+    if (ret != 1) {
+        PRINTERROSSL("Failed to init EVP_PKEY_sign_message\n");
+        exit(EXIT_FAILURE);
+    }
+
+    ret = EVP_PKEY_sign_message_update(pctx, (unsigned const char *)data, len);
+    if (ret != 1) {
+        PRINTERROSSL("Failed to EVP_PKEY_sign_message_update\n");
+        exit(EXIT_FAILURE);
+    }
+
+    ret = EVP_PKEY_sign_message_final(pctx, sig, siglen);
+    if (ret != 1) {
+        PRINTERROSSL("Failed to EVP_PKEY_sign_message_final-ize\n");
+        exit(EXIT_FAILURE);
+    }
+
+    EVP_SIGNATURE_free(sigalg);
+    EVP_PKEY_CTX_free(pctx);
+}
+
+static void verify_msg_op(EVP_PKEY *key, const char *sigalgname,
+                          const char *data, size_t len,
+                          unsigned char *signature, size_t siglen)
+{
+    EVP_PKEY_CTX *pctx = NULL;
+    EVP_SIGNATURE *sigalg = NULL;
+    int ret;
+
+    pctx = EVP_PKEY_CTX_new_from_pkey(NULL, key, NULL);
+    if (!pctx) {
+        PRINTERROSSL("Failed to create pkey ctx\n");
+        exit(EXIT_FAILURE);
+    }
+
+    sigalg = EVP_SIGNATURE_fetch(NULL, sigalgname, "provider=pkcs11");
+    if (!sigalg) {
+        PRINTERROSSL("Failed to fetch %s signature\n", sigalgname);
+        exit(EXIT_FAILURE);
+    }
+
+    ret = EVP_PKEY_verify_message_init(pctx, sigalg, NULL);
+    if (ret != 1) {
+        PRINTERROSSL("Failed to init EVP_PKEY_verify_message\n");
+        exit(EXIT_FAILURE);
+    }
+
+    ret =
+        EVP_PKEY_verify_message_update(pctx, (unsigned const char *)data, len);
+    if (ret != 1) {
+        PRINTERROSSL("Failed to EVP_PKEY_verify_message_update\n");
+        exit(EXIT_FAILURE);
+    }
+
+    ret = EVP_PKEY_CTX_set_signature(pctx, signature, siglen);
+    if (ret <= 0) {
+        PRINTERROSSL("Failed to set signature for verify\n");
+        exit(EXIT_FAILURE);
+    }
+
+    ret = EVP_PKEY_verify_message_final(pctx);
+    if (ret != 1) {
+        PRINTERROSSL(
+            "Failed to EVP_PKEY_verify_message_final-ize/bad signature\n");
+        exit(EXIT_FAILURE);
+    }
+
+    EVP_SIGNATURE_free(sigalg);
+    EVP_PKEY_CTX_free(pctx);
+}
+#endif
+
 static void check_public_info(EVP_PKEY *key)
 {
     BIO *membio = BIO_new(BIO_s_mem());
@@ -140,17 +245,54 @@ static void check_peer_ec_key_copy(void)
 
 int main(int argc, char *argv[])
 {
+    const char *driver = NULL;
     const char *data = "Sign Me!";
     unsigned char *sig;
     size_t siglen;
     EVP_PKEY *key;
 
-    key = util_gen_key("RSA", "Pkey sigver Test");
+    driver = getenv("TOKEN_DRIVER");
+    if (driver == NULL) {
+        PRINTERR("TOKEN_DRIVER Environment variable is absent");
+        driver = "NULL";
+    } else {
+        PRINTERR("Driver %s", driver);
+    }
+
+    key = util_gen_key("RSA", "RSA Pkey sigver Test");
 
     /* test a simple op first */
     sign_op(key, data, sizeof(data), &sig, &siglen);
-
     verify_op(key, data, sizeof(data), sig, siglen);
+    OPENSSL_free(sig);
+
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+    /* test message-based ops */
+    sign_msg_op(key, "RSA-SHA256", data, sizeof(data), &sig, &siglen);
+    verify_msg_op(key, "RSA-SHA256", data, sizeof(data), sig, siglen);
+    OPENSSL_free(sig);
+#endif
+
+    check_public_info(key);
+
+    EVP_PKEY_free(key);
+
+    /* again with EC key */
+    key = util_gen_key("P-256", "EC Pkey sigver Test");
+
+    /* test a simple op first */
+    sign_op(key, data, sizeof(data), &sig, &siglen);
+    verify_op(key, data, sizeof(data), sig, siglen);
+    OPENSSL_free(sig);
+
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+    if (strcmp(driver, "softhsm") != 0) {
+        /* test message-based ops */
+        sign_msg_op(key, "ECDSA-SHA256", data, sizeof(data), &sig, &siglen);
+        verify_msg_op(key, "ECDSA-SHA256", data, sizeof(data), sig, siglen);
+        OPENSSL_free(sig);
+    }
+#endif
 
     check_public_info(key);
 
