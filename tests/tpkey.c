@@ -2,6 +2,7 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 #define _GNU_SOURCE
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,7 +14,8 @@
 #include <sys/wait.h>
 #include "util.h"
 
-static void sign_op(EVP_PKEY *key, const char *data, size_t len,
+static void sign_op(EVP_PKEY *key, bool oneshot, const char *digest,
+                    const unsigned char *data, size_t len,
                     unsigned char **signature, size_t *siglen)
 {
     size_t size = EVP_PKEY_get_size(key);
@@ -31,57 +33,74 @@ static void sign_op(EVP_PKEY *key, const char *data, size_t len,
     *siglen = size;
 
     sign_md = EVP_MD_CTX_new();
-    ret = EVP_DigestSignInit_ex(sign_md, NULL, "SHA256", NULL, NULL, key, NULL);
+    ret = EVP_DigestSignInit_ex(sign_md, NULL, digest, NULL, NULL, key, NULL);
     if (ret != 1) {
         PRINTERROSSL("Failed to init EVP_DigestSign\n");
         exit(EXIT_FAILURE);
     }
 
-    ret = EVP_DigestSignUpdate(sign_md, data, len);
-    if (ret != 1) {
-        PRINTERROSSL("Failed to EVP_DigestSignUpdate\n");
-        exit(EXIT_FAILURE);
+    if (oneshot) {
+        ret = EVP_DigestSign(sign_md, sig, siglen, data, len);
+        if (ret != 1) {
+            PRINTERROSSL("Failed to EVP_DigestSign\n");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        ret = EVP_DigestSignUpdate(sign_md, data, len);
+        if (ret != 1) {
+            PRINTERROSSL("Failed to EVP_DigestSignUpdate\n");
+            exit(EXIT_FAILURE);
+        }
+        ret = EVP_DigestSignFinal(sign_md, sig, siglen);
+        if (ret != 1) {
+            PRINTERROSSL("Failed to EVP_DigestSignFinal-ize\n");
+            exit(EXIT_FAILURE);
+        }
     }
 
-    ret = EVP_DigestSignFinal(sign_md, sig, siglen);
-    if (ret != 1) {
-        PRINTERROSSL("Failed to EVP_DigestSignFinal-ize\n");
-        exit(EXIT_FAILURE);
-    }
     EVP_MD_CTX_free(sign_md);
 }
 
-static void verify_op(EVP_PKEY *key, const char *data, size_t len,
+static void verify_op(EVP_PKEY *key, bool oneshot, const char *digest,
+                      const unsigned char *data, size_t len,
                       unsigned char *signature, size_t siglen)
 {
     EVP_MD_CTX *ver_md;
     int ret;
 
     ver_md = EVP_MD_CTX_new();
-    ret =
-        EVP_DigestVerifyInit_ex(ver_md, NULL, "SHA256", NULL, NULL, key, NULL);
+    ret = EVP_DigestVerifyInit_ex(ver_md, NULL, digest, NULL, NULL, key, NULL);
     if (ret != 1) {
         PRINTERROSSL("Failed to init EVP_DigestVerify\n");
         exit(EXIT_FAILURE);
     }
 
-    ret = EVP_DigestVerifyUpdate(ver_md, data, len);
-    if (ret != 1) {
-        PRINTERROSSL("Failed to EVP_DigestVerifyUpdate\n");
-        exit(EXIT_FAILURE);
+    if (oneshot) {
+        ret = EVP_DigestVerify(ver_md, signature, siglen, data, len);
+        if (ret != 1) {
+            PRINTERROSSL("Failed to EVP_DigestVerify\n");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        ret = EVP_DigestVerifyUpdate(ver_md, data, len);
+        if (ret != 1) {
+            PRINTERROSSL("Failed to EVP_DigestVerifyUpdate\n");
+            exit(EXIT_FAILURE);
+        }
+        ret = EVP_DigestVerifyFinal(ver_md, signature, siglen);
+        if (ret != 1) {
+            PRINTERROSSL("Failed to EVP_DigestVerifyFinal-ize/bad signature\n");
+            exit(EXIT_FAILURE);
+        }
     }
 
-    ret = EVP_DigestVerifyFinal(ver_md, signature, siglen);
-    if (ret != 1) {
-        PRINTERROSSL("Failed to EVP_DigestVerifyFinal-ize/bad signature\n");
-        exit(EXIT_FAILURE);
-    }
     EVP_MD_CTX_free(ver_md);
 }
 
 #if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
-static void sign_msg_op(EVP_PKEY *key, const char *sigalgname, const char *data,
-                        size_t len, unsigned char **signature, size_t *siglen)
+static void sign_msg_op(EVP_PKEY *key, bool oneshot, const char *sigalgname,
+                        const unsigned char *data, size_t len,
+                        unsigned char **signature, size_t *siglen)
 {
     EVP_PKEY_CTX *pctx = NULL;
     EVP_SIGNATURE *sigalg = NULL;
@@ -117,24 +136,31 @@ static void sign_msg_op(EVP_PKEY *key, const char *sigalgname, const char *data,
         exit(EXIT_FAILURE);
     }
 
-    ret = EVP_PKEY_sign_message_update(pctx, (unsigned const char *)data, len);
-    if (ret != 1) {
-        PRINTERROSSL("Failed to EVP_PKEY_sign_message_update\n");
-        exit(EXIT_FAILURE);
-    }
-
-    ret = EVP_PKEY_sign_message_final(pctx, sig, siglen);
-    if (ret != 1) {
-        PRINTERROSSL("Failed to EVP_PKEY_sign_message_final-ize\n");
-        exit(EXIT_FAILURE);
+    if (oneshot) {
+        ret = EVP_PKEY_sign(pctx, sig, siglen, data, len);
+        if (ret != 1) {
+            PRINTERROSSL("Failed to EVP_PKEY_sign\n");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        ret = EVP_PKEY_sign_message_update(pctx, data, len);
+        if (ret != 1) {
+            PRINTERROSSL("Failed to EVP_PKEY_sign_message_update\n");
+            exit(EXIT_FAILURE);
+        }
+        ret = EVP_PKEY_sign_message_final(pctx, sig, siglen);
+        if (ret != 1) {
+            PRINTERROSSL("Failed to EVP_PKEY_sign_message_final-ize\n");
+            exit(EXIT_FAILURE);
+        }
     }
 
     EVP_SIGNATURE_free(sigalg);
     EVP_PKEY_CTX_free(pctx);
 }
 
-static void verify_msg_op(EVP_PKEY *key, const char *sigalgname,
-                          const char *data, size_t len,
+static void verify_msg_op(EVP_PKEY *key, bool oneshot, const char *sigalgname,
+                          const unsigned char *data, size_t len,
                           unsigned char *signature, size_t siglen)
 {
     EVP_PKEY_CTX *pctx = NULL;
@@ -159,24 +185,29 @@ static void verify_msg_op(EVP_PKEY *key, const char *sigalgname,
         exit(EXIT_FAILURE);
     }
 
-    ret =
-        EVP_PKEY_verify_message_update(pctx, (unsigned const char *)data, len);
-    if (ret != 1) {
-        PRINTERROSSL("Failed to EVP_PKEY_verify_message_update\n");
-        exit(EXIT_FAILURE);
-    }
-
-    ret = EVP_PKEY_CTX_set_signature(pctx, signature, siglen);
-    if (ret <= 0) {
-        PRINTERROSSL("Failed to set signature for verify\n");
-        exit(EXIT_FAILURE);
-    }
-
-    ret = EVP_PKEY_verify_message_final(pctx);
-    if (ret != 1) {
-        PRINTERROSSL(
-            "Failed to EVP_PKEY_verify_message_final-ize/bad signature\n");
-        exit(EXIT_FAILURE);
+    if (oneshot) {
+        ret = EVP_PKEY_verify(pctx, signature, siglen, data, len);
+        if (ret != 1) {
+            PRINTERROSSL("Failed to EVP_PKEY_verify\n");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        ret = EVP_PKEY_verify_message_update(pctx, data, len);
+        if (ret != 1) {
+            PRINTERROSSL("Failed to EVP_PKEY_verify_message_update\n");
+            exit(EXIT_FAILURE);
+        }
+        ret = EVP_PKEY_CTX_set_signature(pctx, signature, siglen);
+        if (ret != 1) {
+            PRINTERROSSL("Failed to set signature for verify\n");
+            exit(EXIT_FAILURE);
+        }
+        ret = EVP_PKEY_verify_message_final(pctx);
+        if (ret != 1) {
+            PRINTERROSSL(
+                "Failed to EVP_PKEY_verify_message_final-ize/bad signature\n");
+            exit(EXIT_FAILURE);
+        }
     }
 
     EVP_SIGNATURE_free(sigalg);
@@ -246,59 +277,73 @@ static void check_peer_ec_key_copy(void)
 int main(int argc, char *argv[])
 {
     const char *driver = NULL;
-    const char *data = "Sign Me!";
+    const unsigned char *data = (const unsigned char *)"Sign Me!";
     unsigned char *sig;
     size_t siglen;
     EVP_PKEY *key;
+    int i;
+
+    struct test_data {
+        const char *key_type;
+        const char *label;
+        const char *digest;
+        const char *sigalg;
+        bool oneshot;
+    };
+
+    const struct test_data tests[] = {
+        { "RSA 2048", "RSA Pkey sigver Test", "SHA256", "RSA-SHA256", false },
+        { "P-256", "EC Pkey sigver Test", "SHA256", "ECDSA-SHA256", false },
+        { "ED 25519", "ED Pkey sigver Test", NULL, "ED25519", true },
+        { "ED 25519", "ED Pkey sigver Test", NULL, "Ed25519ph", true },
+    };
 
     driver = getenv("TOKEN_DRIVER");
     if (driver == NULL) {
-        PRINTERR("TOKEN_DRIVER Environment variable is absent");
+        PRINTERR("TOKEN_DRIVER Environment variable is absent\n");
         driver = "NULL";
     } else {
-        PRINTERR("Driver %s", driver);
+        PRINTERR("Driver %s\n", driver);
     }
 
-    key = util_gen_key("RSA", "RSA Pkey sigver Test");
+    for (i = 0; i < (sizeof(tests) / sizeof(tests[0])); i++) {
+        /* Softokn does not handle Edwards keys yet */
+        if (strcmp(tests[i].key_type, "ED 25519") == 0
+            && strcmp(driver, "softokn") == 0) {
+            continue;
+        }
 
-    /* test a simple op first */
-    sign_op(key, data, sizeof(data), &sig, &siglen);
-    verify_op(key, data, sizeof(data), sig, siglen);
-    OPENSSL_free(sig);
+        PRINTERR("Testing key type %s\n", tests[i].key_type);
+        key = util_gen_key(tests[i].key_type, tests[i].label);
 
-#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
-    /* test message-based ops */
-    sign_msg_op(key, "RSA-SHA256", data, sizeof(data), &sig, &siglen);
-    verify_msg_op(key, "RSA-SHA256", data, sizeof(data), sig, siglen);
-    OPENSSL_free(sig);
-#endif
-
-    check_public_info(key);
-
-    EVP_PKEY_free(key);
-
-    /* again with EC key */
-    key = util_gen_key("P-256", "EC Pkey sigver Test");
-
-    /* test a simple op first */
-    sign_op(key, data, sizeof(data), &sig, &siglen);
-    verify_op(key, data, sizeof(data), sig, siglen);
-    OPENSSL_free(sig);
-
-#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
-    if (strcmp(driver, "softhsm") != 0) {
-        /* test message-based ops */
-        sign_msg_op(key, "ECDSA-SHA256", data, sizeof(data), &sig, &siglen);
-        verify_msg_op(key, "ECDSA-SHA256", data, sizeof(data), sig, siglen);
+        /* test a simple op first */
+        sign_op(key, tests[i].oneshot, tests[i].digest, data, sizeof(data),
+                &sig, &siglen);
+        verify_op(key, tests[i].oneshot, tests[i].digest, data, sizeof(data),
+                  sig, siglen);
         OPENSSL_free(sig);
-    }
+
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+        /* older version of softhsm do not have CKM_ECDSA_<digest> mechs */
+        if (strcmp(tests[i].key_type, "P-256") == 0
+            && strcmp(driver, "softhsm") == 0) {
+            continue;
+        }
+        /* test message-based ops */
+        sign_msg_op(key, tests[i].oneshot, tests[i].sigalg, data, sizeof(data),
+                    &sig, &siglen);
+        verify_msg_op(key, tests[i].oneshot, tests[i].sigalg, data,
+                      sizeof(data), sig, siglen);
+        OPENSSL_free(sig);
 #endif
 
-    check_public_info(key);
+        check_public_info(key);
 
+        EVP_PKEY_free(key);
+    }
+
+    /* This test is EC specific */
     check_peer_ec_key_copy();
-
-    EVP_PKEY_free(key);
 
     PRINTERR("ALL A-OK!\n");
     exit(EXIT_SUCCESS);

@@ -172,6 +172,7 @@ EVP_PKEY *util_gen_key(const char *type, const char *label)
     const char *name = NULL;
     const char *ec_name = "EC";
     const char *named_curve = "named_curve";
+    const char *curve = NULL;
     size_t rsa_bits = 3072;
     OSSL_PARAM params[4];
     EVP_PKEY_CTX *ctx;
@@ -194,16 +195,44 @@ EVP_PKEY *util_gen_key(const char *type, const char *label)
 
     params[pnum++] = OSSL_PARAM_construct_utf8_string("pkcs11_uri", uri, 0);
     if (strcmp(type, "RSA") == 0) {
+        name = "RSA";
         params[pnum++] =
             OSSL_PARAM_construct_size_t("rsa_keygen_bits", &rsa_bits);
-        name = type;
+    } else if (strcmp(type, "RSA 2048") == 0) {
+        name = "RSA";
+        rsa_bits = 2048;
+        params[pnum++] =
+            OSSL_PARAM_construct_size_t("rsa_keygen_bits", &rsa_bits);
+    } else if (strcmp(type, "RSA 3072") == 0) {
+        name = "RSA";
+        rsa_bits = 3072;
+        params[pnum++] =
+            OSSL_PARAM_construct_size_t("rsa_keygen_bits", &rsa_bits);
+    } else if (strcmp(type, "RSA 4096") == 0) {
+        name = "RSA";
+        rsa_bits = 4096;
+        params[pnum++] =
+            OSSL_PARAM_construct_size_t("rsa_keygen_bits", &rsa_bits);
     } else if (strcmp(type, "P-256") == 0) {
+        curve = "P-256";
+    } else if (strcmp(type, "P-384") == 0) {
+        curve = "P-384";
+    } else if (strcmp(type, "P-521") == 0) {
+        curve = "P-521";
+    } else if (strcmp(type, "ED 25519") == 0) {
+        name = "ED25519";
+    } else if (strcmp(type, "ED 448") == 0) {
+        name = "ED448";
+    }
+
+    if (curve) {
+        name = ec_name;
         params[pnum++] = OSSL_PARAM_construct_utf8_string("ec_paramgen_curve",
-                                                          (char *)type, 0);
+                                                          (char *)curve, 0);
         params[pnum++] = OSSL_PARAM_construct_utf8_string(
             "ec_param_enc", (char *)named_curve, 0);
-        name = ec_name;
     }
+
     params[pnum++] = OSSL_PARAM_construct_end();
 
     ctx = EVP_PKEY_CTX_new_from_name(NULL, name, "provider=pkcs11");
