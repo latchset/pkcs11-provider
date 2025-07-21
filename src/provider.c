@@ -1196,10 +1196,18 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                 break;
             case CKM_EDDSA:
                 ADD_ALGO_EXT(ED25519, signature, prop,
-                             p11prov_eddsa_signature_functions);
+                             p11prov_ed25519_signature_functions);
                 ADD_ALGO_EXT(ED448, signature, prop,
-                             p11prov_eddsa_signature_functions);
+                             p11prov_ed448_signature_functions);
                 UNCHECK_MECHS(CKM_EC_EDWARDS_KEY_PAIR_GEN, CKM_EDDSA);
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+                ADD_ALGO_EXT(ED25519ph, signature, prop,
+                             p11prov_ed25519ph_signature_functions);
+                ADD_ALGO_EXT(ED25519ctx, signature, prop,
+                             p11prov_ed25519ctx_signature_functions);
+                ADD_ALGO_EXT(ED448ph, signature, prop,
+                             p11prov_ed448ph_signature_functions);
+#endif
                 break;
 #if SKEY_SUPPORT == 1
             case CKM_AES_ECB:
