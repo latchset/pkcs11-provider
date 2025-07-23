@@ -290,7 +290,7 @@ int p11prov_pop_error_to_mark(P11PROV_CTX *ctx);
 #include "objects.h"
 #include "keymgmt.h"
 #include "store.h"
-#include "signature.h"
+#include "sig/signature.h"
 #include "asymmetric_cipher.h"
 #include "exchange.h"
 #include "kdf.h"
