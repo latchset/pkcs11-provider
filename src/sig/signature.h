@@ -4,6 +4,9 @@
 #ifndef _SIGNATURE_H
 #define _SIGNATURE_H
 
+struct p11prov_sig_ctx;
+typedef struct p11prov_sig_ctx P11PROV_SIG_CTX;
+
 /* common sig functions */
 #define DISPATCH_SIG_FN(name) DECL_DISPATCH_FUNC(signature, p11prov_sig, name)
 #define DISPATCH_SIG_ELEM(prefix, NAME, name) \
