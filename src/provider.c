@@ -855,6 +855,8 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
         CKM_ECDSA_SHA384, CKM_ECDSA_SHA512, CKM_ECDSA_SHA3_224, \
         CKM_ECDSA_SHA3_256, CKM_ECDSA_SHA3_384, CKM_ECDSA_SHA3_512
 
+#define PQC_MECHS CKM_ML_DSA, CKM_ML_DSA_KEY_PAIR_GEN
+
 #if SKEY_SUPPORT == 1
 #define AES_MECHS \
     CKM_AES_ECB, CKM_AES_CBC, CKM_AES_CBC_PAD, CKM_AES_CTR, CKM_AES_CTS, \
@@ -913,6 +915,7 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                              CKM_HKDF_DERIVE,
                              DIGEST_MECHS,
                              CKM_EDDSA,
+                             PQC_MECHS,
 #if SKEY_SUPPORT == 1
                              AES_MECHS
 #endif
@@ -1208,6 +1211,14 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                 ADD_ALGO_EXT(ED448ph, signature, prop,
                              p11prov_ed448ph_signature_functions);
 #endif
+                break;
+            case CKM_ML_DSA:
+                ADD_ALGO_EXT(ML_DSA_44, signature, prop,
+                             p11prov_mldsa_44_signature_functions);
+                ADD_ALGO_EXT(ML_DSA_65, signature, prop,
+                             p11prov_mldsa_65_signature_functions);
+                ADD_ALGO_EXT(ML_DSA_87, signature, prop,
+                             p11prov_mldsa_87_signature_functions);
                 break;
 #if SKEY_SUPPORT == 1
             case CKM_AES_ECB:
