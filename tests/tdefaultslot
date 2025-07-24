@@ -1,0 +1,27 @@
+#!/bin/bash -e
+# Copyright (C) 2025 Jakub Zelenka <jakub.openssl@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+title PARA "Test PKCS11 SLOTS"
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed -e "s/#pkcs11-module-default-slot-id/pkcs11-module-default-slot-id = 52/" \
+    -e "s/^pkcs11-module-token-pin.*$/pkcs11-module-token-pin = 11111111/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.defaultslot"
+export OPENSSL_CONF=${OPENSSL_CONF}.defaultslot
+
+title PARA "Sign and Verify with provided Hash and RSA"
+ossl 'pkey -in "${PRIURI2}" -pubout -out ${TMPPDIR}/defaultslot_public.pem'
+ossl 'dgst -sha256 -binary -out ${TMPPDIR}/sha256.bin ${SEEDFILE}'
+ossl '
+pkeyutl -sign -inkey "${PRIURI2}"
+              -in ${TMPPDIR}/sha256.bin
+              -out ${TMPPDIR}/sha256-sig.bin
+              -pkeyopt digest:sha256'
+
+env
+
+echo $CHECKER "${TESTBLDDIR}/trefresh" "${PRIURI2}" "${PUBURI2}" ${SEEDFILE} "${TMPPDIR}/sha256-sig.bin"
+
+export OPENSSL_CONF=${ORIG_OPENSSL_CONF}

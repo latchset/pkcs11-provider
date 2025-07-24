@@ -111,6 +111,7 @@ test_programs = {
   'treadkeys': ['treadkeys.c'],
   'tcmpkeys': ['tcmpkeys.c', 'util.c'],
   'tfork': ['tfork.c', 'util.c'],
+  'trefresh': ['trefresh.c', 'util.c'],
   'tpkey': ['tpkey.c', 'util.c'],
   'pincache': ['pincache.c'],
   'ccerts': ['ccerts.c', 'util.c'],
@@ -129,7 +130,9 @@ foreach t, sources : test_programs
 endforeach
 
 setup_script=find_program('setup.sh')
-all_suites=['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']
+multi_suites=['kryoptic.multislot']
+single_suites=['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']
+all_suites=single_suites + multi_suites
 foreach suite : all_suites
   test(
     'setup',
@@ -143,36 +146,37 @@ foreach suite : all_suites
 endforeach
 
 tests = {
-  'basic': {'suites': all_suites},
+  'basic': {'suites': single_suites},
   'mldsa': {'suites': ['kryoptic']},
-  'pubkey': {'suites': all_suites},
-  'certs': {'suites': all_suites},
-  'ecc': {'suites': all_suites},
+  'pubkey': {'suites': single_suites},
+  'certs': {'suites': single_suites},
+  'ecc': {'suites': single_suites},
   'edwards': {'suites': ['softhsm', 'kryoptic', 'kryoptic.nss']},
-  'ecdh': {'suites': all_suites},
-  'democa': {'suites': all_suites, 'is_parallel': false},
-  'digest': {'suites': all_suites},
-  'fork': {'suites': all_suites},
+  'ecdh': {'suites': single_suites},
+  'democa': {'suites': single_suites, 'is_parallel': false},
+  'digest': {'suites': single_suites},
+  'fork': {'suites': single_suites},
   'oaepsha2': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'hkdf': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'imported' : {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
-  'pem_encoder': {'suites': all_suites},
-  'rsa': {'suites': all_suites},
-  'rsapss': {'suites': all_suites},
+  'pem_encoder': {'suites': single_suites},
+  'rsa': {'suites': single_suites},
+  'rsapss': {'suites': single_suites},
   'rsapssam': {'suites': ['softhsm', 'kryoptic']},
-  'genkey': {'suites': all_suites},
-  'pkey': {'suites': all_suites},
-  'session': {'suites': all_suites},
+  'genkey': {'suites': single_suites},
+  'pkey': {'suites': single_suites},
+  'session': {'suites': single_suites},
   'skey': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss'], 'timeout': 90},
-  'rand': {'suites': all_suites},
-  'readkeys': {'suites': all_suites},
-  'tls': {'suites': all_suites, 'is_parallel': false, 'timeout': 60},
-  'tlsfuzzer': {'suites': all_suites, 'timeout': 90},
-  'uri': {'suites': all_suites, 'timeout': 90},
+  'rand': {'suites': single_suites},
+  'readkeys': {'suites': single_suites},
+  'tls': {'suites': single_suites, 'is_parallel': false, 'timeout': 60},
+  'tlsfuzzer': {'suites': single_suites, 'timeout': 90},
+  'uri': {'suites': single_suites, 'timeout': 90},
   'ecxc': {'suites': ['softhsm', 'kryoptic', 'kryoptic.nss']},
   'cms': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'pinlock': {'suites': ['kryoptic']},
   'aead': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
+  'defaultslot': {'suites': ['kryoptic.multislot']},
 }
 
 test_wrapper = find_program('test-wrapper')
