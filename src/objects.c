@@ -21,6 +21,7 @@ struct p11prov_key {
     CK_BBOOL always_auth;
     CK_ULONG bit_size;
     CK_ULONG size;
+    CK_ULONG param_set;
 };
 
 struct p11prov_crt {
@@ -1004,6 +1005,85 @@ static CK_RV fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     return ret;
 }
 
+/* See FIPS-204, 4. Parameter Sets */
+#define ML_DSA_44_SK_SIZE 2560
+#define ML_DSA_65_SK_SIZE 4032
+#define ML_DSA_87_SK_SIZE 4896
+
+#define MLDSA_ATTRS_NUM (BASE_KEY_ATTRS_NUM + 1)
+static CK_RV fetch_mldsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
+                             CK_OBJECT_HANDLE object, P11PROV_OBJ *key)
+{
+    struct fetch_attrs attrs[MLDSA_ATTRS_NUM];
+    CK_ATTRIBUTE *value_attr;
+    int num;
+    CK_RV ret;
+
+    switch (key->data.key.param_set) {
+    case CKP_ML_DSA_44:
+    case CKP_ML_DSA_65:
+    case CKP_ML_DSA_87:
+        break;
+    default:
+        ret = CKR_KEY_INDIGESTIBLE;
+        P11PROV_raise(key->ctx, ret, "Unknown ML-DSA param set: %lu",
+                      key->data.key.param_set);
+        return ret;
+    }
+
+    key->attrs = OPENSSL_zalloc(MLDSA_ATTRS_NUM * sizeof(CK_ATTRIBUTE));
+    if (key->attrs == NULL) {
+        return CKR_HOST_MEMORY;
+    }
+
+    num = 0;
+    if (key->class == CKO_PUBLIC_KEY) {
+        FA_SET_BUF_ALLOC(attrs, num, CKA_VALUE, true);
+    }
+    FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
+    if (key->class == CKO_PRIVATE_KEY) {
+        FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
+    }
+
+    ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
+    if (ret != CKR_OK) {
+        p11prov_fetch_attrs_free(attrs, num);
+        return ret;
+    }
+
+    key->numattrs = 0;
+    p11prov_move_alloc_attrs(attrs, num, key->attrs, &key->numattrs);
+
+    if (key->class == CKO_PUBLIC_KEY) {
+        value_attr = p11prov_obj_get_attr(key, CKA_VALUE);
+        if (!value_attr) {
+            P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
+                          "Missing public key value");
+            return CKR_KEY_INDIGESTIBLE;
+        }
+        key->data.key.size = value_attr->ulValueLen;
+    } else {
+        switch (key->data.key.param_set) {
+        case CKP_ML_DSA_44:
+            key->data.key.size = ML_DSA_44_SK_SIZE;
+            break;
+        case CKP_ML_DSA_65:
+            key->data.key.size = ML_DSA_65_SK_SIZE;
+            break;
+        case CKP_ML_DSA_87:
+            key->data.key.size = ML_DSA_87_SK_SIZE;
+            break;
+        default:
+            return CKR_GENERAL_ERROR;
+        }
+    }
+
+    key->data.key.bit_size = key->data.key.size * 8;
+
+    return CKR_OK;
+}
+
 #define CERT_ATTRS_NUM 9
 static CK_RV fetch_certificate(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                                CK_OBJECT_HANDLE object, P11PROV_OBJ *crt)
@@ -1134,6 +1214,13 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         case CKK_EC:
         case CKK_EC_EDWARDS:
             ret = fetch_ec_key(ctx, session, handle, obj);
+            if (ret != CKR_OK) {
+                p11prov_obj_free(obj);
+                return ret;
+            }
+            break;
+        case CKK_ML_DSA:
+            ret = fetch_mldsa_key(ctx, session, handle, obj);
             if (ret != CKR_OK) {
                 p11prov_obj_free(obj);
                 return ret;
