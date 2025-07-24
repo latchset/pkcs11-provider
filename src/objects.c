@@ -677,6 +677,19 @@ CK_ULONG p11prov_obj_get_key_size(P11PROV_OBJ *obj)
     return CK_UNAVAILABLE_INFORMATION;
 }
 
+CK_ULONG p11prov_obj_get_key_param_set(P11PROV_OBJ *obj)
+{
+    if (obj) {
+        switch (obj->class) {
+        case CKO_PRIVATE_KEY:
+        case CKO_PUBLIC_KEY:
+        case CKO_DOMAIN_PARAMETERS:
+            return obj->data.key.param_set;
+        }
+    }
+    return CK_UNAVAILABLE_INFORMATION;
+}
+
 void p11prov_obj_to_store_reference(P11PROV_OBJ *obj, void **reference,
                                     size_t *reference_sz)
 {
