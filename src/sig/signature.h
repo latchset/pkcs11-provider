@@ -59,4 +59,11 @@ extern const OSSL_DISPATCH p11prov_ed448ph_signature_functions[];
 
 CK_MECHANISM_TYPE p11prov_digest_to_rsapss_mech(CK_MECHANISM_TYPE digest);
 
+/* mldsa sig functions */
+#define DISPATCH_MLDSA_FN(name) \
+    DECL_DISPATCH_FUNC(signature, p11prov_mldsa, name)
+extern const OSSL_DISPATCH p11prov_mldsa_44_signature_functions[];
+extern const OSSL_DISPATCH p11prov_mldsa_65_signature_functions[];
+extern const OSSL_DISPATCH p11prov_mldsa_87_signature_functions[];
+
 #endif /* _SIGNATURE_H */

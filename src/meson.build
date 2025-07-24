@@ -18,6 +18,7 @@ pkcs11_provider_sources = [
   'sig/rsasig.c',
   'sig/ecdsa.c',
   'sig/eddsa.c',
+  'sig/mldsa.c',
   'skeymgmt.c',
   'slot.c',
   'store.c',
