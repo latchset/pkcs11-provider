@@ -173,6 +173,8 @@ CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
     }
 
     sctx->default_slot = CK_UNAVAILABLE_INFORMATION;
+    CK_SLOT_ID prov_default_slotid =
+        p11prov_ctx_get_default_slotid(sctx->provctx);
 
     for (size_t i = 0; i < num; i++) {
         P11PROV_SLOT *slot;
@@ -238,6 +240,8 @@ CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
          * softoken has a slot that can't be used to store session keys)
          * and the following query excludes it */
         if ((sctx->default_slot == CK_UNAVAILABLE_INFORMATION)
+            && (prov_default_slotid == CK_UNAVAILABLE_INFORMATION
+                || prov_default_slotid == slot->id)
             && (slot->token.flags & CKF_LOGIN_REQUIRED)
             && (slot->token.flags & CKF_TOKEN_INITIALIZED)
             && (!(slot->token.flags & CKF_USER_PIN_LOCKED))) {
