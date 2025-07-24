@@ -31,10 +31,70 @@ DISPATCH_ECDSA_FN(set_ctx_params);
 DISPATCH_ECDSA_FN(gettable_ctx_params);
 DISPATCH_ECDSA_FN(settable_ctx_params);
 
+/* clang-format off */
+static const unsigned char der_ecdsa_sha1[] = {
+    DER_SEQUENCE, DER_ANSIX962_SIG_LEN+3,
+        DER_OBJECT, DER_ANSIX962_SIG_LEN+1,
+            DER_ANSIX962_SIG, 0x01
+};
+
+#define DER_ECDSA_DEFS(bits, sha2_id, sha3_id) \
+    static const unsigned char der_ecdsa_sha2_##bits[] = { \
+        DER_SEQUENCE, DER_ANSIX962_SHA2_SIG_LEN + 3, \
+            DER_OBJECT, DER_ANSIX962_SHA2_SIG_LEN + 1, \
+                DER_ANSIX962_SHA2_SIG, sha2_id, \
+    }; \
+    static const unsigned char der_ecdsa_sha3_##bits[] = { \
+        DER_SEQUENCE, DER_NIST_SIGALGS_LEN + 3, \
+            DER_OBJECT, DER_NIST_SIGALGS_LEN + 1, \
+                DER_NIST_SIGALGS, sha3_id, \
+    };
+/* clang-format on */
+
+DER_ECDSA_DEFS(224, 0x01, 0x09);
+DER_ECDSA_DEFS(256, 0x02, 0x0A);
+DER_ECDSA_DEFS(384, 0x03, 0x0B);
+DER_ECDSA_DEFS(512, 0x04, 0x0C);
+
+struct ecdsa_data {
+    CK_MECHANISM_TYPE digest;
+    CK_MECHANISM_TYPE mech;
+    const void *der;
+    size_t derlen;
+} ecdsa_mech_map[] = {
+    { CKM_SHA_1, CKM_ECDSA_SHA1, der_ecdsa_sha1, sizeof(der_ecdsa_sha1) },
+    { CKM_SHA224, CKM_ECDSA_SHA224, der_ecdsa_sha2_224,
+      sizeof(der_ecdsa_sha2_224) },
+    { CKM_SHA256, CKM_ECDSA_SHA256, der_ecdsa_sha2_256,
+      sizeof(der_ecdsa_sha2_256) },
+    { CKM_SHA384, CKM_ECDSA_SHA384, der_ecdsa_sha2_384,
+      sizeof(der_ecdsa_sha2_384) },
+    { CKM_SHA512, CKM_ECDSA_SHA512, der_ecdsa_sha2_512,
+      sizeof(der_ecdsa_sha2_512) },
+    { CKM_SHA3_224, CKM_ECDSA_SHA3_224, der_ecdsa_sha3_224,
+      sizeof(der_ecdsa_sha3_224) },
+    { CKM_SHA3_256, CKM_ECDSA_SHA3_256, der_ecdsa_sha3_256,
+      sizeof(der_ecdsa_sha3_256) },
+    { CKM_SHA3_384, CKM_ECDSA_SHA3_384, der_ecdsa_sha3_384,
+      sizeof(der_ecdsa_sha3_384) },
+    { CKM_SHA3_512, CKM_ECDSA_SHA3_512, der_ecdsa_sha3_512,
+      sizeof(der_ecdsa_sha3_512) },
+    { CK_UNAVAILABLE_INFORMATION, 0, NULL, 0 },
+};
+
+static struct ecdsa_data *ecdsa_digest_map(CK_MECHANISM_TYPE digest)
+{
+    for (int i = 0; ecdsa_mech_map[i].digest != CK_UNAVAILABLE_INFORMATION;
+         i++) {
+        if (ecdsa_mech_map[i].digest == digest) {
+            return &ecdsa_mech_map[i];
+        }
+    }
+    return NULL;
+}
+
 static CK_RV p11prov_ecdsa_set_mechanism(P11PROV_SIG_CTX *sigctx)
 {
-    int rv;
-
     sigctx->mechanism.mechanism = sigctx->mechtype;
     sigctx->mechanism.pParameter = NULL;
     sigctx->mechanism.ulParameterLen = 0;
@@ -42,12 +102,12 @@ static CK_RV p11prov_ecdsa_set_mechanism(P11PROV_SIG_CTX *sigctx)
     switch (sigctx->mechtype) {
     case CKM_ECDSA:
         if (sigctx->digest_op) {
-            const P11PROV_MECH *mech;
-            rv = p11prov_mech_by_mechanism(sigctx->digest, &mech);
-            if (rv != CKR_OK) {
-                return rv;
+            struct ecdsa_data *data;
+            data = ecdsa_digest_map(sigctx->digest);
+            if (!data) {
+                return CKR_MECHANISM_INVALID;
             }
-            sigctx->mechanism.mechanism = mech->ecdsa_mech;
+            sigctx->mechanism.mechanism = data->mech;
         }
         break;
     default:
@@ -481,26 +541,14 @@ static int p11prov_ecdsa_get_ctx_params(void *ctx, OSSL_PARAM *params)
 
     p = OSSL_PARAM_locate(params, OSSL_SIGNATURE_PARAM_ALGORITHM_ID);
     if (p) {
-        const P11PROV_MECH *mech = NULL;
-        CK_RV result;
-
-        switch (sigctx->mechtype) {
-        case CKM_ECDSA:
-            result = p11prov_mech_by_mechanism(sigctx->digest, &mech);
-            if (result != CKR_OK) {
-                P11PROV_raise(
-                    sigctx->provctx, result,
-                    "Failed to get digest for signature algorithm ID");
-                return RET_OSSL_ERR;
-            }
-            ret = OSSL_PARAM_set_octet_string(p, mech->der_ecdsa_algorithm_id,
-                                              mech->der_ecdsa_algorithm_id_len);
-            if (ret != RET_OSSL_OK) {
-                return ret;
-            }
-            break;
-        default:
+        struct ecdsa_data *data;
+        data = ecdsa_digest_map(sigctx->digest);
+        if (!data) {
             return RET_OSSL_ERR;
+        }
+        ret = OSSL_PARAM_set_octet_string(p, data->der, data->derlen);
+        if (ret != RET_OSSL_OK) {
+            return ret;
         }
     }
 

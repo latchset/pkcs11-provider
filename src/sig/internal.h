@@ -55,32 +55,10 @@ struct p11prov_sig_ctx {
     p11prov_sig_operate_t *fallback_operate;
 };
 
-/* only the ones we can support */
-struct p11prov_mech {
-    CK_MECHANISM_TYPE digest;
-    CK_MECHANISM_TYPE pkcs_mech;
-    CK_MECHANISM_TYPE pkcs_pss;
-    CK_MECHANISM_TYPE ecdsa_mech;
-    CK_RSA_PKCS_MGF_TYPE mgf;
-    const unsigned char *der_rsa_algorithm_id;
-    int der_rsa_algorithm_id_len;
-    const unsigned char *der_ecdsa_algorithm_id;
-    int der_ecdsa_algorithm_id_len;
-    const unsigned char *der_digestinfo;
-    int der_digestinfo_len;
-    const unsigned char *der_rsa_pss_params;
-    int der_rsa_pss_params_len;
-};
-typedef struct p11prov_mech P11PROV_MECH;
-
 P11PROV_SIG_CTX *p11prov_sig_newctx(P11PROV_CTX *ctx, CK_MECHANISM_TYPE type,
                                     const char *properties);
 void *p11prov_sig_dupctx(void *ctx);
 void p11prov_sig_freectx(void *ctx);
-
-CK_RV p11prov_mech_by_mechanism(CK_MECHANISM_TYPE mechanism,
-                                const P11PROV_MECH **mech);
-CK_RV p11prov_mech_by_mgf(CK_RSA_PKCS_MGF_TYPE mgf, const P11PROV_MECH **mech);
 
 CK_RV p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
                           const char *digest);
