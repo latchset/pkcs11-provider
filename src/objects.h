@@ -75,7 +75,9 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *obj1, P11PROV_OBJ *obj2, CK_KEY_TYPE type,
                         int cmp_type);
 
 CK_RV p11prov_obj_import_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
-                             CK_OBJECT_CLASS class, const OSSL_PARAM params[]);
+                             CK_OBJECT_CLASS class,
+                             CK_ML_DSA_PARAMETER_SET_TYPE param_set,
+                             const OSSL_PARAM params[]);
 
 P11PROV_OBJ *p11prov_obj_import_secret_key(P11PROV_CTX *ctx, CK_KEY_TYPE type,
                                            const unsigned char *key,
