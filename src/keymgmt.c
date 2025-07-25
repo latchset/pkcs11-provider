@@ -785,7 +785,7 @@ static int p11prov_rsa_import(void *keydata, int selection,
         }
     }
 
-    rv = p11prov_obj_import_key(key, CKK_RSA, class, params);
+    rv = p11prov_obj_import_key(key, CKK_RSA, class, 0, params);
     if (rv != CKR_OK) {
         return RET_OSSL_ERR;
     }
@@ -1452,7 +1452,7 @@ static int p11prov_ec_import_genr(CK_KEY_TYPE key_type, void *keydata,
         return RET_OSSL_ERR;
     }
 
-    rv = p11prov_obj_import_key(key, key_type, class, params);
+    rv = p11prov_obj_import_key(key, key_type, class, 0, params);
     if (rv != CKR_OK) {
         return RET_OSSL_ERR;
     }
@@ -2170,7 +2170,6 @@ DISPATCH_KEYMGMT_FN(mldsa, new);
 DISPATCH_KEYMGMT_FN(mldsa, free);
 DISPATCH_KEYMGMT_FN(mldsa, has);
 DISPATCH_KEYMGMT_FN(mldsa, match);
-DISPATCH_KEYMGMT_FN(mldsa, import);
 DISPATCH_KEYMGMT_FN(mldsa, import_types);
 DISPATCH_KEYMGMT_FN(mldsa, export);
 DISPATCH_KEYMGMT_FN(mldsa, export_types);
@@ -2349,7 +2348,8 @@ static const OSSL_PARAM *p11prov_mldsa_gen_settable_params(void *genctx,
 }
 
 static int p11prov_mldsa_import(void *keydata, int selection,
-                                const OSSL_PARAM params[])
+                                const OSSL_PARAM params[],
+                                CK_ML_DSA_PARAMETER_SET_TYPE param_set)
 {
     P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
     CK_OBJECT_CLASS class = CK_UNAVAILABLE_INFORMATION;
@@ -2382,11 +2382,29 @@ static int p11prov_mldsa_import(void *keydata, int selection,
         }
     }
 
-    rv = p11prov_obj_import_key(key, CKK_ML_DSA, class, params);
+    rv = p11prov_obj_import_key(key, CKK_ML_DSA, class, param_set, params);
     if (rv != CKR_OK) {
         return RET_OSSL_ERR;
     }
     return RET_OSSL_OK;
+}
+
+static int p11prov_mldsa_44_import(void *keydata, int selection,
+                                   const OSSL_PARAM params[])
+{
+    return p11prov_mldsa_import(keydata, selection, params, CKP_ML_DSA_44);
+}
+
+static int p11prov_mldsa_65_import(void *keydata, int selection,
+                                   const OSSL_PARAM params[])
+{
+    return p11prov_mldsa_import(keydata, selection, params, CKP_ML_DSA_65);
+}
+
+static int p11prov_mldsa_87_import(void *keydata, int selection,
+                                   const OSSL_PARAM params[])
+{
+    return p11prov_mldsa_import(keydata, selection, params, CKP_ML_DSA_87);
 }
 
 static int p11prov_mldsa_export(void *keydata, int selection,
@@ -2569,7 +2587,7 @@ const OSSL_DISPATCH p11prov_mldsa44_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(mldsa, FREE, free),
     DISPATCH_KEYMGMT_ELEM(mldsa, HAS, has),
     DISPATCH_KEYMGMT_ELEM(mldsa, MATCH, match),
-    DISPATCH_KEYMGMT_ELEM(mldsa, IMPORT, import),
+    DISPATCH_KEYMGMT_ELEM(mldsa_44, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(mldsa, IMPORT_TYPES, import_types),
     DISPATCH_KEYMGMT_ELEM(mldsa, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(mldsa, EXPORT_TYPES, export_types),
@@ -2589,7 +2607,7 @@ const OSSL_DISPATCH p11prov_mldsa65_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(mldsa, FREE, free),
     DISPATCH_KEYMGMT_ELEM(mldsa, HAS, has),
     DISPATCH_KEYMGMT_ELEM(mldsa, MATCH, match),
-    DISPATCH_KEYMGMT_ELEM(mldsa, IMPORT, import),
+    DISPATCH_KEYMGMT_ELEM(mldsa_65, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(mldsa, IMPORT_TYPES, import_types),
     DISPATCH_KEYMGMT_ELEM(mldsa, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(mldsa, EXPORT_TYPES, export_types),
@@ -2609,7 +2627,7 @@ const OSSL_DISPATCH p11prov_mldsa87_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(mldsa, FREE, free),
     DISPATCH_KEYMGMT_ELEM(mldsa, HAS, has),
     DISPATCH_KEYMGMT_ELEM(mldsa, MATCH, match),
-    DISPATCH_KEYMGMT_ELEM(mldsa, IMPORT, import),
+    DISPATCH_KEYMGMT_ELEM(mldsa_87, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(mldsa, IMPORT_TYPES, import_types),
     DISPATCH_KEYMGMT_ELEM(mldsa, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(mldsa, EXPORT_TYPES, export_types),

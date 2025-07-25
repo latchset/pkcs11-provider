@@ -1213,12 +1213,14 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
 #endif
                 break;
             case CKM_ML_DSA:
+            case CKM_ML_DSA_KEY_PAIR_GEN:
                 ADD_ALGO_EXT(ML_DSA_44, signature, prop,
                              p11prov_mldsa_44_signature_functions);
                 ADD_ALGO_EXT(ML_DSA_65, signature, prop,
                              p11prov_mldsa_65_signature_functions);
                 ADD_ALGO_EXT(ML_DSA_87, signature, prop,
                              p11prov_mldsa_87_signature_functions);
+                UNCHECK_MECHS(CKM_ML_DSA_KEY_PAIR_GEN, CKM_ML_DSA);
                 break;
 #if SKEY_SUPPORT == 1
             case CKM_AES_ECB:
@@ -1273,8 +1275,8 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                 break;
 #endif
             default:
-                P11PROV_raise(ctx, CKR_GENERAL_ERROR,
-                              "Unhandled mechianism %lu", mech);
+                P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Unhandled mechanism %lu",
+                              mech);
                 break;
             }
         }
@@ -1414,6 +1416,9 @@ static CK_RV static_operations_init(P11PROV_CTX *ctx)
     ADD_ALGO(HKDF, hkdf, keymgmt, prop);
     ADD_ALGO_EXT(ED25519, keymgmt, prop, p11prov_ed25519_keymgmt_functions);
     ADD_ALGO_EXT(ED448, keymgmt, prop, p11prov_ed448_keymgmt_functions);
+    ADD_ALGO_EXT(ML_DSA_44, keymgmt, prop, p11prov_mldsa44_keymgmt_functions);
+    ADD_ALGO_EXT(ML_DSA_65, keymgmt, prop, p11prov_mldsa44_keymgmt_functions);
+    ADD_ALGO_EXT(ML_DSA_87, keymgmt, prop, p11prov_mldsa44_keymgmt_functions);
     TERM_ALGO(keymgmt);
 
 #if SKEY_SUPPORT == 1

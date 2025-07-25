@@ -29,13 +29,10 @@ DISPATCH_MLDSA_FN(digest_verify_init);
 DISPATCH_MLDSA_FN(digest_verify_update);
 DISPATCH_MLDSA_FN(digest_verify_final);
 #if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
-DISPATCH_MLDSA_FN(sign_message_init);
 DISPATCH_MLDSA_FN(sign_message_update);
 DISPATCH_MLDSA_FN(sign_message_final);
-DISPATCH_MLDSA_FN(verify_message_init);
 DISPATCH_MLDSA_FN(verify_message_update);
 DISPATCH_MLDSA_FN(verify_message_final);
-DISPATCH_MLDSA_FN(query_key_types);
 #endif /* OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT */
 DISPATCH_MLDSA_FN(get_ctx_params);
 DISPATCH_MLDSA_FN(set_ctx_params);
@@ -337,13 +334,6 @@ static int p11prov_mldsa_digest_verify_final(void *ctx,
 }
 
 #if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
-static const char **p11prov_mldsa_query_key_types(void)
-{
-    static const char *keytypes[] = { "ML-DSA", NULL };
-
-    return keytypes;
-}
-
 static int p11prov_mldsa_sign_message_update(void *ctx,
                                              const unsigned char *data,
                                              size_t datalen)
