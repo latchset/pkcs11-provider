@@ -1,0 +1,33 @@
+#!/bin/bash -e
+# Copyright (C) 2025 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+# We need to configure pkcs11 to allow emitting PEM URIs so that the
+# genpkey command does not fail on trying to emit the private key PEM file.
+sed -e "s/#pkcs11-module-encode-provider-uri-to-pem/pkcs11-module-encode-provider-uri-to-pem = true/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.mldsa_pem_uri"
+OPENSSL_CONF=${OPENSSL_CONF}.mldsa_pem_uri
+
+title PARA "Generate ML-DSA-65 key and test signatures"
+
+title LINE "Generate ML-DSA-65 key"
+ossl '
+genpkey -propquery "provider=pkcs11"
+        -algorithm ML-DSA-65 -pkeyopt "pkcs11_uri:pkcs11:object=Test-ML-DSA-65"
+        -out ${TMPPDIR}/mldsa-65-genpkey.pem'
+
+title LINE "Sign random data with ML-DSA-65"
+ossl '
+pkeyutl -sign
+        -inkey "pkcs11:type=private;object=Test-ML-DSA-65"
+        -in ${RAND64FILE} -rawin
+        -out ${TMPPDIR}/ml-dsa-65.sig'
+
+title LINE "Verify signature with ML-DSA-65"
+ossl '
+pkeyutl -verify
+        -inkey "pkcs11:type=public;object=Test-ML-DSA-65" -pubin
+        -in ${RAND64FILE} -rawin
+        -sigfile ${TMPPDIR}/ml-dsa-65.sig'
