@@ -19,7 +19,7 @@ jobs:
         token: [softokn, softhsm, kryoptic]
         include:
           - name: fedora
-            container: fedora:latest
+            container: fedora:rawhide
           - name: debian
             container: debian:sid
           - name: centos9
@@ -37,7 +37,6 @@ jobs:
           # For whatever reason tests fail on EL8 with SoftHSM2.
           - name: almalinux8
             token: softhsm
-          # Kryoptic available on in Fedora rawhide for now
           - name: debian
             token: kryoptic
           - name: centos9
