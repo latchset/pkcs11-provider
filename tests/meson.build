@@ -142,6 +142,7 @@ endforeach
 
 tests = {
   'basic': {'suites': all_suites},
+  'mldsa': {'suites': ['kryoptic']},
   'pubkey': {'suites': all_suites},
   'certs': {'suites': all_suites},
   'ecc': {'suites': all_suites},
