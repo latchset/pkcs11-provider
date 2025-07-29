@@ -390,6 +390,21 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
                 return RET_OSSL_ERR;
             }
             break;
+        case CKK_ML_DSA:
+            switch (p11prov_obj_get_key_param_set(obj)) {
+            case CKP_ML_DSA_44:
+                data_type = (char *)MLDSA_44;
+                break;
+            case CKP_ML_DSA_65:
+                data_type = (char *)MLDSA_65;
+                break;
+            case CKP_ML_DSA_87:
+                data_type = (char *)MLDSA_87;
+                break;
+            default:
+                return RET_OSSL_ERR;
+            }
+            break;
         default:
             return RET_OSSL_ERR;
         }

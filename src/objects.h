@@ -114,4 +114,8 @@ P11PROV_OBJ *p11prov_obj_find_associated(P11PROV_OBJ *obj,
 extern const CK_BYTE ed25519_ec_params[];
 extern const CK_BYTE ed448_ec_params[];
 
+#define MLDSA_44 "ML-DSA-44"
+#define MLDSA_65 "ML-DSA-65"
+#define MLDSA_87 "ML-DSA-87"
+
 #endif /* _OBJECTS_H */
