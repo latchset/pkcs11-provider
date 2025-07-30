@@ -153,6 +153,7 @@ tests = {
   'oaepsha2': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'hkdf': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'imported' : {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
+  'pem_encoder': {'suites': all_suites},
   'rsa': {'suites': all_suites},
   'rsapss': {'suites': all_suites},
   'rsapssam': {'suites': ['softhsm', 'kryoptic']},
