@@ -11,7 +11,7 @@ jobs:
   build:
     name: CI with kryoptic token
     runs-on: ubuntu-22.04
-    container: fedora:latest
+    container: fedora:rawhide
     steps:
       - name: Get Date for DNF cache entry
         id: get-date
@@ -61,8 +61,8 @@ jobs:
       - name: Build Kryoptic
         run: |
           cd kryoptic
-          cargo build --features dynamic,standard,nssdb
-          cargo test --features dynamic,standard,nssdb | tee testout.log 2>&1
+          cargo build --features dynamic,standard,nssdb,pqc
+          cargo test --features dynamic,standard,nssdb,pqc | tee testout.log 2>&1
           grep -q "0 failed" testout.log
 
       - name: Setup
