@@ -40,8 +40,11 @@ make-uri-pem() {
 }
 
 sign-verify() {
+    # shellcheck disable=SC2034 # shellcheck can't see it is actually used
     PRIV_KEY=$1
+    # shellcheck disable=SC2034 # shellcheck can't see it is actually used
     PUB_KEY=$2
+    # shellcheck disable=SC2034 # shellcheck can't see it is actually used
     FILE=$3
     NO_DIGEST=$4
 
@@ -49,28 +52,28 @@ sign-verify() {
     TMP_FILE="${TMPPDIR}/sign-verify-pem-encoder-${RANDOM_HEX// /}.bin"
 
     if [[ -z "${NO_DIGEST}" ]]; then
-        $CHECKER openssl pkeyutl -sign -rawin -digest sha256 \
-                 -inkey "${PRIV_KEY}" \
-                 -in "${FILE}" \
-                 -out "${TMP_FILE}"
+        ossl 'pkeyutl -sign -rawin -digest sha256
+                 -inkey "${PRIV_KEY}"
+                 -in "${FILE}"
+                 -out "${TMP_FILE}"'
 
-        $CHECKER openssl pkeyutl -verify -rawin -digest sha256 \
-                 -inkey "${PUB_KEY}" \
-                 -pubin \
-                 -in "${FILE}" \
-                 -sigfile "${TMP_FILE}"
+        ossl 'pkeyutl -verify -rawin -digest sha256
+                 -inkey "${PUB_KEY}"
+                 -pubin
+                 -in "${FILE}"
+                 -sigfile "${TMP_FILE}"'
     else
-        $CHECKER openssl pkeyutl -sign -rawin \
-                 -inkey "${PRIV_KEY}" \
-                 -in "${FILE}" \
-                 -out "${TMP_FILE}"
+        ossl 'pkeyutl -sign -rawin
+                 -inkey "${PRIV_KEY}"
+                 -in "${FILE}"
+                 -out "${TMP_FILE}"'
 
-        $CHECKER openssl pkeyutl -verify -rawin \
-                 -inkey "${PUB_KEY}" \
-                 -pubin \
-                 -in "${FILE}" \
-                 -sigfile "${TMP_FILE}"
-    fi;
+        ossl 'pkeyutl -verify -rawin
+                 -inkey "${PUB_KEY}"
+                 -pubin
+                 -in "${FILE}"
+                 -sigfile "${TMP_FILE}"'
+    fi
 
     rm "${TMP_FILE}"
 }
@@ -141,34 +144,25 @@ fi;
 
 title PARA "Test visible string has to match"
 make-uri-pem "${PRIURI}" "${TMPPDIR}/priuri-wrong-version-key.pem" "PKCS#11 Provider URI v2.0"
-ossl '
-storeutl
-        -out "${TMPPDIR}/storeutl-priuri-wrong-version-key.txt"
-        "${TMPPDIR}/priuri-wrong-version-key.pem"' || :
-DATA=$(cat "${TMPPDIR}/storeutl-priuri-wrong-version-key.txt")
-if [[ ! ${DATA} =~ "Total found: 0" ]]; then
+FAIL=0
+ossl 'storeutl "${TMPPDIR}/priuri-wrong-version-key.pem"' || FAIL=1
+if [ $FAIL -eq 0 ]; then
     echo "Should fail because visible string does not match"
     exit 1
 fi
 
 make-uri-pem "${PRIURI}" "${TMPPDIR}/priuri-too-long-key.pem" "PKCS#11 Provider URI v1.0-INVALID"
-ossl '
-storeutl
-        -out "${TMPPDIR}/storeutl-priuri-too-long-key.txt"
-        "${TMPPDIR}/priuri-too-long-key.pem"' || :
-DATA=$(cat "${TMPPDIR}/storeutl-priuri-too-long-key.txt")
-if [[ ! ${DATA} =~ "Total found: 0" ]]; then
+FAIL=0
+ossl 'storeutl "${TMPPDIR}/priuri-too-long-key.pem"' || FAIL=1
+if [ $FAIL -eq 0 ]; then
     echo "Should fail because visible string does not match"
     exit 1
 fi
 
 make-uri-pem "${PRIURI}" "${TMPPDIR}/priuri-too-short-key.pem" "PKCS#11 Provider URI v1"
-ossl '
-storeutl
-        -out "${TMPPDIR}/storeutl-priuri-too-short-key.txt"
-        "${TMPPDIR}/priuri-too-short-key.pem"' || :
-DATA=$(cat "${TMPPDIR}/storeutl-priuri-too-short-key.txt")
-if [[ ! ${DATA} =~ "Total found: 0" ]]; then
+FAIL=0
+ossl 'storeutl "${TMPPDIR}/priuri-too-short-key.pem"' || FAIL=1
+if [ $FAIL -eq 0 ]; then
     echo "Should fail because visible string does not match"
     exit 1
 fi
