@@ -318,5 +318,6 @@ int p11prov_pop_error_to_mark(P11PROV_CTX *ctx);
 
 /* TLS */
 int tls_group_capabilities(OSSL_CALLBACK *cb, void *arg);
+int tls_sigalg_capabilities(OSSL_CALLBACK *cb, void *arg);
 
 #endif /* _PROVIDER_H */

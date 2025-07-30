@@ -71,22 +71,19 @@ int ffdhe8192_maxdtls = -1;
 
 #define TLS_PARAMS_ENTRY(name, realname, algorithm, group_id, secbits, mintls, \
                          maxtls, mindtls, maxdtls) \
-    { \
-        OSSL_PARAM_utf8_string(OSSL_CAPABILITY_TLS_GROUP_NAME, (void *)name, \
-                               sizeof(name)), \
-            OSSL_PARAM_utf8_string(OSSL_CAPABILITY_TLS_GROUP_NAME_INTERNAL, \
-                                   (void *)realname, sizeof(realname)), \
-            OSSL_PARAM_utf8_string(OSSL_CAPABILITY_TLS_GROUP_ALG, \
-                                   (void *)algorithm, sizeof(algorithm)), \
-            OSSL_PARAM_uint(OSSL_CAPABILITY_TLS_GROUP_ID, &group_id), \
-            OSSL_PARAM_uint(OSSL_CAPABILITY_TLS_GROUP_SECURITY_BITS, \
-                            &secbits), \
-            OSSL_PARAM_int(OSSL_CAPABILITY_TLS_GROUP_MIN_TLS, &mintls), \
-            OSSL_PARAM_int(OSSL_CAPABILITY_TLS_GROUP_MAX_TLS, &maxtls), \
-            OSSL_PARAM_int(OSSL_CAPABILITY_TLS_GROUP_MIN_DTLS, &mindtls), \
-            OSSL_PARAM_int(OSSL_CAPABILITY_TLS_GROUP_MAX_DTLS, &maxdtls), \
-            OSSL_PARAM_END \
-    }
+    { OSSL_PARAM_utf8_string(OSSL_CAPABILITY_TLS_GROUP_NAME, (void *)name, \
+                             sizeof(name)), \
+      OSSL_PARAM_utf8_string(OSSL_CAPABILITY_TLS_GROUP_NAME_INTERNAL, \
+                             (void *)realname, sizeof(realname)), \
+      OSSL_PARAM_utf8_string(OSSL_CAPABILITY_TLS_GROUP_ALG, (void *)algorithm, \
+                             sizeof(algorithm)), \
+      OSSL_PARAM_uint(OSSL_CAPABILITY_TLS_GROUP_ID, &group_id), \
+      OSSL_PARAM_uint(OSSL_CAPABILITY_TLS_GROUP_SECURITY_BITS, &secbits), \
+      OSSL_PARAM_int(OSSL_CAPABILITY_TLS_GROUP_MIN_TLS, &mintls), \
+      OSSL_PARAM_int(OSSL_CAPABILITY_TLS_GROUP_MAX_TLS, &maxtls), \
+      OSSL_PARAM_int(OSSL_CAPABILITY_TLS_GROUP_MIN_DTLS, &mindtls), \
+      OSSL_PARAM_int(OSSL_CAPABILITY_TLS_GROUP_MAX_DTLS, &maxdtls), \
+      OSSL_PARAM_END }
 
 struct {
     const char *name;
@@ -180,6 +177,79 @@ int tls_group_capabilities(OSSL_CALLBACK *cb, void *arg)
 {
     for (size_t i = 0; i < sizeof(tls_params) / sizeof(*tls_params); i++) {
         int ret = cb(tls_params[i].list, arg);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+    return RET_OSSL_OK;
+}
+
+#ifdef OSSL_PKEY_PARAM_ML_DSA_SEED
+
+#define mldsa44_iana_name "mldsa44"
+#define mldsa44_name "ML-DSA-44"
+#define mldsa44_oid "2.16.840.1.101.3.4.3.17"
+unsigned int mldsa44_code_point = 0x0904;
+unsigned int mldsa44_sec_bits = 128;
+int mldsa44_min_tls = TLS1_3_VERSION;
+int mldsa44_max_tls = 0;
+int mldsa44_min_dtls = -1;
+int mldsa44_max_dtls = -1;
+
+#define mldsa65_iana_name "mldsa65"
+#define mldsa65_name "ML-DSA-65"
+#define mldsa65_oid "2.16.840.1.101.3.4.3.18"
+unsigned int mldsa65_code_point = 0x0905;
+unsigned int mldsa65_sec_bits = 192;
+int mldsa65_min_tls = TLS1_3_VERSION;
+int mldsa65_max_tls = 0;
+int mldsa65_min_dtls = -1;
+int mldsa65_max_dtls = -1;
+
+#define mldsa87_iana_name "mldsa87"
+#define mldsa87_name "ML-DSA-87"
+#define mldsa87_oid "2.16.840.1.101.3.4.3.19"
+unsigned int mldsa87_code_point = 0x0906;
+unsigned int mldsa87_sec_bits = 256;
+int mldsa87_min_tls = TLS1_3_VERSION;
+int mldsa87_max_tls = 0;
+int mldsa87_min_dtls = -1;
+int mldsa87_max_dtls = -1;
+
+#define TLS_SIGALG_ENTRY(pre) \
+    { OSSL_PARAM_utf8_string(OSSL_CAPABILITY_TLS_SIGALG_IANA_NAME, \
+                             (void *)pre##_iana_name, \
+                             sizeof(pre##_iana_name)), \
+      OSSL_PARAM_utf8_string(OSSL_CAPABILITY_TLS_SIGALG_NAME, \
+                             (void *)pre##_name, sizeof(pre##_name)), \
+      OSSL_PARAM_utf8_string(OSSL_CAPABILITY_TLS_SIGALG_OID, \
+                             (void *)pre##_oid, sizeof(pre##_oid)), \
+      OSSL_PARAM_uint(OSSL_CAPABILITY_TLS_SIGALG_CODE_POINT, \
+                      &pre##_code_point), \
+      OSSL_PARAM_uint(OSSL_CAPABILITY_TLS_SIGALG_SECURITY_BITS, \
+                      &pre##_sec_bits), \
+      OSSL_PARAM_int(OSSL_CAPABILITY_TLS_SIGALG_MIN_TLS, &pre##_min_tls), \
+      OSSL_PARAM_int(OSSL_CAPABILITY_TLS_SIGALG_MAX_TLS, &pre##_max_tls), \
+      OSSL_PARAM_int(OSSL_CAPABILITY_TLS_SIGALG_MIN_DTLS, &pre##_min_dtls), \
+      OSSL_PARAM_int(OSSL_CAPABILITY_TLS_SIGALG_MAX_DTLS, &pre##_max_dtls), \
+      OSSL_PARAM_END }
+#endif
+
+struct {
+    const char *name;
+    const OSSL_PARAM list[10];
+} tls_sigalg[] = {
+#ifdef OSSL_PKEY_PARAM_ML_DSA_SEED
+    { "mldsa44", TLS_SIGALG_ENTRY(mldsa44) },
+    { "mldsa65", TLS_SIGALG_ENTRY(mldsa65) },
+    { "mldsa87", TLS_SIGALG_ENTRY(mldsa87) },
+#endif
+};
+
+int tls_sigalg_capabilities(OSSL_CALLBACK *cb, void *arg)
+{
+    for (size_t i = 0; i < sizeof(tls_sigalg) / sizeof(*tls_sigalg); i++) {
+        int ret = cb(tls_sigalg[i].list, arg);
         if (ret != RET_OSSL_OK) {
             return ret;
         }

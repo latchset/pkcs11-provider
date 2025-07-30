@@ -1544,6 +1544,9 @@ static int p11prov_get_capabilities(void *provctx, const char *capability,
     if (OPENSSL_strcasecmp(capability, "TLS-GROUP") == 0) {
         ret = tls_group_capabilities(cb, arg);
     }
+    if (OPENSSL_strcasecmp(capability, "TLS-SIGALG") == 0) {
+        ret = tls_sigalg_capabilities(cb, arg);
+    }
 
     return ret;
 }
