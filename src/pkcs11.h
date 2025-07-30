@@ -2217,7 +2217,7 @@ extern CK_RV C_GenerateKeyPair(CK_SESSION_HANDLE, CK_MECHANISM *,
 extern CK_RV C_WrapKey(CK_SESSION_HANDLE, CK_MECHANISM *, CK_OBJECT_HANDLE,
                        CK_OBJECT_HANDLE, CK_BYTE *, CK_ULONG *);
 extern CK_RV C_UnwrapKey(CK_SESSION_HANDLE, CK_MECHANISM *, CK_OBJECT_HANDLE,
-                         CK_BYTE *, CK_ULONG *, CK_ATTRIBUTE *, CK_ULONG,
+                         CK_BYTE *, CK_ULONG, CK_ATTRIBUTE *, CK_ULONG,
                          CK_OBJECT_HANDLE *);
 extern CK_RV C_DeriveKey(CK_SESSION_HANDLE, CK_MECHANISM *, CK_OBJECT_HANDLE,
                          CK_ATTRIBUTE *, CK_ULONG, CK_OBJECT_HANDLE *);
