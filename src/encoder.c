@@ -1100,6 +1100,7 @@ struct mldsa_key_point {
     size_t len;
 };
 
+#ifdef NID_ML_DSA_44
 static int p11prov_mldsa_set_keypoint_data(const OSSL_PARAM *params, void *key)
 {
     struct mldsa_key_point *keypoint = (struct mldsa_key_point *)key;
@@ -1120,15 +1121,16 @@ static int p11prov_mldsa_set_keypoint_data(const OSSL_PARAM *params, void *key)
 
     return RET_OSSL_OK;
 }
+#endif /* defined(NID_ML_DSA_44) */
 
 static X509_PUBKEY *p11prov_mldsa_pubkey_to_x509(P11PROV_OBJ *key)
 {
+#ifdef NID_ML_DSA_44
     struct mldsa_key_point keypoint = { 0 };
     X509_PUBKEY *pubkey;
     int nid = NID_undef;
     int ret;
 
-#ifdef NID_ML_DSA_44
     switch (p11prov_obj_get_key_param_set(key)) {
     case CKP_ML_DSA_44:
         nid = NID_ML_DSA_44;
