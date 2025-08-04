@@ -105,7 +105,7 @@ bind_test()
     TEST_RESULT=0
 }
 
-# shellcheck disable=SC2317
+# shellcheck disable=SC2317,SC2329
 cleanup() 
 {
     title PARA "Clean-up"
