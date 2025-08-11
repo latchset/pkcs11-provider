@@ -6,46 +6,41 @@ source "${TESTSSRCDIR}/helpers.sh"
 
 title PARA "Test HMAC support"
 
-# Use a large key size, softhsm requires it to be >= digest size
-HMAC_HEX_KEY=aaaabbbbaaaabbbbaaaabbbbaaaabbbbaaaabbbbaaaabbbbaaaabbbbaaaabbbb
+HMAC_HEX_KEY=aaaabbbbaaaabbbbaaaabbbbaaaabbbb
 
-declare -A digests=(
-    # These HMAC digests should be generally supported
-    ["supported"]="sha1 SSL3-SHA1 SHA1 SHA256 SHA-256 SHA2-256 SHA384 SHA-384 SHA2-384 SHA512 SHA-512 SHA2-512"
-
-    ["optional"]="SHA512-224 SHA-512/224 SHA2-512/224 SHA512-256 SHA-512/256 SHA2-512/256"
+digests=(
+    SHA1
+    SHA256
+    SHA384
+    SHA512
+    SHA3-224
+    SHA3-256
+    SHA3-384
+    SHA3-512
 )
 
-for key in "${!digests[@]}"; do
-    IFS=" " read -r -a values <<< "${digests[$key]}"
-    FAIL=0
+for digest in ${digests[@]}; do
+    ossl "
+    mac -digest ${digest}
+        -macopt key:${HMAC_HEX_KEY}
+        -in ${RAND64FILE}
+        -out ${TMPPDIR}/hmac-out-${digest}.bin
+        hmac" || exit 1
+done
 
-    for digest in "${values[@]}"; do
-        ossl "
-        mac -digest ${digest}
-            -macopt key:${HMAC_HEX_KEY}
-            -in ${RAND64FILE}
-            -out ${TMPPDIR}/hmac-out-pkcs11.bin
-            -propquery provider=pkcs11
-            hmac" || FAIL=1
-        if [ $FAIL -eq 1 ]; then
-            if [ "${key}" = "supported" ]; then
-                exit 1
-            else
-                continue
-            fi
-        fi
+# After hmac generation force all operations on the token
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
+OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
 
-        ossl "
-        mac -digest ${digest}
-            -macopt key:${HMAC_HEX_KEY}
-            -in ${RAND64FILE}
-            -out ${TMPPDIR}/hmac-out.bin
-            hmac" || FAIL=1
-        if [ $FAIL -eq 1 ]; then
-            exit 1
-        fi
+for digest in ${digests[@]}; do
+    ossl "
+    mac -digest ${digest}
+        -macopt key:${HMAC_HEX_KEY}
+        -in ${RAND64FILE}
+        -out ${TMPPDIR}/hmac-out-pkcs11-${digest}.bin
+        hmac" || exit 1
 
-        diff "${TMPPDIR}/hmac-out-pkcs11.bin" "${TMPPDIR}/hmac-out.bin"
-    done
+    diff "${TMPPDIR}/hmac-out-${digest}.bin" "${TMPPDIR}/hmac-out-pkcs11-${digest}.bin"
 done
