@@ -1165,7 +1165,6 @@ static X509_PUBKEY *p11prov_mldsa_pubkey_to_x509(P11PROV_OBJ *key)
         return NULL;
     }
 
-    OPENSSL_clear_free(keypoint.octet, keypoint.len);
     return pubkey;
 #else
     return NULL;
