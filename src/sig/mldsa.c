@@ -372,19 +372,19 @@ static int p11prov_mldsa_verify_message_final(void *ctx)
 #endif /* OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT */
 
 static const unsigned char der_ml_dsa_44_alg_id[] = {
-    DER_SEQUENCE,     DER_NIST_ALGS_LEN + 3,
+    DER_SEQUENCE,     DER_NIST_SIGALGS_LEN + 3,
     DER_OBJECT,       DER_NIST_SIGALGS_LEN + 1,
     DER_NIST_SIGALGS, 0x11
 };
 
 static const unsigned char der_ml_dsa_65_alg_id[] = {
-    DER_SEQUENCE,     DER_NIST_ALGS_LEN + 3,
+    DER_SEQUENCE,     DER_NIST_SIGALGS_LEN + 3,
     DER_OBJECT,       DER_NIST_SIGALGS_LEN + 1,
     DER_NIST_SIGALGS, 0x12
 };
 
 static const unsigned char der_ml_dsa_87_alg_id[] = {
-    DER_SEQUENCE,     DER_NIST_ALGS_LEN + 3,
+    DER_SEQUENCE,     DER_NIST_SIGALGS_LEN + 3,
     DER_OBJECT,       DER_NIST_SIGALGS_LEN + 1,
     DER_NIST_SIGALGS, 0x13
 };
