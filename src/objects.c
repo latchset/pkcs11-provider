@@ -578,6 +578,9 @@ CK_KEY_TYPE p11prov_obj_get_key_type(P11PROV_OBJ *obj)
         case CKO_PRIVATE_KEY:
         case CKO_PUBLIC_KEY:
         case CKO_DOMAIN_PARAMETERS:
+#ifdef OSSL_OBJECT_SKEY
+        case CKO_SECRET_KEY:
+#endif
             return obj->data.key.type;
         }
     }
