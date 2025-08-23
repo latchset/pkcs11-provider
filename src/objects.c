@@ -1145,6 +1145,7 @@ static CK_RV fetch_secret_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     struct fetch_attrs attrs[BASE_KEY_ATTRS_NUM];
     int num;
     CK_RV ret;
+    CK_ATTRIBUTE *size = NULL;
 
     key->attrs = OPENSSL_zalloc(BASE_KEY_ATTRS_NUM * sizeof(CK_ATTRIBUTE));
     if (key->attrs == NULL) {
@@ -1155,6 +1156,7 @@ static CK_RV fetch_secret_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
     FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
     FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_VALUE_LEN, false);
 
     ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
     if (ret != CKR_OK) {
@@ -1165,6 +1167,17 @@ static CK_RV fetch_secret_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
 
     key->numattrs = 0;
     p11prov_move_alloc_attrs(attrs, num, key->attrs, &key->numattrs);
+
+    size = p11prov_obj_get_attr(key, CKA_VALUE_LEN);
+    if (!size) {
+        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR, "Missing Key Size");
+        return CKR_GENERAL_ERROR;
+    }
+
+    if (size->ulValueLen == sizeof(CK_ULONG)) {
+        key->data.key.size = *(CK_ULONG *)size->pValue;
+        key->data.key.bit_size = key->data.key.size * 8;
+    }
 
     return CKR_OK;
 }
