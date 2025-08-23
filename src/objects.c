@@ -578,9 +578,7 @@ CK_KEY_TYPE p11prov_obj_get_key_type(P11PROV_OBJ *obj)
         case CKO_PRIVATE_KEY:
         case CKO_PUBLIC_KEY:
         case CKO_DOMAIN_PARAMETERS:
-#ifdef OSSL_OBJECT_SKEY
         case CKO_SECRET_KEY:
-#endif
             return obj->data.key.type;
         }
     }
@@ -661,6 +659,7 @@ CK_ULONG p11prov_obj_get_key_bit_size(P11PROV_OBJ *obj)
         case CKO_PRIVATE_KEY:
         case CKO_PUBLIC_KEY:
         case CKO_DOMAIN_PARAMETERS:
+        case CKO_SECRET_KEY:
             return obj->data.key.bit_size;
         }
     }
@@ -674,6 +673,7 @@ CK_ULONG p11prov_obj_get_key_size(P11PROV_OBJ *obj)
         case CKO_PRIVATE_KEY:
         case CKO_PUBLIC_KEY:
         case CKO_DOMAIN_PARAMETERS:
+        case CKO_SECRET_KEY:
             return obj->data.key.size;
         }
     }
@@ -1536,7 +1536,7 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
 
     P11PROV_debug("Refresh object %p", obj);
 
-    if (obj->class == CKO_PRIVATE_KEY) {
+    if (obj->class == CKO_PRIVATE_KEY || obj->class == CKO_SECRET_KEY) {
         login = true;
     }
     login_behavior = p11prov_ctx_login_behavior(obj->ctx);
@@ -4843,6 +4843,79 @@ CK_RV p11prov_obj_import_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
 
 #if SKEY_SUPPORT
 
+static CK_RV p11prov_assign_aes_key(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
+                                    char *label, CK_FLAGS usage,
+                                    bool session_key)
+{
+    CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
+    CK_KEY_TYPE key_type = CKK_AES;
+    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
+    P11PROV_SLOTS_CTX *slots = NULL;
+    P11PROV_SESSION *session = NULL;
+    CK_BBOOL tokenobj = false;
+    CK_RV rv;
+    CK_ATTRIBUTE tmpl[12] = {
+        { CKA_TOKEN, &tokenobj, sizeof(tokenobj) },
+        { CKA_CLASS, &key_class, sizeof(key_class) },
+        { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
+        { 0 },
+    };
+    size_t tmax = sizeof(tmpl) / sizeof(CK_ATTRIBUTE);
+    size_t tsize = 3;
+
+    P11PROV_debug("Assigning secret key (%p[%zu]), token: %b, flags: %x",
+                  !session_key, usage);
+
+    /* Make it a token (permanent) object if necessary */
+    if (!session_key) {
+        tokenobj = true;
+    }
+
+    if (usage) {
+        rv = p11prov_usage_to_template(tmpl, &tsize, tmax, usage);
+        if (rv != CKR_OK) {
+            P11PROV_raise(provctx, rv, "Failed to set key usage");
+            return CKR_GENERAL_ERROR;
+        }
+    } else {
+        rv = CKR_ARGUMENTS_BAD;
+        P11PROV_raise(provctx, rv, "No key usage specified");
+        return CKR_GENERAL_ERROR;
+    }
+
+    slots = p11prov_ctx_get_slots(provctx);
+    if (!slots) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    slot = p11prov_get_default_slot(slots);
+    if (slot == CK_UNAVAILABLE_INFORMATION) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    rv = p11prov_take_login_session(provctx, slot, &session);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    obj->ctx = provctx;
+    obj->slotid = slot;
+    obj->class = key_class;
+    obj->cached = CK_INVALID_HANDLE;
+    obj->refcnt++;
+
+    rv = obj_add_to_pool(obj);
+    if (rv != CKR_OK) goto done;
+
+    rv = CKR_OK;
+
+done:
+    p11prov_return_session(session);
+    return rv;
+}
+
 static CK_RV p11prov_store_aes_key(P11PROV_CTX *provctx, P11PROV_OBJ **ret,
                                    const unsigned char *secret,
                                    size_t secretlen, char *label,
@@ -4957,6 +5030,32 @@ done:
         p11prov_obj_free(obj);
         obj = NULL;
     }
+    return obj;
+}
+
+P11PROV_OBJ *p11prov_obj_assign_secret_key(P11PROV_CTX *ctx, CK_KEY_TYPE type,
+                                           P11PROV_OBJ *obj)
+{
+    CK_RV rv = CKR_KEY_INDIGESTIBLE;
+    CK_FLAGS usage = CKF_ENCRYPT | CKF_DECRYPT | CKF_SIGN | CKF_VERIFY
+                     | CKF_WRAP | CKF_UNWRAP | CKF_DERIVE;
+
+    /* TODO: cache find, see other key types */
+
+    switch (type) {
+    case CKK_AES:
+        rv = p11prov_assign_aes_key(ctx, obj, NULL, usage, true);
+        if (rv != CKR_OK) {
+            P11PROV_raise(ctx, rv, "Failed to import");
+            return NULL;
+        }
+        break;
+
+    default:
+        P11PROV_raise(ctx, rv, "Unsupported key type: %08lx", type);
+        return NULL;
+    }
+
     return obj;
 }
 
