@@ -296,6 +296,9 @@ int main(int argc, char *argv[])
         { "P-256", "EC Pkey sigver Test", "SHA256", "ECDSA-SHA256", false },
         { "ED 25519", "ED Pkey sigver Test", NULL, "ED25519", true },
         { "ED 25519", "ED Pkey sigver Test", NULL, "Ed25519ph", true },
+        { "ML-DSA-44", "ML-DSA-44 Pkey sigver Test", NULL, "ML-DSA-44", true },
+        { "ML-DSA-65", "ML-DSA-65 Pkey sigver Test", NULL, "ML-DSA-65", true },
+        { "ML-DSA-87", "ML-DSA-87 Pkey sigver Test", NULL, "ML-DSA-87", true },
     };
 
     driver = getenv("TOKEN_DRIVER");
@@ -310,6 +313,12 @@ int main(int argc, char *argv[])
         /* Softokn does not handle Edwards keys yet */
         if (strcmp(tests[i].key_type, "ED 25519") == 0
             && strcmp(driver, "softokn") == 0) {
+            continue;
+        }
+
+        /* ML-DSA is handled only in kryoptic so far */
+        if (strncmp(tests[i].key_type, "ML-DSA", 6) == 0
+            && strcmp(driver, "kryoptic") != 0) {
             continue;
         }
 

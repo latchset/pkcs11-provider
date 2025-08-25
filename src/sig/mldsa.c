@@ -495,7 +495,7 @@ static int p11prov_mldsa_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         }
         if (encode != 1) {
             P11PROV_raise(sigctx->provctx, CKR_ARGUMENTS_BAD,
-                          "Unsupported 'encoding' parameter");
+                          "Unsupported 'message-encoding' parameter");
             return RET_OSSL_ERR;
         }
     }

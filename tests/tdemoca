@@ -136,6 +136,18 @@ if [[ -n $RSAPSS2PRIURI ]]; then
     ca -batch -in ${DEMOCA}/cert-rsa-pss.csr -keyfile ${PRIURI} -out ${DEMOCA}/cert.pem'
 fi
 
+if [[ -n $MLDSAPRIURI ]]; then
+    title PARA "Generating a new CSR with existing ML-DSA key in token"
+    ossl '
+    req -batch -noenc -new -key ${ED2PRIURI}
+        -subj "/CN=testing-ml-dsa/O=PKCS11 Provider/C=US"
+        -out ${DEMOCA}/cert-mldsa.csr'
+
+    title PARA "Signing the new ML-DSA key certificate"
+    ossl '
+    ca -batch -in ${DEMOCA}/cert-mldsa.csr -keyfile ${PRIURI} -out ${DEMOCA}/cert.pem'
+fi
+
 title PARA "Set up OCSP"
 ossl '
 req -batch -noenc -new -subj "/CN=OCSP/O=PKCS11 Provider/C=US"
