@@ -1025,6 +1025,9 @@ static CK_RV fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
 #define ML_DSA_44_SK_SIZE 2560
 #define ML_DSA_65_SK_SIZE 4032
 #define ML_DSA_87_SK_SIZE 4896
+#define ML_DSA_44_PK_SIZE 1312
+#define ML_DSA_65_PK_SIZE 1952
+#define ML_DSA_87_PK_SIZE 2592
 
 #define MLDSA_ATTRS_NUM (BASE_KEY_ATTRS_NUM + 1)
 static CK_RV fetch_mldsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
@@ -1071,6 +1074,20 @@ static CK_RV fetch_mldsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     key->numattrs = 0;
     p11prov_move_alloc_attrs(attrs, num, key->attrs, &key->numattrs);
 
+    switch (key->data.key.param_set) {
+    case CKP_ML_DSA_44:
+        key->data.key.size = ML_DSA_44_PK_SIZE;
+        break;
+    case CKP_ML_DSA_65:
+        key->data.key.size = ML_DSA_65_PK_SIZE;
+        break;
+    case CKP_ML_DSA_87:
+        key->data.key.size = ML_DSA_87_PK_SIZE;
+        break;
+    default:
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
     if (key->class == CKO_PUBLIC_KEY) {
         value_attr = p11prov_obj_get_attr(key, CKA_VALUE);
         if (!value_attr) {
@@ -1078,20 +1095,11 @@ static CK_RV fetch_mldsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                           "Missing public key value");
             return CKR_KEY_INDIGESTIBLE;
         }
-        key->data.key.size = value_attr->ulValueLen;
-    } else {
-        switch (key->data.key.param_set) {
-        case CKP_ML_DSA_44:
-            key->data.key.size = ML_DSA_44_SK_SIZE;
-            break;
-        case CKP_ML_DSA_65:
-            key->data.key.size = ML_DSA_65_SK_SIZE;
-            break;
-        case CKP_ML_DSA_87:
-            key->data.key.size = ML_DSA_87_SK_SIZE;
-            break;
-        default:
-            return CKR_GENERAL_ERROR;
+        if (value_attr->ulValueLen != key->data.key.size) {
+            P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
+                          "Unexpected public key length %lu (expected %lu)",
+                          value_attr->ulValueLen, key->data.key.size);
+            return CKR_KEY_INDIGESTIBLE;
         }
     }
 
@@ -2770,6 +2778,9 @@ static int cmp_public_key_values(P11PROV_OBJ *pub_key1, P11PROV_OBJ *pub_key2)
     case CKK_EC_EDWARDS:
         ret = cmp_attr(pub_key1, pub_key2, CKA_P11PROV_PUB_KEY);
         break;
+    case CKK_ML_DSA:
+        ret = cmp_attr(pub_key1, pub_key2, CKA_VALUE);
+        break;
     default:
         ret = RET_OSSL_ERR;
     }
@@ -3094,6 +3105,23 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
              * fails we have no option but to fail for now. */
             P11PROV_debug("We can't really match private keys");
             /* OTOH if group and pub point match either this is a broken key
+             * or the private key must also match */
+            cmp_type = OBJ_CMP_KEY_PUBLIC;
+        }
+        break;
+
+    case CKK_ML_DSA:
+        /* The parameter set maps to the specific key bit length that was
+         * compared already. If the bit size matches, the param set matches. */
+        if (cmp_type & OBJ_CMP_KEY_PRIVATE) {
+            /* unfortunately we can't really read private attributes
+             * and there is no comparison function int he PKCS11 API.
+             * Generally you do not have 2 identical keys stored in to two
+             * separate objects so the initial shortcircuit that matches if
+             * slotid/handle are identical will often cover this. When that
+             * fails we have no option but to fail for now. */
+            P11PROV_debug("We can't really match private keys");
+            /* OTOH if param set and pub value match either this is a broken key
              * or the private key must also match */
             cmp_type = OBJ_CMP_KEY_PUBLIC;
         }
@@ -3657,6 +3685,20 @@ static CK_RV prep_mldsa_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
     }
     findctx->numattrs = 0;
 
+    switch (findctx->param_set) {
+    case CKP_ML_DSA_44:
+        findctx->key_size = ML_DSA_44_PK_SIZE;
+        break;
+    case CKP_ML_DSA_65:
+        findctx->key_size = ML_DSA_65_PK_SIZE;
+        break;
+    case CKP_ML_DSA_87:
+        findctx->key_size = ML_DSA_87_PK_SIZE;
+        break;
+    default:
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
     switch (findctx->class) {
     case CKO_PUBLIC_KEY:
         rv = param_to_attr(ctx, params, OSSL_PKEY_PARAM_PUB_KEY,
@@ -3665,7 +3707,12 @@ static CK_RV prep_mldsa_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
             return rv;
         }
         findctx->numattrs++;
-        findctx->key_size = findctx->attrs[0].ulValueLen;
+        if (findctx->key_size != findctx->attrs[0].ulValueLen) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE,
+                          "Unexpected public key size %lu (expected %lu)",
+                          findctx->attrs[0].ulValueLen, findctx->key_size);
+            return CKR_KEY_INDIGESTIBLE;
+        }
         break;
     case CKO_PRIVATE_KEY:
         p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
@@ -3674,7 +3721,6 @@ static CK_RV prep_mldsa_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
                           OSSL_PKEY_PARAM_PRIV_KEY);
             return CKR_KEY_INDIGESTIBLE;
         }
-        findctx->key_size = p->data_size;
 
         i = 0;
         /* prefix */
