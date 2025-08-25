@@ -4840,7 +4840,8 @@ CK_RV p11prov_obj_import_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
 #if SKEY_SUPPORT
 
 static CK_RV p11prov_assign_aes_key(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
-                                   char *label, CK_FLAGS usage, bool session_key)
+                                    char *label, CK_FLAGS usage,
+                                    bool session_key)
 {
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
     CK_KEY_TYPE key_type = CKK_AES;
