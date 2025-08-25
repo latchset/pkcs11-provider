@@ -54,7 +54,7 @@ title PARA "Match private ED key against public key (commutativity)"
 $CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/edout.pub "$EDPRIURI"
 
 title PARA "Test Key generation"
-output=$("${TESTBLDDIR}"/tgenkey "ED25519" 2>&1 || true)
+output=$($CHECKER "${TESTBLDDIR}"/tgenkey "ED25519" 2>&1 || true)
 FAIL=0
 echo "$output" | grep "Performed tests: 1" || FAIL=1
 if [ $FAIL -ne 0 ]; then
@@ -114,7 +114,7 @@ if [[ -n $ED2BASEURI ]]; then
 fi
 
 title PARA "Test Ed448 Key generation"
-output=$("${TESTBLDDIR}"/tgenkey "ED448" 2>&1 || true)
+output=$($CHECKER "${TESTBLDDIR}"/tgenkey "ED448" 2>&1 || true)
 FAIL=0
 echo "$output" | grep "Performed tests: 1" || FAIL=1
 if [ $FAIL -ne 0 ]; then
