@@ -19,6 +19,7 @@ SUPPORT_RSA_KEYGEN_PUBLIC_EXPONENT=1
 SUPPORT_TLSFUZZER=1
 SUPPORT_ALLOWED_MECHANISMS=0
 SUPPORT_SYMMETRIC=1
+SUPPORT_ML_DSA=0
 
 # Ed448 requires OpenSC 0.26.0
 OPENSC_VERSION=$(opensc-tool -i | grep OpenSC | sed -e "s/OpenSC 0\.\([0-9]*\).*/\1/")
@@ -489,6 +490,43 @@ if [ "${SUPPORT_ALLOWED_MECHANISMS}" -eq 1 ]; then
     echo ""
 fi
 
+if [ "$SUPPORT_ML_DSA" -eq 1 ]; then
+    title PARA "generate ML-DSA Key pair"
+    KEYID='0012'
+    URIKEYID="%00%12"
+    TSTCRTN="mlDsa"
+
+    # not supported by the pkcs11-tool yet. Do it for now with OpenSSL CLI
+    # ptool --keypairgen --key-type="ML-DSA-44" --id="$KEYID" \
+    #       --label="${TSTCRTN}" 2>&1
+    ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+    # We need to configure pkcs11 to allow emitting PEM URIs so that the
+    # genpkey command does not fail on trying to emit the private key PEM file.
+    sed -e "s/#pkcs11-module-encode-provider-uri-to-pem/pkcs11-module-encode-provider-uri-to-pem = true/" \
+        "${OPENSSL_CONF}" > "${OPENSSL_CONF}.mldsa_pem_uri"
+    OPENSSL_CONF=${OPENSSL_CONF}.mldsa_pem_uri
+    ossl '
+    genpkey -propquery "provider=pkcs11"
+            -algorithm ML-DSA-44
+            -pkeyopt "pkcs11_uri:pkcs11:object=${TSTCRTN};id=${URIKEYID}"'
+    OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+    ca_sign $TSTCRTN "My ML-DSA Cert" $KEYID
+
+    MLDSABASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+    MLDSABASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
+    MLDSABASEURI="pkcs11:id=${URIKEYID}"
+    MLDSAPUBURI="pkcs11:type=public;id=${URIKEYID}"
+    MLDSAPRIURI="pkcs11:type=private;id=${URIKEYID}"
+    MLDSACRTURI="pkcs11:type=cert;object=${TSTCRTN}"
+
+    title LINE "ML-DSA PKCS11 URIS"
+    echo "${MLDSABASEURI}"
+    echo "${MLDSAPUBURI}"
+    echo "${MLDSAPRIURI}"
+    echo "${MLDSACRTURI}"
+    echo ""
+fi
+
 
 title PARA "Show contents of ${TOKENTYPE} token"
 echo " ----------------------------------------------------------------------------------------------------"
@@ -625,6 +663,18 @@ export RSAPSS2BASEURI="${RSAPSS2BASEURI}"
 export RSAPSS2PUBURI="${RSAPSS2PUBURI}"
 export RSAPSS2PRIURI="${RSAPSS2PRIURI}"
 export RSAPSS2CRTURI="${RSAPSS2CRTURI}"
+DBGSCRIPT
+fi
+
+if [ -n "${MLDSABASEURI}" ]; then
+    cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
+
+export MLDSABASEURIWITHPINVALUE="${MLDSABASEURIWITHPINVALUE}"
+export MLDSABASEURIWITHPINSOURCE="${MLDSABASEURIWITHPINSOURCE}"
+export MLDSABASEURI="${MLDSABASEURI}"
+export MLDSAPUBURI="${MLDSAPUBURI}"
+export MLDSAPRIURI="${MLDSAPRIURI}"
+export MLDSACRTURI="${MLDSACRTURI}"
 DBGSCRIPT
 fi
 
