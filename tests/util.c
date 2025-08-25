@@ -223,6 +223,9 @@ EVP_PKEY *util_gen_key(const char *type, const char *label)
         name = "ED25519";
     } else if (strcmp(type, "ED 448") == 0) {
         name = "ED448";
+    } else {
+        /* Fall back to the provided type */
+        name = type;
     }
 
     if (curve) {
