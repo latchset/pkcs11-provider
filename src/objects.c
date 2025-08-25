@@ -4900,6 +4900,7 @@ static CK_RV p11prov_assign_aes_key(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
     obj->slotid = slot;
     obj->class = key_class;
     obj->cached = CK_INVALID_HANDLE;
+    obj->refcnt++;
 
     rv = obj_add_to_pool(obj);
     if (rv != CKR_OK) goto done;
