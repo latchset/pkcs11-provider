@@ -270,8 +270,7 @@ static const char *p11prov_aes_get_key_id(void *keydata)
 
 static const OSSL_PARAM aes_import_params[] = {
     OSSL_PARAM_octet_string(OSSL_SKEY_PARAM_RAW_BYTES, NULL, 0),
-    OSSL_PARAM_octet_ptr(OSSL_OBJECT_PARAM_REFERENCE, NULL, 0),
-    OSSL_PARAM_END
+    OSSL_PARAM_octet_ptr(OSSL_OBJECT_PARAM_REFERENCE, NULL, 0), OSSL_PARAM_END
 };
 
 static const OSSL_PARAM *p11prov_aes_imp_settable_params(void *provctx)
