@@ -4,6 +4,7 @@
 
 source "${TESTSSRCDIR}/helpers.sh"
 
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
 # We need to configure pkcs11 to allow emitting PEM URIs so that the
 # genpkey command does not fail on trying to emit the private key PEM file.
 sed -e "s/#pkcs11-module-encode-provider-uri-to-pem/pkcs11-module-encode-provider-uri-to-pem = true/" \
@@ -31,3 +32,18 @@ pkeyutl -verify
         -inkey "pkcs11:type=public;object=Test-ML-DSA-65" -pubin
         -in ${RAND64FILE} -rawin
         -sigfile ${TMPPDIR}/ml-dsa-65.sig'
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
+title PARA "Test Key generation from C API"
+output=$($CHECKER "${TESTBLDDIR}"/tgenkey "ML-DSA-44" 2>&1 || true)
+FAIL=0
+echo "$output" | grep "Performed tests: 1" || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
+exit 0
