@@ -29,3 +29,5 @@ export TESTPORT="29000"
 # While this works with the default DB, the NSS DB does not support this
 # attribute
 export SUPPORT_ALLOWED_MECHANISMS=0
+# not yet
+export SUPPORT_ML_DSA=0
