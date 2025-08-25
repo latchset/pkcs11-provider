@@ -4859,7 +4859,7 @@ static CK_RV p11prov_assign_aes_key(P11PROV_CTX *provctx, P11PROV_OBJ *obj,
     size_t tmax = sizeof(tmpl) / sizeof(CK_ATTRIBUTE);
     size_t tsize = 3;
 
-    P11PROV_debug("Assiging secret key (%p[%zu]), token: %b, flags: %x",
+    P11PROV_debug("Assigning secret key (%p[%zu]), token: %b, flags: %x",
                   !session_key, usage);
 
     /* Make it a token (permanent) object if necessary */
