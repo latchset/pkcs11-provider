@@ -14,6 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        runs-on: [ubuntu-24.04, ubuntu-24.04-arm]
         name: [fedora, debian, centos9, centos10, ubuntu, almalinux8]
         compiler: [gcc, clang]
         token: [softokn, softhsm, kryoptic]
@@ -47,6 +48,17 @@ jobs:
             token: kryoptic
           - name: almalinux8
             token: kryoptic
+          # Test on ARM only some use cases
+          - runs-on: ubuntu-24.04-arm
+            name: debian
+          - runs-on: ubuntu-24.04-arm
+            name: centos9
+          - runs-on: ubuntu-24.04-arm
+            name: centos10
+          - runs-on: ubuntu-24.04-arm
+            name: ubuntu
+          - runs-on: ubuntu-24.04-arm
+            name: almalinux8
     container: ${{ matrix.container }}
     steps:
       - name: Install Dependencies
@@ -103,8 +115,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup
+        id: setup
         if : ( steps.skip-check.outputs.skiptest != 'true' )
         run: |
+          if [ "${{ matrix.runs-on }}" = "ubuntu-24.04-arm" ]; then
+              echo "cpu=ARM64" >> $GITHUB_OUTPUT
+          else
+              echo "cpu=X86_64" >> $GITHUB_OUTPUT
+          fi
           git config --global --add safe.directory \
               /__w/pkcs11-provider/pkcs11-provider
           git submodule update --init
@@ -254,4 +272,3 @@ jobs:
             builddir/tests/${{ matrix.token }}/p11prov-debug.log
             builddir/tests/${{ matrix.token }}/testvars
             builddir/tests/${{ matrix.token }}/openssl.cnf
-
