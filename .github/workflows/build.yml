@@ -255,3 +255,73 @@ jobs:
             builddir/tests/${{ matrix.token }}/testvars
             builddir/tests/${{ matrix.token }}/openssl.cnf
 
+  build-arm:
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        name: [fedora]
+        compiler: [gcc, clang]
+        token: [softokn, softhsm, kryoptic]
+        include:
+          - name: fedora
+            container: fedora:rawhide
+
+    container: ${{ matrix.container }}
+    steps:
+      - name: Install Dependencies
+        run: |
+            dnf -y install openssl-devel openssl
+            dnf -y install \
+              git ${{ matrix.compiler }} meson which pkgconf-pkg-config \
+              diffutils expect valgrind opensc python3-six
+            if [ "${{ matrix.token }}" = "softokn" ]; then
+              dnf -y install nss-softokn nss-tools nss-softokn-devel \
+              nss-devel
+            elif [ "${{ matrix.token }}" = "softhsm" ]; then
+              dnf -y install softhsm p11-kit-devel
+            elif [ "${{ matrix.token }}" = "kryoptic" ]; then
+              dnf -y install kryoptic
+            fi
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup
+        run: |
+          git config --global --add safe.directory \
+              /__w/pkcs11-provider/pkcs11-provider
+          git submodule update --init
+          CC=${{ matrix.compiler }} meson setup builddir
+
+      - name: Build and Test
+        shell: bash
+        run: |
+          meson compile -C builddir
+          meson test --num-processes 1 -C builddir --suite ${{ matrix.token }}
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Test logs (ARM64) ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
+          path: |
+            builddir/meson-logs/
+            builddir/tests/${{ matrix.token }}/p11prov-debug.log
+            builddir/tests/${{ matrix.token }}/testvars
+            builddir/tests/${{ matrix.token }}/openssl.cnf
+
+      - name: Run tests with valgrind
+        if : ( matrix.compiler == 'gcc' )
+        shell: bash
+        run: |
+          meson test --num-processes 1 -C builddir --setup=valgrind --suite ${{ matrix.token }}
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Test valgrind logs (ARM64) ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
+          path: |
+            builddir/meson-logs/
+            builddir/tests/${{ matrix.token }}/p11prov-debug.log
+            builddir/tests/${{ matrix.token }}/testvars
+            builddir/tests/${{ matrix.token }}/openssl.cnf
