@@ -530,28 +530,6 @@ static void p11prov_common_gen_cleanup(void *genctx)
     OPENSSL_clear_free(genctx, sizeof(struct key_generator));
 }
 
-void *p11prov_common_load(const void *reference, size_t reference_sz,
-                          CK_KEY_TYPE key_type)
-{
-    P11PROV_OBJ *key;
-
-    /* the contents of the reference is the address to our object */
-    key = p11prov_obj_from_reference(reference, reference_sz);
-    if (key) {
-        CK_KEY_TYPE type = CK_UNAVAILABLE_INFORMATION;
-
-        type = p11prov_obj_get_key_type(key);
-        if (type == key_type) {
-            /* add ref count */
-            key = p11prov_obj_ref_no_cache(key);
-        } else {
-            key = NULL;
-        }
-    }
-
-    return key;
-}
-
 static int p11prov_common_match(const void *keydata1, const void *keydata2,
                                 CK_KEY_TYPE type, int selection)
 {
