@@ -27,8 +27,6 @@ static void *p11prov_aes_import(void *provctx, int selection,
 {
     P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
     const OSSL_PARAM *p;
-    unsigned char *key;
-    size_t keylen;
 
     P11PROV_debug("aes import");
 
@@ -43,19 +41,34 @@ static void *p11prov_aes_import(void *provctx, int selection,
 
     p = OSSL_PARAM_locate_const(params, OSSL_SKEY_PARAM_RAW_BYTES);
     if (p) {
+        unsigned char *key = NULL;
+        size_t keylen = 0;
         int ret =
             OSSL_PARAM_get_octet_string_ptr(p, (const void **)&key, &keylen);
+
         if (ret != RET_OSSL_OK) {
             P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Invalid data");
             return NULL;
         }
-    } else {
-        /* Not a digestible secret key */
-        P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Raw Bytes param unavailable");
-        return NULL;
+        return p11prov_obj_import_secret_key(ctx, CKK_AES, key, keylen);
     }
 
-    return p11prov_obj_import_secret_key(ctx, CKK_AES, key, keylen);
+    p = OSSL_PARAM_locate_const(params, OSSL_OBJECT_PARAM_REFERENCE);
+    if (p) {
+        const void *reference = NULL;
+        size_t reference_sz = 0;
+        int ret = OSSL_PARAM_get_octet_string_ptr(p, &reference, &reference_sz);
+
+        if (ret != RET_OSSL_OK) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Invalid data");
+            return NULL;
+        }
+        return p11prov_common_load(reference, reference_sz, CKK_AES);
+    }
+
+    /* Not a digestible secret key */
+    P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Raw Bytes param unavailable");
+    return NULL;
 }
 
 static int p11prov_aes_export(void *keydata, int selection,
@@ -256,7 +269,8 @@ static const char *p11prov_aes_get_key_id(void *keydata)
 }
 
 static const OSSL_PARAM aes_import_params[] = {
-    OSSL_PARAM_octet_string(OSSL_SKEY_PARAM_RAW_BYTES, NULL, 0), OSSL_PARAM_END
+    OSSL_PARAM_octet_string(OSSL_SKEY_PARAM_RAW_BYTES, NULL, 0),
+    OSSL_PARAM_octet_ptr(OSSL_OBJECT_PARAM_REFERENCE, NULL, 0), OSSL_PARAM_END
 };
 
 static const OSSL_PARAM *p11prov_aes_imp_settable_params(void *provctx)
