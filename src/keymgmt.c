@@ -699,7 +699,7 @@ static void p11prov_rsa_free(void *key)
 static void *p11prov_rsa_load(const void *reference, size_t reference_sz)
 {
     P11PROV_debug("rsa load %p, %ld", reference, reference_sz);
-    return p11prov_common_load(reference, reference_sz, CKK_RSA);
+    return p11prov_obj_from_typed_reference(reference, reference_sz, CKK_RSA);
 }
 
 static int p11prov_rsa_has(const void *keydata, int selection)
@@ -1353,7 +1353,7 @@ static void p11prov_ec_free(void *key)
 static void *p11prov_ec_load(const void *reference, size_t reference_sz)
 {
     P11PROV_debug("ec load %p, %ld", reference, reference_sz);
-    return p11prov_common_load(reference, reference_sz, CKK_EC);
+    return p11prov_obj_from_typed_reference(reference, reference_sz, CKK_EC);
 }
 
 static int p11prov_ec_has(const void *keydata, int selection)
@@ -1893,7 +1893,8 @@ static const OSSL_PARAM *p11prov_ed_gen_settable_params(void *genctx,
 static void *p11prov_ed_load(const void *reference, size_t reference_sz)
 {
     P11PROV_debug("ed load %p, %ld", reference, reference_sz);
-    return p11prov_common_load(reference, reference_sz, CKK_EC_EDWARDS);
+    return p11prov_obj_from_typed_reference(reference, reference_sz,
+                                            CKK_EC_EDWARDS);
 }
 
 static int p11prov_ed_match(const void *keydata1, const void *keydata2,
@@ -2185,7 +2186,8 @@ static void p11prov_mldsa_free(void *key)
 static void *p11prov_mldsa_load(const void *reference, size_t reference_sz)
 {
     P11PROV_debug("mldsa load %p, %ld", reference, reference_sz);
-    return p11prov_common_load(reference, reference_sz, CKK_ML_DSA);
+    return p11prov_obj_from_typed_reference(reference, reference_sz,
+                                            CKK_ML_DSA);
 }
 
 static int p11prov_mldsa_has(const void *keydata, int selection)
