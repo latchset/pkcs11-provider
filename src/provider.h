@@ -273,8 +273,6 @@ bool p11prov_ctx_no_session_callbacks(P11PROV_CTX *ctx);
 
 CK_INFO p11prov_ctx_get_ck_info(P11PROV_CTX *ctx);
 
-void *p11prov_common_load(const void *reference, size_t reference_sz,
-                          CK_KEY_TYPE key_type);
 #include "debug.h"
 
 /* Errors */
