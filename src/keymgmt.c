@@ -530,8 +530,8 @@ static void p11prov_common_gen_cleanup(void *genctx)
     OPENSSL_clear_free(genctx, sizeof(struct key_generator));
 }
 
-static void *p11prov_common_load(const void *reference, size_t reference_sz,
-                                 CK_KEY_TYPE key_type)
+void *p11prov_common_load(const void *reference, size_t reference_sz,
+                          CK_KEY_TYPE key_type)
 {
     P11PROV_OBJ *key;
 

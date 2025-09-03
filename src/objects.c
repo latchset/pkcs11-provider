@@ -578,9 +578,7 @@ CK_KEY_TYPE p11prov_obj_get_key_type(P11PROV_OBJ *obj)
         case CKO_PRIVATE_KEY:
         case CKO_PUBLIC_KEY:
         case CKO_DOMAIN_PARAMETERS:
-#ifdef OSSL_OBJECT_SKEY
         case CKO_SECRET_KEY:
-#endif
             return obj->data.key.type;
         }
     }
@@ -661,6 +659,7 @@ CK_ULONG p11prov_obj_get_key_bit_size(P11PROV_OBJ *obj)
         case CKO_PRIVATE_KEY:
         case CKO_PUBLIC_KEY:
         case CKO_DOMAIN_PARAMETERS:
+        case CKO_SECRET_KEY:
             return obj->data.key.bit_size;
         }
     }
@@ -674,6 +673,7 @@ CK_ULONG p11prov_obj_get_key_size(P11PROV_OBJ *obj)
         case CKO_PRIVATE_KEY:
         case CKO_PUBLIC_KEY:
         case CKO_DOMAIN_PARAMETERS:
+        case CKO_SECRET_KEY:
             return obj->data.key.size;
         }
     }
@@ -1544,7 +1544,7 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
 
     P11PROV_debug("Refresh object %p", obj);
 
-    if (obj->class == CKO_PRIVATE_KEY) {
+    if (obj->class == CKO_PRIVATE_KEY || obj->class == CKO_SECRET_KEY) {
         login = true;
     }
     login_behavior = p11prov_ctx_login_behavior(obj->ctx);
