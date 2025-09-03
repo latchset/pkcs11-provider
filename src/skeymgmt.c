@@ -63,7 +63,8 @@ static void *p11prov_aes_import(void *provctx, int selection,
             P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Invalid data");
             return NULL;
         }
-        return p11prov_common_load(reference, reference_sz, CKK_AES);
+        return p11prov_obj_from_typed_reference(reference, reference_sz,
+                                                CKK_AES);
     }
 
     /* Not a digestible secret key */

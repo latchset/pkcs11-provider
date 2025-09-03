@@ -699,7 +699,7 @@ void p11prov_obj_to_store_reference(P11PROV_OBJ *obj, void **reference,
     /* The store context keeps reference to this object so we will not free
      * it while the store context is alive. When the applications wants to
      * reference the object, it will get its own reference through
-     * p11prov_common_load(). After closing the store, the user should
+     * p11prov_obj_from_typed_reference(). After closing the store, the user should
      * not be able to use this reference anymore. */
     *reference = obj;
     *reference_sz = sizeof(P11PROV_OBJ);
@@ -752,8 +752,9 @@ const char *p11prov_obj_get_public_uri(P11PROV_OBJ *obj)
     return obj->public_uri;
 }
 
-void *p11prov_common_load(const void *reference, size_t reference_sz,
-                          CK_KEY_TYPE key_type)
+void *p11prov_obj_from_typed_reference(const void *reference,
+                                       size_t reference_sz,
+                                       CK_KEY_TYPE key_type)
 {
     P11PROV_OBJ *key;
 
