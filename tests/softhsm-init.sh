@@ -72,3 +72,5 @@ export SUPPORT_ALLOWED_MECHANISMS=1
 
 # softhsm loops into itself badly on symmetric operation
 export SUPPORT_SYMMETRIC=0
+
+export SUPPORT_ML_DSA=0
