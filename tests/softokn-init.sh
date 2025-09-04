@@ -32,3 +32,5 @@ export TESTPORT="30000"
 # Edward curves are not supported in NSS yet
 export SUPPORT_ED25519=0
 export SUPPORT_ED448=0
+
+export SUPPORT_ML_DSA=0
