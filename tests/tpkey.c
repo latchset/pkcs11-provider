@@ -277,6 +277,7 @@ static void check_peer_ec_key_copy(void)
 int main(int argc, char *argv[])
 {
     const char *driver = NULL;
+    const char *support_ml_dsa = NULL;
     const unsigned char *data = (const unsigned char *)"Sign Me!";
     unsigned char *sig;
     size_t siglen;
@@ -308,6 +309,7 @@ int main(int argc, char *argv[])
     } else {
         PRINTERR("Driver %s\n", driver);
     }
+    support_ml_dsa = getenv("SUPPORT_ML_DSA");
 
     for (i = 0; i < (sizeof(tests) / sizeof(tests[0])); i++) {
         /* Softokn does not handle Edwards keys yet */
@@ -318,7 +320,8 @@ int main(int argc, char *argv[])
 
         /* ML-DSA is handled only in kryoptic so far */
         if (strncmp(tests[i].key_type, "ML-DSA", 6) == 0
-            && strcmp(driver, "kryoptic") != 0) {
+            && strcmp(driver, "kryoptic") != 0 && support_ml_dsa != NULL
+            && strcmp(support_ml_dsa, "1")) {
             continue;
         }
 
