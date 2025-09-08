@@ -318,11 +318,15 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        /* ML-DSA is handled only in kryoptic so far */
-        if (strncmp(tests[i].key_type, "ML-DSA", 6) == 0
-            && strcmp(driver, "kryoptic") != 0 && support_ml_dsa != NULL
-            && strcmp(support_ml_dsa, "1")) {
-            continue;
+        if (strncmp(tests[i].key_type, "ML-DSA", 6) == 0) {
+            /* ML-DSA is handled only in kryoptic so far */
+            if (strcmp(driver, "kryoptic") != 0) {
+                continue;
+            }
+            /* ML-DSA tests can be disabled on demand */
+            if (support_ml_dsa != NULL && strcmp(support_ml_dsa, "0") == 0) {
+                continue;
+            }
         }
 
         PRINTERR("Testing key type %s\n", tests[i].key_type);
