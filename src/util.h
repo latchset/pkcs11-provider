@@ -106,9 +106,19 @@ CK_RV p11prov_mutex_destroy(P11PROV_CTX *provctx, pthread_mutex_t *lock,
 
 void p11prov_force_rwlock_reinit(pthread_rwlock_t *lock);
 
+static inline CK_ULONG constant_smaller_mask(CK_ULONG a, CK_ULONG b)
+{
+    return 0 - ((a ^ ((a ^ b) | ((a - b) ^ b))) >> (sizeof(CK_ULONG) * 8 - 1));
+}
+
 static inline CK_ULONG constant_equal(CK_ULONG a, CK_ULONG b)
 {
     return ((a ^ b) - 1U) >> (sizeof(CK_ULONG) * 8 - 1);
+}
+
+static inline CK_ULONG constant_equal_mask(CK_ULONG a, CK_ULONG b)
+{
+    return 0 - constant_equal(a, b);
 }
 
 static inline int constant_select_int(CK_ULONG cond, int a, int b)
@@ -118,6 +128,14 @@ static inline int constant_select_int(CK_ULONG cond, int a, int b)
     volatile unsigned int mask = -(unsigned int)cond;
 
     return (int)((A & mask) | (B & ~mask));
+}
+
+static inline uint8_t constant_select_byte_mask(uint8_t a, uint8_t b,
+                                                uint8_t mask)
+{
+    volatile uint8_t A = a & mask;
+    volatile uint8_t B = b & ~mask;
+    return A | B;
 }
 
 static inline void constant_select_buf(CK_ULONG cond, CK_ULONG size,
