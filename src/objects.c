@@ -542,6 +542,29 @@ CK_ATTRIBUTE *p11prov_obj_get_attr(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type)
     return NULL;
 }
 
+CK_RV p11prov_obj_add_attr(P11PROV_OBJ *obj, CK_ATTRIBUTE *attr)
+{
+    CK_ATTRIBUTE *new_attrs;
+
+    if (obj == NULL || attr == NULL) {
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    new_attrs =
+        OPENSSL_realloc(obj->attrs, sizeof(CK_ATTRIBUTE) * (obj->numattrs + 1));
+    if (new_attrs == NULL) {
+        P11PROV_raise(obj->ctx, CKR_HOST_MEMORY,
+                      "Failed to reallocate attributes for new attribute");
+        return CKR_HOST_MEMORY;
+    }
+    obj->attrs = new_attrs;
+
+    obj->attrs[obj->numattrs] = *attr;
+    obj->numattrs++;
+
+    return CKR_OK;
+}
+
 bool p11prov_obj_get_bool(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type, bool def)
 {
     CK_ATTRIBUTE *attr = NULL;
