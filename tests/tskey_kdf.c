@@ -14,7 +14,7 @@
 #include "util.h"
 
 #if defined(OSSL_FUNC_KDF_DERIVE_SKEY)
-static EVP_SKEY *import_skey(const char *key_type, const unsigned char *key,
+static EVP_SKEY *import_skey(EVP_SKEYMGMT *skeymgmt, const unsigned char *key,
                              size_t keylen)
 {
     EVP_SKEY *skey = NULL;
@@ -24,10 +24,10 @@ static EVP_SKEY *import_skey(const char *key_type, const unsigned char *key,
                                                   (void *)key, keylen);
     params[1] = OSSL_PARAM_construct_end();
 
-    skey = EVP_SKEY_import(NULL, key_type, NULL,
-                           OSSL_SKEYMGMT_SELECT_SECRET_KEY, params);
+    skey = EVP_SKEY_import_SKEYMGMT(NULL, skeymgmt,
+                                    OSSL_SKEYMGMT_SELECT_SECRET_KEY, params);
     if (!skey) {
-        fprintf(stderr, "EVP_SKEY_import failed!\n");
+        fprintf(stderr, "EVP_SKEY_import_SKEYMGMT failed!\n");
         ossl_err_print();
         exit(EXIT_FAILURE);
     }
@@ -76,7 +76,7 @@ static const unsigned char ikm_sha256_2[] = {
     0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15
 };
 static const unsigned char info_sha256_2[] = { 0xb0, 0xb1, 0xb2, 0xb3, 0xb4,
-                                               0xb5, 0xb6, 0xb7, 0xb8, 0xb9 };
+                                               0xb5, 0xb6, 0x7,  0xb8, 0xb9 };
 static const unsigned char prk_sha256_2[] = {
     0xda, 0x8c, 0x8a, 0x71, 0x2b, 0x84, 0x29, 0x45, 0xa6, 0x04, 0x2a,
     0x35, 0x62, 0x41, 0xa8, 0xc5, 0x86, 0x18, 0x7a, 0x08, 0x42, 0x03,
@@ -180,11 +180,20 @@ static void test_hkdf(void)
     size_t i;
     EVP_SKEY *ikm_skey;
     EVP_SKEY *out_skey;
+    EVP_SKEYMGMT *skeymgmt;
 
-    kdf = EVP_KDF_fetch(NULL, "HKDF", NULL);
+    kdf = EVP_KDF_fetch(NULL, "HKDF", "provider=pkcs11");
     if (!kdf) {
         fprintf(stderr, "EVP_KDF_fetch for HKDF failed!\n");
         ossl_err_print();
+        exit(EXIT_FAILURE);
+    }
+
+    skeymgmt = EVP_SKEYMGMT_fetch(NULL, "GENERIC-SECRET", "provider=pkcs11");
+    if (!skeymgmt) {
+        fprintf(stderr, "EVP_SKEYMGMT_fetch for GENERIC-SECRET failed!\n");
+        ossl_err_print();
+        EVP_KDF_free(kdf);
         exit(EXIT_FAILURE);
     }
 
@@ -199,8 +208,7 @@ static void test_hkdf(void)
             exit(EXIT_FAILURE);
         }
 
-        ikm_skey =
-            import_skey("GENERIC-SECRET", tests[i].ikm, tests[i].ikm_len);
+        ikm_skey = import_skey(skeymgmt, tests[i].ikm, tests[i].ikm_len);
         if (EVP_KDF_CTX_set_SKEY(kctx, ikm_skey, NULL) <= 0) {
             printf("FAIL\n");
             fprintf(stderr, "EVP_KDF_CTX_set_SKEY failed for test '%s'!\n",
@@ -227,7 +235,7 @@ static void test_hkdf(void)
         }
         *p = OSSL_PARAM_construct_end();
 
-        out_skey = EVP_KDF_derive_SKEY(kctx, NULL, "GENERIC-SECRET", NULL,
+        out_skey = EVP_KDF_derive_SKEY(kctx, skeymgmt, "GENERIC-SECRET", NULL,
                                        tests[i].out_len, params);
         if (out_skey == NULL) {
             printf("FAIL\n");
@@ -273,6 +281,7 @@ static void test_hkdf(void)
         printf("ok\n");
     }
 
+    EVP_SKEYMGMT_free(skeymgmt);
     EVP_KDF_free(kdf);
     printf("All HKDF tests passed.\n");
 }
