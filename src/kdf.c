@@ -41,6 +41,10 @@ DISPATCH_HKDF_FN(set_ctx_params);
 DISPATCH_HKDF_FN(settable_ctx_params);
 DISPATCH_HKDF_FN(get_ctx_params);
 DISPATCH_HKDF_FN(gettable_ctx_params);
+#if defined(OSSL_FUNC_KDF_DERIVE_SKEY)
+DISPATCH_HKDF_FN(set_skey);
+DISPATCH_HKDF_FN(derive_skey);
+#endif
 
 static void *p11prov_hkdf_newctx(void *provctx)
 {
@@ -160,19 +164,35 @@ static int inner_extract_key_value(P11PROV_CTX *ctx, P11PROV_SESSION *session,
 
 static int inner_derive_key(P11PROV_CTX *ctx, P11PROV_OBJ *key,
                             P11PROV_SESSION **session, CK_MECHANISM *mechanism,
-                            size_t keylen, CK_OBJECT_HANDLE *dkey_handle)
+                            CK_KEY_TYPE key_type, size_t keylen,
+                            CK_OBJECT_HANDLE *dkey_handle)
 {
-    CK_OBJECT_CLASS class = CKO_DATA;
+    CK_OBJECT_CLASS class = CK_UNAVAILABLE_INFORMATION;
     CK_BBOOL val_false = CK_FALSE;
     CK_ULONG key_size = keylen;
-    CK_ATTRIBUTE key_template[3] = {
+    CK_ATTRIBUTE key_template[4] = {
         { CKA_CLASS, &class, sizeof(class) },
         { CKA_TOKEN, &val_false, sizeof(val_false) },
         { CKA_VALUE_LEN, &key_size, sizeof(key_size) },
+        { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
     };
+    CK_ULONG key_tmpl_len = 0;
     CK_OBJECT_HANDLE pkey_handle;
     CK_SLOT_ID slotid;
     CK_RV ret;
+
+    if (mechanism->mechanism == CKM_HKDF_DERIVE) {
+        class = CKO_SECRET_KEY;
+        key_tmpl_len = 4;
+    } else if (mechanism->mechanism == CKM_HKDF_DATA) {
+        class = CKO_DATA;
+        key_tmpl_len = 3;
+    } else {
+        ret = CKR_ARGUMENTS_BAD;
+        P11PROV_raise(ctx, ret, "Invalid mechanism type: %lu",
+                      mechanism->mechanism);
+        return ret;
+    }
 
     pkey_handle = p11prov_obj_get_handle(key);
     if (pkey_handle == CK_INVALID_HANDLE) {
@@ -189,46 +209,66 @@ static int inner_derive_key(P11PROV_CTX *ctx, P11PROV_OBJ *key,
     }
 
     return p11prov_derive_key(ctx, slotid, mechanism, pkey_handle, key_template,
-                              3, session, dkey_handle);
+                              key_tmpl_len, session, dkey_handle);
+}
+
+static int p11prov_hkdf_format_params(P11PROV_KDF_CTX *hkdfctx,
+                                      CK_HKDF_PARAMS *params)
+{
+    if (hkdfctx->mode == EVP_KDF_HKDF_MODE_EXTRACT_AND_EXPAND
+        || hkdfctx->mode == EVP_KDF_HKDF_MODE_EXTRACT_ONLY) {
+        params->bExtract = CK_TRUE;
+    } else {
+        params->bExtract = CK_FALSE;
+    }
+    if (hkdfctx->mode == EVP_KDF_HKDF_MODE_EXTRACT_AND_EXPAND
+        || hkdfctx->mode == EVP_KDF_HKDF_MODE_EXPAND_ONLY) {
+        params->bExpand = CK_TRUE;
+    } else {
+        params->bExpand = CK_FALSE;
+    }
+    if (hkdfctx->hash_mech) {
+        params->prfHashMechanism = hkdfctx->hash_mech;
+    } else {
+        return CKR_ARGUMENTS_BAD;
+    }
+    if (hkdfctx->salt_type == 0) {
+        params->ulSaltType = CKF_HKDF_SALT_NULL;
+    } else if (hkdfctx->salt_type == CKF_HKDF_SALT_DATA) {
+        params->ulSaltType = CKF_HKDF_SALT_DATA;
+        params->pSalt = hkdfctx->salt;
+        params->ulSaltLen = hkdfctx->saltlen;
+    }
+    if (hkdfctx->info) {
+        params->pInfo = hkdfctx->info;
+        params->ulInfoLen = hkdfctx->infolen;
+    }
+
+    return CKR_OK;
 }
 
 static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
                                const OSSL_PARAM params[])
 {
     P11PROV_KDF_CTX *hkdfctx = (P11PROV_KDF_CTX *)ctx;
-    CK_HKDF_PARAMS ck_params = {
-        .bExtract = (hkdfctx->mode == EVP_KDF_HKDF_MODE_EXTRACT_AND_EXPAND
-                     || hkdfctx->mode == EVP_KDF_HKDF_MODE_EXTRACT_ONLY)
-                        ? CK_TRUE
-                        : CK_FALSE,
-        .bExpand = (hkdfctx->mode == EVP_KDF_HKDF_MODE_EXTRACT_AND_EXPAND
-                    || hkdfctx->mode == EVP_KDF_HKDF_MODE_EXPAND_ONLY)
-                       ? CK_TRUE
-                       : CK_FALSE,
-        .prfHashMechanism = hkdfctx->hash_mech,
-        .ulSaltType = hkdfctx->salt_type,
-        .pSalt = hkdfctx->salt,
-        .ulSaltLen = hkdfctx->saltlen,
-        .hSaltKey = CK_INVALID_HANDLE,
-        .pInfo = hkdfctx->info,
-        .ulInfoLen = hkdfctx->infolen,
-    };
+    CK_HKDF_PARAMS ck_params = { 0 };
     CK_MECHANISM mechanism = {
         .mechanism = hkdfctx->mechtype,
         .pParameter = &ck_params,
         .ulParameterLen = sizeof(ck_params),
     };
-
     CK_OBJECT_HANDLE dkey_handle;
     CK_RV ret;
+    int err;
 
     P11PROV_debug("hkdf derive (ctx:%p, key:%p[%zu], params:%p)", ctx, key,
                   keylen, params);
 
-    ret = p11prov_hkdf_set_ctx_params(ctx, params);
-    if (ret != RET_OSSL_OK) {
+    err = p11prov_hkdf_set_ctx_params(ctx, params);
+    if (err != RET_OSSL_OK) {
+        ret = CKR_ARGUMENTS_BAD;
         P11PROV_raise(hkdfctx->provctx, ret, "Invalid params");
-        return RET_OSSL_ERR;
+        return err;
     }
 
     if (hkdfctx->key == NULL || key == NULL) {
@@ -241,13 +281,15 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
         return RET_OSSL_ERR;
     }
 
-    /* no salt ? */
-    if (hkdfctx->salt_type == 0) {
-        ck_params.ulSaltType = CKF_HKDF_SALT_NULL;
+    ret = p11prov_hkdf_format_params(hkdfctx, &ck_params);
+    if (ret != CKR_OK) {
+        P11PROV_raise(hkdfctx->provctx, ret, "Invalid params");
+        return RET_OSSL_ERR;
     }
 
     ret = inner_derive_key(hkdfctx->provctx, hkdfctx->key, &hkdfctx->session,
-                           &mechanism, keylen, &dkey_handle);
+                           &mechanism, CK_UNAVAILABLE_INFORMATION, keylen,
+                           &dkey_handle);
     if (ret != CKR_OK) {
         return RET_OSSL_ERR;
     }
@@ -260,6 +302,96 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
 
     return RET_OSSL_OK;
 }
+
+#if defined(OSSL_FUNC_KDF_DERIVE_SKEY)
+static int p11prov_hkdf_set_skey(void *ctx, void *skeydata,
+                                 const char *paramname)
+{
+    P11PROV_KDF_CTX *hkdfctx = (P11PROV_KDF_CTX *)ctx;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)skeydata;
+
+    if (strcmp(paramname, OSSL_KDF_PARAM_KEY)) {
+        /* ignore anything but a "key" param */
+        return RET_OSSL_OK;
+    }
+
+    p11prov_obj_free(hkdfctx->key);
+    hkdfctx->key = p11prov_obj_ref(key);
+
+    return RET_OSSL_OK;
+}
+
+static void *p11prov_hkdf_derive_skey(void *ctx, const char *key_type,
+                                      void *provctx,
+                                      OSSL_FUNC_skeymgmt_import_fn *import,
+                                      size_t keylen, const OSSL_PARAM params[])
+{
+    P11PROV_KDF_CTX *hkdfctx = (P11PROV_KDF_CTX *)ctx;
+    CK_HKDF_PARAMS ck_params = { 0 };
+    CK_MECHANISM mechanism = {
+        .mechanism = CKM_HKDF_DERIVE,
+        .pParameter = &ck_params,
+        .ulParameterLen = sizeof(ck_params),
+    };
+    CK_KEY_TYPE keytype = CKK_GENERIC_SECRET;
+    CK_OBJECT_HANDLE dkey_handle;
+    P11PROV_OBJ *dkey_object = NULL;
+    CK_RV ret;
+    int err;
+
+    P11PROV_debug("hkdf derive (ctx:%p, key_type:%s, params:%p)", ctx, key_type,
+                  params);
+
+    err = p11prov_hkdf_set_ctx_params(ctx, params);
+    if (err != RET_OSSL_OK) {
+        ret = CKR_ARGUMENTS_BAD;
+        P11PROV_raise(hkdfctx->provctx, ret, "Invalid params");
+        return NULL;
+    }
+
+    if (hkdfctx->key == NULL) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_MISSING_KEY);
+        return NULL;
+    }
+
+    if (keylen == 0) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_KEY_LENGTH);
+        return NULL;
+    }
+
+    ret = p11prov_hkdf_format_params(hkdfctx, &ck_params);
+    if (ret != CKR_OK) {
+        P11PROV_raise(hkdfctx->provctx, ret, "Invalid params");
+        return RET_OSSL_ERR;
+    }
+
+    if (key_type) {
+        if (strcmp(key_type, "AES") == 0) {
+            keytype = CKK_AES;
+        } else if (strcmp(key_type, "GENERIC-SECRET") == 0) {
+            keytype = CKK_GENERIC_SECRET;
+        } else {
+            ret = CKR_ARGUMENTS_BAD;
+            P11PROV_raise(hkdfctx->provctx, ret, "Unknown key type");
+            return NULL;
+        }
+    }
+
+    ret = inner_derive_key(hkdfctx->provctx, hkdfctx->key, &hkdfctx->session,
+                           &mechanism, keytype, keylen, &dkey_handle);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
+
+    ret = p11prov_obj_from_handle(hkdfctx->provctx, hkdfctx->session,
+                                  dkey_handle, &dkey_object);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
+
+    return dkey_object;
+}
+#endif
 
 /* ref: RFC 8446 - 7.1 Key Schedule
  * Citation:
@@ -349,7 +481,8 @@ static CK_RV p11prov_tls13_expand_label(P11PROV_KDF_CTX *hkdfctx,
     }
 
     ret = inner_derive_key(hkdfctx->provctx, keyobj, &hkdfctx->session,
-                           &mechanism, keylen, dkey_handle);
+                           &mechanism, CK_UNAVAILABLE_INFORMATION, keylen,
+                           dkey_handle);
 
     OPENSSL_cleanse(params.pInfo, params.ulInfoLen);
     return ret;
@@ -440,7 +573,8 @@ static CK_RV p11prov_tls13_derive_secret(P11PROV_KDF_CTX *hkdfctx,
     }
 
     ret = inner_derive_key(hkdfctx->provctx, keyobj, &hkdfctx->session,
-                           &mechanism, keylen, dkey_handle);
+                           &mechanism, CK_UNAVAILABLE_INFORMATION, keylen,
+                           dkey_handle);
 
     p11prov_obj_free(zerokey);
     return ret;
@@ -754,6 +888,10 @@ const OSSL_DISPATCH p11prov_hkdf_kdf_functions[] = {
     DISPATCH_HKDF_ELEM(hkdf, SETTABLE_CTX_PARAMS, settable_ctx_params),
     DISPATCH_HKDF_ELEM(hkdf, GET_CTX_PARAMS, get_ctx_params),
     DISPATCH_HKDF_ELEM(hkdf, GETTABLE_CTX_PARAMS, gettable_ctx_params),
+#if defined(OSSL_FUNC_KDF_DERIVE_SKEY)
+    DISPATCH_HKDF_ELEM(hkdf, SET_SKEY, set_skey),
+    DISPATCH_HKDF_ELEM(hkdf, DERIVE_SKEY, derive_skey),
+#endif
     { 0, NULL },
 };
 
