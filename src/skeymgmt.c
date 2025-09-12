@@ -371,6 +371,86 @@ static int p11prov_generic_secret_export(void *keydata, int selection,
                                          OSSL_CALLBACK *param_cb, void *cbarg)
 {
     P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
+    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
+    CK_ATTRIBUTE *extractable_attr;
+    CK_ATTRIBUTE *sensitive_attr;
+    CK_BBOOL extractable = CK_FALSE;
+    CK_BBOOL sensitive = CK_TRUE;
+
+    extractable_attr = p11prov_obj_get_attr(key, CKA_EXTRACTABLE);
+    if (extractable_attr && extractable_attr->ulValueLen == sizeof(CK_BBOOL)) {
+        extractable = *(CK_BBOOL *)extractable_attr->pValue;
+    }
+
+    sensitive_attr = p11prov_obj_get_attr(key, CKA_SENSITIVE);
+    if (sensitive_attr && sensitive_attr->ulValueLen == sizeof(CK_BBOOL)) {
+        sensitive = *(CK_BBOOL *)sensitive_attr->pValue;
+    }
+
+    if (extractable == CK_TRUE && sensitive == CK_FALSE) {
+        P11PROV_SESSION *session = NULL;
+        CK_SLOT_ID slotid = p11prov_obj_get_slotid(key);
+        CK_ATTRIBUTE value_attr = { CKA_VALUE, NULL_PTR, 0 };
+        OSSL_PARAM params[2];
+        CK_RV rv;
+        int ret = RET_OSSL_ERR;
+        CK_ULONG key_size;
+
+        rv = p11prov_get_session(ctx, &slotid, NULL, NULL,
+                                 CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
+                                 false, &session);
+        if (rv != CKR_OK) {
+            P11PROV_raise(ctx, rv, "Failed to get session for export");
+            return RET_OSSL_ERR;
+        }
+
+        key_size = p11prov_obj_get_key_size(key);
+        if (key_size > 0 && key_size != CK_UNAVAILABLE_INFORMATION) {
+            value_attr.ulValueLen = key_size;
+        } else {
+            /* Get length of CKA_VALUE */
+            rv = p11prov_GetAttributeValue(ctx, p11prov_session_handle(session),
+                                           p11prov_obj_get_handle(key),
+                                           &value_attr, 1);
+            if (rv != CKR_OK
+                || value_attr.ulValueLen == CK_UNAVAILABLE_INFORMATION) {
+                P11PROV_raise(ctx, rv, "Failed to get key value length");
+                goto done;
+            }
+        }
+
+        value_attr.pValue = OPENSSL_malloc(value_attr.ulValueLen);
+        if (value_attr.pValue == NULL && value_attr.ulValueLen > 0) {
+            P11PROV_raise(ctx, CKR_HOST_MEMORY,
+                          "Failed to allocate for key value");
+            goto done;
+        }
+
+        /* Get CKA_VALUE */
+        rv = p11prov_GetAttributeValue(ctx, p11prov_session_handle(session),
+                                       p11prov_obj_get_handle(key), &value_attr,
+                                       1);
+        if (rv != CKR_OK) {
+            P11PROV_raise(ctx, rv, "Failed to get key value");
+            OPENSSL_clear_free(value_attr.pValue, value_attr.ulValueLen);
+            goto done;
+        }
+
+        params[0] = OSSL_PARAM_construct_octet_string(OSSL_SKEY_PARAM_RAW_BYTES,
+                                                      value_attr.pValue,
+                                                      value_attr.ulValueLen);
+        params[1] = OSSL_PARAM_construct_end();
+
+        if (param_cb(params, cbarg)) {
+            ret = RET_OSSL_OK;
+        }
+
+        OPENSSL_clear_free(value_attr.pValue, value_attr.ulValueLen);
+
+    done:
+        p11prov_return_session(session);
+        return ret;
+    }
 
     P11PROV_raise(p11prov_obj_get_prov_ctx(key), CKR_KEY_FUNCTION_NOT_PERMITTED,
                   "Not exportable");

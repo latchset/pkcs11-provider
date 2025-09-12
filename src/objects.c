@@ -1173,12 +1173,13 @@ static CK_RV fetch_certificate(P11PROV_CTX *ctx, P11PROV_SESSION *session,
 static CK_RV fetch_secret_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                               CK_OBJECT_HANDLE object, P11PROV_OBJ *key)
 {
-    struct fetch_attrs attrs[BASE_KEY_ATTRS_NUM];
+    struct fetch_attrs attrs[BASE_KEY_ATTRS_NUM + 2];
     int num;
     CK_RV ret;
     CK_ATTRIBUTE *size = NULL;
 
-    key->attrs = OPENSSL_zalloc(BASE_KEY_ATTRS_NUM * sizeof(CK_ATTRIBUTE));
+    key->attrs =
+        OPENSSL_zalloc((BASE_KEY_ATTRS_NUM + 2) * sizeof(CK_ATTRIBUTE));
     if (key->attrs == NULL) {
         return CKR_HOST_MEMORY;
     }
@@ -1187,6 +1188,8 @@ static CK_RV fetch_secret_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
     FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
     FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_SENSITIVE, false);
+    FA_SET_BUF_ALLOC(attrs, num, CKA_EXTRACTABLE, false);
     FA_SET_BUF_ALLOC(attrs, num, CKA_VALUE_LEN, false);
 
     ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);

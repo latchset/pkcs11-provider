@@ -169,12 +169,15 @@ static int inner_derive_key(P11PROV_CTX *ctx, P11PROV_OBJ *key,
 {
     CK_OBJECT_CLASS class = CK_UNAVAILABLE_INFORMATION;
     CK_BBOOL val_false = CK_FALSE;
+    CK_BBOOL val_true = CK_TRUE;
     CK_ULONG key_size = keylen;
-    CK_ATTRIBUTE key_template[4] = {
+    CK_ATTRIBUTE key_template[6] = {
         { CKA_CLASS, &class, sizeof(class) },
         { CKA_TOKEN, &val_false, sizeof(val_false) },
         { CKA_VALUE_LEN, &key_size, sizeof(key_size) },
         { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
+        { CKA_SENSITIVE, &val_false, sizeof(val_false) },
+        { CKA_EXTRACTABLE, &val_true, sizeof(val_true) },
     };
     CK_ULONG key_tmpl_len = 0;
     CK_OBJECT_HANDLE pkey_handle;
@@ -183,7 +186,7 @@ static int inner_derive_key(P11PROV_CTX *ctx, P11PROV_OBJ *key,
 
     if (mechanism->mechanism == CKM_HKDF_DERIVE) {
         class = CKO_SECRET_KEY;
-        key_tmpl_len = 4;
+        key_tmpl_len = 6;
     } else if (mechanism->mechanism == CKM_HKDF_DATA) {
         class = CKO_DATA;
         key_tmpl_len = 3;
