@@ -398,9 +398,8 @@ static void *p11prov_generic_secret_generate(void *provctx,
     size_t tsize = 2;
     P11PROV_URI *uri = NULL;
     int ephemeral = 1; /* by default we create session keys */
-    /* all flags by default */
-    CK_FLAGS usage = CKF_ENCRYPT | CKF_DECRYPT | CKF_SIGN | CKF_VERIFY
-                     | CKF_WRAP | CKF_UNWRAP | CKF_DERIVE;
+    /* Generally Generic Secrets can only be used in derive-like functions */
+    CK_FLAGS usage = CKF_DERIVE;
     const OSSL_PARAM *p;
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     CK_RV rv = CKR_MECHANISM_PARAM_INVALID;

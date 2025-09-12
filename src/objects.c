@@ -4996,6 +4996,91 @@ done:
     return rv;
 }
 
+static CK_RV p11prov_store_generic_secret_key(P11PROV_CTX *provctx,
+                                              P11PROV_OBJ **ret,
+                                              const unsigned char *secret,
+                                              size_t secretlen, char *label,
+                                              CK_FLAGS usage, bool session_key)
+{
+    CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
+    CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
+    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
+    P11PROV_SLOTS_CTX *slots = NULL;
+    P11PROV_SESSION *session = NULL;
+    CK_OBJECT_HANDLE key_handle;
+    CK_BBOOL tokenobj = false;
+    P11PROV_OBJ *obj;
+    CK_RV rv;
+    CK_ATTRIBUTE tmpl[12] = {
+        { CKA_TOKEN, &tokenobj, sizeof(tokenobj) },
+        { CKA_CLASS, &key_class, sizeof(key_class) },
+        { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
+        { CKA_VALUE, (void *)secret, secretlen },
+        { 0 },
+    };
+    size_t tmax = sizeof(tmpl) / sizeof(CK_ATTRIBUTE);
+    size_t tsize = 4;
+
+    P11PROV_debug("Creating secret key (%p[%zu]), token: %b, flags: %x", secret,
+                  secretlen, !session_key, usage);
+
+    /* Make it a token (permanent) object if necessary */
+    if (!session_key) {
+        tokenobj = true;
+    }
+
+    if (usage) {
+        rv = p11prov_usage_to_template(tmpl, &tsize, tmax, usage);
+        if (rv != CKR_OK) {
+            P11PROV_raise(provctx, rv, "Failed to set key usage");
+            return CKR_GENERAL_ERROR;
+        }
+    } else {
+        rv = CKR_ARGUMENTS_BAD;
+        P11PROV_raise(provctx, rv, "No key usage specified");
+        return CKR_GENERAL_ERROR;
+    }
+
+    slots = p11prov_ctx_get_slots(provctx);
+    if (!slots) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    slot = p11prov_get_default_slot(slots);
+    if (slot == CK_UNAVAILABLE_INFORMATION) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    rv = p11prov_take_login_session(provctx, slot, &session);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    rv = p11prov_CreateObject(provctx, p11prov_session_handle(session), tmpl,
+                              tsize, &key_handle);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    obj = p11prov_obj_new(provctx, slot, key_handle, key_class);
+    if (obj == NULL) {
+        rv = CKR_HOST_MEMORY;
+        goto done;
+    }
+    obj->data.key.type = key_type;
+    obj->data.key.bit_size = secretlen * 8;
+    obj->data.key.size = secretlen;
+
+    *ret = obj;
+    rv = CKR_OK;
+
+done:
+    p11prov_return_session(session);
+    return rv;
+}
+
 P11PROV_OBJ *p11prov_obj_import_secret_key(P11PROV_CTX *ctx, CK_KEY_TYPE type,
                                            const unsigned char *key,
                                            size_t keylen)
@@ -5010,6 +5095,14 @@ P11PROV_OBJ *p11prov_obj_import_secret_key(P11PROV_CTX *ctx, CK_KEY_TYPE type,
     switch (type) {
     case CKK_AES:
         rv = p11prov_store_aes_key(ctx, &obj, key, keylen, NULL, usage, true);
+        if (rv != CKR_OK) {
+            P11PROV_raise(ctx, rv, "Failed to import");
+            goto done;
+        }
+        break;
+    case CKK_GENERIC_SECRET:
+        rv = p11prov_store_generic_secret_key(ctx, &obj, key, keylen, NULL,
+                                              usage, true);
         if (rv != CKR_OK) {
             P11PROV_raise(ctx, rv, "Failed to import");
             goto done;
