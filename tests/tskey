@@ -80,6 +80,17 @@ else
     fi
 fi
 
+title PARA "Test Skey HKDF"
+FAIL=0
+output=$($CHECKER "${TESTBLDDIR}"/tskey-kdf 2>&1) || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
 exit 0
