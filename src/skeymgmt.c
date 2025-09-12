@@ -372,10 +372,26 @@ static int p11prov_generic_secret_export(void *keydata, int selection,
 {
     P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
     P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
+    CK_ATTRIBUTE *cached_value_attr;
     CK_ATTRIBUTE *extractable_attr;
     CK_ATTRIBUTE *sensitive_attr;
     CK_BBOOL extractable = CK_FALSE;
     CK_BBOOL sensitive = CK_TRUE;
+
+    cached_value_attr = p11prov_obj_get_attr(key, CKA_VALUE);
+    if (cached_value_attr) {
+        OSSL_PARAM params[2];
+
+        params[0] = OSSL_PARAM_construct_octet_string(
+            OSSL_SKEY_PARAM_RAW_BYTES, cached_value_attr->pValue,
+            cached_value_attr->ulValueLen);
+        params[1] = OSSL_PARAM_construct_end();
+
+        if (param_cb(params, cbarg)) {
+            return RET_OSSL_OK;
+        }
+        return RET_OSSL_ERR;
+    }
 
     extractable_attr = p11prov_obj_get_attr(key, CKA_EXTRACTABLE);
     if (extractable_attr && extractable_attr->ulValueLen == sizeof(CK_BBOOL)) {
@@ -445,7 +461,21 @@ static int p11prov_generic_secret_export(void *keydata, int selection,
             ret = RET_OSSL_OK;
         }
 
-        OPENSSL_clear_free(value_attr.pValue, value_attr.ulValueLen);
+        /* Note: we MUST cache the attribute here, because the callback
+         * OpenSSL use expect the value to valid for the life of the key
+         * object and will just store the provided pointer. Therefore we
+         * need * to keep value_attr.pValue alive as it will be used after
+         * this * function returns. This mechanism works also as cache to
+         * avoid * re-fecthing from the token multiple times. As multiple
+         * import/export * cycles may happen when a mix of legacy and
+         * SKEY functions are used.
+         */
+        rv = p11prov_obj_add_attr(key, &value_attr);
+        if (rv != CKR_OK) {
+            /* Failed to cache, free the memory to avoid a leak */
+            OPENSSL_clear_free(value_attr.pValue, value_attr.ulValueLen);
+            ret = RET_OSSL_ERR;
+        }
 
     done:
         p11prov_return_session(session);
