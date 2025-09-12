@@ -1448,6 +1448,7 @@ static CK_RV static_operations_init(P11PROV_CTX *ctx)
 #if SKEY_SUPPORT == 1
     /* skeymgmt */
     ADD_ALGO(AES, aes, skeymgmt, prop);
+    ADD_ALGO(GENERIC_SECRET, generic_secret, skeymgmt, prop);
     TERM_ALGO(skeymgmt);
 #endif
 

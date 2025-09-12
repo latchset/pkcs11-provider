@@ -10,5 +10,6 @@
 #define DISPATCH_SKEYMGMT_ELEM(type, NAME, name) \
     { OSSL_FUNC_SKEYMGMT_##NAME, (void (*)(void))p11prov_##type##_##name }
 extern const OSSL_DISPATCH p11prov_aes_skeymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_generic_secret_skeymgmt_functions[];
 
 #endif /* _SKEYMGMT_H */
