@@ -1053,7 +1053,7 @@ done:
 }
 
 CK_RV p11prov_take_login_session(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
-                                 P11PROV_SESSION **_session)
+                                 P11PROV_URI *uri, P11PROV_SESSION **_session)
 {
     P11PROV_SLOTS_CTX *slots = NULL;
     P11PROV_SLOT *slot = NULL;
@@ -1079,7 +1079,7 @@ CK_RV p11prov_take_login_session(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
         goto done;
     }
 
-    ret = slot_login(slot, NULL, NULL, NULL, false, _session);
+    ret = slot_login(slot, uri, NULL, NULL, false, _session);
 
 done:
     p11prov_return_slots(slots);
