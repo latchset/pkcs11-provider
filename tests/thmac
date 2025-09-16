@@ -1,0 +1,46 @@
+#!/bin/bash -e
+# Copyright 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+title PARA "Test HMAC support"
+
+HMAC_HEX_KEY=aaaabbbbaaaabbbbaaaabbbbaaaabbbb
+
+digests=(
+    SHA1
+    SHA256
+    SHA384
+    SHA512
+    SHA3-224
+    SHA3-256
+    SHA3-384
+    SHA3-512
+)
+
+for digest in ${digests[@]}; do
+    ossl "
+    mac -digest ${digest}
+        -macopt key:${HMAC_HEX_KEY}
+        -in ${RAND64FILE}
+        -out ${TMPPDIR}/hmac-out-${digest}.bin
+        hmac" || exit 1
+done
+
+# After hmac generation force all operations on the token
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
+OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+
+for digest in ${digests[@]}; do
+    ossl "
+    mac -digest ${digest}
+        -macopt key:${HMAC_HEX_KEY}
+        -in ${RAND64FILE}
+        -out ${TMPPDIR}/hmac-out-pkcs11-${digest}.bin
+        hmac" || exit 1
+
+    diff "${TMPPDIR}/hmac-out-${digest}.bin" "${TMPPDIR}/hmac-out-pkcs11-${digest}.bin"
+done
