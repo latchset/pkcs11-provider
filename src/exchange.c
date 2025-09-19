@@ -17,6 +17,8 @@ struct p11prov_exch_ctx {
     CK_ECDH1_DERIVE_PARAMS ecdh_params;
     CK_ULONG kdf_outlen;
 
+    P11PROV_SESSION *session;
+
     void *kdfctx;
 };
 typedef struct p11prov_exch_ctx P11PROV_EXCH_CTX;
@@ -62,6 +64,9 @@ DISPATCH_ECDH_FN(freectx);
 DISPATCH_ECDH_FN(init);
 DISPATCH_ECDH_FN(set_peer);
 DISPATCH_ECDH_FN(derive);
+#if defined(OSSL_FUNC_KEYEXCH_DERIVE_SKEY)
+DISPATCH_ECDH_FN(derive_skey);
+#endif
 DISPATCH_ECDH_FN(set_ctx_params);
 DISPATCH_ECDH_FN(settable_ctx_params);
 DISPATCH_ECDH_FN(get_ctx_params);
@@ -132,6 +137,8 @@ static void *p11prov_ecdh_dupctx(void *ctx)
         }
     }
 
+    newctx->session = ecdhctx->session;
+
     return newctx;
 }
 
@@ -142,6 +149,8 @@ static void p11prov_ecdh_freectx(void *ctx)
     if (ecdhctx == NULL) {
         return;
     }
+
+    p11prov_return_session(ecdhctx->session);
 
     p11prov_obj_free(ecdhctx->key);
     p11prov_obj_free(ecdhctx->peer_key);
@@ -203,54 +212,72 @@ static int p11prov_ecdh_set_peer(void *ctx, void *provkey)
     return RET_OSSL_OK;
 }
 
-static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
-                               size_t *psecretlen, size_t outlen)
+#if defined(OSSL_FUNC_KEYEXCH_DERIVE_SKEY)
+static void *p11prov_ecdh_derive_skey(void *ctx, const char *key_type,
+                                      void *provctx,
+                                      OSSL_FUNC_skeymgmt_import_fn *import,
+                                      size_t keylen, const OSSL_PARAM params[])
+#else
+static void *p11prov_ecdh_derive_skey(void *ctx, const char *key_type,
+                                      void *provctx, void *import,
+                                      size_t keylen, const OSSL_PARAM params[])
+#endif
 {
     P11PROV_EXCH_CTX *ecdhctx = (P11PROV_EXCH_CTX *)ctx;
     CK_ATTRIBUTE *ec_point;
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
-    CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
+    CK_KEY_TYPE keytype = CKK_GENERIC_SECRET;
     CK_BBOOL val_true = CK_TRUE;
     CK_BBOOL val_false = CK_FALSE;
-    CK_ULONG key_size = outlen;
+    CK_ULONG key_size = keylen;
     CK_ATTRIBUTE key_template[6] = {
         { CKA_CLASS, &key_class, sizeof(key_class) },
-        { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
+        { CKA_KEY_TYPE, &keytype, sizeof(keytype) },
+        /* To be maximally compatible with OpenSSL not fully
+         * EVP_SKEY aware, we create ephemeral keys as unconditionally
+         * exractable for now, eventually we may change this to allow
+         * non-extractable keys in the future */
         { CKA_SENSITIVE, &val_false, sizeof(val_false) },
         { CKA_EXTRACTABLE, &val_true, sizeof(val_true) },
         { CKA_VALUE_LEN, &key_size, sizeof(key_size) },
         { CKA_TOKEN, &val_false, sizeof(val_false) },
     };
+    size_t key_tmpl_size = sizeof(key_template) / sizeof(CK_ATTRIBUTE);
     CK_MECHANISM mechanism;
-    P11PROV_SESSION *session = NULL;
     CK_OBJECT_HANDLE handle;
     CK_OBJECT_HANDLE secret_handle;
     CK_SLOT_ID slotid;
-    struct fetch_attrs attrs[1];
-    int num = 0;
+    P11PROV_OBJ *skey = NULL;
     CK_RV ret;
 
     if (ecdhctx->key == NULL || ecdhctx->peer_key == NULL) {
         ERR_raise(ERR_LIB_PROV, PROV_R_MISSING_KEY);
-        return RET_OSSL_ERR;
+        return NULL;
     }
 
-    if (secret == NULL) {
-        *psecretlen = p11prov_obj_get_key_size(ecdhctx->key);
-        return RET_OSSL_OK;
+    if (key_type) {
+        if (strcmp(key_type, "AES") == 0) {
+            keytype = CKK_AES;
+        } else if (strcmp(key_type, "GENERIC-SECRET") == 0) {
+            keytype = CKK_GENERIC_SECRET;
+        } else {
+            ret = CKR_ARGUMENTS_BAD;
+            P11PROV_raise(ecdhctx->provctx, ret, "Unknown key type");
+            return NULL;
+        }
     }
 
     /* set up mechanism */
     if (ecdhctx->ecdh_params.kdf == CKF_DIGEST) {
         ecdhctx->ecdh_params.kdf = p11prov_ecdh_digest_to_kdf(ecdhctx->digest);
         if (ecdhctx->ecdh_params.kdf == CK_UNAVAILABLE_INFORMATION) {
-            return RET_OSSL_ERR;
+            return NULL;
         }
     }
 
     ec_point = p11prov_obj_get_ec_public_raw(ecdhctx->peer_key);
     if (ec_point == NULL) {
-        return RET_OSSL_ERR;
+        return NULL;
     }
     ecdhctx->ecdh_params.pPublicData = ec_point->pValue;
     ecdhctx->ecdh_params.ulPublicDataLen = ec_point->ulValueLen;
@@ -261,7 +288,7 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
 
     /* complete key template */
     if (ecdhctx->kdf_outlen) {
-        if (ecdhctx->kdf_outlen < outlen) {
+        if (ecdhctx->kdf_outlen < keylen) {
             key_size = ecdhctx->kdf_outlen;
         }
     }
@@ -270,33 +297,78 @@ static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
     if (handle == CK_INVALID_HANDLE) {
         P11PROV_raise(ecdhctx->provctx, CKR_KEY_HANDLE_INVALID,
                       "Provided key has invalid handle");
-        return RET_OSSL_ERR;
+        return NULL;
     }
 
     slotid = p11prov_obj_get_slotid(ecdhctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
         P11PROV_raise(ecdhctx->provctx, CKR_SLOT_ID_INVALID,
                       "Provided key has invalid slot");
-        return RET_OSSL_ERR;
+        return NULL;
     }
 
     ret = p11prov_derive_key(ecdhctx->provctx, slotid, &mechanism, handle,
-                             key_template, 6, &session, &secret_handle);
+                             key_template, key_tmpl_size, &ecdhctx->session,
+                             &secret_handle);
     if (ret != CKR_OK) {
+        return NULL;
+    }
+
+    P11PROV_debug("ECDH derived key handle: %lu", secret_handle);
+    ret = p11prov_obj_from_handle(ecdhctx->provctx, ecdhctx->session,
+                                  secret_handle, &skey);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
+
+    return skey;
+}
+
+static int p11prov_ecdh_derive(void *ctx, unsigned char *secret,
+                               size_t *psecretlen, size_t outlen)
+{
+    P11PROV_EXCH_CTX *ecdhctx = (P11PROV_EXCH_CTX *)ctx;
+    const OSSL_PARAM params[] = {
+        OSSL_PARAM_END,
+    };
+    P11PROV_OBJ *skey;
+    CK_OBJECT_HANDLE secret_handle;
+    struct fetch_attrs attrs[1];
+    int num = 0;
+    CK_RV ret;
+    int err = RET_OSSL_ERR;
+
+    if (!secret) {
+        *psecretlen = p11prov_obj_get_key_size(ecdhctx->key);
+        return RET_OSSL_OK;
+    }
+
+    skey = p11prov_ecdh_derive_skey(ctx, "GENERIC-SECRET", NULL, NULL, outlen,
+                                    params);
+    if (!skey) {
         return RET_OSSL_ERR;
     }
 
-    P11PROV_debug("ECDH derived hey handle: %lu", secret_handle);
-    FA_SET_BUF_VAL(attrs, num, CKA_VALUE, secret, key_size, true);
-    ret = p11prov_fetch_attributes(ecdhctx->provctx, session, secret_handle,
-                                   attrs, num);
-    p11prov_return_session(session);
+    secret_handle = p11prov_obj_get_handle(skey);
+    if (secret_handle == CK_INVALID_HANDLE) {
+        ret = CKR_KEY_HANDLE_INVALID;
+        P11PROV_raise(ctx, ret, "Invalid key handle");
+        goto done;
+    }
+
+    FA_SET_BUF_VAL(attrs, num, CKA_VALUE, secret, outlen, true);
+    ret = p11prov_fetch_attributes(ecdhctx->provctx, ecdhctx->session,
+                                   secret_handle, attrs, num);
     if (ret != CKR_OK) {
         P11PROV_debug("ecdh failed to retrieve secret %lu", ret);
-        return RET_OSSL_ERR;
+        goto done;
     }
     FA_GET_LEN(attrs, 0, *psecretlen);
-    return RET_OSSL_OK;
+    err = RET_OSSL_OK;
+
+done:
+    p11prov_obj_free(skey);
+    return err;
 }
 
 static int p11prov_ecdh_set_ctx_params(void *ctx, const OSSL_PARAM params[])
@@ -504,6 +576,9 @@ const OSSL_DISPATCH p11prov_ecdh_exchange_functions[] = {
     DISPATCH_ECDH_ELEM(ecdh, FREECTX, freectx),
     DISPATCH_ECDH_ELEM(ecdh, INIT, init),
     DISPATCH_ECDH_ELEM(ecdh, DERIVE, derive),
+#if defined(OSSL_FUNC_KEYEXCH_DERIVE_SKEY)
+    DISPATCH_ECDH_ELEM(ecdh, DERIVE_SKEY, derive_skey),
+#endif
     DISPATCH_ECDH_ELEM(ecdh, SET_PEER, set_peer),
     DISPATCH_ECDH_ELEM(ecdh, SET_CTX_PARAMS, set_ctx_params),
     DISPATCH_ECDH_ELEM(ecdh, SETTABLE_CTX_PARAMS, settable_ctx_params),
