@@ -1314,3 +1314,21 @@ CK_RV p11prov_usage_to_template(CK_ATTRIBUTE *tmpl, size_t *size, size_t max,
     *size = idx;
     return CKR_OK;
 }
+
+CK_KEY_TYPE p11prov_get_key_type_from_string(const char *key_type)
+{
+    if (key_type == NULL) {
+        /* Default to generic secret key */
+        return CKK_GENERIC_SECRET;
+    }
+
+    if (strcmp(key_type, "AES") == 0) {
+        return CKK_AES;
+    }
+    if (strcmp(key_type, "GENERIC-SECRET") == 0) {
+        return CKK_GENERIC_SECRET;
+    }
+
+    /* Unknown key type */
+    return CK_UNAVAILABLE_INFORMATION;
+}

@@ -163,4 +163,6 @@ CK_RV p11prov_digest_util(P11PROV_CTX *provctx, const char *digest,
 void p11prov_set_attr_bool(CK_ATTRIBUTE *tmpl, CK_ATTRIBUTE_TYPE type, bool v);
 CK_RV p11prov_usage_to_template(CK_ATTRIBUTE *tmpl, size_t *size, size_t max,
                                 CK_FLAGS usage);
+CK_KEY_TYPE p11prov_get_key_type_from_string(const char *key_type);
+
 #endif /* _UTIL_H */
