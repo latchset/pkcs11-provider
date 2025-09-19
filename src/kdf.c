@@ -11,8 +11,6 @@ struct p11prov_kdf_ctx {
 
     P11PROV_OBJ *key;
 
-    CK_MECHANISM_TYPE mechtype;
-
     int mode;
     CK_MECHANISM_TYPE hash_mech;
     CK_ULONG salt_type;
@@ -66,9 +64,6 @@ static void *p11prov_hkdf_newctx(void *provctx)
 
     hkdfctx->provctx = ctx;
 
-    /* default mechanism */
-    hkdfctx->mechtype = CKM_HKDF_DATA;
-
     return hkdfctx;
 }
 
@@ -106,10 +101,14 @@ static void p11prov_hkdf_reset(void *ctx)
 
     /* restore defaults */
     hkdfctx->provctx = provctx;
-    hkdfctx->mechtype = CKM_HKDF_DATA;
 }
 
-static CK_RV inner_pkcs11_key(P11PROV_KDF_CTX *hkdfctx, const uint8_t *key,
+/* The mechanism is used only to ensure the token can perform the request
+ * operation, for the HKDF case it doesn't really matter whether the
+ * CKM_HKDF_DERIVE or the CKM_HKDF_DATA mechanisms are requested, any token
+ * that supports one SHOULD support the other too */
+static CK_RV inner_pkcs11_key(P11PROV_KDF_CTX *hkdfctx,
+                              CK_MECHANISM_TYPE mech_type, const uint8_t *key,
                               size_t keylen, P11PROV_OBJ **keyobj)
 {
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
@@ -117,7 +116,7 @@ static CK_RV inner_pkcs11_key(P11PROV_KDF_CTX *hkdfctx, const uint8_t *key,
 
     if (hkdfctx->session == NULL) {
         ret = p11prov_get_session(hkdfctx->provctx, &slotid, NULL, NULL,
-                                  hkdfctx->mechtype, NULL, NULL, false, false,
+                                  mech_type, NULL, NULL, false, false,
                                   &hkdfctx->session);
         if (ret != CKR_OK) {
             return ret;
@@ -256,7 +255,7 @@ static int p11prov_hkdf_derive(void *ctx, unsigned char *key, size_t keylen,
     P11PROV_KDF_CTX *hkdfctx = (P11PROV_KDF_CTX *)ctx;
     CK_HKDF_PARAMS ck_params = { 0 };
     CK_MECHANISM mechanism = {
-        .mechanism = hkdfctx->mechtype,
+        .mechanism = CKM_HKDF_DATA,
         .pParameter = &ck_params,
         .ulParameterLen = sizeof(ck_params),
     };
@@ -545,7 +544,8 @@ static CK_RV p11prov_tls13_derive_secret(P11PROV_KDF_CTX *hkdfctx,
         }
 
         /* In OpenSSL the salt is used as the derivation key */
-        ret = inner_pkcs11_key(hkdfctx, hkdfctx->salt, hkdfctx->saltlen, &ek);
+        ret = inner_pkcs11_key(hkdfctx, CKM_HKDF_DATA, hkdfctx->salt,
+                               hkdfctx->saltlen, &ek);
         if (ret != CKR_OK) {
             return ret;
         }
@@ -570,7 +570,7 @@ static CK_RV p11prov_tls13_derive_secret(P11PROV_KDF_CTX *hkdfctx,
     params.ulSaltLen = saltlen;
 
     if (!keyobj) {
-        ret = inner_pkcs11_key(hkdfctx, zerobuf, hashlen, &zerokey);
+        ret = inner_pkcs11_key(hkdfctx, mech_type, zerobuf, hashlen, &zerokey);
         if (ret != CKR_OK) {
             return ret;
         }
@@ -619,8 +619,7 @@ static int p11prov_tls13_kdf_derive(void *ctx, unsigned char *key,
         ret = p11prov_tls13_expand_label(
             hkdfctx, hkdfctx->key, hkdfctx->prefix, hkdfctx->prefixlen,
             hkdfctx->label, hkdfctx->labellen, hkdfctx->data, hkdfctx->datalen,
-            keylen, hkdfctx->mechtype, CK_UNAVAILABLE_INFORMATION,
-            &dkey_handle);
+            keylen, CKM_HKDF_DATA, CK_UNAVAILABLE_INFORMATION, &dkey_handle);
         if (ret != CKR_OK) {
             return RET_OSSL_ERR;
         }
@@ -628,7 +627,7 @@ static int p11prov_tls13_kdf_derive(void *ctx, unsigned char *key,
     case EVP_KDF_HKDF_MODE_EXTRACT_ONLY:
         /* key can be null here */
         ret = p11prov_tls13_derive_secret(
-            hkdfctx, hkdfctx->key, keylen, hkdfctx->mechtype,
+            hkdfctx, hkdfctx->key, keylen, CKM_HKDF_DATA,
             CK_UNAVAILABLE_INFORMATION, &dkey_handle);
         if (ret != CKR_OK) {
             return RET_OSSL_ERR;
@@ -805,7 +804,8 @@ static int p11prov_hkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
 
         /* Create Session and key from key material */
         p11prov_obj_free(hkdfctx->key);
-        ret = inner_pkcs11_key(hkdfctx, secret, secret_len, &hkdfctx->key);
+        ret = inner_pkcs11_key(hkdfctx, CKM_HKDF_DERIVE, secret, secret_len,
+                               &hkdfctx->key);
         if (ret != CKR_OK) {
             return RET_OSSL_ERR;
         }
