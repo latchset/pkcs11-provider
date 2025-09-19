@@ -226,7 +226,7 @@ static void *p11prov_ecdh_derive_skey(void *ctx, const char *key_type,
     P11PROV_EXCH_CTX *ecdhctx = (P11PROV_EXCH_CTX *)ctx;
     CK_ATTRIBUTE *ec_point;
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
-    CK_KEY_TYPE keytype = CKK_GENERIC_SECRET;
+    CK_KEY_TYPE keytype;
     CK_BBOOL val_true = CK_TRUE;
     CK_BBOOL val_false = CK_FALSE;
     CK_ULONG key_size = keylen;
@@ -255,16 +255,11 @@ static void *p11prov_ecdh_derive_skey(void *ctx, const char *key_type,
         return NULL;
     }
 
-    if (key_type) {
-        if (strcmp(key_type, "AES") == 0) {
-            keytype = CKK_AES;
-        } else if (strcmp(key_type, "GENERIC-SECRET") == 0) {
-            keytype = CKK_GENERIC_SECRET;
-        } else {
-            ret = CKR_ARGUMENTS_BAD;
-            P11PROV_raise(ecdhctx->provctx, ret, "Unknown key type");
-            return NULL;
-        }
+    keytype = p11prov_get_key_type_from_string(key_type);
+    if (keytype == CK_UNAVAILABLE_INFORMATION) {
+        ret = CKR_ARGUMENTS_BAD;
+        P11PROV_raise(ecdhctx->provctx, ret, "Unknown key type: %s", key_type);
+        return NULL;
     }
 
     /* set up mechanism */

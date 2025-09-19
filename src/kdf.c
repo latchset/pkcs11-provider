@@ -335,7 +335,7 @@ static void *p11prov_hkdf_derive_skey(void *ctx, const char *key_type,
         .pParameter = &ck_params,
         .ulParameterLen = sizeof(ck_params),
     };
-    CK_KEY_TYPE keytype = CKK_GENERIC_SECRET;
+    CK_KEY_TYPE keytype;
     CK_OBJECT_HANDLE dkey_handle;
     P11PROV_OBJ *dkey_object = NULL;
     CK_RV ret;
@@ -367,16 +367,11 @@ static void *p11prov_hkdf_derive_skey(void *ctx, const char *key_type,
         return RET_OSSL_ERR;
     }
 
-    if (key_type) {
-        if (strcmp(key_type, "AES") == 0) {
-            keytype = CKK_AES;
-        } else if (strcmp(key_type, "GENERIC-SECRET") == 0) {
-            keytype = CKK_GENERIC_SECRET;
-        } else {
-            ret = CKR_ARGUMENTS_BAD;
-            P11PROV_raise(hkdfctx->provctx, ret, "Unknown key type");
-            return NULL;
-        }
+    keytype = p11prov_get_key_type_from_string(key_type);
+    if (keytype == CK_UNAVAILABLE_INFORMATION) {
+        ret = CKR_ARGUMENTS_BAD;
+        P11PROV_raise(hkdfctx->provctx, ret, "Unknown key type: %s", key_type);
+        return NULL;
     }
 
     ret = inner_derive_key(hkdfctx->provctx, hkdfctx->key, &hkdfctx->session,
@@ -654,7 +649,7 @@ static void *p11prov_tls13_kdf_derive_skey(void *ctx, const char *key_type,
                                            const OSSL_PARAM params[])
 {
     P11PROV_KDF_CTX *hkdfctx = (P11PROV_KDF_CTX *)ctx;
-    CK_KEY_TYPE keytype = CKK_GENERIC_SECRET;
+    CK_KEY_TYPE keytype;
     CK_OBJECT_HANDLE dkey_handle;
     P11PROV_OBJ *dkey_object = NULL;
     CK_RV ret;
@@ -675,16 +670,11 @@ static void *p11prov_tls13_kdf_derive_skey(void *ctx, const char *key_type,
         return NULL;
     }
 
-    if (key_type) {
-        if (strcmp(key_type, "AES") == 0) {
-            keytype = CKK_AES;
-        } else if (strcmp(key_type, "GENERIC-SECRET") == 0) {
-            keytype = CKK_GENERIC_SECRET;
-        } else {
-            ret = CKR_ARGUMENTS_BAD;
-            P11PROV_raise(hkdfctx->provctx, ret, "Unknown key type");
-            return NULL;
-        }
+    keytype = p11prov_get_key_type_from_string(key_type);
+    if (keytype == CK_UNAVAILABLE_INFORMATION) {
+        ret = CKR_ARGUMENTS_BAD;
+        P11PROV_raise(hkdfctx->provctx, ret, "Unknown key type");
+        return NULL;
     }
 
     switch (hkdfctx->mode) {
