@@ -31,7 +31,6 @@ struct p11prov_session_pool {
 
     CK_ULONG num_sessions;
     CK_ULONG max_sessions;
-    CK_ULONG open_sessions;
     CK_ULONG max_cached_sessions;
 
     P11PROV_SESSION **sessions;
@@ -837,7 +836,6 @@ static CK_RV slot_login(P11PROV_SLOT *slot, P11PROV_URI *uri,
     P11PROV_SESSION_POOL *pool = p11prov_slot_get_session_pool(slot);
     P11PROV_SESSION *session = NULL;
     CK_FLAGS flags = DEFLT_SESSION_FLAGS;
-    int num_open_sessions = 0;
     CK_RV ret;
 
     P11PROV_debug("Slot login (slot=%p, uri=%p)", slot, uri);
@@ -870,15 +868,13 @@ static CK_RV slot_login(P11PROV_SLOT *slot, P11PROV_URI *uri,
 
     /* we acquired the session, check that it is ok */
     ret = session_check(session, session->flags);
-    if (ret != CKR_OK) {
-        num_open_sessions--;
+    if (ret != CKR_OK && ret != CKR_SESSION_CLOSED) {
+        goto done;
     }
 
     if (session->session == CK_INVALID_HANDLE) {
         ret = token_session_open(session, flags);
-        if (ret == CKR_OK) {
-            num_open_sessions++;
-        } else {
+        if (ret != CKR_OK) {
             goto done;
         }
     }
@@ -891,32 +887,21 @@ static CK_RV slot_login(P11PROV_SLOT *slot, P11PROV_URI *uri,
     }
 
 done:
-    /* lock the pool only if needed */
-    if (num_open_sessions != 0 || ret != CKR_OK) {
-
-        /* LOCKED SECTION ------------- */
-        if (MUTEX_LOCK(pool) == CKR_OK) {
-
-            pool->open_sessions += num_open_sessions;
-
-            if (ret != CKR_OK) {
-                if (session->is_login) {
-                    p11prov_session_deref(session);
-                    /* ensure this is not marked as a login session */
-                    session->is_login = false;
-                }
-            }
-
-            (void)MUTEX_UNLOCK(pool);
+    if (ret == CKR_OK) {
+        if (_session) {
+            *_session = session;
+        } else {
+            p11prov_return_session(session);
         }
-        /* ------------- LOCKED SECTION */
-    }
-
-    if (_session) {
-        *_session = session;
     } else {
+        if (session->is_login) {
+            p11prov_session_deref(session);
+            /* ensure this is not marked as a login session */
+            session->is_login = false;
+        }
         p11prov_return_session(session);
     }
+
     return ret;
 }
 
@@ -952,7 +937,6 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
     P11PROV_SESSION_POOL *pool = NULL;
     CK_SLOT_ID id = *slotid;
     P11PROV_SESSION *session = NULL;
-    int num_open_sessions = 0;
     CK_FLAGS flags = DEFLT_SESSION_FLAGS;
     int slot_idx;
     CK_RV ret;
@@ -1070,32 +1054,19 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
     ret = fetch_session(pool, flags, false, &session);
     if (ret == CKR_OK) {
         ret = session_check(session, flags);
-        if (ret != CKR_OK) {
-            num_open_sessions--;
+        if (ret == CKR_SESSION_CLOSED) {
+            /* this is ok */
             ret = CKR_OK;
+        }
+        if (ret != CKR_OK) {
+            goto done;
         }
         if (session->session == CK_INVALID_HANDLE) {
             ret = token_session_open(session, flags);
-            if (ret == CKR_OK) {
-                num_open_sessions++;
-            }
         }
     }
 
 done:
-    if (pool && num_open_sessions != 0) {
-
-        /* if locking fails here we have bigger problems than
-         * just bad accounting */
-
-        /* LOCKED SECTION ------------- */
-        if (MUTEX_LOCK(pool) == CKR_OK) {
-            pool->open_sessions += num_open_sessions;
-            (void)MUTEX_UNLOCK(pool);
-        }
-        /* ------------- LOCKED SECTION */
-    }
-
     if (ret == CKR_OK) {
         *_session = session;
     } else {
@@ -1157,15 +1128,27 @@ void p11prov_return_session(P11PROV_SESSION *session)
     pool = session->pool;
 
     if (pool && !has_ref) {
-        /* LOCKED SECTION ------------- */
-        if (MUTEX_LOCK(pool) == CKR_OK) {
-            if (pool->open_sessions >= pool->max_cached_sessions) {
-                token_session_close(session);
-                pool->open_sessions--;
+        int open_sessions = 0;
+
+        if (session->session != CK_INVALID_HANDLE) {
+            /* LOCKED SECTION ------------- */
+            if (MUTEX_LOCK(pool) == CKR_OK) {
+                for (int i = 0; i < pool->num_sessions; i++) {
+                    if (pool->sessions[i]->session != CK_INVALID_HANDLE) {
+                        open_sessions++;
+                    }
+                }
+                (void)MUTEX_UNLOCK(pool);
             }
-            (void)MUTEX_UNLOCK(pool);
+            /* ------------- LOCKED SECTION */
+
+            /* if multiple threads race to close sessions and a few more
+             * than necessary are closed nothing bad happens, which is
+             * why we do this outside the lock */
+            if (open_sessions >= pool->max_cached_sessions) {
+                token_session_close(session);
+            }
         }
-        /* ------------- LOCKED SECTION */
     }
 
     ret = MUTEX_LOCK(session);
