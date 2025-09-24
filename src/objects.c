@@ -56,6 +56,7 @@ struct p11prov_obj {
     int poolid;
 
     P11PROV_OBJ *assoc_obj;
+    P11PROV_SESSION *ref_session;
 };
 
 struct p11prov_obj_pool {
@@ -465,6 +466,11 @@ void p11prov_obj_free(P11PROV_OBJ *obj)
         return;
     }
 
+    if (obj->ref_session) {
+        p11prov_session_deref(obj->ref_session);
+        obj->ref_session = NULL;
+    }
+
     obj_rm_from_pool(obj);
 
     destroy_key_cache(obj, NULL);
@@ -796,6 +802,25 @@ void *p11prov_obj_from_typed_reference(const void *reference,
     }
 
     return key;
+}
+
+/* Get a pointer to the referenced session, if any */
+P11PROV_SESSION *p11prov_obj_get_session_ref(P11PROV_OBJ *obj)
+{
+    return obj->ref_session;
+}
+
+/* reference a session and store it on the object so the session
+ * cannot be closed while the object is still alive */
+void p11prov_obj_set_session_ref(P11PROV_OBJ *obj, P11PROV_SESSION *session)
+{
+    p11prov_session_ref(session);
+    obj->ref_session = session;
+}
+
+P11PROV_URI *p11prov_obj_get_refresh_uri(P11PROV_OBJ *obj)
+{
+    return obj->refresh_uri;
 }
 
 /* CKA_ID
@@ -4106,6 +4131,11 @@ static CK_RV p11prov_store_rsa_public_key(P11PROV_OBJ *key)
     rv = CKR_OK;
 
 done:
+    if (rv == CKR_OK) {
+        /* we just created an ephemeral key on this session, ensure the
+         * session is not closed until the key goes away */
+        p11prov_obj_set_session_ref(key, session);
+    }
     p11prov_return_session(session);
     return rv;
 }
@@ -4174,6 +4204,11 @@ static CK_RV p11prov_store_ec_public_key(P11PROV_OBJ *key)
     rv = CKR_OK;
 
 done:
+    if (rv == CKR_OK) {
+        /* we just created an ephemeral key on this session, ensure the
+         * session is not closed until the key goes away */
+        p11prov_obj_set_session_ref(key, session);
+    }
     p11prov_return_session(session);
     return rv;
 }
@@ -4240,6 +4275,11 @@ static CK_RV p11prov_store_mldsa_public_key(P11PROV_OBJ *key)
     rv = CKR_OK;
 
 done:
+    if (rv == CKR_OK) {
+        /* we just created an ephemeral key on this session, ensure the
+        * session is not closed until the key goes away */
+        p11prov_obj_set_session_ref(key, session);
+    }
     p11prov_return_session(session);
     return rv;
 }
@@ -4456,6 +4496,11 @@ static CK_RV p11prov_store_rsa_private_key(P11PROV_OBJ *key,
     rv = CKR_OK;
 
 done:
+    if (rv == CKR_OK) {
+        /* we just created an ephemeral key on this session, ensure the
+        * session is not closed until the key goes away */
+        p11prov_obj_set_session_ref(key, session);
+    }
     p11prov_return_session(session);
     for (int i = 9; i < na; i++) {
         OPENSSL_clear_free(template[i].pValue, template[i].ulValueLen);
@@ -4547,6 +4592,11 @@ static CK_RV p11prov_store_ec_private_key(P11PROV_OBJ *key,
     rv = CKR_OK;
 
 done:
+    if (rv == CKR_OK) {
+        /* we just created an ephemeral key on this session, ensure the
+        * session is not closed until the key goes away */
+        p11prov_obj_set_session_ref(key, session);
+    }
     p11prov_return_session(session);
     OPENSSL_clear_free(template[9].pValue, template[9].ulValueLen);
     return rv;
@@ -4645,6 +4695,11 @@ static CK_RV p11prov_store_mldsa_private_key(P11PROV_OBJ *key,
     rv = CKR_OK;
 
 done:
+    if (rv == CKR_OK) {
+        /* we just created an ephemeral key on this session, ensure the
+        * session is not closed until the key goes away */
+        p11prov_obj_set_session_ref(key, session);
+    }
     p11prov_return_session(session);
     return rv;
 }
@@ -5018,6 +5073,11 @@ static CK_RV p11prov_store_aes_key(P11PROV_CTX *provctx, P11PROV_OBJ **ret,
     rv = CKR_OK;
 
 done:
+    if (rv == CKR_OK && session_key) {
+        /* we just created an ephemeral key on this session, ensure the
+        * session is not closed until the key goes away */
+        p11prov_obj_set_session_ref(obj, session);
+    }
     p11prov_return_session(session);
     return rv;
 }
@@ -5103,6 +5163,11 @@ static CK_RV p11prov_store_generic_secret_key(P11PROV_CTX *provctx,
     rv = CKR_OK;
 
 done:
+    if (rv == CKR_OK && session_key) {
+        /* we just created an ephemeral key on this session, ensure the
+        * session is not closed until the key goes away */
+        p11prov_obj_set_session_ref(obj, session);
+    }
     p11prov_return_session(session);
     return rv;
 }
