@@ -41,6 +41,9 @@ const char *p11prov_obj_get_public_uri(P11PROV_OBJ *obj);
 void *p11prov_obj_from_typed_reference(const void *reference,
                                        size_t reference_sz,
                                        CK_KEY_TYPE key_type);
+P11PROV_SESSION *p11prov_obj_get_session_ref(P11PROV_OBJ *obj);
+void p11prov_obj_set_session_ref(P11PROV_OBJ *obj, P11PROV_SESSION *session);
+P11PROV_URI *p11prov_obj_get_refresh_uri(P11PROV_OBJ *obj);
 
 typedef CK_RV (*store_obj_callback)(void *, P11PROV_OBJ *);
 CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
