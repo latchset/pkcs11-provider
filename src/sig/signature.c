@@ -132,6 +132,8 @@ void *p11prov_sig_dupctx(void *ctx)
     newctx->session = sigctx->session;
     sigctx->session = NULL;
 
+    newctx->session_state = sigctx->session_state;
+
     if (slotid != CK_UNAVAILABLE_INFORMATION && handle != CK_INVALID_HANDLE) {
         CK_SESSION_HANDLE newsess = p11prov_session_handle(newctx->session);
         CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
@@ -174,6 +176,9 @@ void *p11prov_sig_dupctx(void *ctx)
     }
 
 done:
+    if (!sigctx->session) {
+        sigctx->session_state = SESS_UNUSED;
+    }
     OPENSSL_free(state);
     return newctx;
 }
@@ -186,12 +191,31 @@ void p11prov_sig_freectx(void *ctx)
         return;
     }
 
+    if (sigctx->session) {
+        if (sigctx->session_state == SESS_INITIALIZED) {
+            /* Finalize any operation to avoid leaving a hanging
+             * operation on this session. Ignore return errors here
+             * intentionally as errors can be returned if the operation was
+             * internally finalized because of a previous internal token
+             * error state and, in any case, not much to be done. */
+            CK_SESSION_HANDLE sess = p11prov_session_handle(sigctx->session);
+            if (sigctx->operation == CKF_SIGN) {
+                p11prov_SignInit(sigctx->provctx, sess, NULL,
+                                 CK_INVALID_HANDLE);
+            } else {
+                p11prov_VerifyInit(sigctx->provctx, sess, NULL,
+                                   CK_INVALID_HANDLE);
+            }
+            sigctx->session_state = SESS_FINALIZED;
+        }
+        p11prov_return_session(sigctx->session);
+    }
+
     OPENSSL_clear_free(sigctx->mldsa_params.pContext,
                        sigctx->mldsa_params.ulContextLen);
     OPENSSL_clear_free(sigctx->eddsa_params.pContextData,
                        sigctx->eddsa_params.ulContextDataLen);
     OPENSSL_free(sigctx->signature);
-    p11prov_return_session(sigctx->session);
     EVP_MD_CTX_free(sigctx->fallback_digest);
     p11prov_obj_free(sigctx->key);
     OPENSSL_free(sigctx->properties);
@@ -369,6 +393,9 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
             ret = p11prov_VerifyInit(sigctx->provctx, sess, &sigctx->mechanism,
                                      handle);
         }
+        if (ret == CKR_OK) {
+            sigctx->session_state = SESS_INITIALIZED;
+        }
         break;
     case CKR_MECHANISM_INVALID:
         if (!digest_op || sigctx->mechanism.mechanism == sigctx->mechtype) {
@@ -429,6 +456,7 @@ CK_RV p11prov_sig_operate(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
     } else {
         ret = p11prov_Verify(sigctx->provctx, sess, tbs, tbslen, sig, sigsize);
     }
+    sigctx->session_state = SESS_FINALIZED;
     if (ret == CKR_OK) {
         if (siglen) {
             *siglen = sig_size;
@@ -583,6 +611,7 @@ int p11prov_sig_digest_final(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
     } else {
         ret = p11prov_VerifyFinal(sigctx->provctx, sess, sig, sigsize);
     }
+    sigctx->session_state = SESS_FINALIZED;
     if (ret == CKR_OK) {
         if (siglen) {
             *siglen = sig_size;

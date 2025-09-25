@@ -29,6 +29,7 @@ struct p11prov_sig_ctx {
 
     CK_FLAGS operation;
     P11PROV_SESSION *session;
+    enum { SESS_UNUSED = 0, SESS_INITIALIZED, SESS_FINALIZED } session_state;
 
     CK_RSA_PKCS_PSS_PARAMS pss_params;
 
