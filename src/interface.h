@@ -143,6 +143,8 @@ CK_RV p11prov_SeedRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                          CK_BYTE_PTR SeedData, CK_ULONG ulSeedLen);
 CK_RV p11prov_GenerateRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                              CK_BYTE_PTR RandomData, CK_ULONG ulRandomLen);
+CK_RV p11prov_SessionCancel(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                            CK_FLAGS flags);
 
 /* Special side-channel free path against PKCS#1 1.5 side channel leaking */
 CK_RV side_channel_free_Decrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
@@ -211,5 +213,6 @@ CK_INFO p11prov_module_ck_info(P11PROV_MODULE *mctx);
 #define P11PROV_BLOCK_GenerateRandom 0b0000000000000000
 /* 3.x  functions: */
 #define P11PROV_BLOCK_GetInterface 0b0000000000000000
+#define P11PROV_BLOCK_SessionCancel 0b0000000000000000
 
 #endif /* _INTERFACE_H */

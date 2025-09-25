@@ -198,13 +198,27 @@ void p11prov_sig_freectx(void *ctx)
              * intentionally as errors can be returned if the operation was
              * internally finalized because of a previous internal token
              * error state and, in any case, not much to be done. */
+            CK_RV ret;
             CK_SESSION_HANDLE sess = p11prov_session_handle(sigctx->session);
             if (sigctx->operation == CKF_SIGN) {
-                p11prov_SignInit(sigctx->provctx, sess, NULL,
-                                 CK_INVALID_HANDLE);
+                ret = p11prov_SignInit(sigctx->provctx, sess, NULL,
+                                       CK_INVALID_HANDLE);
             } else {
-                p11prov_VerifyInit(sigctx->provctx, sess, NULL,
-                                   CK_INVALID_HANDLE);
+                ret = p11prov_VerifyInit(sigctx->provctx, sess, NULL,
+                                         CK_INVALID_HANDLE);
+            }
+            if (ret != CKR_OK) {
+                /* NSS softokn has a broken interface and is incapable of
+                 * dropping operations on sessions returning a generic
+                 * CKR_MECHANISM_PARAM_INVALID when the mechanism is set to
+                 * NULL. Attempt to force cancellation via C_SessionCancel. */
+                ret = p11prov_SessionCancel(sigctx->provctx, sess,
+                                            sigctx->operation);
+            }
+            if (ret != CKR_OK) {
+                /* When this happens the session becomes broken as
+                 * we can't initialize operations on it anymore */
+                p11prov_session_mark_broken(sigctx->session);
             }
             sigctx->session_state = SESS_FINALIZED;
         }
