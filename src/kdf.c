@@ -179,8 +179,6 @@ static int inner_derive_key(P11PROV_CTX *ctx, P11PROV_OBJ *key,
         { CKA_EXTRACTABLE, &val_true, sizeof(val_true) },
     };
     CK_ULONG key_tmpl_len = 0;
-    CK_OBJECT_HANDLE pkey_handle;
-    CK_SLOT_ID slotid;
     CK_RV ret;
 
     if (mechanism->mechanism == CKM_HKDF_DERIVE) {
@@ -196,22 +194,8 @@ static int inner_derive_key(P11PROV_CTX *ctx, P11PROV_OBJ *key,
         return ret;
     }
 
-    pkey_handle = p11prov_obj_get_handle(key);
-    if (pkey_handle == CK_INVALID_HANDLE) {
-        ret = CKR_KEY_HANDLE_INVALID;
-        P11PROV_raise(ctx, ret, "Invalid key handle");
-        return ret;
-    }
-
-    slotid = p11prov_obj_get_slotid(key);
-    if (slotid == CK_UNAVAILABLE_INFORMATION) {
-        ret = CKR_SLOT_ID_INVALID;
-        P11PROV_raise(ctx, ret, "Invalid key slotid");
-        return ret;
-    }
-
-    return p11prov_derive_key(ctx, slotid, mechanism, pkey_handle, key_template,
-                              key_tmpl_len, session, dkey_handle);
+    return p11prov_derive_key(key, mechanism, key_template, key_tmpl_len,
+                              session, dkey_handle);
 }
 
 static int p11prov_hkdf_format_params(P11PROV_KDF_CTX *hkdfctx,

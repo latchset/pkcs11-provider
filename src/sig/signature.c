@@ -327,10 +327,6 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
     P11PROV_debug("called (sigctx=%p, digest_op=%s)", sigctx,
                   digest_op ? "true" : "false");
 
-    P11PROV_debug_mechanism(sigctx->provctx,
-                            p11prov_obj_get_slotid(sigctx->key),
-                            sigctx->mechanism.mechanism);
-
     ret = p11prov_ctx_status(sigctx->provctx);
     if (ret != CKR_OK) {
         return ret;
@@ -342,6 +338,10 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
                       "Provided key has invalid handle");
         return CKR_KEY_HANDLE_INVALID;
     }
+
+    /* this need to be fetched after p11prov_obj_get_handle() as the
+     * object may be refreshed including updating the slotid in that
+     * call, and some keys depends on it. */
     slotid = p11prov_obj_get_slotid(sigctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
         P11PROV_raise(sigctx->provctx, CKR_SLOT_ID_INVALID,
@@ -349,13 +349,15 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
         return CKR_SLOT_ID_INVALID;
     }
 
+    P11PROV_debug_mechanism(sigctx->provctx, slotid,
+                            sigctx->mechanism.mechanism);
+
     if (sigctx->operation == CKF_SIGN) {
         reqlogin = true;
     }
 
-    ret = p11prov_get_session(sigctx->provctx, &slotid, NULL, NULL,
-                              sigctx->mechanism.mechanism, NULL, NULL, reqlogin,
-                              false, &session);
+    ret = p11prov_try_session_ref(sigctx->key, sigctx->mechanism.mechanism,
+                                  reqlogin, false, &session);
     switch (ret) {
     case CKR_OK:
         sess = p11prov_session_handle(session);
@@ -377,14 +379,11 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
             goto done;
         }
 
-        slotid = p11prov_obj_get_slotid(sigctx->key);
-
         ret = mech_fallback_init(sigctx, slotid);
         goto done;
         break;
     default:
-        P11PROV_raise(sigctx->provctx, ret,
-                      "Failed to open session on slot %lu", slotid);
+        P11PROV_raise(sigctx->provctx, ret, "Failed to acquire session");
         goto done;
     }
 
