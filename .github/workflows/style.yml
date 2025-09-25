@@ -9,7 +9,7 @@ jobs:
   build:
     name: Check Style
     runs-on: ubuntu-22.04
-    container: fedora:latest
+    container: quay.io/fedora/fedora:latest
     steps:
       - name: Install Dependencies
         run: |

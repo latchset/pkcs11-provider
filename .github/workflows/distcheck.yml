@@ -15,9 +15,9 @@ jobs:
         name: [fedora, debian, centos9, centos10]
         include:
           - name: fedora
-            container: fedora:latest
+            container: quay.io/fedora/fedora:latest
           - name: debian
-            container: debian:sid
+            container: quay.io/opendevmirror/debian:trixie
           - name: centos9
             container: quay.io/centos/centos:stream9
           - name: centos10

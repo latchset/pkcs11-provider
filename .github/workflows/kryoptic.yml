@@ -11,7 +11,7 @@ jobs:
   build:
     name: CI with kryoptic token
     runs-on: ubuntu-22.04
-    container: fedora:rawhide
+    container: quay.io/fedora/fedora:rawhide
     steps:
       - name: Get Date for DNF cache entry
         id: get-date

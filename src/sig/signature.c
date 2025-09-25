@@ -132,6 +132,8 @@ void *p11prov_sig_dupctx(void *ctx)
     newctx->session = sigctx->session;
     sigctx->session = NULL;
 
+    newctx->session_state = sigctx->session_state;
+
     if (slotid != CK_UNAVAILABLE_INFORMATION && handle != CK_INVALID_HANDLE) {
         CK_SESSION_HANDLE newsess = p11prov_session_handle(newctx->session);
         CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
@@ -174,6 +176,9 @@ void *p11prov_sig_dupctx(void *ctx)
     }
 
 done:
+    if (!sigctx->session) {
+        sigctx->session_state = SESS_UNUSED;
+    }
     OPENSSL_free(state);
     return newctx;
 }
@@ -186,12 +191,45 @@ void p11prov_sig_freectx(void *ctx)
         return;
     }
 
+    if (sigctx->session) {
+        if (sigctx->session_state == SESS_INITIALIZED) {
+            /* Finalize any operation to avoid leaving a hanging
+             * operation on this session. Ignore return errors here
+             * intentionally as errors can be returned if the operation was
+             * internally finalized because of a previous internal token
+             * error state and, in any case, not much to be done. */
+            CK_RV ret;
+            CK_SESSION_HANDLE sess = p11prov_session_handle(sigctx->session);
+            if (sigctx->operation == CKF_SIGN) {
+                ret = p11prov_SignInit(sigctx->provctx, sess, NULL,
+                                       CK_INVALID_HANDLE);
+            } else {
+                ret = p11prov_VerifyInit(sigctx->provctx, sess, NULL,
+                                         CK_INVALID_HANDLE);
+            }
+            if (ret != CKR_OK) {
+                /* NSS softokn has a broken interface and is incapable of
+                 * dropping operations on sessions returning a generic
+                 * CKR_MECHANISM_PARAM_INVALID when the mechanism is set to
+                 * NULL. Attempt to foce cancellation via C_SessionCancel. */
+                ret = p11prov_SessionCancel(sigctx->provctx, sess,
+                                            sigctx->operation);
+            }
+            if (ret != CKR_OK) {
+                /* When this happens the session becomes broken as
+                 * we can't initialize operations on it anymore */
+                p11prov_session_mark_broken(sigctx->session);
+            }
+            sigctx->session_state = SESS_FINALIZED;
+        }
+        p11prov_return_session(sigctx->session);
+    }
+
     OPENSSL_clear_free(sigctx->mldsa_params.pContext,
                        sigctx->mldsa_params.ulContextLen);
     OPENSSL_clear_free(sigctx->eddsa_params.pContextData,
                        sigctx->eddsa_params.ulContextDataLen);
     OPENSSL_free(sigctx->signature);
-    p11prov_return_session(sigctx->session);
     EVP_MD_CTX_free(sigctx->fallback_digest);
     p11prov_obj_free(sigctx->key);
     OPENSSL_free(sigctx->properties);
@@ -327,10 +365,6 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
     P11PROV_debug("called (sigctx=%p, digest_op=%s)", sigctx,
                   digest_op ? "true" : "false");
 
-    P11PROV_debug_mechanism(sigctx->provctx,
-                            p11prov_obj_get_slotid(sigctx->key),
-                            sigctx->mechanism.mechanism);
-
     ret = p11prov_ctx_status(sigctx->provctx);
     if (ret != CKR_OK) {
         return ret;
@@ -342,6 +376,10 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
                       "Provided key has invalid handle");
         return CKR_KEY_HANDLE_INVALID;
     }
+
+    /* this need to be fetched after p11prov_obj_get_handle() as the
+     * object may be refreshed including updating the slotid in that
+     * call, and some keys depends on it. */
     slotid = p11prov_obj_get_slotid(sigctx->key);
     if (slotid == CK_UNAVAILABLE_INFORMATION) {
         P11PROV_raise(sigctx->provctx, CKR_SLOT_ID_INVALID,
@@ -349,13 +387,15 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
         return CKR_SLOT_ID_INVALID;
     }
 
+    P11PROV_debug_mechanism(sigctx->provctx, slotid,
+                            sigctx->mechanism.mechanism);
+
     if (sigctx->operation == CKF_SIGN) {
         reqlogin = true;
     }
 
-    ret = p11prov_get_session(sigctx->provctx, &slotid, NULL, NULL,
-                              sigctx->mechanism.mechanism, NULL, NULL, reqlogin,
-                              false, &session);
+    ret = p11prov_try_session_ref(sigctx->key, sigctx->mechanism.mechanism,
+                                  reqlogin, false, &session);
     switch (ret) {
     case CKR_OK:
         sess = p11prov_session_handle(session);
@@ -367,6 +407,9 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
             ret = p11prov_VerifyInit(sigctx->provctx, sess, &sigctx->mechanism,
                                      handle);
         }
+        if (ret == CKR_OK) {
+            sigctx->session_state = SESS_INITIALIZED;
+        }
         break;
     case CKR_MECHANISM_INVALID:
         if (!digest_op || sigctx->mechanism.mechanism == sigctx->mechtype) {
@@ -377,14 +420,11 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
             goto done;
         }
 
-        slotid = p11prov_obj_get_slotid(sigctx->key);
-
         ret = mech_fallback_init(sigctx, slotid);
         goto done;
         break;
     default:
-        P11PROV_raise(sigctx->provctx, ret,
-                      "Failed to open session on slot %lu", slotid);
+        P11PROV_raise(sigctx->provctx, ret, "Failed to acquire session");
         goto done;
     }
 
@@ -430,6 +470,7 @@ CK_RV p11prov_sig_operate(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
     } else {
         ret = p11prov_Verify(sigctx->provctx, sess, tbs, tbslen, sig, sigsize);
     }
+    sigctx->session_state = SESS_FINALIZED;
     if (ret == CKR_OK) {
         if (siglen) {
             *siglen = sig_size;
@@ -584,6 +625,7 @@ int p11prov_sig_digest_final(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
     } else {
         ret = p11prov_VerifyFinal(sigctx->provctx, sess, sig, sigsize);
     }
+    sigctx->session_state = SESS_FINALIZED;
     if (ret == CKR_OK) {
         if (siglen) {
             *siglen = sig_size;

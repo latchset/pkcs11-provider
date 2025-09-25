@@ -7,8 +7,9 @@ extern P11PROV_PK11_URI *
 d2i_P11PROV_PK11_URI(P11PROV_PK11_URI **a, const unsigned char **in, long len);
 extern int i2d_P11PROV_PK11_URI(const P11PROV_PK11_URI *a, unsigned char **out);
 extern const ASN1_ITEM *P11PROV_PK11_URI_it(void);
-P11PROV_PK11_URI *d2i_P11PROV_PK11_URI(P11PROV_PK11_URI **a,
-                                       const unsigned char **in, long len)
+
+P11PROV_PK11_URI
+*d2i_P11PROV_PK11_URI(P11PROV_PK11_URI **a, const unsigned char **in, long len)
 {
     return (P11PROV_PK11_URI *)ASN1_item_d2i((ASN1_VALUE **)a, in, len,
                                              (P11PROV_PK11_URI_it()));
@@ -17,7 +18,8 @@ int i2d_P11PROV_PK11_URI(const P11PROV_PK11_URI *a, unsigned char **out)
 {
     return ASN1_item_i2d((const ASN1_VALUE *)a, out, (P11PROV_PK11_URI_it()));
 }
-P11PROV_PK11_URI *P11PROV_PK11_URI_new(void)
+P11PROV_PK11_URI
+*P11PROV_PK11_URI_new(void)
 {
     return (P11PROV_PK11_URI *)ASN1_item_new((P11PROV_PK11_URI_it()));
 }
@@ -27,8 +29,10 @@ void P11PROV_PK11_URI_free(P11PROV_PK11_URI *a)
 }
 
 static const ASN1_TEMPLATE P11PROV_PK11_URI_seq_tt[] = {
+
     { (0), (0), __builtin_offsetof(P11PROV_PK11_URI, desc), "desc",
       (ASN1_VISIBLESTRING_it) },
+
     { (0), (0), __builtin_offsetof(P11PROV_PK11_URI, uri), "uri",
       (ASN1_UTF8STRING_it) },
 };
@@ -57,8 +61,10 @@ extern P11PROV_PK11_URI *PEM_read_bio_P11PROV_PK11_URI(BIO *out,
                                                        P11PROV_PK11_URI **x,
                                                        pem_password_cb *cb,
                                                        void *u);
-P11PROV_PK11_URI *PEM_read_bio_P11PROV_PK11_URI(BIO *bp, P11PROV_PK11_URI **x,
-                                                pem_password_cb *cb, void *u)
+
+P11PROV_PK11_URI
+*PEM_read_bio_P11PROV_PK11_URI(BIO *bp, P11PROV_PK11_URI **x,
+                               pem_password_cb *cb, void *u)
 {
     return PEM_ASN1_read_bio((d2i_of_void *)d2i_P11PROV_PK11_URI,
                              P11PROV_PEM_LABEL, bp, (void **)x, cb, u);

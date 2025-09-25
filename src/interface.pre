@@ -242,3 +242,6 @@ IMPL_INTERFACE_FN_3_ARG(SeedRandom, CK_SESSION_HANDLE, hSession,
 
 IMPL_INTERFACE_FN_3_ARG(GenerateRandom, CK_SESSION_HANDLE, hSession,
                         CK_BYTE_PTR, RandomData, CK_ULONG, ulRandomLen)
+
+IMPL_INTERFACE_FN_2_ARG(SessionCancel, CK_SESSION_HANDLE, hSession,
+                        CK_FLAGS, flags)

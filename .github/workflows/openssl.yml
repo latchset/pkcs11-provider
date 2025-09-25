@@ -14,7 +14,7 @@ jobs:
   setup:
     name: Build OpenSSL from master branch 
     runs-on: ubuntu-22.04
-    container: fedora:rawhide
+    container: quay.io/fedora/fedora:rawhide
     steps:
       - name: Get Date for DNF cache entry
         id: get-date-dnf
@@ -65,7 +65,7 @@ jobs:
     name: Build and test pkcs11-provider
     needs: setup
     runs-on: ubuntu-22.04
-    container: fedora:rawhide
+    container: quay.io/fedora/fedora:rawhide
     steps:
       - name: Get Date for DNF cache entry
         id: get-date-dnf

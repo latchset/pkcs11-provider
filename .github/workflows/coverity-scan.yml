@@ -15,7 +15,7 @@ jobs:
     if: ${{ github.event_name == 'schedule' }}
     name: Recurrent Coverity Scan
     runs-on: ubuntu-22.04
-    container: fedora:latest
+    container: quay.io/fedora/fedora:latest
     steps:
       - name: Install Dependencies
         run: |
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
-    container: fedora:latest
+    container: quay.io/fedora/fedora:latest
     steps:
       - name: Install Dependencies
         run: |

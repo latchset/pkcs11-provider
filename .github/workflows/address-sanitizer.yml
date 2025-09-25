@@ -18,7 +18,7 @@ jobs:
         # , debian]
         include:
           - name: fedora
-            container: fedora:latest
+            container: quay.io/fedora/fedora:latest
         #  - name: debian
         #    container: debian:sid
     container: ${{ matrix.container }}

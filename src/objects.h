@@ -41,6 +41,9 @@ const char *p11prov_obj_get_public_uri(P11PROV_OBJ *obj);
 void *p11prov_obj_from_typed_reference(const void *reference,
                                        size_t reference_sz,
                                        CK_KEY_TYPE key_type);
+P11PROV_SESSION *p11prov_obj_get_session_ref(P11PROV_OBJ *obj);
+void p11prov_obj_set_session_ref(P11PROV_OBJ *obj, P11PROV_SESSION *session);
+P11PROV_URI *p11prov_obj_get_refresh_uri(P11PROV_OBJ *obj);
 
 typedef CK_RV (*store_obj_callback)(void *, P11PROV_OBJ *);
 CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
@@ -52,10 +55,9 @@ P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
                                        P11PROV_SESSION *session,
                                        bool session_key, unsigned char *secret,
                                        size_t secretlen);
-CK_RV p11prov_derive_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
-                         CK_MECHANISM *mechanism, CK_OBJECT_HANDLE handle,
+CK_RV p11prov_derive_key(P11PROV_OBJ *key, CK_MECHANISM *mechanism,
                          CK_ATTRIBUTE *template, CK_ULONG nattrs,
-                         P11PROV_SESSION **session, CK_OBJECT_HANDLE *key);
+                         P11PROV_SESSION **_session, CK_OBJECT_HANDLE *dkey);
 CK_RV p11prov_obj_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                                  P11PROV_OBJ *obj, CK_ATTRIBUTE *template,
                                  CK_ULONG tsize);

@@ -39,6 +39,11 @@ struct p11prov_cipher_ctx {
     CK_FLAGS operation;
 
     P11PROV_SESSION *session;
+    enum {
+        SESS_UNUSED,
+        SESS_INITIALIZED,
+        SESS_FINALIZED,
+    } session_state;
 
     /* OpenSSL violates layering separation and decided
      * to process AES CBC MAC/padding handling in TLS 1.x < 1.3
@@ -209,8 +214,41 @@ static void p11prov_cipher_freectx(void *ctx)
         return;
     }
 
+    if (cctx->session) {
+        if (cctx->session_state == SESS_INITIALIZED) {
+            /* Finalize any operation to avoid leaving a hanging
+             * operation on this session. Ignore return errors here
+             * intentionally as errors can be returned if the operation was
+             * internally finalized because of a previous internal token
+             * error state and, in any case, not much to be done. */
+            CK_RV ret;
+            CK_SESSION_HANDLE sess = p11prov_session_handle(cctx->session);
+            if (cctx->operation == CKF_ENCRYPT) {
+                ret = p11prov_EncryptInit(cctx->provctx, sess, NULL,
+                                          CK_INVALID_HANDLE);
+            } else {
+                ret = p11prov_DecryptInit(cctx->provctx, sess, NULL,
+                                          CK_INVALID_HANDLE);
+            }
+            if (ret != CKR_OK) {
+                /* NSS softokn has a broken interface and is incapable of
+                 * dropping operations on sessions returning a generic
+                 * CKR_MECHANISM_PARAM_INVALID when the mechanism is set to
+                 * NULL. Attempt to foce cancellation via C_SessionCancel. */
+                ret =
+                    p11prov_SessionCancel(cctx->provctx, sess, cctx->operation);
+            }
+            if (ret != CKR_OK) {
+                /* When this happens the session becomes broken as
+                 * we can't initialize operations on it anymore */
+                p11prov_session_mark_broken(cctx->session);
+            }
+            cctx->session_state = SESS_FINALIZED;
+        }
+        p11prov_return_session(cctx->session);
+    }
+
     p11prov_obj_free(cctx->key);
-    p11prov_return_session(cctx->session);
     OPENSSL_clear_free(cctx->mech.pParameter, cctx->mech.ulParameterLen);
     OPENSSL_clear_free(cctx->tlsmac, cctx->tlsmacsize);
     OPENSSL_clear_free(cctx, sizeof(struct p11prov_cipher_ctx));
@@ -333,15 +371,7 @@ static CK_RV p11prov_cipher_op_init(void *ctx, void *keydata, CK_FLAGS op,
 
 static CK_RV p11prov_cipher_session_init(struct p11prov_cipher_ctx *cctx)
 {
-    CK_SLOT_ID slotid;
     CK_RV rv;
-
-    slotid = p11prov_obj_get_slotid(cctx->key);
-    if (slotid == CK_UNAVAILABLE_INFORMATION) {
-        P11PROV_raise(cctx->provctx, CKR_SLOT_ID_INVALID,
-                      "Provided key has invalid slot");
-        return CKR_SLOT_ID_INVALID;
-    }
 
     if (cctx->tlsver != 0 && cctx->mech.mechanism == CKM_AES_CBC_PAD) {
         /* In the special TLS mode we handle de-padding and mac extraction
@@ -349,9 +379,8 @@ static CK_RV p11prov_cipher_session_init(struct p11prov_cipher_ctx *cctx)
         cctx->mech.mechanism = CKM_AES_CBC;
     }
 
-    rv = p11prov_get_session(cctx->provctx, &slotid, NULL, NULL,
-                             cctx->mech.mechanism, NULL, NULL, true, false,
-                             &cctx->session);
+    rv = p11prov_try_session_ref(cctx->key, cctx->mech.mechanism, true, false,
+                                 &cctx->session);
     if (rv != CKR_OK) {
         return rv;
     }
@@ -369,6 +398,10 @@ static CK_RV p11prov_cipher_session_init(struct p11prov_cipher_ctx *cctx)
         break;
     default:
         rv = CKR_GENERAL_ERROR;
+    }
+
+    if (rv == CKR_OK) {
+        cctx->session_state = SESS_INITIALIZED;
     }
 
     return rv;
@@ -629,6 +662,7 @@ static int p11prov_cipher_update(void *ctx, unsigned char *out, size_t *outl,
             rv = p11prov_Encrypt(cctx->provctx, session_handle, (void *)in,
                                  inlen, out, &outlen);
 
+            cctx->session_state = SESS_FINALIZED;
             /* unconditionally return the session */
             p11prov_return_session(cctx->session);
             cctx->session = NULL;
@@ -649,6 +683,7 @@ static int p11prov_cipher_update(void *ctx, unsigned char *out, size_t *outl,
             rv = p11prov_Decrypt(cctx->provctx, session_handle, (void *)in,
                                  inlen, out, &outlen);
 
+            cctx->session_state = SESS_FINALIZED;
             /* unconditionally return the session */
             p11prov_return_session(cctx->session);
             cctx->session = NULL;
@@ -706,6 +741,7 @@ static int p11prov_cipher_final(void *ctx, unsigned char *out, size_t *outl,
         rv = CKR_GENERAL_ERROR;
     }
 
+    cctx->session_state = SESS_FINALIZED;
     /* unconditionally return session here as well */
     p11prov_return_session(cctx->session);
     cctx->session = NULL;
