@@ -20,17 +20,17 @@ jobs:
         token: [softokn, softhsm, kryoptic]
         include:
           - name: fedora
-            container: fedora:rawhide
+            container: quay.io/fedora/fedora:rawhide
           - name: debian
-            container: debian:sid
+            container: quay.io/opendevmirror/debian:trixie
           - name: centos9
             container: quay.io/centos/centos:stream9
           - name: centos10
             container: quay.io/centos/centos:stream10
           - name: ubuntu
-            container: ubuntu:latest
+            container: quay.io/opendevmirror/ubuntu:24.04
           - name: almalinux8
-            container: almalinux:8
+            container: quay.io/almalinuxorg/almalinux:8
         exclude:
           # Testing EL8 on a single compler (gcc) is sufficient.
           - name: almalinux8
