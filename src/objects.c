@@ -1530,8 +1530,8 @@ P11PROV_OBJ *p11prov_obj_find_associated(P11PROV_OBJ *obj,
     slotid = p11prov_obj_get_slotid(obj);
 
     ret = p11prov_get_session(obj->ctx, &slotid, NULL, NULL,
-                              CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
-                              false, &session);
+                              CK_UNAVAILABLE_INFORMATION, NULL, NULL,
+                              class == CKO_PRIVATE_KEY, false, &session);
     if (ret != CKR_OK) {
         goto done;
     }
