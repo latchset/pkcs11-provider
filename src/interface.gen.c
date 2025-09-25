@@ -1384,3 +1384,31 @@ CK_RV p11prov_GenerateRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     }
     return ret;
 }
+
+CK_RV p11prov_SessionCancel(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                            CK_FLAGS flags)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_SessionCancel)) {
+        P11PROV_debug("C_%s is blocked", "SessionCancel");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->SessionCancel) {
+        P11PROV_debug("C_%s is not available", "SessionCancel");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "SessionCancel");
+    ret = intf->SessionCancel(hSession, flags);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "SessionCancel",
+                      ret);
+    }
+    return ret;
+}

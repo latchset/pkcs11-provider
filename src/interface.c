@@ -80,6 +80,7 @@ struct p11prov_interface {
     CK_C_SeedRandom SeedRandom;
     CK_C_GenerateRandom GenerateRandom;
     CK_C_GetInterface GetInterface;
+    CK_C_SessionCancel SessionCancel;
 };
 
 #include "interface.gen.c"
@@ -160,6 +161,7 @@ static void populate_interface(P11PROV_INTERFACE *intf, CK_INTERFACE *ck_intf)
     ASSIGN_FN(GenerateRandom);
     if (intf->version.major == 3) {
         ASSIGN_FN_3_0(GetInterface);
+        ASSIGN_FN_3_0(SessionCancel);
     }
 }
 
