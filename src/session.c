@@ -338,9 +338,11 @@ static CK_RV session_check(P11PROV_SESSION *session, CK_FLAGS flags)
                                  &session_info);
     if (ret == CKR_OK) {
         session->state = session_info.state;
-        if (flags == session_info.flags) {
+        if (flags == (session_info.flags & flags)) {
             return CKR_OK;
         }
+        P11PROV_debug("Checking session, flags not matching %lu != %lu", flags,
+                      session_info.flags);
         (void)p11prov_CloseSession(session->provctx, session->session);
         /* tell the caller that the session was closed so they can
          * keep up with accounting */
