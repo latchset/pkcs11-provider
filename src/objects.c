@@ -4114,7 +4114,9 @@ static CK_RV p11prov_store_rsa_public_key(P11PROV_OBJ *key)
         goto done;
     }
 
-    rv = p11prov_take_login_session(key->ctx, slot, &session);
+    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
+                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, true, true,
+                             &session);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -4188,7 +4190,9 @@ static CK_RV p11prov_store_ec_public_key(P11PROV_OBJ *key)
         goto done;
     }
 
-    rv = p11prov_take_login_session(key->ctx, slot, &session);
+    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
+                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
+                             true, &session);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -4258,7 +4262,9 @@ static CK_RV p11prov_store_mldsa_public_key(P11PROV_OBJ *key)
         goto done;
     }
 
-    rv = p11prov_take_login_session(key->ctx, slot, &session);
+    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
+                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, true, true,
+                             &session);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -4455,7 +4461,9 @@ static CK_RV p11prov_store_rsa_private_key(P11PROV_OBJ *key,
         goto done;
     }
 
-    rv = p11prov_take_login_session(key->ctx, slot, &session);
+    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
+                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, true, true,
+                             &session);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -4556,7 +4564,9 @@ static CK_RV p11prov_store_ec_private_key(P11PROV_OBJ *key,
         goto done;
     }
 
-    rv = p11prov_take_login_session(key->ctx, slot, &session);
+    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
+                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, true, true,
+                             &session);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -4659,7 +4669,9 @@ static CK_RV p11prov_store_mldsa_private_key(P11PROV_OBJ *key,
         goto done;
     }
 
-    rv = p11prov_take_login_session(key->ctx, slot, &session);
+    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
+                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, true, true,
+                             &session);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -5048,7 +5060,9 @@ static CK_RV p11prov_store_aes_key(P11PROV_CTX *provctx, P11PROV_OBJ **ret,
         goto done;
     }
 
-    rv = p11prov_take_login_session(provctx, slot, &session);
+    rv = p11prov_get_session(provctx, &slot, NULL, NULL,
+                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, true, true,
+                             &session);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -5138,7 +5152,9 @@ static CK_RV p11prov_store_generic_secret_key(P11PROV_CTX *provctx,
         goto done;
     }
 
-    rv = p11prov_take_login_session(provctx, slot, &session);
+    rv = p11prov_get_session(provctx, &slot, NULL, NULL,
+                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, true, true,
+                             &session);
     if (rv != CKR_OK) {
         goto done;
     }
