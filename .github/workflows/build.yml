@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: CI with software token
+    name: CI
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -160,9 +160,8 @@ jobs:
           name: Test logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
           path: |
             builddir/meson-logs/
-            builddir/tests/${{ matrix.token }}/p11prov-debug.log
-            builddir/tests/${{ matrix.token }}/testvars
-            builddir/tests/${{ matrix.token }}/openssl.cnf
+            builddir/tests/*.log
+            builddir/tests/${{ matrix.token }}
 
       - name: Run tests with valgrind
         if : ( steps.skip-check.outputs.skiptest != 'true' && matrix.compiler == 'gcc' )
@@ -191,9 +190,8 @@ jobs:
           name: Test valgrind logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
           path: |
             builddir/meson-logs/
+            builddir/tests/*.log
             builddir/tests/${{ matrix.token }}/p11prov-debug.log
-            builddir/tests/${{ matrix.token }}/testvars
-            builddir/tests/${{ matrix.token }}/openssl.cnf
 
       #- name: Run tests in FIPS Mode (on CentOS + gcc only)
       #  if : ( steps.skip-check.outputs.skiptest != 'true' )
@@ -215,7 +213,7 @@ jobs:
 
 
   build-macos:
-    name: CI with software token
+    name: CI
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -269,6 +267,4 @@ jobs:
           path: |
             builddir/meson-logs/*
             builddir/tests/*.log
-            builddir/tests/${{ matrix.token }}/p11prov-debug.log
-            builddir/tests/${{ matrix.token }}/testvars
-            builddir/tests/${{ matrix.token }}/openssl.cnf
+            builddir/tests/${{ matrix.token }}
