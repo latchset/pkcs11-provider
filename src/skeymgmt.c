@@ -405,16 +405,14 @@ static int p11prov_generic_secret_export(void *keydata, int selection,
 
     if (extractable == CK_TRUE && sensitive == CK_FALSE) {
         P11PROV_SESSION *session = NULL;
-        CK_SLOT_ID slotid = p11prov_obj_get_slotid(key);
         CK_ATTRIBUTE value_attr = { CKA_VALUE, NULL_PTR, 0 };
         OSSL_PARAM params[2];
         CK_RV rv;
         int ret = RET_OSSL_ERR;
         CK_ULONG key_size;
 
-        rv = p11prov_get_session(ctx, &slotid, NULL, NULL,
-                                 CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
-                                 false, &session);
+        rv = p11prov_try_session_ref(key, CK_UNAVAILABLE_INFORMATION, false,
+                                     false, &session);
         if (rv != CKR_OK) {
             P11PROV_raise(ctx, rv, "Failed to get session for export");
             return RET_OSSL_ERR;
