@@ -33,6 +33,7 @@ CK_RV p11prov_context_specific_login(P11PROV_SESSION *session, P11PROV_URI *uri,
 typedef CK_RV (*p11prov_session_callback_t)(void *cbarg);
 void p11prov_session_set_callback(P11PROV_SESSION *session,
                                   p11prov_session_callback_t cb, void *cbarg);
+void p11prov_session_mark_broken(P11PROV_SESSION *session);
 
 /* Some reasonable limit */
 #define MAX_CONCURRENT_SESSIONS 1024
