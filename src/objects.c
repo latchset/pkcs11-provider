@@ -321,7 +321,8 @@ static void destroy_key_cache(P11PROV_OBJ *obj, P11PROV_SESSION *session)
     if (session) {
         sess = p11prov_session_handle(session);
     } else {
-        ret = p11prov_take_login_session(obj->ctx, obj->slotid, &_session);
+        ret = p11prov_take_login_session(obj->ctx, obj->slotid,
+                                         obj->refresh_uri, &_session);
         if (ret != CKR_OK) {
             P11PROV_debug("Failed to get login session. Error %lx", ret);
             return;
@@ -389,7 +390,8 @@ static void cache_key(P11PROV_OBJ *obj)
         return;
     }
 
-    ret = p11prov_take_login_session(obj->ctx, obj->slotid, &session);
+    ret = p11prov_take_login_session(obj->ctx, obj->slotid, obj->refresh_uri,
+                                     &session);
     if (ret != CKR_OK || session == NULL) {
         P11PROV_debug("Failed to get login session. Error %lx", ret);
         return;
@@ -4090,7 +4092,7 @@ static CK_RV p11prov_store_rsa_public_key(P11PROV_OBJ *key)
         goto done;
     }
 
-    rv = p11prov_take_login_session(key->ctx, slot, &session);
+    rv = p11prov_take_login_session(key->ctx, slot, key->refresh_uri, &session);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -4159,7 +4161,7 @@ static CK_RV p11prov_store_ec_public_key(P11PROV_OBJ *key)
         goto done;
     }
 
-    rv = p11prov_take_login_session(key->ctx, slot, &session);
+    rv = p11prov_take_login_session(key->ctx, slot, key->refresh_uri, &session);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -4416,7 +4418,7 @@ static CK_RV p11prov_store_rsa_private_key(P11PROV_OBJ *key,
         goto done;
     }
 
-    rv = p11prov_take_login_session(key->ctx, slot, &session);
+    rv = p11prov_take_login_session(key->ctx, slot, key->refresh_uri, &session);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -4512,7 +4514,7 @@ static CK_RV p11prov_store_ec_private_key(P11PROV_OBJ *key,
         goto done;
     }
 
-    rv = p11prov_take_login_session(key->ctx, slot, &session);
+    rv = p11prov_take_login_session(key->ctx, slot, key->refresh_uri, &session);
     if (rv != CKR_OK) {
         goto done;
     }
