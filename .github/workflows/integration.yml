@@ -15,7 +15,7 @@ jobs:
       matrix:
         test: [libssh, httpd]
     name: ${{ matrix.test }}
-    container: fedora:latest
+    container: quay.io/fedora/fedora:latest
     env:
       PKCS11_MODULE: /usr/lib64/ossl-modules/pkcs11.so
     steps:
@@ -51,7 +51,7 @@ jobs:
   test-bind:
     name: bind
     runs-on: ubuntu-22.04
-    container: fedora:latest
+    container: quay.io/fedora/fedora:latest
     steps:
       - name: Get Date for DNF cache entry
         id: get-date
