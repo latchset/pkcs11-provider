@@ -341,8 +341,11 @@ static CK_RV session_check(P11PROV_SESSION *session, CK_FLAGS flags)
         if (flags == (session_info.flags & flags)) {
             return CKR_OK;
         }
-        P11PROV_debug("Checking session, flags not matching %lu != %lu", flags,
-                      session_info.flags);
+        P11PROV_debug("Checking session, flags not matching %lu != %lu",
+                      flags, session_info.flags);
+        if (session->refcnt != 0) {
+            return CKR_SESSION_READ_ONLY;
+        }
         (void)p11prov_CloseSession(session->provctx, session->session);
         /* tell the caller that the session was closed so they can
          * keep up with accounting */
@@ -1125,7 +1128,7 @@ CK_RV p11prov_try_session_ref(P11PROV_OBJ *obj, CK_MECHANISM_TYPE mechtype,
              * So we check *and* reopen it if something is wrong
              */
             ret = session_check(session, flags);
-            if (ret != CKR_OK) {
+            if (ret != CKR_OK && ret != CKR_SESSION_READ_ONLY) {
                 ret = token_session_open(session, flags);
             }
             if (ret == CKR_OK) {
