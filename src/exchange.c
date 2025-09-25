@@ -245,9 +245,7 @@ static void *p11prov_ecdh_derive_skey(void *ctx, const char *key_type,
     };
     size_t key_tmpl_size = sizeof(key_template) / sizeof(CK_ATTRIBUTE);
     CK_MECHANISM mechanism;
-    CK_OBJECT_HANDLE handle;
     CK_OBJECT_HANDLE secret_handle;
-    CK_SLOT_ID slotid;
     P11PROV_OBJ *skey = NULL;
     CK_RV ret;
 
@@ -289,23 +287,8 @@ static void *p11prov_ecdh_derive_skey(void *ctx, const char *key_type,
         }
     }
 
-    handle = p11prov_obj_get_handle(ecdhctx->key);
-    if (handle == CK_INVALID_HANDLE) {
-        P11PROV_raise(ecdhctx->provctx, CKR_KEY_HANDLE_INVALID,
-                      "Provided key has invalid handle");
-        return NULL;
-    }
-
-    slotid = p11prov_obj_get_slotid(ecdhctx->key);
-    if (slotid == CK_UNAVAILABLE_INFORMATION) {
-        P11PROV_raise(ecdhctx->provctx, CKR_SLOT_ID_INVALID,
-                      "Provided key has invalid slot");
-        return NULL;
-    }
-
-    ret = p11prov_derive_key(ecdhctx->provctx, slotid, &mechanism, handle,
-                             key_template, key_tmpl_size, &ecdhctx->session,
-                             &secret_handle);
+    ret = p11prov_derive_key(ecdhctx->key, &mechanism, key_template,
+                             key_tmpl_size, &ecdhctx->session, &secret_handle);
     if (ret != CKR_OK) {
         return NULL;
     }

@@ -151,7 +151,6 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
     CK_MECHANISM mechanism;
     P11PROV_SESSION *session;
     CK_SESSION_HANDLE sess;
-    CK_SLOT_ID slotid;
     CK_OBJECT_HANDLE handle;
     CK_ULONG out_size = *outlen;
     int result = RET_OSSL_ERR;
@@ -169,12 +168,6 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
         return RET_OSSL_OK;
     }
 
-    slotid = p11prov_obj_get_slotid(encctx->key);
-    if (slotid == CK_UNAVAILABLE_INFORMATION) {
-        P11PROV_raise(encctx->provctx, CKR_SLOT_ID_INVALID,
-                      "Provided key has invalid slot");
-        return RET_OSSL_ERR;
-    }
     handle = p11prov_obj_get_handle(encctx->key);
     if (handle == CK_INVALID_HANDLE) {
         P11PROV_raise(encctx->provctx, CKR_KEY_HANDLE_INVALID,
@@ -187,12 +180,10 @@ static int p11prov_rsaenc_encrypt(void *ctx, unsigned char *out, size_t *outlen,
         return RET_OSSL_ERR;
     }
 
-    ret = p11prov_get_session(encctx->provctx, &slotid, NULL, NULL,
-                              mechanism.mechanism, NULL, NULL, false, false,
-                              &session);
+    ret = p11prov_try_session_ref(encctx->key, mechanism.mechanism, false,
+                                  false, &session);
     if (ret != CKR_OK) {
-        P11PROV_raise(encctx->provctx, ret,
-                      "Failed to open session on slot %lu", slotid);
+        P11PROV_raise(encctx->provctx, ret, "Failed to acquire session");
         return RET_OSSL_ERR;
     }
     sess = p11prov_session_handle(session);
@@ -301,7 +292,6 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
     CK_MECHANISM mechanism;
     P11PROV_SESSION *session = NULL;
     CK_SESSION_HANDLE sess;
-    CK_SLOT_ID slotid;
     CK_OBJECT_HANDLE handle;
     CK_ULONG key_size = CK_UNAVAILABLE_INFORMATION;
     unsigned char *tmpbuf = NULL;
@@ -350,13 +340,6 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
         out_size = key_size;
     }
 
-    slotid = p11prov_obj_get_slotid(encctx->key);
-    if (slotid == CK_UNAVAILABLE_INFORMATION) {
-        P11PROV_raise(encctx->provctx, CKR_SLOT_ID_INVALID,
-                      "Provided key has invalid slot");
-        result = RET_OSSL_ERR;
-        goto done;
-    }
     handle = p11prov_obj_get_handle(encctx->key);
     if (handle == CK_INVALID_HANDLE) {
         P11PROV_raise(encctx->provctx, CKR_KEY_HANDLE_INVALID,
@@ -371,12 +354,10 @@ static int p11prov_rsaenc_decrypt(void *ctx, unsigned char *out, size_t *outlen,
         goto done;
     }
 
-    ret = p11prov_get_session(encctx->provctx, &slotid, NULL, NULL,
-                              mechanism.mechanism, NULL, NULL, true, false,
-                              &session);
+    ret = p11prov_try_session_ref(encctx->key, mechanism.mechanism, true, false,
+                                  &session);
     if (ret != CKR_OK) {
-        P11PROV_raise(encctx->provctx, ret,
-                      "Failed to open session on slot %lu", slotid);
+        P11PROV_raise(encctx->provctx, ret, "Failed to acquire session");
         result = RET_OSSL_ERR;
         goto done;
     }

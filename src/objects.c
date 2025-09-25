@@ -1521,7 +1521,6 @@ P11PROV_OBJ *p11prov_obj_find_associated(P11PROV_OBJ *obj,
 {
     CK_ATTRIBUTE template[2] = { 0 };
     CK_ATTRIBUTE *id;
-    CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     P11PROV_SESSION *session = NULL;
     CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
     CK_OBJECT_HANDLE handle;
@@ -1552,11 +1551,8 @@ P11PROV_OBJ *p11prov_obj_find_associated(P11PROV_OBJ *obj,
     CKATTR_ASSIGN(template[0], CKA_CLASS, &class, sizeof(class));
     template[1] = *id;
 
-    slotid = p11prov_obj_get_slotid(obj);
-
-    ret = p11prov_get_session(obj->ctx, &slotid, NULL, NULL,
-                              CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
-                              false, &session);
+    ret = p11prov_try_session_ref(obj, CK_UNAVAILABLE_INFORMATION, false, false,
+                                  &session);
     if (ret != CKR_OK) {
         goto done;
     }
@@ -1605,7 +1601,6 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
 {
     int login_behavior;
     bool login = false;
-    CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     P11PROV_SESSION *session = NULL;
     CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
     CK_ATTRIBUTE template[3] = { 0 };
@@ -1626,12 +1621,8 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
         login = true;
     }
 
-    slotid = p11prov_obj_get_slotid(obj);
-
-    ret = p11prov_get_session(obj->ctx, &slotid, NULL, obj->refresh_uri,
-                              CK_UNAVAILABLE_INFORMATION, NULL, NULL, login,
-                              false, &session);
-
+    ret = p11prov_try_session_ref(obj, CK_UNAVAILABLE_INFORMATION, login, false,
+                                  &session);
     if (ret != CKR_OK) {
         P11PROV_debug("Failed to get session to refresh object %p", obj);
         return;
@@ -1793,46 +1784,54 @@ P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
     return obj;
 }
 
-CK_RV p11prov_derive_key(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
-                         CK_MECHANISM *mechanism, CK_OBJECT_HANDLE handle,
+CK_RV p11prov_derive_key(P11PROV_OBJ *key, CK_MECHANISM *mechanism,
                          CK_ATTRIBUTE *template, CK_ULONG nattrs,
-                         P11PROV_SESSION **session, CK_OBJECT_HANDLE *key)
+                         P11PROV_SESSION **_session, CK_OBJECT_HANDLE *dkey)
 {
+    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
+    CK_OBJECT_HANDLE handle = CK_INVALID_HANDLE;
+    P11PROV_SESSION *session = *_session;
     bool first_pass = true;
-    P11PROV_SESSION *s = *session;
     CK_RV ret;
 
+    /* do this first as it may cause a refresh of the object that will
+     * set internal fields correctly */
+    handle = p11prov_obj_get_handle(key);
+    if (handle == CK_INVALID_HANDLE) {
+        ret = CKR_KEY_HANDLE_INVALID;
+        P11PROV_raise(ctx, ret, "Invalid key handle");
+        return ret;
+    }
+
 again:
-    if (!s) {
-        ret =
-            p11prov_get_session(ctx, &slotid, NULL, NULL, mechanism->mechanism,
-                                NULL, NULL, false, false, &s);
+    if (!session) {
+        ret = p11prov_try_session_ref(key, mechanism->mechanism, false, false,
+                                      &session);
         if (ret != CKR_OK) {
-            P11PROV_raise(ctx, ret, "Failed to open session on slot %lu",
-                          slotid);
+            P11PROV_raise(ctx, ret, "Failed to acquire session");
             return ret;
         }
     }
 
-    ret = p11prov_DeriveKey(ctx, p11prov_session_handle(s), mechanism, handle,
-                            template, nattrs, key);
+    ret = p11prov_DeriveKey(ctx, p11prov_session_handle(session), mechanism,
+                            handle, template, nattrs, dkey);
     switch (ret) {
     case CKR_OK:
-        *session = s;
+        *_session = session;
         return CKR_OK;
     case CKR_SESSION_CLOSED:
     case CKR_SESSION_HANDLE_INVALID:
         if (first_pass) {
             first_pass = false;
             /* TODO: Explicitly mark handle invalid */
-            p11prov_return_session(s);
-            s = *session = NULL;
+            p11prov_return_session(session);
+            session = *_session = NULL;
             goto again;
         }
         /* fallthrough */
     default:
-        if (*session == NULL) {
-            p11prov_return_session(s);
+        if (*_session == NULL) {
+            p11prov_return_session(session);
         }
         return ret;
     }

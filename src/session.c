@@ -1076,6 +1076,81 @@ done:
     return ret;
 }
 
+CK_RV p11prov_try_session_ref(P11PROV_OBJ *obj, CK_MECHANISM_TYPE mechtype,
+                              bool reqlogin, bool rw,
+                              P11PROV_SESSION **_session)
+{
+    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(obj);
+    CK_SLOT_ID slotid = p11prov_obj_get_slotid(obj);
+    P11PROV_SESSION *session = p11prov_obj_get_session_ref(obj);
+    CK_RV ret;
+
+    if (mechtype != CK_UNAVAILABLE_INFORMATION) {
+        ret = p11prov_check_mechanism(ctx, slotid, mechtype);
+        if (ret != CKR_OK) {
+            return ret;
+        }
+    }
+
+    if (session) {
+        P11PROV_debug("Try referenced session: %p, handle: %lu", session,
+                      session->session);
+
+        /* LOCKED SESSION ------- */
+        ret = MUTEX_LOCK(session);
+        if (ret == CKR_OK) {
+            if (session->in_use) {
+                /* turns out we lost the race and another
+                 * thread snatched it */
+                ret = CKR_CANT_LOCK;
+            } else {
+                /* taken */
+                session->in_use = true;
+            }
+        }
+        (void)MUTEX_UNLOCK(session);
+        /* ------- LOCKED SESSION */
+
+        if (ret == CKR_OK) {
+            CK_FLAGS flags = DEFLT_SESSION_FLAGS;
+            if (rw) {
+                flags |= CKF_RW_SESSION;
+            }
+            /*
+             * Although we are trying to reuse a referenced session
+             * something may have gone wrong, and we always want
+             * to return a valid session.
+             * So we check *and* reopen it if something is wrong
+             */
+            ret = session_check(session, flags);
+            if (ret != CKR_OK) {
+                ret = token_session_open(session, flags);
+            }
+            if (ret == CKR_OK) {
+                *_session = session;
+                return CKR_OK;
+            } else {
+                /* something went wrong and we can't use this session
+                 * release it from use */
+
+                /* LOCKED SESSION ------- */
+                ret = MUTEX_LOCK(session);
+                if (ret == CKR_OK) {
+                    session->in_use = false;
+                }
+                (void)MUTEX_UNLOCK(session);
+                /* ------- LOCKED SESSION */
+            }
+        }
+    }
+
+    /* if an error occurred or a session was not available, or it was busy
+     * fallback to get a normal session */
+    return p11prov_get_session(ctx, &slotid, NULL,
+                               p11prov_obj_get_refresh_uri(obj), mechtype, NULL,
+                               NULL, reqlogin, rw, _session);
+}
+
 CK_RV p11prov_take_login_session(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
                                  P11PROV_SESSION **_session)
 {

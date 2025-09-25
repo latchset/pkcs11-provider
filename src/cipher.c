@@ -333,15 +333,7 @@ static CK_RV p11prov_cipher_op_init(void *ctx, void *keydata, CK_FLAGS op,
 
 static CK_RV p11prov_cipher_session_init(struct p11prov_cipher_ctx *cctx)
 {
-    CK_SLOT_ID slotid;
     CK_RV rv;
-
-    slotid = p11prov_obj_get_slotid(cctx->key);
-    if (slotid == CK_UNAVAILABLE_INFORMATION) {
-        P11PROV_raise(cctx->provctx, CKR_SLOT_ID_INVALID,
-                      "Provided key has invalid slot");
-        return CKR_SLOT_ID_INVALID;
-    }
 
     if (cctx->tlsver != 0 && cctx->mech.mechanism == CKM_AES_CBC_PAD) {
         /* In the special TLS mode we handle de-padding and mac extraction
@@ -349,9 +341,8 @@ static CK_RV p11prov_cipher_session_init(struct p11prov_cipher_ctx *cctx)
         cctx->mech.mechanism = CKM_AES_CBC;
     }
 
-    rv = p11prov_get_session(cctx->provctx, &slotid, NULL, NULL,
-                             cctx->mech.mechanism, NULL, NULL, true, false,
-                             &cctx->session);
+    rv = p11prov_try_session_ref(cctx->key, cctx->mech.mechanism, true, false,
+                                 &cctx->session);
     if (rv != CKR_OK) {
         return rv;
     }
