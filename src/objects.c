@@ -1803,7 +1803,6 @@ CK_RV p11prov_derive_key(P11PROV_OBJ *key, CK_MECHANISM *mechanism,
         return ret;
     }
 
-again:
     if (!session) {
         ret = p11prov_try_session_ref(key, mechanism->mechanism, false, false,
                                       &session);
@@ -1815,26 +1814,14 @@ again:
 
     ret = p11prov_DeriveKey(ctx, p11prov_session_handle(session), mechanism,
                             handle, template, nattrs, dkey);
-    switch (ret) {
-    case CKR_OK:
+    if (ret == CKR_OK) {
         *_session = session;
-        return CKR_OK;
-    case CKR_SESSION_CLOSED:
-    case CKR_SESSION_HANDLE_INVALID:
-        if (first_pass) {
-            first_pass = false;
-            /* TODO: Explicitly mark handle invalid */
-            p11prov_return_session(session);
-            session = *_session = NULL;
-            goto again;
-        }
-        /* fallthrough */
-    default:
+    } else {
         if (*_session == NULL) {
             p11prov_return_session(session);
         }
-        return ret;
     }
+    return ret;
 }
 
 CK_RV p11prov_obj_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
