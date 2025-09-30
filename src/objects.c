@@ -364,6 +364,7 @@ static void cache_key(P11PROV_OBJ *obj)
     CK_BBOOL val_false = CK_FALSE;
     CK_ATTRIBUTE template[] = { { CKA_TOKEN, &val_false, sizeof(val_false) } };
     CK_SESSION_HANDLE sess;
+    CK_OBJECT_HANDLE obj_handle;
     CK_BBOOL can_cache = CK_TRUE;
     CK_RV ret;
     int cache_keys;
@@ -390,6 +391,12 @@ static void cache_key(P11PROV_OBJ *obj)
         return;
     }
 
+    obj_handle = p11prov_obj_get_handle(obj);
+    if (obj_handle == 0) {
+        P11PROV_debug("Skip caching key with zero object handle");
+        return;
+    }
+
     ret = p11prov_take_login_session(obj->ctx, obj->slotid, &session);
     if (ret != CKR_OK || session == NULL) {
         P11PROV_debug("Failed to get login session. Error %lx", ret);
@@ -400,8 +407,8 @@ static void cache_key(P11PROV_OBJ *obj)
     destroy_key_cache(obj, session);
 
     sess = p11prov_session_handle(session);
-    ret = p11prov_CopyObject(obj->ctx, sess, p11prov_obj_get_handle(obj),
-                             template, 1, &obj->cached);
+    ret = p11prov_CopyObject(obj->ctx, sess, obj_handle, template, 1,
+                             &obj->cached);
     if (ret != CKR_OK) {
         P11PROV_raise(obj->ctx, ret, "Failed to cache key");
         if (ret == CKR_FUNCTION_NOT_SUPPORTED) {
