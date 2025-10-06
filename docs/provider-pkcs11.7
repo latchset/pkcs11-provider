@@ -85,7 +85,11 @@ the key in the session to speed up access.
 Or Networked HSMs that allow exporting key material can cache the key in
 the session instead of re\-requesting it over the network.
 .PP
-Two options are available: * true * false
+Two options are available:
+.IP \[bu] 2
+true
+.IP \[bu] 2
+false
 .PP
 Default: true (Note: if the token does not support session caching, then
 caching will be auto\-disabled after the first attempt)
@@ -100,7 +104,9 @@ This is useful to allow starting a service and providing the pin only
 manually, yet let the service perform multiple logins as needed, for
 example after forking.
 .PP
-Only one option is currently available: * cache: Caches the PIN
+Only one option is currently available:
+.IP \[bu] 2
+cache: Caches the PIN
 .PP
 Default: unset (No caching)
 .PP
@@ -109,8 +115,8 @@ Example:
 \f[CR]pkcs11\-module\-cache\-pins = cache\f[R] (Will cache a pin that
 has been entered manually)
 .SS pkcs11\-module\-cache\-sessions
-Allows one to tune how many pkcs11 sessions may be kept open and cached for
-rapid use.
+Allows one to tune how many pkcs11 sessions may be kept open and cached
+for rapid use.
 This parameter is adjusted based on the maximum number of sessions the
 token declares as supported.
 Note that the login session is always cached to keep the token operable.
@@ -124,10 +130,14 @@ Example:
 Whether the pkcs11 provider will attempt to login to the token when a
 public key is being requested.
 .PP
-Three options are available: * auto: Try without but fallback to login
-behavior if no keys are found * always: Always login before trying to
-load public keys (this is required by some HSMs) * never: Never login
-for public keys
+Three options are available:
+.IP \[bu] 2
+auto: Try without but fallback to login behavior if no keys are found
+.IP \[bu] 2
+always: Always login before trying to load public keys (this is required
+by some HSMs)
+.IP \[bu] 2
+never: Never login for public keys
 .PP
 Default: \[lq]auto\[rq]
 .PP
@@ -142,8 +152,9 @@ startup), or defer initialization until the first time a pkcs11 key is
 loaded (or some other operation explicitly requiring the pkcs11 provider
 is requested).
 .PP
-Only one option is available: * early: Loads the pkcs11 module
-immediately
+Only one option is available:
+.IP \[bu] 2
+early: Loads the pkcs11 module immediately
 .PP
 Default: unset (Loads only at first use)
 .PP
@@ -182,8 +193,8 @@ Example:
 \f[CR]pkcs11\-module\-quirks = no\-deinit no\-operation\-state\f[R]
 (Disables deinitialization, blocks context duplication)
 .SS pkcs11\-module\-block\-operations
-Allows one to block specific \[lq]provider operations\[rq] even if the token
-actually supports the necessary mechanisms.
+Allows one to block specific \[lq]provider operations\[rq] even if the
+token actually supports the necessary mechanisms.
 This is useful to work around cases where one wants to enforce use of
 the token for all operations by setting ?provider=pkcs11 in the default
 properties but wants an exception for a specific type of operation like
