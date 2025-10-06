@@ -98,6 +98,7 @@ Or Networked HSMs that allow exporting key material can cache the key in
 the session instead of re-requesting it over the network.
 
 Two options are available:
+
 * true
 * false
 
@@ -117,6 +118,7 @@ manually, yet let the service perform multiple logins as needed, for
 example after forking.
 
 Only one option is currently available:
+
 * cache: Caches the PIN
 
 Default: unset
@@ -145,6 +147,7 @@ Whether the pkcs11 provider will attempt to login to the token when a
 public key is being requested.
 
 Three options are available:
+
 * auto: Try without but fallback to login behavior if no keys are found
 * always: Always login before trying to load public keys (this is required by some HSMs)
 * never: Never login for public keys
@@ -164,6 +167,7 @@ loaded (or some other operation explicitly requiring the pkcs11 provider
 is requested).
 
 Only one option is available:
+
 * early: Loads the pkcs11 module immediately
 
 Default: unset
