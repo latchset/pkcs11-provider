@@ -7,6 +7,7 @@ pkcs11_provider_sources = [
   'encoder.c',
   'exchange.c',
   'kdf.c',
+  'kem.c',
   'keymgmt.c',
   'pk11_uri.c',
   'interface.c',

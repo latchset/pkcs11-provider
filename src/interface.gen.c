@@ -1412,3 +1412,73 @@ CK_RV p11prov_SessionCancel(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     }
     return ret;
 }
+
+CK_RV p11prov_EncapsulateKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                             CK_MECHANISM_PTR pMechanism,
+                             CK_OBJECT_HANDLE hPublicKey,
+                             CK_ATTRIBUTE_PTR pTemplate,
+                             CK_ULONG ulAttributeCount, CK_BYTE_PTR pCiphertext,
+                             CK_ULONG_PTR pulCiphertextLen,
+                             CK_OBJECT_HANDLE_PTR phKey)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_EncapsulateKey)) {
+        P11PROV_debug("C_%s is blocked", "EncapsulateKey");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->EncapsulateKey) {
+        P11PROV_debug("C_%s is not available", "EncapsulateKey");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "EncapsulateKey");
+    ret = intf->EncapsulateKey(hSession, pMechanism, hPublicKey, pTemplate,
+                               ulAttributeCount, pCiphertext, pulCiphertextLen,
+                               phKey);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "EncapsulateKey",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_DecapsulateKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                             CK_MECHANISM_PTR pMechanism,
+                             CK_OBJECT_HANDLE hPrivateKey,
+                             CK_ATTRIBUTE_PTR pTemplate,
+                             CK_ULONG ulAttributeCount, CK_BYTE_PTR pCiphertext,
+                             CK_ULONG ulCiphertextLen,
+                             CK_OBJECT_HANDLE_PTR phKey)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DecapsulateKey)) {
+        P11PROV_debug("C_%s is blocked", "DecapsulateKey");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->DecapsulateKey) {
+        P11PROV_debug("C_%s is not available", "DecapsulateKey");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "DecapsulateKey");
+    ret = intf->DecapsulateKey(hSession, pMechanism, hPrivateKey, pTemplate,
+                               ulAttributeCount, pCiphertext, ulCiphertextLen,
+                               phKey);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "DecapsulateKey",
+                      ret);
+    }
+    return ret;
+}
