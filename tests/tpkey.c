@@ -215,6 +215,162 @@ static void verify_msg_op(EVP_PKEY *key, bool oneshot, const char *sigalgname,
 }
 #endif
 
+#if defined(OSSL_FUNC_KEM_ENCAPSULATE_INIT)
+static void kem_op(const char *keytype, const char *label)
+{
+    EVP_PKEY *priv_key = NULL, *pub_key = NULL;
+    EVP_PKEY_CTX *kctx = NULL;
+    unsigned char *ct = NULL, *ss1 = NULL, *ss2 = NULL;
+    size_t ctlen, ss1len, ss2len;
+    unsigned char *pub = NULL;
+    size_t publen;
+    int ret;
+
+    PRINTERR("Testing KEM for %s\n", keytype);
+
+    /* Generate keypair */
+    priv_key = util_gen_key(keytype, label);
+
+    /*
+     * Generate a distinct key with just the public key part,
+     * and use it to perform the encapsulation function.
+     */
+    ret = EVP_PKEY_get_raw_public_key(priv_key, NULL, &publen);
+    if (ret != 1) {
+        PRINTERROSSL("Failed to get raw public key length\n");
+        exit(EXIT_FAILURE);
+    }
+
+    pub = OPENSSL_malloc(publen);
+    if (pub == NULL) {
+        PRINTERROSSL("Failed to allocate raw public key buffer\n");
+        exit(EXIT_FAILURE);
+    }
+    ret = EVP_PKEY_get_raw_public_key(priv_key, pub, &publen);
+    if (ret != 1) {
+        OPENSSL_free(pub);
+        PRINTERROSSL("Failed to get raw public key\n");
+        exit(EXIT_FAILURE);
+    }
+
+    pub_key = EVP_PKEY_new_raw_public_key_ex(NULL, keytype, NULL, pub, publen);
+    OPENSSL_free(pub);
+    if (pub_key == NULL) {
+        PRINTERROSSL("Failed to create new raw pkey\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Encapsulate */
+    kctx = EVP_PKEY_CTX_new_from_pkey(NULL, pub_key, NULL);
+    if (kctx == NULL) {
+        PRINTERROSSL("Failed to create pkey ctx for encapsulate\n");
+        exit(EXIT_FAILURE);
+    }
+
+    ret = EVP_PKEY_encapsulate_init(kctx, NULL);
+    if (ret != 1) {
+        PRINTERROSSL("Failed to init EVP_PKEY_encapsulate\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Determine buffer lengths */
+    ret = EVP_PKEY_encapsulate(kctx, NULL, &ctlen, NULL, &ss1len);
+    if (ret != 1) {
+        PRINTERROSSL("Failed to determine KEM buffer lengths\n");
+        exit(EXIT_FAILURE);
+    }
+
+    ct = OPENSSL_malloc(ctlen);
+    ss1 = OPENSSL_malloc(ss1len);
+    if (ct == NULL || ss1 == NULL) {
+        PRINTERROSSL("Failed to allocate KEM buffers\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Do encapsulation */
+    ret = EVP_PKEY_encapsulate(kctx, ct, &ctlen, ss1, &ss1len);
+    if (ret != 1) {
+        PRINTERROSSL("Failed to perform encapsulation\n");
+        exit(EXIT_FAILURE);
+    }
+    EVP_PKEY_CTX_free(kctx);
+    kctx = NULL;
+
+    /* Decapsulate. */
+    kctx = EVP_PKEY_CTX_new_from_pkey(NULL, priv_key, NULL);
+    if (kctx == NULL) {
+        PRINTERROSSL("Failed to create pkey ctx for decapsulate\n");
+        exit(EXIT_FAILURE);
+    }
+
+    ret = EVP_PKEY_decapsulate_init(kctx, NULL);
+    if (ret != 1) {
+        PRINTERROSSL("Failed to init EVP_PKEY_decapsulate\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Determine buffer length */
+    ret = EVP_PKEY_decapsulate(kctx, NULL, &ss2len, ct, ctlen);
+    if (ret != 1) {
+        PRINTERROSSL("Failed to determine decapsulate buffer length\n");
+        exit(EXIT_FAILURE);
+    }
+
+    ss2 = OPENSSL_malloc(ss2len);
+    if (ss2 == NULL) {
+        PRINTERROSSL("Failed to allocate decapsulate buffer\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Do decapsulation */
+    ret = EVP_PKEY_decapsulate(kctx, ss2, &ss2len, ct, ctlen);
+    if (ret != 1) {
+        PRINTERROSSL("Failed to perform decapsulation\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (ss1len != ss2len) {
+        PRINTERR("Shared secrets length mismatch!\n");
+        exit(EXIT_FAILURE);
+    }
+    if (memcmp(ss1, ss2, ss1len) != 0) {
+        PRINTERR("Shared secrets do not match!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    OPENSSL_free(ss1);
+    OPENSSL_free(ss2);
+    OPENSSL_free(ct);
+    EVP_PKEY_CTX_free(kctx);
+    EVP_PKEY_free(pub_key);
+    EVP_PKEY_free(priv_key);
+}
+
+static void run_ml_kem_tests(void)
+{
+    int i;
+    struct kem_test_data {
+        const char *key_type;
+        const char *label;
+    };
+
+    const struct kem_test_data kem_tests[] = {
+        { "ML-KEM-512", "ML-KEM-512 Pkey KEM Test" },
+        { "ML-KEM-768", "ML-KEM-768 Pkey KEM Test" },
+        { "ML-KEM-1024", "ML-KEM-1024 Pkey KEM Test" },
+    };
+
+    for (i = 0; i < (sizeof(kem_tests) / sizeof(kem_tests[0])); i++) {
+        kem_op(kem_tests[i].key_type, kem_tests[i].label);
+    }
+}
+#else
+static void run_ml_kem_tests(void)
+{
+    return;
+}
+#endif
+
 static void check_public_info(EVP_PKEY *key)
 {
     BIO *membio = BIO_new(BIO_s_mem());
@@ -278,6 +434,7 @@ int main(int argc, char *argv[])
 {
     const char *driver = NULL;
     const char *support_ml_dsa = NULL;
+    const char *support_ml_kem = NULL;
     const unsigned char *data = (const unsigned char *)"Sign Me!";
     unsigned char *sig;
     size_t siglen;
@@ -310,6 +467,7 @@ int main(int argc, char *argv[])
         PRINTERR("Driver %s\n", driver);
     }
     support_ml_dsa = getenv("SUPPORT_ML_DSA");
+    support_ml_kem = getenv("SUPPORT_ML_KEM");
 
     for (i = 0; i < (sizeof(tests) / sizeof(tests[0])); i++) {
         /* Softokn does not handle Edwards keys yet */
@@ -356,6 +514,10 @@ int main(int argc, char *argv[])
         check_public_info(key);
 
         EVP_PKEY_free(key);
+    }
+
+    if (support_ml_kem != NULL && strcmp(support_ml_kem, "1") == 0) {
+        run_ml_kem_tests();
     }
 
     /* This test is EC specific */
