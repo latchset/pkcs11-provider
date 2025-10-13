@@ -1375,3 +1375,287 @@ const OSSL_DISPATCH p11prov_mldsa_encoder_text_functions[] = {
     DISPATCH_TEXT_ENCODER_ELEM(ENCODE, mldsa, encode_text),
     { 0, NULL },
 };
+
+/* ML-KEM */
+
+struct mlkem_key_point {
+    unsigned char *octet;
+    size_t len;
+};
+
+#ifdef NID_ML_KEM_512
+static int p11prov_mlkem_set_keypoint_data(const OSSL_PARAM *params, void *key)
+{
+    struct mlkem_key_point *keypoint = (struct mlkem_key_point *)key;
+    const OSSL_PARAM *p;
+
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PUB_KEY);
+    if (!p) {
+        return RET_OSSL_ERR;
+    }
+    if (p->data_type != OSSL_PARAM_OCTET_STRING) {
+        return RET_OSSL_ERR;
+    }
+    keypoint->octet = OPENSSL_memdup(p->data, p->data_size);
+    if (!keypoint->octet) {
+        return RET_OSSL_ERR;
+    }
+    keypoint->len = p->data_size;
+
+    return RET_OSSL_OK;
+}
+#endif /* defined(NID_ML_KEM_512) */
+
+static X509_PUBKEY *p11prov_mlkem_pubkey_to_x509(P11PROV_OBJ *key)
+{
+#ifdef NID_ML_KEM_512
+    struct mlkem_key_point keypoint = { 0 };
+    X509_PUBKEY *pubkey;
+    int nid = NID_undef;
+    int ret;
+
+    switch (p11prov_obj_get_key_param_set(key)) {
+    case CKP_ML_KEM_512:
+        nid = NID_ML_KEM_512;
+        break;
+    case CKP_ML_KEM_768:
+        nid = NID_ML_KEM_768;
+        break;
+    case CKP_ML_KEM_1024:
+        nid = NID_ML_KEM_1024;
+        break;
+    default:
+        return NULL;
+    }
+
+    ret = p11prov_obj_export_public_key(key, CKK_ML_KEM, true, false,
+                                        p11prov_mlkem_set_keypoint_data,
+                                        &keypoint);
+    if (ret != RET_OSSL_OK) {
+        OPENSSL_clear_free(keypoint.octet, keypoint.len);
+        return NULL;
+    }
+
+    pubkey = X509_PUBKEY_new();
+    if (!pubkey) {
+        OPENSSL_clear_free(keypoint.octet, keypoint.len);
+        return NULL;
+    }
+
+    ret = X509_PUBKEY_set0_param(pubkey, OBJ_nid2obj(nid), V_ASN1_UNDEF, NULL,
+                                 keypoint.octet, keypoint.len);
+    if (ret != RET_OSSL_OK) {
+        OPENSSL_clear_free(keypoint.octet, keypoint.len);
+        X509_PUBKEY_free(pubkey);
+        return NULL;
+    }
+
+    return pubkey;
+#else
+    return NULL;
+#endif
+}
+
+/* SubjectPublicKeyInfo DER Encode */
+DISPATCH_ENCODER_FN(mlkem, spki, der, does_selection);
+
+static int p11prov_mlkem_encoder_spki_der_does_selection(void *inctx,
+                                                         int selection)
+{
+    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+        return RET_OSSL_OK;
+    }
+    return RET_OSSL_ERR;
+}
+
+static int p11prov_mlkem_encoder_spki_der_encode(
+    void *inctx, OSSL_CORE_BIO *cbio, const void *inkey,
+    const OSSL_PARAM key_abstract[], int selection,
+    OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
+{
+    struct p11prov_encoder_ctx *ctx = (struct p11prov_encoder_ctx *)inctx;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)inkey;
+    CK_KEY_TYPE type;
+    X509_PUBKEY *pubkey = NULL;
+    BIO *out = NULL;
+    int ret;
+
+    P11PROV_debug("mlkem SubjectPublicKeyInfo DER Encoder");
+
+    /* we only return public key info */
+    if (!(selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY)) {
+        return RET_OSSL_ERR;
+    }
+
+    type = p11prov_obj_get_key_type(key);
+    if (type != CKK_ML_KEM) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid Key Type");
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+
+    out = BIO_new_from_core_bio(p11prov_ctx_get_libctx(ctx->provctx), cbio);
+    if (!out) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Failed to init BIO");
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+
+    pubkey = p11prov_mlkem_pubkey_to_x509(key);
+    if (!pubkey) {
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+
+    ret = i2d_X509_PUBKEY_bio(out, pubkey);
+
+done:
+    X509_PUBKEY_free(pubkey);
+    BIO_free(out);
+    return ret;
+}
+
+const OSSL_DISPATCH p11prov_mlkem_encoder_spki_der_functions[] = {
+    DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
+    DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
+    DISPATCH_ENCODER_ELEM(DOES_SELECTION, mlkem, spki, der, does_selection),
+    DISPATCH_ENCODER_ELEM(ENCODE, mlkem, spki, der, encode),
+    { 0, NULL },
+};
+
+static int p11prov_mlkem_print_public_key(const OSSL_PARAM *params, void *bio)
+{
+    BIO *out = (BIO *)bio;
+    const OSSL_PARAM *p;
+    int ret;
+
+    /* Pub key */
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PUB_KEY);
+    if (p) {
+        ret = p11prov_print_buf(out, p, "Pub:", 4);
+        if (ret != RET_OSSL_OK) {
+            return RET_OSSL_ERR;
+        }
+    }
+
+    return RET_OSSL_OK;
+}
+
+static int p11prov_mlkem_encoder_priv_key_info_pem_encode(
+    void *inctx, OSSL_CORE_BIO *cbio, const void *inkey,
+    const OSSL_PARAM key_abstract[], int selection,
+    OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
+{
+    return p11prov_encoder_private_key_write_pem(
+        CKK_ML_KEM, inctx, cbio, inkey, key_abstract, selection, cb, cbarg);
+}
+
+const OSSL_DISPATCH p11prov_mlkem_encoder_priv_key_info_pem_functions[] = {
+    DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
+    DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
+    DISPATCH_ENCODER_ELEM(DOES_SELECTION, common, priv_key_info, pem,
+                          does_selection),
+    DISPATCH_ENCODER_ELEM(ENCODE, mlkem, priv_key_info, pem, encode),
+    { 0, NULL },
+};
+
+DISPATCH_TEXT_ENCODER_FN(mlkem, encode);
+
+static int p11prov_mlkem_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
+                                             const void *inkey,
+                                             const OSSL_PARAM key_abstract[],
+                                             int selection,
+                                             OSSL_PASSPHRASE_CALLBACK *cb,
+                                             void *cbarg)
+{
+    struct p11prov_encoder_ctx *ctx = (struct p11prov_encoder_ctx *)inctx;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)inkey;
+    CK_KEY_TYPE type;
+    CK_OBJECT_CLASS class;
+    CK_ULONG param_set;
+    const char *type_name = "ML-KEM";
+    const char *uri = NULL;
+    BIO *out;
+    int ret;
+
+    P11PROV_debug("mlkem Text Encoder");
+
+    type = p11prov_obj_get_key_type(key);
+    if (type != CKK_ML_KEM) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid Key Type");
+        return RET_OSSL_ERR;
+    }
+
+    out = BIO_new_from_core_bio(p11prov_ctx_get_libctx(ctx->provctx), cbio);
+    if (!out) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Failed to init BIO");
+        return RET_OSSL_ERR;
+    }
+
+    param_set = p11prov_obj_get_key_param_set(key);
+    switch (param_set) {
+    case CKP_ML_KEM_512:
+        type_name = "ML-KEM-512";
+        break;
+    case CKP_ML_KEM_768:
+        type_name = "ML-KEM-768";
+        break;
+    case CKP_ML_KEM_1024:
+        type_name = "ML-KEM-1024";
+        break;
+    default:
+        BIO_printf(out, "[Error: Key Parameter set unnknown %ld]", param_set);
+    }
+
+    class = p11prov_obj_get_class(key);
+
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
+        if (class != CKO_PRIVATE_KEY) {
+            BIO_printf(out, "[Error: Invalid key data]\n");
+            goto done;
+        }
+        BIO_printf(out, "PKCS11 %s Private Key\n", type_name);
+        BIO_printf(out, "[Can't export and print private key data]\n");
+    }
+
+    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+        if (class != CKO_PUBLIC_KEY) {
+            P11PROV_OBJ *assoc;
+
+            assoc = p11prov_obj_find_associated(key, CKO_PUBLIC_KEY);
+            if (!assoc) {
+                BIO_printf(out, "[Error: Failed to source public key data]\n");
+                goto done;
+            }
+
+            /* replace key before printing the rest */
+            key = assoc;
+        }
+        BIO_printf(out, "PKCS11 %s Public Key\n", type_name);
+        ret = p11prov_obj_export_public_key(
+            key, CKK_ML_KEM, true, false, p11prov_mlkem_print_public_key, out);
+        /* FIXME if we want print in different format */
+        if (ret != RET_OSSL_OK) {
+            BIO_printf(out, "[Error: Failed to decode public key data]\n");
+        }
+    }
+
+    uri = p11prov_obj_get_public_uri(key);
+    if (uri) {
+        BIO_printf(out, "URI %s\n", uri);
+    }
+
+done:
+    if (key != inkey) {
+        p11prov_obj_free(key);
+    }
+    BIO_free(out);
+    return RET_OSSL_OK;
+}
+
+const OSSL_DISPATCH p11prov_mlkem_encoder_text_functions[] = {
+    DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
+    DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
+    DISPATCH_TEXT_ENCODER_ELEM(ENCODE, mlkem, encode_text),
+    { 0, NULL },
+};
