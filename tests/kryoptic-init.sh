@@ -56,3 +56,7 @@ export SUPPORT_ALLOWED_MECHANISMS=1
 if [ -z "$SUPPORT_ML_DSA" ]; then
     export SUPPORT_ML_DSA=1
 fi
+# Enable SUPPORT_ML_KEM as long as it is not set already.
+if [ -z "$SUPPORT_ML_KEM" ]; then
+    export SUPPORT_ML_KEM=1
+fi

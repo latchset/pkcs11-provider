@@ -31,3 +31,5 @@ export TESTPORT="29000"
 export SUPPORT_ALLOWED_MECHANISMS=0
 # not yet
 export SUPPORT_ML_DSA=0
+# not yet
+export SUPPORT_ML_KEM=0

@@ -526,6 +526,38 @@ if [ "$SUPPORT_ML_DSA" -eq 1 ]; then
     echo ""
 fi
 
+if [ "$SUPPORT_ML_KEM" -eq 1 ]; then
+    title PARA "generate ML-KEM Key pair"
+    KEYID='0013'
+    URIKEYID="%00%13"
+    TSTCRTN="mlKem"
+
+    # not supported by the pkcs11-tool yet. Do it for now with OpenSSL CLI
+    ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+    # We need to configure pkcs11 to allow emitting PEM URIs so that the
+    # genpkey command does not fail on trying to emit the private key PEM file.
+    sed -e "s/#pkcs11-module-encode-provider-uri-to-pem/pkcs11-module-encode-provider-uri-to-pem = true/" \
+        "${OPENSSL_CONF}" > "${OPENSSL_CONF}.mlkem_pem_uri"
+    OPENSSL_CONF=${OPENSSL_CONF}.mlkem_pem_uri
+    ossl '
+    genpkey -propquery "provider=pkcs11"
+            -algorithm ML-KEM-512
+            -pkeyopt "pkcs11_uri:pkcs11:object=${TSTCRTN};id=${URIKEYID}"'
+    OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
+    MLKEMBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+    MLKEMBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
+    MLKEMBASEURI="pkcs11:id=${URIKEYID}"
+    MLKEMPUBURI="pkcs11:type=public;id=${URIKEYID}"
+    MLKEMPRIURI="pkcs11:type=private;id=${URIKEYID}"
+
+    title LINE "ML-KEM PKCS11 URIS"
+    echo "${MLKEMBASEURI}"
+    echo "${MLKEMPUBURI}"
+    echo "${MLKEMPRIURI}"
+    echo ""
+fi
+
 
 title PARA "Show contents of ${TOKENTYPE} token"
 echo " ----------------------------------------------------------------------------------------------------"
@@ -548,6 +580,7 @@ export TESTBLDDIR="${TESTBLDDIR}"
 export SUPPORT_ED25519="${SUPPORT_ED25519}"
 export SUPPORT_ED448="${SUPPORT_ED448}"
 export SUPPORT_ML_DSA="${SUPPORT_ML_DSA}"
+export SUPPORT_ML_KEM="${SUPPORT_ML_KEM}"
 export SUPPORT_RSA_PKCS1_ENCRYPTION="${SUPPORT_RSA_PKCS1_ENCRYPTION}"
 export SUPPORT_RSA_KEYGEN_PUBLIC_EXPONENT="${SUPPORT_RSA_KEYGEN_PUBLIC_EXPONENT}"
 export SUPPORT_TLSFUZZER="${SUPPORT_TLSFUZZER}"
@@ -678,6 +711,17 @@ export MLDSACRTURI="${MLDSACRTURI}"
 DBGSCRIPT
 fi
 
+if [ -n "${MLKEMBASEURI}" ]; then
+    cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
+
+export MLKEMBASEURIWITHPINVALUE="${MLKEMBASEURIWITHPINVALUE}"
+export MLKEMBASEURIWITHPINSOURCE="${MLKEMBASEURIWITHPINSOURCE}"
+export MLKEMBASEURI="${MLKEMBASEURI}"
+export MLKEMPUBURI="${MLKEMPUBURI}"
+export MLKEMPRIURI="${MLKEMPRIURI}"
+DBGSCRIPT
+fi
+
 cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
 
 # for listing the separate pkcs11 calls
@@ -700,4 +744,3 @@ fi
 gen_unsetvars
 
 title ENDSECTION
-
