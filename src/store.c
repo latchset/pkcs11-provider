@@ -405,6 +405,21 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
                 return RET_OSSL_ERR;
             }
             break;
+        case CKK_ML_KEM:
+            switch (p11prov_obj_get_key_param_set(obj)) {
+            case CKP_ML_KEM_512:
+                data_type = (char *)MLKEM_512;
+                break;
+            case CKP_ML_KEM_768:
+                data_type = (char *)MLKEM_768;
+                break;
+            case CKP_ML_KEM_1024:
+                data_type = (char *)MLKEM_1024;
+                break;
+            default:
+                return RET_OSSL_ERR;
+            }
+            break;
         default:
             return RET_OSSL_ERR;
         }

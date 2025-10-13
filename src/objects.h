@@ -135,4 +135,8 @@ extern const CK_BYTE ed448_ec_params[];
 #define ML_DSA_87_PK_SIZE 2592
 #define ML_DSA_87_SIG_SIZE 4627
 
+#define MLKEM_512 "ML-KEM-512"
+#define MLKEM_768 "ML-KEM-768"
+#define MLKEM_1024 "ML-KEM-1024"
+
 #endif /* _OBJECTS_H */
