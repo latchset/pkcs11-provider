@@ -322,6 +322,7 @@ int p11prov_pop_error_to_mark(P11PROV_CTX *ctx);
 #include "slot.h"
 #include "random.h"
 #include "pk11_uri.h"
+#include "kem.h"
 
 #if SKEY_SUPPORT == 1
 #include "cipher.h"

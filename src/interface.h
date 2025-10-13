@@ -145,6 +145,20 @@ CK_RV p11prov_GenerateRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                              CK_BYTE_PTR RandomData, CK_ULONG ulRandomLen);
 CK_RV p11prov_SessionCancel(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                             CK_FLAGS flags);
+CK_RV p11prov_EncapsulateKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                             CK_MECHANISM_PTR pMechanism,
+                             CK_OBJECT_HANDLE hPublicKey,
+                             CK_ATTRIBUTE_PTR pTemplate,
+                             CK_ULONG ulAttributeCount, CK_BYTE_PTR pCiphertext,
+                             CK_ULONG_PTR pulCiphertextLen,
+                             CK_OBJECT_HANDLE_PTR phKey);
+CK_RV p11prov_DecapsulateKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                             CK_MECHANISM_PTR pMechanism,
+                             CK_OBJECT_HANDLE hPrivateKey,
+                             CK_ATTRIBUTE_PTR pTemplate,
+                             CK_ULONG ulAttributeCount, CK_BYTE_PTR pCiphertext,
+                             CK_ULONG ulCiphertextLen,
+                             CK_OBJECT_HANDLE_PTR phKey);
 
 /* Special side-channel free path against PKCS#1 1.5 side channel leaking */
 CK_RV side_channel_free_Decrypt(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
@@ -214,5 +228,7 @@ CK_INFO p11prov_module_ck_info(P11PROV_MODULE *mctx);
 /* 3.x  functions: */
 #define P11PROV_BLOCK_GetInterface 0b0000000000000000
 #define P11PROV_BLOCK_SessionCancel 0b0000000000000000
+#define P11PROV_BLOCK_EncapsulateKey 0b0000000000000000
+#define P11PROV_BLOCK_DecapsulateKey 0b0000000000000000
 
 #endif /* _INTERFACE_H */

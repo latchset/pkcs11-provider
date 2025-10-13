@@ -1171,11 +1171,6 @@ static CK_RV fetch_mldsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     return CKR_OK;
 }
 
-/* See FIPS-203, 4. Parameter Sets */
-#define ML_KEM_512_PK_SIZE 800
-#define ML_KEM_768_PK_SIZE 1184
-#define ML_KEM_1024_PK_SIZE 1568
-
 #define MLKEM_ATTRS_NUM (BASE_KEY_ATTRS_NUM + 1)
 static CK_RV fetch_mlkem_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                              CK_OBJECT_HANDLE object, P11PROV_OBJ *key)

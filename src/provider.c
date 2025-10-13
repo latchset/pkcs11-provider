@@ -53,6 +53,7 @@ struct p11prov_ctx {
     OSSL_ALGORITHM *op_exchange;
     OSSL_ALGORITHM *op_signature;
     OSSL_ALGORITHM *op_asym_cipher;
+    OSSL_ALGORITHM *op_kem;
 
     OSSL_ALGORITHM *op_encoder;
     OSSL_ALGORITHM *op_decoder;
@@ -544,6 +545,7 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
     OPENSSL_free(ctx->op_exchange);
     OPENSSL_free(ctx->op_signature);
     OPENSSL_free(ctx->op_asym_cipher);
+    OPENSSL_free(ctx->op_kem);
     OPENSSL_free(ctx->op_encoder);
     OPENSSL_free(ctx->op_decoder);
     OPENSSL_free(ctx->op_keymgmt);
@@ -855,7 +857,8 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
         CKM_ECDSA_SHA384, CKM_ECDSA_SHA512, CKM_ECDSA_SHA3_224, \
         CKM_ECDSA_SHA3_256, CKM_ECDSA_SHA3_384, CKM_ECDSA_SHA3_512
 
-#define PQC_MECHS CKM_ML_DSA, CKM_ML_DSA_KEY_PAIR_GEN
+#define PQC_MECHS \
+    CKM_ML_DSA, CKM_ML_DSA_KEY_PAIR_GEN, CKM_ML_KEM, CKM_ML_KEM_KEY_PAIR_GEN
 
 #if SKEY_SUPPORT == 1
 #define AES_MECHS \
@@ -930,6 +933,7 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
     int exchange_idx = 0;
     int signature_idx = 0;
     int asym_cipher_idx = 0;
+    int kem_idx = 0;
 #if SKEY_SUPPORT == 1
     int cipher_idx = 0;
 #endif
@@ -1222,6 +1226,16 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                              p11prov_mldsa_87_signature_functions);
                 UNCHECK_MECHS(CKM_ML_DSA_KEY_PAIR_GEN, CKM_ML_DSA);
                 break;
+            case CKM_ML_KEM:
+            case CKM_ML_KEM_KEY_PAIR_GEN:
+                ADD_ALGO_EXT(ML_KEM_512, kem, prop,
+                             p11prov_mlkem_kem_functions);
+                ADD_ALGO_EXT(ML_KEM_768, kem, prop,
+                             p11prov_mlkem_kem_functions);
+                ADD_ALGO_EXT(ML_KEM_1024, kem, prop,
+                             p11prov_mlkem_kem_functions);
+                UNCHECK_MECHS(CKM_ML_KEM_KEY_PAIR_GEN, CKM_ML_KEM);
+                break;
 #if SKEY_SUPPORT == 1
             case CKM_AES_ECB:
                 ADD_ALGO(AES_256_ECB, aes256ecb, cipher, prop);
@@ -1299,6 +1313,7 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
     TERM_ALGO(exchange);
     TERM_ALGO(signature);
     TERM_ALGO(asym_cipher);
+    TERM_ALGO(kem);
 #if SKEY_SUPPORT == 1
     TERM_ALGO(cipher);
 #endif
@@ -1543,6 +1558,9 @@ p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
     case OSSL_OP_ASYM_CIPHER:
         *no_cache = ctx->status == P11PROV_UNINITIALIZED ? 1 : 0;
         return ctx->op_asym_cipher;
+    case OSSL_OP_KEM:
+        *no_cache = ctx->status == P11PROV_UNINITIALIZED ? 1 : 0;
+        return ctx->op_kem;
     case OSSL_OP_ENCODER:
         *no_cache = 0;
         return ctx->op_encoder;
