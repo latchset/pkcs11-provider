@@ -124,4 +124,15 @@ extern const CK_BYTE ed448_ec_params[];
 #define MLDSA_65 "ML-DSA-65"
 #define MLDSA_87 "ML-DSA-87"
 
+/* See FIPS-204, 4. Parameter Sets */
+#define ML_DSA_44_SK_SIZE 2560
+#define ML_DSA_44_PK_SIZE 1312
+#define ML_DSA_44_SIG_SIZE 2420
+#define ML_DSA_65_SK_SIZE 4032
+#define ML_DSA_65_PK_SIZE 1952
+#define ML_DSA_65_SIG_SIZE 3309
+#define ML_DSA_87_SK_SIZE 4896
+#define ML_DSA_87_PK_SIZE 2592
+#define ML_DSA_87_SIG_SIZE 4627
+
 #endif /* _OBJECTS_H */
