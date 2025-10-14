@@ -7,17 +7,6 @@
 #include "openssl/evp.h"
 #include "openssl/err.h"
 
-/* See FIPS-204, 4. Parameter Sets */
-#define ML_DSA_44_SK_SIZE 2560
-#define ML_DSA_44_PK_SIZE 1312
-#define ML_DSA_44_SIG_SIZE 2420
-#define ML_DSA_65_SK_SIZE 4032
-#define ML_DSA_65_PK_SIZE 1952
-#define ML_DSA_65_SIG_SIZE 3309
-#define ML_DSA_87_SK_SIZE 4896
-#define ML_DSA_87_PK_SIZE 2592
-#define ML_DSA_87_SIG_SIZE 4627
-
 DISPATCH_MLDSA_FN(sign_init);
 DISPATCH_MLDSA_FN(sign);
 DISPATCH_MLDSA_FN(verify_init);

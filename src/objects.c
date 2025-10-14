@@ -1092,14 +1092,6 @@ static CK_RV fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     return ret;
 }
 
-/* See FIPS-204, 4. Parameter Sets */
-#define ML_DSA_44_SK_SIZE 2560
-#define ML_DSA_65_SK_SIZE 4032
-#define ML_DSA_87_SK_SIZE 4896
-#define ML_DSA_44_PK_SIZE 1312
-#define ML_DSA_65_PK_SIZE 1952
-#define ML_DSA_87_PK_SIZE 2592
-
 #define MLDSA_ATTRS_NUM (BASE_KEY_ATTRS_NUM + 1)
 static CK_RV fetch_mldsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                              CK_OBJECT_HANDLE object, P11PROV_OBJ *key)
