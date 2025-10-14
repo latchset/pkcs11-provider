@@ -1791,7 +1791,6 @@ CK_RV p11prov_derive_key(P11PROV_OBJ *key, CK_MECHANISM *mechanism,
     P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
     CK_OBJECT_HANDLE handle = CK_INVALID_HANDLE;
     P11PROV_SESSION *session = *_session;
-    bool first_pass = true;
     CK_RV ret;
 
     /* do this first as it may cause a refresh of the object that will
