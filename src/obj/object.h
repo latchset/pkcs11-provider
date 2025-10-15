@@ -58,9 +58,6 @@ P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
 CK_RV p11prov_derive_key(P11PROV_OBJ *key, CK_MECHANISM *mechanism,
                          CK_ATTRIBUTE *template, CK_ULONG nattrs,
                          P11PROV_SESSION **_session, CK_OBJECT_HANDLE *dkey);
-CK_RV p11prov_obj_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
-                                 P11PROV_OBJ *obj, CK_ATTRIBUTE *template,
-                                 CK_ULONG tsize);
 const char *p11prov_obj_get_ec_group_name(P11PROV_OBJ *obj);
 bool p11prov_obj_get_ec_compressed(P11PROV_OBJ *obj);
 int p11prov_obj_export_public_key(P11PROV_OBJ *obj, CK_KEY_TYPE key_type,
@@ -92,10 +89,6 @@ P11PROV_OBJ *p11prov_obj_import_secret_key(P11PROV_CTX *ctx, CK_KEY_TYPE type,
 CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
                                             const void *pubkey,
                                             size_t pubkey_len);
-
-CK_RV p11prov_obj_copy_specific_attr(P11PROV_OBJ *pub_key,
-                                     P11PROV_OBJ *priv_key,
-                                     CK_ATTRIBUTE_TYPE type);
 
 P11PROV_OBJ *p11prov_obj_find_associated(P11PROV_OBJ *obj,
                                          CK_OBJECT_CLASS class);

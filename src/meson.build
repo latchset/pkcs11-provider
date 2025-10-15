@@ -14,7 +14,6 @@ pkcs11_provider_sources = [
   'obj/create.c',
   'obj/keymgmt.c',
   'obj/fetch.c',
-  'obj/misc.c',
   'obj/object.c',
   'obj/pool.c',
   'obj/store.c',
