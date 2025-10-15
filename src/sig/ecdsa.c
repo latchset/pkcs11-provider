@@ -201,7 +201,8 @@ static int convert_ecdsa_raw_to_der(const unsigned char *raw, size_t rawlen,
         *derlen = i2d_ECDSA_SIG(ecdsasig, NULL);
         if (*derlen <= dersize) {
             i2d_ECDSA_SIG(ecdsasig, &der);
-            ret = RET_OSSL_OK;
+        } else {
+            ret = RET_OSSL_ERR;
         }
     } else {
         BN_clear_free(r);
