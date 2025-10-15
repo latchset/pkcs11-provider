@@ -308,7 +308,7 @@ int p11prov_pop_error_to_mark(P11PROV_CTX *ctx);
     static OSSL_FUNC_##type##_##name##_fn prefix##_##name
 
 #include "interface.h"
-#include "objects.h"
+#include "obj/object.h"
 #include "keymgmt.h"
 #include "store.h"
 #include "sig/signature.h"
