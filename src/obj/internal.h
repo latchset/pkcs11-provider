@@ -52,6 +52,10 @@ struct p11prov_obj {
 CK_RV p11prov_obj_store_public_key(P11PROV_OBJ *key);
 CK_RV obj_add_to_pool(P11PROV_OBJ *obj);
 void obj_rm_from_pool(P11PROV_OBJ *obj);
+P11PROV_OBJ *p11prov_obj_pool_find(P11PROV_OBJ_POOL *pool,
+                                   CK_OBJECT_CLASS class, CK_KEY_TYPE type,
+                                   CK_ULONG param_set, CK_ULONG bit_size,
+                                   CK_ATTRIBUTE *attrs, int numattrs);
 CK_RV decode_ec_point(CK_KEY_TYPE key_type, CK_ATTRIBUTE *attr,
                       struct data_buffer *ec_point);
 
@@ -60,18 +64,6 @@ CK_RV decode_ec_point(CK_KEY_TYPE key_type, CK_ATTRIBUTE *attr,
 #define CKA_P11PROV_PUB_KEY CKA_P11PROV_BASE + 3
 #define CKA_P11PROV_PUB_KEY_X CKA_P11PROV_BASE + 4
 #define CKA_P11PROV_PUB_KEY_Y CKA_P11PROV_BASE + 5
-
-struct p11prov_obj_pool {
-    P11PROV_CTX *provctx;
-    CK_SLOT_ID slotid;
-
-    P11PROV_OBJ **objects;
-    int size;
-    int num;
-    int first_free;
-
-    pthread_mutex_t lock;
-};
 
 #define BASE_KEY_ATTRS_NUM 4
 #define RSA_ATTRS_NUM (BASE_KEY_ATTRS_NUM + 2)
