@@ -4,25 +4,6 @@
 #include "obj/internal.h"
 #include "platform/endian.h"
 
-static bool obj_match_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int numattrs)
-{
-    CK_ATTRIBUTE *x;
-    for (int i = 0; i < numattrs; i++) {
-        x = p11prov_obj_get_attr(obj, attrs[i].type);
-        if (!x) {
-            return false;
-        }
-        if (x->ulValueLen != attrs[i].ulValueLen) {
-            return false;
-        }
-        if (memcmp(x->pValue, attrs[i].pValue, x->ulValueLen) != 0) {
-            return false;
-        }
-    }
-    /* match found */
-    return true;
-}
-
 #define MAX_ATTRS_SIZE 4
 struct pool_find_ctx {
     CK_KEY_TYPE type;
@@ -38,45 +19,10 @@ struct pool_find_ctx {
 static bool pool_find_callback(void *pctx, P11PROV_OBJ_POOL *pool)
 {
     struct pool_find_ctx *ctx = (struct pool_find_ctx *)pctx;
-    P11PROV_OBJ *obj;
-    CK_RV ret;
 
-    if (!pool) {
-        return false;
-    }
-
-    ret = MUTEX_LOCK(pool);
-    if (ret != CKR_OK) {
-        return false;
-    }
-
-    /* LOCKED SECTION ------------- */
-    for (int i = 0; i < pool->num; i++) {
-        obj = pool->objects[i];
-        if (!obj) {
-            continue;
-        }
-        if (obj->class != ctx->class) {
-            continue;
-        }
-        if (obj->data.key.type != ctx->type) {
-            continue;
-        }
-        if (ctx->param_set != CK_UNAVAILABLE_INFORMATION
-            && obj->data.key.param_set != ctx->param_set) {
-            continue;
-        }
-        if (obj->data.key.bit_size != ctx->bit_size) {
-            continue;
-        }
-        if (obj_match_attrs(obj, ctx->attrs, ctx->numattrs)) {
-            ctx->found = obj;
-            break;
-        }
-    }
-
-    (void)MUTEX_UNLOCK(pool);
-    /* ------------- LOCKED SECTION */
+    ctx->found =
+        p11prov_obj_pool_find(pool, ctx->class, ctx->type, ctx->param_set,
+                              ctx->bit_size, ctx->attrs, ctx->numattrs);
 
     return (ctx->found != NULL);
 }

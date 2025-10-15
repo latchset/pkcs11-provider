@@ -3,6 +3,18 @@
 
 #include "obj/internal.h"
 
+struct p11prov_obj_pool {
+    P11PROV_CTX *provctx;
+    CK_SLOT_ID slotid;
+
+    P11PROV_OBJ **objects;
+    int size;
+    int num;
+    int first_free;
+
+    pthread_mutex_t lock;
+};
+
 CK_RV p11prov_obj_pool_init(P11PROV_CTX *ctx, CK_SLOT_ID id,
                             P11PROV_OBJ_POOL **_pool)
 {
@@ -205,4 +217,69 @@ done:
                       "Objects pool in inconsistent state - %s (obj=%p)",
                       errstr, obj);
     }
+}
+
+static bool obj_match_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int numattrs)
+{
+    CK_ATTRIBUTE *x;
+    for (int i = 0; i < numattrs; i++) {
+        x = p11prov_obj_get_attr(obj, attrs[i].type);
+        if (!x) {
+            return false;
+        }
+        if (x->ulValueLen != attrs[i].ulValueLen) {
+            return false;
+        }
+        if (memcmp(x->pValue, attrs[i].pValue, x->ulValueLen) != 0) {
+            return false;
+        }
+    }
+    /* match found */
+    return true;
+}
+
+P11PROV_OBJ *p11prov_obj_pool_find(P11PROV_OBJ_POOL *pool,
+                                   CK_OBJECT_CLASS class, CK_KEY_TYPE type,
+                                   CK_ULONG param_set, CK_ULONG bit_size,
+                                   CK_ATTRIBUTE *attrs, int numattrs)
+{
+    P11PROV_OBJ *ret = NULL;
+
+    if (!pool) {
+        return NULL;
+    }
+
+    /* LOCKED SECTION ------------- */
+    if (MUTEX_LOCK(pool) == CKR_OK) {
+        for (int i = 0; i < pool->num; i++) {
+            P11PROV_OBJ *obj = pool->objects[i];
+            if (!obj) {
+                continue;
+            }
+            if (obj->class != class) {
+                continue;
+            }
+            if (type != CK_UNAVAILABLE_INFORMATION
+                && obj->data.key.type != type) {
+                continue;
+            }
+            if (param_set != CK_UNAVAILABLE_INFORMATION
+                && obj->data.key.param_set != param_set) {
+                continue;
+            }
+            if (bit_size != CK_UNAVAILABLE_INFORMATION
+                && obj->data.key.bit_size != bit_size) {
+                continue;
+            }
+            if (obj_match_attrs(obj, attrs, numattrs)) {
+                ret = obj;
+                break;
+            }
+        }
+
+        (void)MUTEX_UNLOCK(pool);
+    }
+    /* ------------- LOCKED SECTION */
+
+    return ret;
 }
