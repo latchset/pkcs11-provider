@@ -258,8 +258,8 @@ CK_RV p11prov_sig_op_init(void *ctx, void *provkey, CK_FLAGS operation,
         break;
     case CKF_VERIFY:
         if (class != CKO_PUBLIC_KEY) {
-            key = p11prov_obj_get_associated(key);
-            if (!key || p11prov_obj_get_class(key) != CKO_PUBLIC_KEY) {
+            key = p11prov_obj_find_associated(key, CKO_PUBLIC_KEY);
+            if (!key) {
                 return CKR_KEY_TYPE_INCONSISTENT;
             }
         }
