@@ -595,3 +595,27 @@ void p11prov_obj_set_session_ref(P11PROV_OBJ *obj, P11PROV_SESSION *session)
     p11prov_session_ref(session);
     obj->ref_session = session;
 }
+
+void p11prov_obj_set_class(P11PROV_OBJ *obj, CK_OBJECT_CLASS class)
+{
+    /* allow this only for mock objects */
+    if (obj->handle == CK_P11PROV_IMPORTED_HANDLE) {
+        obj->class = class;
+    }
+}
+
+void p11prov_obj_set_key_type(P11PROV_OBJ *obj, CK_KEY_TYPE type)
+{
+    /* allow this only for mock objects */
+    if (obj->handle == CK_P11PROV_IMPORTED_HANDLE) {
+        obj->data.key.type = type;
+    }
+}
+
+void p11prov_obj_set_key_params(P11PROV_OBJ *obj, CK_ULONG param_set)
+{
+    /* allow this only for mock objects */
+    if (obj->handle == CK_P11PROV_IMPORTED_HANDLE) {
+        obj->data.key.param_set = param_set;
+    }
+}

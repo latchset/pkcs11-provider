@@ -631,15 +631,15 @@ static CK_RV fix_ec_key_import(P11PROV_OBJ *key, int allocattrs)
     return CKR_OK;
 }
 
-static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
+static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key,
                                            const OSSL_PARAM params[])
 {
     P11PROV_CTX *ctx;
     struct pool_find_ctx findctx = {
-        .type = type,
+        .type = key->data.key.type,
         .class = CKO_PUBLIC_KEY,
         .bit_size = 0,
-        .param_set = CK_UNAVAILABLE_INFORMATION,
+        .param_set = key->data.key.param_set,
         .attrs = { { 0 } },
         .numattrs = 0,
         .found = NULL,
@@ -652,14 +652,13 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
         return CKR_GENERAL_ERROR;
     }
 
-    switch (type) {
+    switch (findctx.type) {
     case CKK_RSA:
         P11PROV_debug("obj import of RSA public key %p", key);
         rv = prep_rsa_find(ctx, params, &findctx);
         if (rv != CKR_OK) {
             goto done;
         }
-        allocattrs = RSA_ATTRS_NUM;
         break;
 
     case CKK_EC:
@@ -668,7 +667,6 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
         if (rv != CKR_OK) {
             goto done;
         }
-        allocattrs = EC_ATTRS_NUM;
         break;
 
     case CKK_EC_EDWARDS:
@@ -677,37 +675,33 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
         if (rv != CKR_OK) {
             goto done;
         }
-        allocattrs = EC_ATTRS_NUM;
         break;
     case CKK_ML_DSA:
         P11PROV_debug("obj import of ML-DSA public key %p", key);
-        findctx.param_set = key->data.key.param_set;
         rv = prep_mldsa_find(ctx, params, &findctx);
         if (rv != CKR_OK) {
             goto done;
         }
-        allocattrs = MLDSA_ATTRS_NUM;
         break;
 
     case CKK_ML_KEM:
         P11PROV_debug("obj import of ML-KEM public key %p", key);
-        findctx.param_set = key->data.key.param_set;
         rv = prep_mlkem_find(ctx, params, &findctx);
         if (rv != CKR_OK) {
             goto done;
         }
-        allocattrs = MLKEM_ATTRS_NUM;
         break;
 
     default:
         P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
-                      "Unsupported key type: %08lx", type);
+                      "Unsupported key type: %08lx", findctx.type);
         rv = CKR_KEY_INDIGESTIBLE;
         goto done;
     }
 
-    if (allocattrs < findctx.numattrs) {
-        allocattrs = findctx.numattrs;
+    allocattrs = findctx.numattrs;
+    if (findctx.type == CKK_EC || findctx.type == CKK_EC_EDWARDS) {
+        allocattrs += 1;
     }
 
     /* A common case with openssl is the request to import a key we already
@@ -739,12 +733,9 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
      */
     P11PROV_debug("public key %p not found in the pool - using mock", key);
 
-    /* move data */
-    key->class = findctx.class;
-    key->data.key.type = findctx.type;
+    /* move missing data */
     key->data.key.size = findctx.key_size;
     key->data.key.bit_size = findctx.bit_size;
-    key->data.key.param_set = findctx.param_set;
     key->attrs = OPENSSL_malloc(sizeof(CK_ATTRIBUTE) * allocattrs);
     if (!key->attrs) {
         P11PROV_raise(key->ctx, CKR_HOST_MEMORY, "Failed allocation");
@@ -758,7 +749,7 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
     key->numattrs = findctx.numattrs;
     findctx.numattrs = 0;
 
-    if (type == CKK_EC || type == CKK_EC_EDWARDS) {
+    if (findctx.type == CKK_EC || findctx.type == CKK_EC_EDWARDS) {
         rv = fix_ec_key_import(key, allocattrs);
     }
 
@@ -766,6 +757,50 @@ done:
     for (int i = 0; i < findctx.numattrs; i++) {
         OPENSSL_free(findctx.attrs[i].pValue);
     }
+    return rv;
+}
+
+static CK_RV store_key(P11PROV_OBJ *key, CK_ATTRIBUTE *tmpl, int tmpl_cnt)
+{
+    P11PROV_SLOTS_CTX *slots = NULL;
+    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
+    P11PROV_SESSION *session = NULL;
+    CK_RV rv;
+
+    slots = p11prov_ctx_get_slots(key->ctx);
+    if (!slots) {
+        return CKR_GENERAL_ERROR;
+    }
+
+    slot = p11prov_get_default_slot(slots);
+    if (slot == CK_UNAVAILABLE_INFORMATION) {
+        return CKR_GENERAL_ERROR;
+    }
+
+    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
+                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
+                             true, &session);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    rv = p11prov_CreateObject(key->ctx, p11prov_session_handle(session), tmpl,
+                              tmpl_cnt, &key->handle);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    key->slotid = slot;
+
+    rv = CKR_OK;
+
+done:
+    if (rv == CKR_OK) {
+        /* we just created an ephemeral key on this session, ensure the
+         * session is not closed until the key goes away */
+        p11prov_obj_set_session_ref(key, session);
+    }
+    p11prov_return_session(session);
     return rv;
 }
 
@@ -787,12 +822,8 @@ static CK_RV p11prov_store_rsa_public_key(P11PROV_OBJ *key)
         /* TODO RSA PSS Params */
         { CKA_TOKEN, &val_false, sizeof(val_false) },
     };
-    int na = sizeof(template) / sizeof(CK_ATTRIBUTE);
+    int tmpl_cnt = sizeof(template) / sizeof(CK_ATTRIBUTE);
     CK_ATTRIBUTE *a;
-    P11PROV_SLOTS_CTX *slots = NULL;
-    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
-    P11PROV_SESSION *session = NULL;
-    CK_RV rv = CKR_GENERAL_ERROR;
 
     a = p11prov_obj_get_attr(key, CKA_MODULUS);
     if (!a) {
@@ -808,43 +839,7 @@ static CK_RV p11prov_store_rsa_public_key(P11PROV_OBJ *key)
     template[6].pValue = a->pValue;
     template[6].ulValueLen = a->ulValueLen;
 
-    slots = p11prov_ctx_get_slots(key->ctx);
-    if (!slots) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    slot = p11prov_get_default_slot(slots);
-    if (slot == CK_UNAVAILABLE_INFORMATION) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
-                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
-                             true, &session);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    rv = p11prov_CreateObject(key->ctx, p11prov_session_handle(session),
-                              template, na, &key->handle);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    key->slotid = slot;
-
-    rv = CKR_OK;
-
-done:
-    if (rv == CKR_OK) {
-        /* we just created an ephemeral key on this session, ensure the
-         * session is not closed until the key goes away */
-        p11prov_obj_set_session_ref(key, session);
-    }
-    p11prov_return_session(session);
-    return rv;
+    return store_key(key, template, tmpl_cnt);
 }
 
 static CK_RV p11prov_store_ec_public_key(P11PROV_OBJ *key)
@@ -863,12 +858,8 @@ static CK_RV p11prov_store_ec_public_key(P11PROV_OBJ *key)
         { CKA_EC_POINT, NULL, 0 }, /* 5 */
         { CKA_TOKEN, &val_false, sizeof(val_false) },
     };
-    int na = sizeof(template) / sizeof(CK_ATTRIBUTE);
+    int tmpl_cnt = sizeof(template) / sizeof(CK_ATTRIBUTE);
     CK_ATTRIBUTE *a;
-    P11PROV_SLOTS_CTX *slots = NULL;
-    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
-    P11PROV_SESSION *session = NULL;
-    CK_RV rv = CKR_GENERAL_ERROR;
 
     a = p11prov_obj_get_attr(key, CKA_EC_PARAMS);
     if (!a) {
@@ -884,42 +875,7 @@ static CK_RV p11prov_store_ec_public_key(P11PROV_OBJ *key)
     template[5].pValue = a->pValue;
     template[5].ulValueLen = a->ulValueLen;
 
-    slots = p11prov_ctx_get_slots(key->ctx);
-    if (!slots) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    slot = p11prov_get_default_slot(slots);
-    if (slot == CK_UNAVAILABLE_INFORMATION) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
-                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
-                             true, &session);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    rv = p11prov_CreateObject(key->ctx, p11prov_session_handle(session),
-                              template, na, &key->handle);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    key->slotid = slot;
-    rv = CKR_OK;
-
-done:
-    if (rv == CKR_OK) {
-        /* we just created an ephemeral key on this session, ensure the
-         * session is not closed until the key goes away */
-        p11prov_obj_set_session_ref(key, session);
-    }
-    p11prov_return_session(session);
-    return rv;
+    return store_key(key, template, tmpl_cnt);
 }
 
 static CK_RV p11prov_store_mldsa_public_key(P11PROV_OBJ *key)
@@ -935,12 +891,8 @@ static CK_RV p11prov_store_mldsa_public_key(P11PROV_OBJ *key)
         { CKA_VALUE, NULL, 0 },
         { CKA_TOKEN, &val_false, sizeof(val_false) },
     };
-    int na = sizeof(template) / sizeof(CK_ATTRIBUTE);
+    int tmpl_cnt = sizeof(template) / sizeof(CK_ATTRIBUTE);
     CK_ATTRIBUTE *a;
-    P11PROV_SLOTS_CTX *slots = NULL;
-    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
-    P11PROV_SESSION *session = NULL;
-    CK_RV rv = CKR_GENERAL_ERROR;
 
     a = p11prov_obj_get_attr(key, CKA_PARAMETER_SET);
     if (!a) {
@@ -956,43 +908,7 @@ static CK_RV p11prov_store_mldsa_public_key(P11PROV_OBJ *key)
     template[4].pValue = a->pValue;
     template[4].ulValueLen = a->ulValueLen;
 
-    slots = p11prov_ctx_get_slots(key->ctx);
-    if (!slots) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    slot = p11prov_get_default_slot(slots);
-    if (slot == CK_UNAVAILABLE_INFORMATION) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
-                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
-                             true, &session);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    rv = p11prov_CreateObject(key->ctx, p11prov_session_handle(session),
-                              template, na, &key->handle);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    key->slotid = slot;
-
-    rv = CKR_OK;
-
-done:
-    if (rv == CKR_OK) {
-        /* we just created an ephemeral key on this session, ensure the
-        * session is not closed until the key goes away */
-        p11prov_obj_set_session_ref(key, session);
-    }
-    p11prov_return_session(session);
-    return rv;
+    return store_key(key, template, tmpl_cnt);
 }
 
 static CK_RV p11prov_store_mlkem_public_key(P11PROV_OBJ *key)
@@ -1008,12 +924,8 @@ static CK_RV p11prov_store_mlkem_public_key(P11PROV_OBJ *key)
         { CKA_VALUE, NULL, 0 },
         { CKA_TOKEN, &val_false, sizeof(val_false) },
     };
-    int na = sizeof(template) / sizeof(CK_ATTRIBUTE);
+    int tmpl_cnt = sizeof(template) / sizeof(CK_ATTRIBUTE);
     CK_ATTRIBUTE *a;
-    P11PROV_SLOTS_CTX *slots = NULL;
-    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
-    P11PROV_SESSION *session = NULL;
-    CK_RV rv = CKR_GENERAL_ERROR;
 
     a = p11prov_obj_get_attr(key, CKA_PARAMETER_SET);
     if (!a) {
@@ -1029,43 +941,7 @@ static CK_RV p11prov_store_mlkem_public_key(P11PROV_OBJ *key)
     template[4].pValue = a->pValue;
     template[4].ulValueLen = a->ulValueLen;
 
-    slots = p11prov_ctx_get_slots(key->ctx);
-    if (!slots) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    slot = p11prov_get_default_slot(slots);
-    if (slot == CK_UNAVAILABLE_INFORMATION) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
-                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
-                             true, &session);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    rv = p11prov_CreateObject(key->ctx, p11prov_session_handle(session),
-                              template, na, &key->handle);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    key->slotid = slot;
-
-    rv = CKR_OK;
-
-done:
-    if (rv == CKR_OK) {
-        /* we just created an ephemeral key on this session, ensure the
-        * session is not closed until the key goes away */
-        p11prov_obj_set_session_ref(key, session);
-    }
-    p11prov_return_session(session);
-    return rv;
+    return store_key(key, template, tmpl_cnt);
 }
 
 CK_RV p11prov_obj_store_public_key(P11PROV_OBJ *key)
@@ -1184,7 +1060,7 @@ static CK_RV p11prov_store_rsa_private_key(P11PROV_OBJ *key,
         { CKA_COEFFICIENT, NULL, 0 },
         /* TODO RSA PSS Params */
     };
-    int na = 9; /* minimum will be 12, up to 17 */
+    int tmpl_cnt = 9; /* minimum will be 12, up to 17 */
     const char *required[] = {
         OSSL_PKEY_PARAM_RSA_N,
         OSSL_PKEY_PARAM_RSA_E,
@@ -1196,69 +1072,43 @@ static CK_RV p11prov_store_rsa_private_key(P11PROV_OBJ *key,
         OSSL_PKEY_PARAM_RSA_COEFFICIENT1,
     };
     const OSSL_PARAM *p;
-    P11PROV_SLOTS_CTX *slots = NULL;
-    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
-    P11PROV_SESSION *session = NULL;
     CK_RV rv = CKR_GENERAL_ERROR;
 
     /* required params */
     for (int i = 0; i < 3; i++) {
         p = OSSL_PARAM_locate_const(params, required[i]);
-        rv = get_bn(p, &template[na]);
+        rv = get_bn(p, &template[tmpl_cnt]);
         if (rv != CKR_OK) {
             goto done;
         }
-        na++;
+        tmpl_cnt++;
     }
 
     /* optional */
     for (int i = 0; i < 5; i++) {
         p = OSSL_PARAM_locate_const(params, optional[i]);
         if (p) {
-            rv = get_bn(p, &template[na]);
+            rv = get_bn(p, &template[tmpl_cnt]);
             if (rv == CKR_OK) {
-                na++;
+                tmpl_cnt++;
             }
         } else {
             /* we must have all or none of the optional,
              * if any is missing we pretend none of them were given */
             for (; i >= 0; i--) {
-                na--;
-                OPENSSL_clear_free(template[na].pValue,
-                                   template[na].ulValueLen);
+                tmpl_cnt--;
+                OPENSSL_clear_free(template[tmpl_cnt].pValue,
+                                   template[tmpl_cnt].ulValueLen);
             }
             break;
         }
     }
 
-    slots = p11prov_ctx_get_slots(key->ctx);
-    if (!slots) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    slot = p11prov_get_default_slot(slots);
-    if (slot == CK_UNAVAILABLE_INFORMATION) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
-                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
-                             true, &session);
+    rv = store_key(key, template, tmpl_cnt);
     if (rv != CKR_OK) {
         goto done;
     }
 
-    rv = p11prov_CreateObject(key->ctx, p11prov_session_handle(session),
-                              template, na, &key->handle);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    key->slotid = slot;
-    key->class = findctx->class;
-    key->data.key.type = findctx->type;
     key->data.key.size = findctx->key_size;
     key->data.key.bit_size = findctx->bit_size;
     key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * 3);
@@ -1285,13 +1135,7 @@ static CK_RV p11prov_store_rsa_private_key(P11PROV_OBJ *key,
     rv = CKR_OK;
 
 done:
-    if (rv == CKR_OK) {
-        /* we just created an ephemeral key on this session, ensure the
-        * session is not closed until the key goes away */
-        p11prov_obj_set_session_ref(key, session);
-    }
-    p11prov_return_session(session);
-    for (int i = 9; i < na; i++) {
+    for (int i = 9; i < tmpl_cnt; i++) {
         OPENSSL_clear_free(template[i].pValue, template[i].ulValueLen);
     }
     return rv;
@@ -1321,11 +1165,8 @@ static CK_RV p11prov_store_ec_private_key(P11PROV_OBJ *key,
         /* private key part */
         { CKA_VALUE, NULL, 0 }, /* 9 */
     };
-    int na = 10;
+    int tmpl_cnt = 10;
     const OSSL_PARAM *p;
-    P11PROV_SLOTS_CTX *slots = NULL;
-    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
-    P11PROV_SESSION *session = NULL;
     CK_RV rv = CKR_GENERAL_ERROR;
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
@@ -1334,34 +1175,11 @@ static CK_RV p11prov_store_ec_private_key(P11PROV_OBJ *key,
         goto done;
     }
 
-    slots = p11prov_ctx_get_slots(key->ctx);
-    if (!slots) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    slot = p11prov_get_default_slot(slots);
-    if (slot == CK_UNAVAILABLE_INFORMATION) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
-                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
-                             true, &session);
+    rv = store_key(key, template, tmpl_cnt);
     if (rv != CKR_OK) {
         goto done;
     }
 
-    rv = p11prov_CreateObject(key->ctx, p11prov_session_handle(session),
-                              template, na, &key->handle);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    key->slotid = slot;
-    key->class = findctx->class;
-    key->data.key.type = findctx->type;
     key->data.key.size = findctx->key_size;
     key->data.key.bit_size = findctx->bit_size;
     key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * findctx->numattrs);
@@ -1383,12 +1201,6 @@ static CK_RV p11prov_store_ec_private_key(P11PROV_OBJ *key,
     rv = CKR_OK;
 
 done:
-    if (rv == CKR_OK) {
-        /* we just created an ephemeral key on this session, ensure the
-        * session is not closed until the key goes away */
-        p11prov_obj_set_session_ref(key, session);
-    }
-    p11prov_return_session(session);
     OPENSSL_clear_free(template[9].pValue, template[9].ulValueLen);
     return rv;
 }
@@ -1418,58 +1230,31 @@ static CK_RV p11prov_store_mldsa_private_key(P11PROV_OBJ *key,
         { CKA_VALUE, NULL, 0 },
         { CKA_SEED, NULL, 0 },
     };
-    int na = (sizeof(template) / sizeof(CK_ATTRIBUTE)) - 2;
-    P11PROV_SLOTS_CTX *slots = NULL;
-    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
-    P11PROV_SESSION *session = NULL;
+    int tmpl_cnt = (sizeof(template) / sizeof(CK_ATTRIBUTE)) - 2;
     CK_RV rv = CKR_GENERAL_ERROR;
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
     if (!p) {
         return CKR_KEY_INDIGESTIBLE;
     }
-    template[na].pValue = p->data;
-    template[na].ulValueLen = p->data_size;
-    na++;
+    template[tmpl_cnt].pValue = p->data;
+    template[tmpl_cnt].ulValueLen = p->data_size;
+    tmpl_cnt++;
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_ML_DSA_SEED);
     if (p) {
-        template[na].pValue = p->data;
-        template[na].ulValueLen = p->data_size;
-        na++;
+        template[tmpl_cnt].pValue = p->data;
+        template[tmpl_cnt].ulValueLen = p->data_size;
+        tmpl_cnt++;
     }
 
-    slots = p11prov_ctx_get_slots(key->ctx);
-    if (!slots) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    slot = p11prov_get_default_slot(slots);
-    if (slot == CK_UNAVAILABLE_INFORMATION) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
-                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
-                             true, &session);
+    rv = store_key(key, template, tmpl_cnt);
     if (rv != CKR_OK) {
         goto done;
     }
 
-    rv = p11prov_CreateObject(key->ctx, p11prov_session_handle(session),
-                              template, na, &key->handle);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    key->slotid = slot;
-    key->class = findctx->class;
-    key->data.key.type = findctx->type;
     key->data.key.size = findctx->key_size;
     key->data.key.bit_size = findctx->bit_size;
-    key->data.key.param_set = findctx->param_set;
     key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * findctx->numattrs);
     if (!key->attrs) {
         rv = CKR_HOST_MEMORY;
@@ -1488,12 +1273,6 @@ static CK_RV p11prov_store_mldsa_private_key(P11PROV_OBJ *key,
     rv = CKR_OK;
 
 done:
-    if (rv == CKR_OK) {
-        /* we just created an ephemeral key on this session, ensure the
-        * session is not closed until the key goes away */
-        p11prov_obj_set_session_ref(key, session);
-    }
-    p11prov_return_session(session);
     return rv;
 }
 
@@ -1517,50 +1296,23 @@ static CK_RV p11prov_store_mlkem_private_key(P11PROV_OBJ *key,
         /* private key part */
         { CKA_VALUE, NULL, 0 },
     };
-    int na = sizeof(template) / sizeof(CK_ATTRIBUTE);
-    P11PROV_SLOTS_CTX *slots = NULL;
-    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
-    P11PROV_SESSION *session = NULL;
+    int tmpl_cnt = sizeof(template) / sizeof(CK_ATTRIBUTE);
     CK_RV rv = CKR_GENERAL_ERROR;
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
     if (!p) {
         return CKR_KEY_INDIGESTIBLE;
     }
-    template[na - 1].pValue = p->data;
-    template[na - 1].ulValueLen = p->data_size;
+    template[tmpl_cnt - 1].pValue = p->data;
+    template[tmpl_cnt - 1].ulValueLen = p->data_size;
 
-    slots = p11prov_ctx_get_slots(key->ctx);
-    if (!slots) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    slot = p11prov_get_default_slot(slots);
-    if (slot == CK_UNAVAILABLE_INFORMATION) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
-                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
-                             true, &session);
+    rv = store_key(key, template, tmpl_cnt);
     if (rv != CKR_OK) {
         goto done;
     }
 
-    rv = p11prov_CreateObject(key->ctx, p11prov_session_handle(session),
-                              template, na, &key->handle);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    key->slotid = slot;
-    key->class = findctx->class;
-    key->data.key.type = findctx->type;
     key->data.key.size = findctx->key_size;
     key->data.key.bit_size = findctx->bit_size;
-    key->data.key.param_set = findctx->param_set;
     key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * findctx->numattrs);
     if (!key->attrs) {
         rv = CKR_HOST_MEMORY;
@@ -1579,23 +1331,17 @@ static CK_RV p11prov_store_mlkem_private_key(P11PROV_OBJ *key,
     rv = CKR_OK;
 
 done:
-    if (rv == CKR_OK) {
-        /* we just created an ephemeral key on this session, ensure the
-        * session is not closed until the key goes away */
-        p11prov_obj_set_session_ref(key, session);
-    }
-    p11prov_return_session(session);
     return rv;
 }
 
-static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
+static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key,
                                             const OSSL_PARAM params[])
 {
     P11PROV_CTX *ctx;
     struct pool_find_ctx findctx = {
-        .type = type,
+        .type = key->data.key.type,
         .class = CKO_PRIVATE_KEY,
-        .param_set = CK_UNAVAILABLE_INFORMATION,
+        .param_set = key->data.key.param_set,
         .attrs = { { 0 } },
         .numattrs = 0,
         .found = NULL,
@@ -1607,7 +1353,7 @@ static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
         return CKR_GENERAL_ERROR;
     }
 
-    switch (type) {
+    switch (findctx.type) {
     case CKK_RSA:
         rv = prep_rsa_find(ctx, params, &findctx);
         if (rv != CKR_OK) {
@@ -1629,14 +1375,12 @@ static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
         }
         break;
     case CKK_ML_DSA:
-        findctx.param_set = key->data.key.param_set;
         rv = prep_mldsa_find(ctx, params, &findctx);
         if (rv != CKR_OK) {
             goto done;
         }
         break;
     case CKK_ML_KEM:
-        findctx.param_set = key->data.key.param_set;
         rv = prep_mlkem_find(ctx, params, &findctx);
         if (rv != CKR_OK) {
             goto done;
@@ -1645,7 +1389,7 @@ static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
 
     default:
         P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
-                      "Unsupported key type: %08lx", type);
+                      "Unsupported key type: %08lx", findctx.type);
         rv = CKR_KEY_INDIGESTIBLE;
         goto done;
     }
@@ -1678,7 +1422,7 @@ static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
      * that its handle will live long enough for multiple operations.
      */
 
-    switch (type) {
+    switch (findctx.type) {
     case CKK_RSA:
         rv = p11prov_store_rsa_private_key(key, &findctx, params);
         break;
@@ -1695,7 +1439,8 @@ static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
 
     default:
         P11PROV_raise(key->ctx, CKR_GENERAL_ERROR,
-                      "Unsupported key type: %08lx, should NOT happen", type);
+                      "Unsupported key type: %08lx, should NOT happen",
+                      findctx.type);
         rv = CKR_GENERAL_ERROR;
     }
 
@@ -1837,47 +1582,37 @@ done:
     return rv;
 }
 
-static CK_RV p11prov_obj_set_domain_params(P11PROV_OBJ *key, CK_KEY_TYPE type,
+static CK_RV p11prov_obj_set_domain_params(P11PROV_OBJ *key,
                                            const OSSL_PARAM params[])
 {
-    switch (type) {
+    switch (key->data.key.type) {
     case CKK_EC:
         /* EC_PARAMS */
         return import_ec_params(key, params);
 
     default:
         P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
-                      "Unsupported key type: %08lx", type);
+                      "Unsupported key type: %08lx", key->data.key.type);
         return CKR_KEY_INDIGESTIBLE;
     }
 }
 
-CK_RV p11prov_obj_import_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
-                             CK_OBJECT_CLASS class,
-                             CK_ML_DSA_PARAMETER_SET_TYPE param_set,
-                             const OSSL_PARAM params[])
+CK_RV p11prov_obj_import_key(P11PROV_OBJ *key, const OSSL_PARAM params[])
 {
-    /* This operation available only on new objects, can't import over an
+    /* This operation available only on new mock objects, can't import over an
      * existing one */
-    if (key->class != CK_UNAVAILABLE_INFORMATION) {
+    if (key->handle != CK_P11PROV_IMPORTED_HANDLE) {
         P11PROV_raise(key->ctx, CKR_ARGUMENTS_BAD, "Non empty object");
         return CKR_ARGUMENTS_BAD;
     }
 
-    if (type == CKK_ML_DSA || type == CKM_ML_KEM) {
-        key->data.key.param_set = param_set;
-    }
-
-    switch (class) {
+    switch (key->class) {
     case CKO_PUBLIC_KEY:
-        key->class = CKO_PUBLIC_KEY;
-        return p11prov_obj_import_public_key(key, type, params);
+        return p11prov_obj_import_public_key(key, params);
     case CKO_PRIVATE_KEY:
-        key->class = CKO_PRIVATE_KEY;
-        return p11prov_obj_import_private_key(key, type, params);
+        return p11prov_obj_import_private_key(key, params);
     case CKO_DOMAIN_PARAMETERS:
-        key->class = CKO_DOMAIN_PARAMETERS;
-        return p11prov_obj_set_domain_params(key, type, params);
+        return p11prov_obj_set_domain_params(key, params);
     default:
         P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
                       "Invalid object class or key type");
@@ -1887,40 +1622,29 @@ CK_RV p11prov_obj_import_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
 
 #if SKEY_SUPPORT
 
-static CK_RV p11prov_store_aes_key(P11PROV_CTX *provctx, P11PROV_OBJ **ret,
-                                   const unsigned char *secret,
-                                   size_t secretlen, char *label,
-                                   CK_FLAGS usage, bool session_key)
+static CK_RV store_symmetric_key(P11PROV_CTX *provctx, CK_KEY_TYPE key_type,
+                                 const unsigned char *secret, size_t secretlen,
+                                 char *label, CK_FLAGS usage, P11PROV_OBJ **ret)
 {
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
-    CK_KEY_TYPE key_type = CKK_AES;
-    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
-    P11PROV_SLOTS_CTX *slots = NULL;
-    P11PROV_SESSION *session = NULL;
-    CK_OBJECT_HANDLE key_handle;
-    CK_BBOOL tokenobj = false;
-    P11PROV_OBJ *obj;
+    CK_BBOOL tokenobj = CK_FALSE;
+    P11PROV_OBJ *key = NULL;
     CK_RV rv;
-    CK_ATTRIBUTE tmpl[12] = {
+    CK_ATTRIBUTE template[12] = {
         { CKA_TOKEN, &tokenobj, sizeof(tokenobj) },
         { CKA_CLASS, &key_class, sizeof(key_class) },
         { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
         { CKA_VALUE, (void *)secret, secretlen },
         { 0 },
     };
-    size_t tmax = sizeof(tmpl) / sizeof(CK_ATTRIBUTE);
+    size_t tmax = sizeof(template) / sizeof(CK_ATTRIBUTE);
     size_t tsize = 4;
 
-    P11PROV_debug("Creating secret key (%p[%zu]), token: %b, flags: %x", secret,
-                  secretlen, !session_key, usage);
-
-    /* Make it a token (permanent) object if necessary */
-    if (!session_key) {
-        tokenobj = true;
-    }
+    P11PROV_debug("Creating secret key (%p[%zu]), flags: %x", secret, secretlen,
+                  usage);
 
     if (usage) {
-        rv = p11prov_usage_to_template(tmpl, &tsize, tmax, usage);
+        rv = p11prov_usage_to_template(template, &tsize, tmax, usage);
         if (rv != CKR_OK) {
             P11PROV_raise(provctx, rv, "Failed to set key usage");
             return CKR_GENERAL_ERROR;
@@ -1931,184 +1655,48 @@ static CK_RV p11prov_store_aes_key(P11PROV_CTX *provctx, P11PROV_OBJ **ret,
         return CKR_GENERAL_ERROR;
     }
 
-    slots = p11prov_ctx_get_slots(provctx);
-    if (!slots) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    slot = p11prov_get_default_slot(slots);
-    if (slot == CK_UNAVAILABLE_INFORMATION) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    rv = p11prov_get_session(provctx, &slot, NULL, NULL,
-                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, true, true,
-                             &session);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    rv = p11prov_CreateObject(provctx, p11prov_session_handle(session), tmpl,
-                              tsize, &key_handle);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    obj = p11prov_obj_new(provctx, slot, key_handle, key_class);
-    if (obj == NULL) {
+    key = p11prov_obj_new(provctx, CK_UNAVAILABLE_INFORMATION,
+                          CK_P11PROV_IMPORTED_HANDLE, key_class);
+    if (key == NULL) {
         rv = CKR_HOST_MEMORY;
         goto done;
     }
-    obj->data.key.type = key_type;
-    obj->data.key.bit_size = secretlen * 8;
-    obj->data.key.size = secretlen;
+    key->data.key.type = key_type;
+    key->data.key.bit_size = secretlen * 8;
+    key->data.key.size = secretlen;
 
-    *ret = obj;
-    rv = CKR_OK;
-
-done:
-    if (rv == CKR_OK && session_key) {
-        /* we just created an ephemeral key on this session, ensure the
-        * session is not closed until the key goes away */
-        p11prov_obj_set_session_ref(obj, session);
-    }
-    p11prov_return_session(session);
-    return rv;
-}
-
-static CK_RV p11prov_store_generic_secret_key(P11PROV_CTX *provctx,
-                                              P11PROV_OBJ **ret,
-                                              const unsigned char *secret,
-                                              size_t secretlen, char *label,
-                                              CK_FLAGS usage, bool session_key)
-{
-    CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
-    CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
-    CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
-    P11PROV_SLOTS_CTX *slots = NULL;
-    P11PROV_SESSION *session = NULL;
-    CK_OBJECT_HANDLE key_handle;
-    CK_BBOOL tokenobj = false;
-    P11PROV_OBJ *obj;
-    CK_RV rv;
-    CK_ATTRIBUTE tmpl[12] = {
-        { CKA_TOKEN, &tokenobj, sizeof(tokenobj) },
-        { CKA_CLASS, &key_class, sizeof(key_class) },
-        { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
-        { CKA_VALUE, (void *)secret, secretlen },
-        { 0 },
-    };
-    size_t tmax = sizeof(tmpl) / sizeof(CK_ATTRIBUTE);
-    size_t tsize = 4;
-
-    P11PROV_debug("Creating secret key (%p[%zu]), token: %b, flags: %x", secret,
-                  secretlen, !session_key, usage);
-
-    /* Make it a token (permanent) object if necessary */
-    if (!session_key) {
-        tokenobj = true;
-    }
-
-    if (usage) {
-        rv = p11prov_usage_to_template(tmpl, &tsize, tmax, usage);
-        if (rv != CKR_OK) {
-            P11PROV_raise(provctx, rv, "Failed to set key usage");
-            return CKR_GENERAL_ERROR;
-        }
-    } else {
-        rv = CKR_ARGUMENTS_BAD;
-        P11PROV_raise(provctx, rv, "No key usage specified");
-        return CKR_GENERAL_ERROR;
-    }
-
-    slots = p11prov_ctx_get_slots(provctx);
-    if (!slots) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    slot = p11prov_get_default_slot(slots);
-    if (slot == CK_UNAVAILABLE_INFORMATION) {
-        rv = CKR_GENERAL_ERROR;
-        goto done;
-    }
-
-    rv = p11prov_get_session(provctx, &slot, NULL, NULL,
-                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, true, true,
-                             &session);
+    rv = store_key(key, template, tsize);
     if (rv != CKR_OK) {
         goto done;
     }
 
-    rv = p11prov_CreateObject(provctx, p11prov_session_handle(session), tmpl,
-                              tsize, &key_handle);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    obj = p11prov_obj_new(provctx, slot, key_handle, key_class);
-    if (obj == NULL) {
-        rv = CKR_HOST_MEMORY;
-        goto done;
-    }
-    obj->data.key.type = key_type;
-    obj->data.key.bit_size = secretlen * 8;
-    obj->data.key.size = secretlen;
-
-    *ret = obj;
+    *ret = key;
     rv = CKR_OK;
 
 done:
-    if (rv == CKR_OK && session_key) {
-        /* we just created an ephemeral key on this session, ensure the
-        * session is not closed until the key goes away */
-        p11prov_obj_set_session_ref(obj, session);
+    if (rv != CKR_OK) {
+        p11prov_obj_free(key);
     }
-    p11prov_return_session(session);
     return rv;
 }
 
 P11PROV_OBJ *p11prov_obj_import_secret_key(P11PROV_CTX *ctx, CK_KEY_TYPE type,
-                                           const unsigned char *key,
+                                           const unsigned char *keydata,
                                            size_t keylen)
 {
     CK_RV rv = CKR_KEY_INDIGESTIBLE;
-    P11PROV_OBJ *obj = NULL;
+    P11PROV_OBJ *key = NULL;
     CK_FLAGS usage = CKF_ENCRYPT | CKF_DECRYPT | CKF_SIGN | CKF_VERIFY
                      | CKF_WRAP | CKF_UNWRAP | CKF_DERIVE;
 
     /* TODO: cache find, see other key types */
 
-    switch (type) {
-    case CKK_AES:
-        rv = p11prov_store_aes_key(ctx, &obj, key, keylen, NULL, usage, true);
-        if (rv != CKR_OK) {
-            P11PROV_raise(ctx, rv, "Failed to import");
-            goto done;
-        }
-        break;
-    case CKK_GENERIC_SECRET:
-        rv = p11prov_store_generic_secret_key(ctx, &obj, key, keylen, NULL,
-                                              usage, true);
-        if (rv != CKR_OK) {
-            P11PROV_raise(ctx, rv, "Failed to import");
-            goto done;
-        }
-        break;
-
-    default:
-        P11PROV_raise(ctx, rv, "Unsupported key type: %08lx", type);
-        goto done;
-    }
-
-done:
+    rv = store_symmetric_key(ctx, type, keydata, keylen, NULL, usage, &key);
     if (rv != CKR_OK) {
-        p11prov_obj_free(obj);
-        obj = NULL;
+        P11PROV_raise(ctx, rv, "Failed to import");
+        return NULL;
     }
-    return obj;
+    return key;
 }
 
 #endif /* SKEY_SUPPORT */
