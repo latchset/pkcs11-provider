@@ -12,6 +12,7 @@ pkcs11_provider_sources = [
   'pk11_uri.c',
   'interface.c',
   'obj/create.c',
+  'obj/export.c',
   'obj/keymgmt.c',
   'obj/fetch.c',
   'obj/object.c',
