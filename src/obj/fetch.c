@@ -3,55 +3,241 @@
 
 #include "obj/internal.h"
 
-/* CKA_ID
- * CKA_LABEL
- * CKA_ALWAYS_AUTHENTICATE
- * CKA_ALLOWED_MECHANISMS see p11prov_obj_from_handle() */
-static int fetch_rsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
-                         CK_OBJECT_HANDLE object, P11PROV_OBJ *key)
+const struct fetch_attrs RSA_public_attrs[] = {
+    { { CKA_MODULUS, NULL, 0 }, true, true },
+    { { CKA_PUBLIC_EXPONENT, NULL, 0 }, true, true },
+    { { CKA_ID, NULL, 0 }, true, false },
+    { { CKA_LABEL, NULL, 0 }, true, false },
+};
+
+const struct fetch_attrs RSA_private_attrs[] = {
+    { { CKA_MODULUS, NULL, 0 }, true, true },
+    /* not required on private keys because some tokens don't store it */
+    { { CKA_PUBLIC_EXPONENT, NULL, 0 }, true, false },
+    { { CKA_ID, NULL, 0 }, true, false },
+    { { CKA_LABEL, NULL, 0 }, true, false },
+    { { CKA_ALWAYS_AUTHENTICATE, NULL, 0 }, true, false },
+};
+
+const struct fetch_attrs EC_public_attrs[] = {
+    { { CKA_EC_PARAMS, NULL, 0 }, true, true },
+    { { CKA_EC_POINT, NULL, 0 }, true, true },
+    { { CKA_ID, NULL, 0 }, true, false },
+    { { CKA_LABEL, NULL, 0 }, true, false },
+};
+
+const struct fetch_attrs EC_private_attrs[] = {
+    { { CKA_EC_PARAMS, NULL, 0 }, true, true },
+    /* known vendor optimization to avoid storing
+     * EC public key on HSM is to store EC_POINT on the private
+     * one similarly to how RSA stores CKA_PUBLIC_EXPONENT, it is
+     * out of spec but avoids p11prov_obj_find_associated later */
+    { { CKA_EC_POINT, NULL, 0 }, true, false },
+    { { CKA_ID, NULL, 0 }, true, false },
+    { { CKA_LABEL, NULL, 0 }, true, false },
+    { { CKA_ALWAYS_AUTHENTICATE, NULL, 0 }, true, false },
+};
+
+#define EC_EDWARDS_public_attrs EC_public_attrs
+#define EC_EDWARDS_private_attrs EC_private_attrs
+
+/* pre_process_ec_key_data() may add:
+ * - CKA_P11PROV_CURVE_NID
+ * - CKA_P11PROV_CURVE_NAME
+ * - CKA_P11PROV_PUB_KEY */
+#define EXTRA_EC_PARAMS 3
+
+const struct fetch_attrs ML_DSA_public_attrs[] = {
+    { { CKA_VALUE, NULL, 0 }, true, true },
+    { { CKA_ID, NULL, 0 }, true, false },
+    { { CKA_LABEL, NULL, 0 }, true, false },
+};
+
+const struct fetch_attrs ML_DSA_private_attrs[] = {
+    { { CKA_ID, NULL, 0 }, true, false },
+    { { CKA_LABEL, NULL, 0 }, true, false },
+    { { CKA_ALWAYS_AUTHENTICATE, NULL, 0 }, true, false },
+};
+
+#define ML_KEM_public_attrs ML_DSA_public_attrs
+#define ML_KEM_private_attrs ML_DSA_private_attrs
+
+const struct fetch_attrs secret_key_attrs[] = {
+    { { CKA_ID, NULL, 0 }, true, false },
+    { { CKA_LABEL, NULL, 0 }, true, false },
+    { { CKA_ALWAYS_AUTHENTICATE, NULL, 0 }, true, false },
+    { { CKA_SENSITIVE, NULL, 0 }, true, false },
+    { { CKA_EXTRACTABLE, NULL, 0 }, true, false },
+    { { CKA_VALUE_LEN, NULL, 0 }, true, false },
+};
+#define SKATTRS sizeof(secret_key_attrs) / sizeof(struct fetch_attrs)
+
+#define MAX_ATTRS_NUM 6
+
+#define FILL_ATTRS(name, alloc) \
+    { CKO_PUBLIC_KEY, CKK_##name, name##_public_attrs, \
+      sizeof(name##_public_attrs) / sizeof(struct fetch_attrs), alloc }, \
+    { \
+        CKO_PRIVATE_KEY, CKK_##name, name##_private_attrs, \
+            sizeof(name##_private_attrs) / sizeof(struct fetch_attrs), alloc \
+    }
+
+#define FILL_SECRET(name, alloc) \
+    { CKO_SECRET_KEY, CKK_##name, secret_key_attrs, \
+      sizeof(secret_key_attrs) / sizeof(struct fetch_attrs), alloc }
+#define FILL_KNOWN_SECRETS(alloc) \
+    FILL_SECRET(GENERIC_SECRET, alloc), FILL_SECRET(AES, alloc), \
+        FILL_SECRET(SHA_1_HMAC, alloc), FILL_SECRET(SHA224_HMAC, alloc), \
+        FILL_SECRET(SHA256_HMAC, alloc), FILL_SECRET(SHA384_HMAC, alloc), \
+        FILL_SECRET(SHA512_HMAC, alloc), FILL_SECRET(SHA512_224_HMAC, alloc), \
+        FILL_SECRET(SHA512_256_HMAC, alloc), \
+        FILL_SECRET(SHA3_224_HMAC, alloc), FILL_SECRET(SHA3_256_HMAC, alloc), \
+        FILL_SECRET(SHA3_384_HMAC, alloc), FILL_SECRET(SHA3_512_HMAC, alloc)
+
+/* for each key type always alloc an extra attr to hold CKA_ALLOWED_MECHANISMS
+ * some key type also have additional space requirements */
+const struct key_attrs {
+    CK_OBJECT_CLASS class;
+    CK_KEY_TYPE type;
+    const struct fetch_attrs *attrs;
+    int num_attrs;
+    int extra_alloc;
+} key_attrs_list[] = {
+    FILL_ATTRS(RSA, 1),
+    /* EC keys require 3 extra allocations for synthetic attributes */
+    FILL_ATTRS(EC, 1 + EXTRA_EC_PARAMS),
+    FILL_ATTRS(EC_EDWARDS, 1 + EXTRA_EC_PARAMS),
+    FILL_ATTRS(ML_DSA, 1),
+    FILL_ATTRS(ML_KEM, 1),
+    FILL_KNOWN_SECRETS(1),
+    { 0, 0, NULL, 0, 0 },
+};
+
+static CK_RV prep_key_attrs(CK_OBJECT_CLASS class, CK_KEY_TYPE type,
+                            struct fetch_attrs *dst, int *dst_size,
+                            int *key_attrs_alloc)
 {
-    struct fetch_attrs attrs[RSA_ATTRS_NUM];
-    CK_ATTRIBUTE *mod;
-    int num;
-    int ret;
+    const struct key_attrs *item = NULL;
 
-    key->attrs = OPENSSL_zalloc(RSA_ATTRS_NUM * sizeof(CK_ATTRIBUTE));
-    if (key->attrs == NULL) {
-        return CKR_HOST_MEMORY;
-    }
-
-    num = 0;
-    FA_SET_BUF_ALLOC(attrs, num, CKA_MODULUS, true);
-    FA_SET_BUF_ALLOC(attrs, num, CKA_PUBLIC_EXPONENT, true);
-    FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
-    FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
-    if (key->class == CKO_PRIVATE_KEY) {
-        FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
-    }
-    ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
-    if (ret != CKR_OK) {
-        /* free any allocated memory */
-        p11prov_fetch_attrs_free(attrs, num);
-
-        if (key->class == CKO_PRIVATE_KEY) {
-            /* A private key may not always return these */
-            return CKR_OK;
+    for (int i = 0; key_attrs_list[i].num_attrs != 0; i++) {
+        if (key_attrs_list[i].class == class
+            && key_attrs_list[i].type == type) {
+            item = &key_attrs_list[i];
+            break;
         }
-        return ret;
     }
 
-    key->numattrs = 0;
-    p11prov_move_alloc_attrs(attrs, num, key->attrs, &key->numattrs);
-
-    mod = p11prov_obj_get_attr(key, CKA_MODULUS);
-    if (!mod) {
-        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR, "Missing Modulus");
+    if (!item || item->num_attrs > *dst_size) {
         return CKR_GENERAL_ERROR;
     }
-    key->data.key.size = mod->ulValueLen;
-    key->data.key.bit_size = key->data.key.size * 8;
 
+    for (int i = 0; i < item->num_attrs; i++) {
+        dst[i] = item->attrs[i];
+    }
+
+    *dst_size = item->num_attrs;
+    *key_attrs_alloc = item->num_attrs + item->extra_alloc;
     return CKR_OK;
+}
+
+static CK_RV pre_process_ec_key_data(P11PROV_OBJ *key);
+
+static CK_RV fetch_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
+                       CK_OBJECT_HANDLE handle, P11PROV_OBJ *key)
+{
+    struct fetch_attrs attrs[MAX_ATTRS_NUM] = { 0 };
+    int asize = sizeof(attrs) / sizeof(struct fetch_attrs);
+    int alloc = 0;
+    CK_ATTRIBUTE *a;
+    CK_RV rv;
+
+    rv = prep_key_attrs(key->class, key->data.key.type, attrs, &asize, &alloc);
+    if (rv != CKR_OK) {
+        P11PROV_debug("Unsupported key type (%lu)", key->data.key.type);
+        return rv;
+    }
+
+    key->attrs = OPENSSL_zalloc(alloc * sizeof(CK_ATTRIBUTE));
+    if (!key->attrs) {
+        return CKR_HOST_MEMORY;
+    }
+    key->numattrs = 0;
+
+    rv = p11prov_fetch_attributes(ctx, session, handle, attrs, asize);
+    if (rv != CKR_OK) {
+        /* free any allocated memory */
+        p11prov_fetch_attrs_free(attrs, asize);
+        return rv;
+    }
+    p11prov_move_alloc_attrs(attrs, asize, key->attrs, &key->numattrs);
+
+    /* key->data.key.type is checked for validity in prep_key_attrs(),
+     * here it is just a selector defaulting to secret keys */
+    switch (key->data.key.type) {
+    case CKK_RSA:
+        a = p11prov_obj_get_attr(key, CKA_MODULUS);
+        if (!a) {
+            P11PROV_raise(key->ctx, CKR_GENERAL_ERROR, "Missing Modulus");
+            return CKR_GENERAL_ERROR;
+        }
+        key->data.key.size = a->ulValueLen;
+        key->data.key.bit_size = key->data.key.size * 8;
+        return CKR_OK;
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+        /* decode CKA_EC_PARAMS and store some extra attrs for convenience */
+        return pre_process_ec_key_data(key);
+    case CKK_ML_DSA:
+        switch (key->data.key.param_set) {
+        case CKP_ML_DSA_44:
+            key->data.key.size = ML_DSA_44_PK_SIZE;
+            break;
+        case CKP_ML_DSA_65:
+            key->data.key.size = ML_DSA_65_PK_SIZE;
+            break;
+        case CKP_ML_DSA_87:
+            key->data.key.size = ML_DSA_87_PK_SIZE;
+            break;
+        default:
+            return CKR_KEY_INDIGESTIBLE;
+        }
+        key->data.key.bit_size = key->data.key.size * 8;
+        return CKR_OK;
+    case CKK_ML_KEM:
+        switch (key->data.key.param_set) {
+        case CKP_ML_KEM_512:
+            key->data.key.size = ML_KEM_512_PK_SIZE;
+            break;
+        case CKP_ML_KEM_768:
+            key->data.key.size = ML_KEM_768_PK_SIZE;
+            break;
+        case CKP_ML_KEM_1024:
+            key->data.key.size = ML_KEM_1024_PK_SIZE;
+            break;
+        default:
+            return CKR_KEY_INDIGESTIBLE;
+        }
+        key->data.key.bit_size = key->data.key.size * 8;
+        return CKR_OK;
+    default:
+        /* CKO_SECRET_KEY types */
+        a = p11prov_obj_get_attr(key, CKA_VALUE_LEN);
+        if (!a) {
+            /* Not all tokens support this attributes, it's ok */
+            P11PROV_debug("Failed to query key attribute CKA_VALUE_LEN");
+        } else {
+            if (a->ulValueLen != sizeof(CK_ULONG)) {
+                P11PROV_raise(key->ctx, CKR_GENERAL_ERROR,
+                              "Unsupported Key Size format");
+                return CKR_GENERAL_ERROR;
+            }
+            key->data.key.size = *(CK_ULONG *)a->pValue;
+            key->data.key.bit_size = key->data.key.size * 8;
+        }
+        return CKR_OK;
+    }
+
+    return CKR_GENERAL_ERROR;
 }
 
 const CK_BYTE ed25519_ec_params[] = { ED25519_EC_PARAMS };
@@ -178,204 +364,6 @@ static CK_RV pre_process_ec_key_data(P11PROV_OBJ *key)
     return CKR_OK;
 }
 
-static CK_RV fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
-                          CK_OBJECT_HANDLE object, P11PROV_OBJ *key)
-{
-    struct fetch_attrs attrs[EC_ATTRS_NUM];
-    int num;
-    CK_RV ret;
-
-    key->attrs = OPENSSL_zalloc(EC_ATTRS_NUM * sizeof(CK_ATTRIBUTE));
-    if (key->attrs == NULL) {
-        return CKR_HOST_MEMORY;
-    }
-
-    num = 0;
-    FA_SET_BUF_ALLOC(attrs, num, CKA_EC_PARAMS, true);
-    if (key->class == CKO_PUBLIC_KEY) {
-        FA_SET_BUF_ALLOC(attrs, num, CKA_EC_POINT, true);
-    } else {
-        /* known vendor optimization to avoid storing
-         * EC public key on HSM; can avoid
-         * p11prov_obj_find_associated later
-         */
-        FA_SET_BUF_ALLOC(attrs, num, CKA_EC_POINT, false);
-        FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
-    }
-    FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
-    FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
-    ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
-    if (ret != CKR_OK) {
-        /* free any allocated memory */
-        p11prov_fetch_attrs_free(attrs, num);
-        return CKR_KEY_INDIGESTIBLE;
-    }
-
-    key->numattrs = 0;
-    p11prov_move_alloc_attrs(attrs, num, key->attrs, &key->numattrs);
-
-    /* decode CKA_EC_PARAMS and store some extra attrs for convenience */
-    ret = pre_process_ec_key_data(key);
-
-    return ret;
-}
-
-static CK_RV fetch_mldsa_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
-                             CK_OBJECT_HANDLE object, P11PROV_OBJ *key)
-{
-    struct fetch_attrs attrs[MLDSA_ATTRS_NUM];
-    CK_ATTRIBUTE *value_attr;
-    int num;
-    CK_RV ret;
-
-    switch (key->data.key.param_set) {
-    case CKP_ML_DSA_44:
-    case CKP_ML_DSA_65:
-    case CKP_ML_DSA_87:
-        break;
-    default:
-        ret = CKR_KEY_INDIGESTIBLE;
-        P11PROV_raise(key->ctx, ret, "Unknown ML-DSA param set: %lu",
-                      key->data.key.param_set);
-        return ret;
-    }
-
-    key->attrs = OPENSSL_zalloc(MLDSA_ATTRS_NUM * sizeof(CK_ATTRIBUTE));
-    if (key->attrs == NULL) {
-        return CKR_HOST_MEMORY;
-    }
-
-    num = 0;
-    if (key->class == CKO_PUBLIC_KEY) {
-        FA_SET_BUF_ALLOC(attrs, num, CKA_VALUE, true);
-    }
-    FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
-    FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
-    if (key->class == CKO_PRIVATE_KEY) {
-        FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
-    }
-
-    ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
-    if (ret != CKR_OK) {
-        p11prov_fetch_attrs_free(attrs, num);
-        return ret;
-    }
-
-    key->numattrs = 0;
-    p11prov_move_alloc_attrs(attrs, num, key->attrs, &key->numattrs);
-
-    switch (key->data.key.param_set) {
-    case CKP_ML_DSA_44:
-        key->data.key.size = ML_DSA_44_PK_SIZE;
-        break;
-    case CKP_ML_DSA_65:
-        key->data.key.size = ML_DSA_65_PK_SIZE;
-        break;
-    case CKP_ML_DSA_87:
-        key->data.key.size = ML_DSA_87_PK_SIZE;
-        break;
-    default:
-        return CKR_KEY_INDIGESTIBLE;
-    }
-
-    if (key->class == CKO_PUBLIC_KEY) {
-        value_attr = p11prov_obj_get_attr(key, CKA_VALUE);
-        if (!value_attr) {
-            P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
-                          "Missing public key value");
-            return CKR_KEY_INDIGESTIBLE;
-        }
-        if (value_attr->ulValueLen != key->data.key.size) {
-            P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
-                          "Unexpected public key length %lu (expected %lu)",
-                          value_attr->ulValueLen, key->data.key.size);
-            return CKR_KEY_INDIGESTIBLE;
-        }
-    }
-
-    key->data.key.bit_size = key->data.key.size * 8;
-
-    return CKR_OK;
-}
-
-static CK_RV fetch_mlkem_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
-                             CK_OBJECT_HANDLE object, P11PROV_OBJ *key)
-{
-    struct fetch_attrs attrs[MLKEM_ATTRS_NUM];
-    CK_ATTRIBUTE *value_attr;
-    int num;
-    CK_RV ret;
-
-    switch (key->data.key.param_set) {
-    case CKP_ML_KEM_512:
-    case CKP_ML_KEM_768:
-    case CKP_ML_KEM_1024:
-        break;
-    default:
-        ret = CKR_KEY_INDIGESTIBLE;
-        P11PROV_raise(key->ctx, ret, "Unknown ML-KEM param set: %lu",
-                      key->data.key.param_set);
-        return ret;
-    }
-
-    key->attrs = OPENSSL_zalloc(MLKEM_ATTRS_NUM * sizeof(CK_ATTRIBUTE));
-    if (key->attrs == NULL) {
-        return CKR_HOST_MEMORY;
-    }
-
-    num = 0;
-    if (key->class == CKO_PUBLIC_KEY) {
-        FA_SET_BUF_ALLOC(attrs, num, CKA_VALUE, true);
-    }
-    FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
-    FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
-    if (key->class == CKO_PRIVATE_KEY) {
-        FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
-    }
-
-    ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
-    if (ret != CKR_OK) {
-        p11prov_fetch_attrs_free(attrs, num);
-        return ret;
-    }
-
-    key->numattrs = 0;
-    p11prov_move_alloc_attrs(attrs, num, key->attrs, &key->numattrs);
-
-    switch (key->data.key.param_set) {
-    case CKP_ML_KEM_512:
-        key->data.key.size = ML_KEM_512_PK_SIZE;
-        break;
-    case CKP_ML_KEM_768:
-        key->data.key.size = ML_KEM_768_PK_SIZE;
-        break;
-    case CKP_ML_KEM_1024:
-        key->data.key.size = ML_KEM_1024_PK_SIZE;
-        break;
-    default:
-        return CKR_KEY_INDIGESTIBLE;
-    }
-
-    if (key->class == CKO_PUBLIC_KEY) {
-        value_attr = p11prov_obj_get_attr(key, CKA_VALUE);
-        if (!value_attr) {
-            P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
-                          "Missing public key value");
-            return CKR_KEY_INDIGESTIBLE;
-        }
-        if (value_attr->ulValueLen != key->data.key.size) {
-            P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
-                          "Unexpected public key length %lu (expected %lu)",
-                          value_attr->ulValueLen, key->data.key.size);
-            return CKR_KEY_INDIGESTIBLE;
-        }
-    }
-
-    key->data.key.bit_size = key->data.key.size * 8;
-
-    return CKR_OK;
-}
-
 #define CERT_ATTRS_NUM 9
 static CK_RV fetch_certificate(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                                CK_OBJECT_HANDLE object, P11PROV_OBJ *crt)
@@ -411,56 +399,6 @@ static CK_RV fetch_certificate(P11PROV_CTX *ctx, P11PROV_SESSION *session,
 
     crt->numattrs = 0;
     p11prov_move_alloc_attrs(attrs, num, crt->attrs, &crt->numattrs);
-
-    return CKR_OK;
-}
-
-static CK_RV fetch_secret_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
-                              CK_OBJECT_HANDLE object, P11PROV_OBJ *key)
-{
-    struct fetch_attrs attrs[BASE_KEY_ATTRS_NUM + 2];
-    int num;
-    CK_RV ret;
-    CK_ATTRIBUTE *size = NULL;
-
-    key->attrs =
-        OPENSSL_zalloc((BASE_KEY_ATTRS_NUM + 2) * sizeof(CK_ATTRIBUTE));
-    if (key->attrs == NULL) {
-        return CKR_HOST_MEMORY;
-    }
-
-    num = 0;
-    FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
-    FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
-    FA_SET_BUF_ALLOC(attrs, num, CKA_ALWAYS_AUTHENTICATE, false);
-    FA_SET_BUF_ALLOC(attrs, num, CKA_SENSITIVE, false);
-    FA_SET_BUF_ALLOC(attrs, num, CKA_EXTRACTABLE, false);
-    FA_SET_BUF_ALLOC(attrs, num, CKA_VALUE_LEN, false);
-
-    ret = p11prov_fetch_attributes(ctx, session, object, attrs, num);
-    if (ret != CKR_OK) {
-        P11PROV_debug("Failed to query key attributes (%lu)", ret);
-        p11prov_fetch_attrs_free(attrs, num);
-        return ret;
-    }
-
-    key->numattrs = 0;
-    p11prov_move_alloc_attrs(attrs, num, key->attrs, &key->numattrs);
-
-    size = p11prov_obj_get_attr(key, CKA_VALUE_LEN);
-    if (!size) { /* Not all tokens support this attribute, stop*/
-        P11PROV_debug("Failed to query key attribute CKA_VALUE_LEN");
-        return CKR_OK;
-    }
-
-    if (size->ulValueLen == sizeof(CK_ULONG)) {
-        key->data.key.size = *(CK_ULONG *)size->pValue;
-        key->data.key.bit_size = key->data.key.size * 8;
-    } else {
-        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR,
-                      "Unsupported Key Size format");
-        return CKR_GENERAL_ERROR;
-    }
 
     return CKR_OK;
 }
@@ -517,61 +455,10 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     case CKO_PUBLIC_KEY:
     case CKO_PRIVATE_KEY:
     case CKO_SECRET_KEY:
-        switch (obj->data.key.type) {
-        case CKK_RSA:
-            ret = fetch_rsa_key(ctx, session, handle, obj);
-            if (ret != CKR_OK) {
-                p11prov_obj_free(obj);
-                return ret;
-            }
-            break;
-        case CKK_EC:
-        case CKK_EC_EDWARDS:
-            ret = fetch_ec_key(ctx, session, handle, obj);
-            if (ret != CKR_OK) {
-                p11prov_obj_free(obj);
-                return ret;
-            }
-            break;
-        case CKK_ML_DSA:
-            ret = fetch_mldsa_key(ctx, session, handle, obj);
-            if (ret != CKR_OK) {
-                p11prov_obj_free(obj);
-                return ret;
-            }
-            break;
-        case CKK_ML_KEM:
-            ret = fetch_mlkem_key(ctx, session, handle, obj);
-            if (ret != CKR_OK) {
-                p11prov_obj_free(obj);
-                return ret;
-            }
-            break;
-        case CKK_GENERIC_SECRET:
-        case CKK_AES:
-        case CKK_SHA_1_HMAC:
-        case CKK_SHA256_HMAC:
-        case CKK_SHA384_HMAC:
-        case CKK_SHA512_HMAC:
-        case CKK_SHA224_HMAC:
-        case CKK_SHA512_224_HMAC:
-        case CKK_SHA512_256_HMAC:
-        case CKK_SHA3_224_HMAC:
-        case CKK_SHA3_256_HMAC:
-        case CKK_SHA3_384_HMAC:
-        case CKK_SHA3_512_HMAC:
-            ret = fetch_secret_key(ctx, session, handle, obj);
-            if (ret != CKR_OK) {
-                p11prov_obj_free(obj);
-                return ret;
-            }
-            break;
-
-        default:
-            /* unknown key type, we can't handle it */
-            P11PROV_debug("Unsupported key type (%lu)", obj->data.key.type);
+        ret = fetch_key(ctx, session, handle, obj);
+        if (ret != CKR_OK) {
             p11prov_obj_free(obj);
-            return CKR_ARGUMENTS_BAD;
+            return ret;
         }
 
         /* do this at the end as it often won't be a supported attribute */
@@ -824,7 +711,7 @@ P11PROV_OBJ *mock_pub_ec_key(P11PROV_CTX *ctx, CK_ATTRIBUTE_TYPE type,
     /* at this stage we have EC_PARAMS and the preprocessing
      * function will add CKA_P11PROV_CURVE_NID and
      * CKA_P11PROV_CURVE_NAME */
-    key->attrs = OPENSSL_zalloc(KEY_EC_PARAMS * sizeof(CK_ATTRIBUTE));
+    key->attrs = OPENSSL_zalloc(EXTRA_EC_PARAMS * sizeof(CK_ATTRIBUTE));
     if (key->attrs == NULL) {
         P11PROV_raise(key->ctx, CKR_HOST_MEMORY,
                       "Failed to generate mock ec key");
