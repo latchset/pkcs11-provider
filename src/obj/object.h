@@ -44,6 +44,9 @@ void *p11prov_obj_from_typed_reference(const void *reference,
 P11PROV_SESSION *p11prov_obj_get_session_ref(P11PROV_OBJ *obj);
 void p11prov_obj_set_session_ref(P11PROV_OBJ *obj, P11PROV_SESSION *session);
 P11PROV_URI *p11prov_obj_get_refresh_uri(P11PROV_OBJ *obj);
+void p11prov_obj_set_class(P11PROV_OBJ *obj, CK_OBJECT_CLASS class);
+void p11prov_obj_set_key_type(P11PROV_OBJ *obj, CK_KEY_TYPE type);
+void p11prov_obj_set_key_params(P11PROV_OBJ *obj, CK_ULONG param_set);
 
 typedef CK_RV (*store_obj_callback)(void *, P11PROV_OBJ *);
 CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
@@ -58,9 +61,6 @@ P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
 CK_RV p11prov_derive_key(P11PROV_OBJ *key, CK_MECHANISM *mechanism,
                          CK_ATTRIBUTE *template, CK_ULONG nattrs,
                          P11PROV_SESSION **_session, CK_OBJECT_HANDLE *dkey);
-CK_RV p11prov_obj_set_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
-                                 P11PROV_OBJ *obj, CK_ATTRIBUTE *template,
-                                 CK_ULONG tsize);
 const char *p11prov_obj_get_ec_group_name(P11PROV_OBJ *obj);
 bool p11prov_obj_get_ec_compressed(P11PROV_OBJ *obj);
 int p11prov_obj_export_public_key(P11PROV_OBJ *obj, CK_KEY_TYPE key_type,
@@ -80,10 +80,7 @@ bool p11prov_obj_is_rsa_pss(P11PROV_OBJ *obj);
 int p11prov_obj_key_cmp(P11PROV_OBJ *obj1, P11PROV_OBJ *obj2, CK_KEY_TYPE type,
                         int cmp_type);
 
-CK_RV p11prov_obj_import_key(P11PROV_OBJ *key, CK_KEY_TYPE type,
-                             CK_OBJECT_CLASS class,
-                             CK_ML_DSA_PARAMETER_SET_TYPE param_set,
-                             const OSSL_PARAM params[]);
+CK_RV p11prov_obj_import_key(P11PROV_OBJ *key, const OSSL_PARAM params[]);
 
 P11PROV_OBJ *p11prov_obj_import_secret_key(P11PROV_CTX *ctx, CK_KEY_TYPE type,
                                            const unsigned char *key,
@@ -92,10 +89,6 @@ P11PROV_OBJ *p11prov_obj_import_secret_key(P11PROV_CTX *ctx, CK_KEY_TYPE type,
 CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
                                             const void *pubkey,
                                             size_t pubkey_len);
-
-CK_RV p11prov_obj_copy_specific_attr(P11PROV_OBJ *pub_key,
-                                     P11PROV_OBJ *priv_key,
-                                     CK_ATTRIBUTE_TYPE type);
 
 P11PROV_OBJ *p11prov_obj_find_associated(P11PROV_OBJ *obj,
                                          CK_OBJECT_CLASS class);

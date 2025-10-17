@@ -768,7 +768,10 @@ static int p11prov_rsa_import(void *keydata, int selection,
         }
     }
 
-    rv = p11prov_obj_import_key(key, CKK_RSA, class, 0, params);
+    p11prov_obj_set_class(key, class);
+    p11prov_obj_set_key_type(key, CKK_RSA);
+
+    rv = p11prov_obj_import_key(key, params);
     if (rv != CKR_OK) {
         return RET_OSSL_ERR;
     }
@@ -1435,7 +1438,10 @@ static int p11prov_ec_import_genr(CK_KEY_TYPE key_type, void *keydata,
         return RET_OSSL_ERR;
     }
 
-    rv = p11prov_obj_import_key(key, key_type, class, 0, params);
+    p11prov_obj_set_class(key, class);
+    p11prov_obj_set_key_type(key, key_type);
+
+    rv = p11prov_obj_import_key(key, params);
     if (rv != CKR_OK) {
         return RET_OSSL_ERR;
     }
@@ -2367,7 +2373,11 @@ static int p11prov_mldsa_import(void *keydata, int selection,
         }
     }
 
-    rv = p11prov_obj_import_key(key, CKK_ML_DSA, class, param_set, params);
+    p11prov_obj_set_class(key, class);
+    p11prov_obj_set_key_type(key, CKK_ML_DSA);
+    p11prov_obj_set_key_params(key, param_set);
+
+    rv = p11prov_obj_import_key(key, params);
     if (rv != CKR_OK) {
         return RET_OSSL_ERR;
     }
@@ -2835,7 +2845,11 @@ static int p11prov_mlkem_import(void *keydata, int selection,
         }
     }
 
-    rv = p11prov_obj_import_key(key, CKK_ML_KEM, class, param_set, params);
+    p11prov_obj_set_class(key, class);
+    p11prov_obj_set_key_type(key, CKK_ML_KEM);
+    p11prov_obj_set_key_params(key, param_set);
+
+    rv = p11prov_obj_import_key(key, params);
     if (rv != CKR_OK) {
         return RET_OSSL_ERR;
     }
