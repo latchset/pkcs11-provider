@@ -585,23 +585,17 @@ done:
     return ret;
 }
 
-#define MLDSA_PUB_ATTRS 1
-static int p11prov_obj_export_public_mldsa_key(P11PROV_OBJ *obj,
-                                               OSSL_CALLBACK *cb_fn,
-                                               void *cb_arg)
+static int p11prov_obj_export_public_ml_key(P11PROV_OBJ *obj,
+                                            OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
-    CK_ATTRIBUTE attrs[MLDSA_PUB_ATTRS] = { { 0 } };
-    OSSL_PARAM params[MLDSA_PUB_ATTRS + 1];
+    CK_ATTRIBUTE attrs[1] = { { 0 } };
+    OSSL_PARAM params[2];
     CK_RV rv;
     int ret, n = 0;
 
-    if (p11prov_obj_get_key_type(obj) != CKK_ML_DSA) {
-        return RET_OSSL_ERR;
-    }
-
     attrs[0].type = CKA_VALUE;
 
-    rv = get_public_attrs(obj, attrs, MLDSA_PUB_ATTRS);
+    rv = get_public_attrs(obj, attrs, 1);
     if (rv != CKR_OK) {
         P11PROV_raise(obj->ctx, rv, "Failed to get public key attributes");
         return RET_OSSL_ERR;
@@ -613,43 +607,7 @@ static int p11prov_obj_export_public_mldsa_key(P11PROV_OBJ *obj,
 
     ret = cb_fn(params, cb_arg);
 
-    for (int i = 0; i < MLDSA_PUB_ATTRS; i++) {
-        OPENSSL_free(attrs[i].pValue);
-    }
-    return ret;
-}
-
-#define MLKEM_PUB_ATTRS 1
-static int p11prov_obj_export_public_mlkem_key(P11PROV_OBJ *obj,
-                                               OSSL_CALLBACK *cb_fn,
-                                               void *cb_arg)
-{
-    CK_ATTRIBUTE attrs[MLKEM_PUB_ATTRS] = { { 0 } };
-    OSSL_PARAM params[MLKEM_PUB_ATTRS + 1];
-    CK_RV rv;
-    int ret, n = 0;
-
-    if (p11prov_obj_get_key_type(obj) != CKK_ML_KEM) {
-        return RET_OSSL_ERR;
-    }
-
-    attrs[0].type = CKA_VALUE;
-
-    rv = get_public_attrs(obj, attrs, MLKEM_PUB_ATTRS);
-    if (rv != CKR_OK) {
-        P11PROV_raise(obj->ctx, rv, "Failed to get public key attributes");
-        return RET_OSSL_ERR;
-    }
-
-    params[n++] = OSSL_PARAM_construct_octet_string(
-        OSSL_PKEY_PARAM_PUB_KEY, attrs[0].pValue, attrs[0].ulValueLen);
-    params[n++] = OSSL_PARAM_construct_end();
-
-    ret = cb_fn(params, cb_arg);
-
-    for (int i = 0; i < MLKEM_PUB_ATTRS; i++) {
-        OPENSSL_free(attrs[i].pValue);
-    }
+    OPENSSL_free(attrs[0].pValue);
     return ret;
 }
 
@@ -686,9 +644,8 @@ int p11prov_obj_export_public_key(P11PROV_OBJ *obj, CK_KEY_TYPE key_type,
         return p11prov_obj_export_public_ec_key(obj, params_only, cb_fn,
                                                 cb_arg);
     case CKK_ML_DSA:
-        return p11prov_obj_export_public_mldsa_key(obj, cb_fn, cb_arg);
     case CKK_ML_KEM:
-        return p11prov_obj_export_public_mlkem_key(obj, cb_fn, cb_arg);
+        return p11prov_obj_export_public_ml_key(obj, cb_fn, cb_arg);
     default:
         P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Unsupported key type");
         return RET_OSSL_ERR;
@@ -762,33 +719,48 @@ bool p11prov_obj_is_rsa_pss(P11PROV_OBJ *obj)
     return true;
 }
 
-int p11prov_obj_get_ed_pub_key(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub)
+static int prep_get_pub_key(P11PROV_OBJ **obj, CK_KEY_TYPE type)
 {
-    CK_ATTRIBUTE *a;
+    P11PROV_OBJ *key;
 
-    P11PROV_debug("get ed pubkey %p", obj);
-
-    if (!obj) {
+    if (!obj || !*obj) {
         return RET_OSSL_ERR;
     }
 
-    if (obj->class != CKO_PRIVATE_KEY && obj->class != CKO_PUBLIC_KEY) {
-        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Invalid Object Class");
+    key = *obj;
+
+    if (key->class != CKO_PRIVATE_KEY && key->class != CKO_PUBLIC_KEY) {
+        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR, "Invalid Object Class");
         return RET_OSSL_ERR;
     }
 
-    if (obj->data.key.type != CKK_EC_EDWARDS) {
-        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Unsupported key type");
+    if (key->data.key.type != type) {
+        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR, "Unsupported key type");
         return RET_OSSL_ERR;
     }
 
     /* check if we have a pub key associated to a private key */
-    if (obj->class == CKO_PRIVATE_KEY) {
-        P11PROV_OBJ *pobj = p11prov_obj_get_associated(obj);
+    if (key->class == CKO_PRIVATE_KEY) {
+        P11PROV_OBJ *pobj = p11prov_obj_get_associated(key);
         if (pobj && pobj->class == CKO_PUBLIC_KEY) {
             /* replace obj with the public one */
-            obj = pobj;
+            *obj = pobj;
         }
+    }
+
+    return RET_OSSL_OK;
+}
+
+int p11prov_obj_get_ed_pub_key(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub)
+{
+    CK_ATTRIBUTE *a;
+    int ret;
+
+    P11PROV_debug("get ed pubkey %p", obj);
+
+    ret = prep_get_pub_key(&obj, CKK_EC_EDWARDS);
+    if (ret != RET_OSSL_OK) {
+        return ret;
     }
 
     /* See if we have cached attributes first */
@@ -820,27 +792,9 @@ int p11prov_obj_get_ec_public_x_y(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub_x,
     int len;
     int ret;
 
-    if (!obj) {
-        return RET_OSSL_ERR;
-    }
-
-    if (obj->class != CKO_PRIVATE_KEY && obj->class != CKO_PUBLIC_KEY) {
-        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Invalid Object Class");
-        return RET_OSSL_ERR;
-    }
-
-    if (obj->data.key.type != CKK_EC) {
-        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Unsupported key type");
-        return RET_OSSL_ERR;
-    }
-
-    /* check if we have a pub key associated to a private key */
-    if (obj->class == CKO_PRIVATE_KEY) {
-        P11PROV_OBJ *pub = p11prov_obj_get_associated(obj);
-        if (pub && pub->class == CKO_PUBLIC_KEY) {
-            /* replace obj with the public one */
-            obj = pub;
-        }
+    ret = prep_get_pub_key(&obj, CKK_EC);
+    if (ret != RET_OSSL_OK) {
+        return ret;
     }
 
     /* See if we have cached attributes first */
@@ -1011,28 +965,11 @@ done:
 CK_ATTRIBUTE *p11prov_obj_get_ec_public_raw(P11PROV_OBJ *key)
 {
     CK_ATTRIBUTE *pub_key;
+    int err;
 
-    if (!key) {
+    err = prep_get_pub_key(&key, CKK_EC);
+    if (err != RET_OSSL_OK) {
         return NULL;
-    }
-
-    if (key->data.key.type != CKK_EC) {
-        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR, "Unsupported key type");
-        return NULL;
-    }
-
-    if (key->class != CKO_PRIVATE_KEY && key->class != CKO_PUBLIC_KEY) {
-        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR, "Invalid Object Class");
-        return NULL;
-    }
-
-    /* check if we have a pub key associated to a private key */
-    if (key->class == CKO_PRIVATE_KEY) {
-        P11PROV_OBJ *pub = p11prov_obj_get_associated(key);
-        if (pub && pub->class == CKO_PUBLIC_KEY) {
-            /* replace obj with the public one */
-            key = pub;
-        }
     }
 
     pub_key = p11prov_obj_get_attr(key, CKA_P11PROV_PUB_KEY);
@@ -1075,6 +1012,7 @@ CK_ATTRIBUTE *p11prov_obj_get_ec_public_raw(P11PROV_OBJ *key)
     }
     return pub_key;
 }
+
 CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
                                             const void *pubkey,
                                             size_t pubkey_len)
