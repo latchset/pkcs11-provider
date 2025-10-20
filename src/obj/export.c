@@ -179,28 +179,28 @@ done:
 
 static CK_RV get_all_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int num)
 {
-    CK_ATTRIBUTE *res[num];
-    CK_RV rv;
+    CK_RV rv = CKR_OK;
+    int i;
 
-    for (int i = 0; i < num; i++) {
-        res[i] = p11prov_obj_get_attr(obj, attrs[i].type);
-        if (!res[i]) {
-            return CKR_CANCEL;
+    for (i = 0; i < num; i++) {
+        CK_ATTRIBUTE *a = p11prov_obj_get_attr(obj, attrs[i].type);
+        if (a) {
+            rv = p11prov_copy_attr(&attrs[i], a);
+        } else {
+            attrs[i].pValue = NULL;
+            rv = CKR_CANCEL;
         }
-    }
-
-    for (int i = 0; i < num; i++) {
-        rv = p11prov_copy_attr(&attrs[i], res[i]);
         if (rv != CKR_OK) {
-            for (i--; i >= 0; i--) {
+            for (; i >= 0; i--) {
                 OPENSSL_free(attrs[i].pValue);
                 attrs[i].ulValueLen = 0;
                 attrs[i].pValue = NULL;
             }
-            return rv;
+            break;
         }
     }
-    return CKR_OK;
+
+    return rv;
 }
 
 static CK_RV get_public_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int num)
