@@ -173,7 +173,7 @@ void obj_rm_from_pool(P11PROV_OBJ *obj)
     CK_RV ret;
     const char *errstr = NULL;
 
-    if (obj->slotid == CK_UNAVAILABLE_INFORMATION) {
+    if (obj->poolid == -1) {
         /* a mock object */
         return;
     }
@@ -206,7 +206,7 @@ void obj_rm_from_pool(P11PROV_OBJ *obj)
     if (pool->first_free > obj->poolid) {
         pool->first_free = obj->poolid;
     }
-    obj->poolid = 0;
+    obj->poolid = -1;
 
 done:
     (void)MUTEX_UNLOCK(pool);

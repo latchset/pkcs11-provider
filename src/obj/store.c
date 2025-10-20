@@ -558,12 +558,24 @@ static CK_RV return_dup_key(P11PROV_OBJ *dst, P11PROV_OBJ *src)
                   "slotid=%lu, raf=%d, numattrs=%d)",
                   dst, src, src->handle, src->slotid, src->raf, src->numattrs);
 
+    /* we don't overwrite real key objects */
+    if (dst->poolid != -1) {
+        rv = CKR_GENERAL_ERROR;
+        P11PROV_raise(src->ctx, rv, "Invalid destination object");
+        return CKR_GENERAL_ERROR;
+    }
+
     dst->slotid = src->slotid;
     dst->handle = src->handle;
     dst->class = src->class;
     dst->cka_copyable = src->cka_copyable;
     dst->cka_token = src->cka_token;
     dst->data.key = src->data.key;
+
+    rv = obj_add_to_pool(dst);
+    if (rv != CKR_OK) {
+        return rv;
+    }
 
     /* Free existing attributes if any */
     for (int i = 0; i < dst->numattrs; i++) {

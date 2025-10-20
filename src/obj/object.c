@@ -251,6 +251,7 @@ P11PROV_OBJ *p11prov_obj_new(P11PROV_CTX *ctx, CK_SLOT_ID slotid,
     obj->cached = CK_INVALID_HANDLE;
 
     obj->refcnt = 1;
+    obj->poolid = -1;
 
     if (handle == CK_P11PROV_IMPORTED_HANDLE) {
         /* mock object, return w/o adding to pool */
