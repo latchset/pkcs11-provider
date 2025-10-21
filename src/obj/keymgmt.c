@@ -543,8 +543,6 @@ static int cmp_public_key_values(P11PROV_OBJ *pub_key1, P11PROV_OBJ *pub_key2)
         ret = cmp_attr(pub_key1, pub_key2, CKA_P11PROV_PUB_KEY);
         break;
     case CKK_ML_DSA:
-        ret = cmp_attr(pub_key1, pub_key2, CKA_VALUE);
-        break;
     case CKK_ML_KEM:
         ret = cmp_attr(pub_key1, pub_key2, CKA_VALUE);
         break;
@@ -749,18 +747,8 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
 
     switch (key1->data.key.type) {
     case CKK_RSA:
-        if (cmp_type & OBJ_CMP_KEY_PRIVATE) {
-            /* unfortunately we can't really read private attributes
-             * and there is no comparison function in the PKCS11 API.
-             * Generally you do not have 2 identical keys stored in to two
-             * separate objects so the initial shortcircuit that matches if
-             * slotid/handle are identical will often cover this. When that
-             * fails we have no option but to fail for now. */
-            P11PROV_debug("We can't really match private keys");
-            /* OTOH if modulus and exponent match either this is a broken key
-             * or the private key must also match */
-            cmp_type = OBJ_CMP_KEY_PUBLIC;
-        }
+    case CKK_ML_DSA:
+    case CKK_ML_KEM:
         break;
 
     case CKK_EC:
@@ -819,19 +807,8 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
                 return ret;
             }
         }
-        if (cmp_type & OBJ_CMP_KEY_PRIVATE) {
-            /* unfortunately we can't really read private attributes
-             * and there is no comparison function in the PKCS11 API.
-             * Generally you do not have 2 identical keys stored in to two
-             * separate objects so the initial shortcircuit that matches if
-             * slotid/handle are identical will often cover this. When that
-             * fails we have no option but to fail for now. */
-            P11PROV_debug("We can't really match private keys");
-            /* OTOH if group and pub point match either this is a broken key
-             * or the private key must also match */
-            cmp_type = OBJ_CMP_KEY_PUBLIC;
-        }
         break;
+
     case CKK_EC_EDWARDS:
         /* The EdDSA params can be encoded as printable string, which is
          * not recognized by OpenSSL and does not have respective EC_GROUP */
@@ -863,56 +840,28 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
                 return RET_OSSL_ERR;
             }
         }
-        if (cmp_type & OBJ_CMP_KEY_PRIVATE) {
-            /* unfortunately we can't really read private attributes
-             * and there is no comparison function in the PKCS11 API.
-             * Generally you do not have 2 identical keys stored in to two
-             * separate objects so the initial shortcircuit that matches if
-             * slotid/handle are identical will often cover this. When that
-             * fails we have no option but to fail for now. */
-            P11PROV_debug("We can't really match private keys");
-            /* OTOH if group and pub point match either this is a broken key
-             * or the private key must also match */
-            cmp_type = OBJ_CMP_KEY_PUBLIC;
-        }
-        break;
-
-    case CKK_ML_DSA:
-        /* The parameter set maps to the specific key bit length that was
-         * compared already. If the bit size matches, the param set matches. */
-        if (cmp_type & OBJ_CMP_KEY_PRIVATE) {
-            /* unfortunately we can't really read private attributes
-             * and there is no comparison function in the PKCS11 API.
-             * Generally you do not have 2 identical keys stored in to two
-             * separate objects so the initial shortcircuit that matches if
-             * slotid/handle are identical will often cover this. When that
-             * fails we have no option but to fail for now. */
-            P11PROV_debug("We can't really match private keys");
-            /* OTOH if param set and pub value match either this is a broken key
-             * or the private key must also match */
-            cmp_type = OBJ_CMP_KEY_PUBLIC;
-        }
-        break;
-
-    case CKK_ML_KEM:
-        /* The parameter set maps to the specific key bit length that was
-         * compared already. If the bit size matches, the param set matches. */
-        if (cmp_type & OBJ_CMP_KEY_PRIVATE) {
-            /* unfortunately we can't really read private attributes
-             * and there is no comparison function in the PKCS11 API.
-             * Generally you do not have 2 identical keys stored in to two
-             * separate objects so the initial shortcircuit that matches if
-             * slotid/handle are identical will often cover this. When that
-             * fails we have no option but to fail for now. */
-            P11PROV_debug("We can't really match private keys");
-            /* OTOH if param set and pub value match either this is a broken key
-             * or the private key must also match */
-            cmp_type = OBJ_CMP_KEY_PUBLIC;
-        }
         break;
 
     default:
         return RET_OSSL_ERR;
+    }
+
+    if (cmp_type & OBJ_CMP_KEY_PRIVATE) {
+        /* unfortunately we can't really read private attributes
+         * and there is no comparison function in the PKCS11 API.
+         * Generally you do not have 2 identical keys stored in to two
+         * separate objects so the initial shortcircuit that matches if
+         * slotid/handle are identical will often cover this. When that
+         * fails we have no option but to fail for now. */
+        P11PROV_debug("We can't really match private keys");
+        /* internally match_public_keys() optimizes for checking public
+         * values if present on the private key, and falls back to fetching
+         * an associated public key if that fails. Note that should both
+         * keys be private this will fail as match_public_keys() only handle
+         * the case where one of the two keys is private. That is all openssl
+         * needs anyway, it never has any reason to try to match two private
+         * keys so this is fine. */
+        cmp_type = OBJ_CMP_KEY_PUBLIC;
     }
 
     if (cmp_type & OBJ_CMP_KEY_PUBLIC) {
