@@ -185,7 +185,7 @@ int p11prov_obj_get_ec_public_x_y(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub_x,
 
     x = BN_CTX_get(bnctx);
     y = BN_CTX_get(bnctx);
-    if (!y) {
+    if (!x || !y) {
         ret = RET_OSSL_ERR;
         goto done;
     }
