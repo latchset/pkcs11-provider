@@ -306,6 +306,9 @@ int p11prov_kmgmt_match(const void *keydata1, const void *keydata2,
     P11PROV_OBJ *key2 = (P11PROV_OBJ *)keydata2;
     int cmp_type = OBJ_CMP_KEY_TYPE;
 
+    P11PROV_debug("key (type: %ld) match %p %p %d", type, keydata1, keydata2,
+                  selection);
+
     if (key1 == key2) {
         return RET_OSSL_OK;
     }
@@ -340,7 +343,170 @@ int p11prov_kmgmt_get_params(void *keydata, OSSL_PARAM params[])
 
 void p11prov_kmgmt_gen_cleanup(struct key_generator *ctx)
 {
+    P11PROV_debug("kmgmt gen_cleanup %p", ctx);
     OPENSSL_free(ctx->key_usage);
     p11prov_uri_free(ctx->uri);
     OPENSSL_clear_free(ctx, sizeof(struct key_generator));
+}
+
+void *p11prov_kmgmt_new(void *provctx, CK_KEY_TYPE type)
+{
+    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
+    P11PROV_OBJ *key;
+    CK_RV ret;
+
+    ret = p11prov_ctx_status(ctx);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
+
+    key =
+        p11prov_obj_new(provctx, CK_UNAVAILABLE_INFORMATION,
+                        CK_P11PROV_IMPORTED_HANDLE, CK_UNAVAILABLE_INFORMATION);
+    if (key) {
+        p11prov_obj_set_key_type(key, type);
+    }
+
+    return key;
+}
+
+void p11prov_kmgmt_free(void *key)
+{
+    P11PROV_debug("Free key %p (type %ld)", key, p11prov_obj_get_key_type(key));
+    p11prov_obj_free((P11PROV_OBJ *)key);
+}
+
+void *p11prov_kmgmt_load(const void *ref, size_t ref_sz, CK_KEY_TYPE type)
+{
+    P11PROV_debug("key (type: %ld) load %p, %ld", type, ref, ref_sz);
+    return p11prov_obj_from_typed_reference(ref, ref_sz, type);
+}
+
+int p11prov_kmgmt_has(const void *keydata, int selection)
+{
+    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
+
+    P11PROV_debug("key has %p %d", key, selection);
+
+    if (!key) {
+        return RET_OSSL_ERR;
+    }
+
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
+        if (p11prov_obj_get_class(key) != CKO_PRIVATE_KEY) {
+            return RET_OSSL_ERR;
+        }
+    }
+
+    /* We always return OK when asked for a PUBLIC KEY, even if we only have a
+     * private key, as we can try to fetch the associated public key as needed
+     * if asked for an export (main reason to do this), or other operations */
+
+    return RET_OSSL_OK;
+}
+
+int p11prov_kmgmt_import(CK_KEY_TYPE type, CK_ULONG param_set,
+                         const char *priv_param_name, void *keydata,
+                         int selection, const OSSL_PARAM params[])
+{
+    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
+    CK_OBJECT_CLASS class = CK_UNAVAILABLE_INFORMATION;
+    CK_RV rv;
+
+    P11PROV_debug("key %p (type: %ld) import", key, type);
+
+    if (!key) {
+        return RET_OSSL_ERR;
+    }
+
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
+        class = CKO_PRIVATE_KEY;
+    } else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+        class = CKO_PUBLIC_KEY;
+    } else if (selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) {
+        P11PROV_debug("import of domain parameters is only for EC keys");
+        /* There are no Domain parameters associated with an
+         * ECX or RSA, etc.. key in OpenSSL, so there is nothing really
+         * we can import */
+        if (type != CKK_EC) {
+            return RET_OSSL_ERR;
+        }
+        class = CKO_DOMAIN_PARAMETERS;
+    } else {
+        return RET_OSSL_ERR;
+    }
+
+    /* NOTE: the following is needed because of bug:
+     * https://github.com/openssl/openssl/issues/21596
+     * it can be removed once we can depend on a recent enough version
+     * after it is fixed */
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
+        const OSSL_PARAM *p;
+        p = OSSL_PARAM_locate_const(params, priv_param_name);
+        if (!p) {
+            /* not really a private key */
+            class = CKO_PUBLIC_KEY;
+        }
+    }
+
+    p11prov_obj_set_class(key, class);
+    /* Check that the key type (which is set at object creation type
+     * by p11prov_kmgmt_new() matches the source key. We can't check
+     * before the class is set because p11prov_obj_get_key_type() does
+     * not return a type until the class is set, and we can't set it in
+     * p11prov_kmgmt_new() because the class type is unknown; OpenSSL
+     * does not provide the expected type at that time. */
+    if (p11prov_obj_get_key_type(key) != type) {
+        return RET_OSSL_ERR;
+    }
+    if (param_set != CK_UNAVAILABLE_INFORMATION) {
+        p11prov_obj_set_key_params(key, param_set);
+    }
+
+    rv = p11prov_obj_import_key(key, params);
+    if (rv != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
+    return RET_OSSL_OK;
+}
+
+int p11prov_kmgmt_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
+                         void *cb_arg)
+{
+
+    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
+    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
+    CK_OBJECT_CLASS class = p11prov_obj_get_class(key);
+    CK_KEY_TYPE type = p11prov_obj_get_key_type(key);
+    bool params_only = false;
+
+    P11PROV_debug("key %p export (type: %ld, selection: %d)", key, type,
+                  selection);
+
+    if (!key) {
+        return RET_OSSL_ERR;
+    }
+
+    if (class == CKO_PRIVATE_KEY
+        && (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY)) {
+        /* can't export private keys */
+        return RET_OSSL_ERR;
+    }
+
+    if (p11prov_ctx_allow_export(ctx) & DISALLOW_EXPORT_PUBLIC) {
+        return RET_OSSL_ERR;
+    }
+
+    if (selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) {
+        if (!(selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY)) {
+            params_only = true;
+        }
+        if (type != CKK_EC && params_only) {
+            /* Domain parameters allowed only with CKK_EC */
+            return RET_OSSL_ERR;
+        }
+    }
+
+    return p11prov_obj_export_public_key(key, type, true, params_only, cb_fn,
+                                         cb_arg);
 }

@@ -5,45 +5,22 @@
 #include "kmgmt/internal.h"
 
 DISPATCH_KEYMGMT_FN(mldsa, new);
-DISPATCH_KEYMGMT_FN(mldsa, gen_cleanup);
 DISPATCH_KEYMGMT_FN(mldsa_44, gen_init);
 DISPATCH_KEYMGMT_FN(mldsa_65, gen_init);
 DISPATCH_KEYMGMT_FN(mldsa_87, gen_init);
 DISPATCH_KEYMGMT_FN(mldsa, gen_settable_params);
 DISPATCH_KEYMGMT_FN(mldsa, gen);
-DISPATCH_KEYMGMT_FN(mldsa, free);
-DISPATCH_KEYMGMT_FN(mldsa, has);
+DISPATCH_KEYMGMT_FN(mldsa, load);
 DISPATCH_KEYMGMT_FN(mldsa, match);
 DISPATCH_KEYMGMT_FN(mldsa, import_types);
-DISPATCH_KEYMGMT_FN(mldsa, export);
 DISPATCH_KEYMGMT_FN(mldsa, export_types);
 DISPATCH_KEYMGMT_FN(mldsa, get_params);
 DISPATCH_KEYMGMT_FN(mldsa, gettable_params);
 
 static void *p11prov_mldsa_new(void *provctx)
 {
-    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
-    CK_RV ret;
-
     P11PROV_debug("mldsa new");
-
-    ret = p11prov_ctx_status(ctx);
-    if (ret != CKR_OK) {
-        return NULL;
-    }
-
-    return p11prov_obj_new(provctx, CK_UNAVAILABLE_INFORMATION,
-                           CK_P11PROV_IMPORTED_HANDLE,
-                           CK_UNAVAILABLE_INFORMATION);
-}
-
-static void p11prov_mldsa_gen_cleanup(void *genctx)
-{
-    struct key_generator *ctx = (struct key_generator *)genctx;
-
-    P11PROV_debug("mldsa gen_cleanup %p", genctx);
-
-    p11prov_kmgmt_gen_cleanup(ctx);
+    return p11prov_kmgmt_new(provctx, CKK_ML_DSA);
 }
 
 static void *p11prov_mldsa_gen_init_int(void *provctx, int selection,
@@ -69,7 +46,7 @@ static void *p11prov_mldsa_gen_init_int(void *provctx, int selection,
 
     ret = p11prov_kmgmt_gen_set_params(ctx, params);
     if (ret != RET_OSSL_OK) {
-        p11prov_mldsa_gen_cleanup(ctx);
+        p11prov_kmgmt_gen_cleanup(ctx);
         return NULL;
     }
     return ctx;
@@ -145,138 +122,40 @@ static void *p11prov_mldsa_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
     }
     return key;
 }
-static void p11prov_mldsa_free(void *key)
-{
-    P11PROV_debug("mldsa free %p", key);
-    p11prov_obj_free((P11PROV_OBJ *)key);
-}
 
 static void *p11prov_mldsa_load(const void *reference, size_t reference_sz)
 {
-    P11PROV_debug("mldsa load %p, %ld", reference, reference_sz);
-    return p11prov_obj_from_typed_reference(reference, reference_sz,
-                                            CKK_ML_DSA);
-}
-
-static int p11prov_mldsa_has(const void *keydata, int selection)
-{
-    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
-
-    P11PROV_debug("mldsa has %p %d", key, selection);
-
-    if (key == NULL) {
-        return RET_OSSL_ERR;
-    }
-
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        if (p11prov_obj_get_class(key) != CKO_PRIVATE_KEY) {
-            return RET_OSSL_ERR;
-        }
-    }
-
-    /* We always return OK when asked for a PUBLIC KEY, even if we only have a
-     * private key, as we can try to fetch the associated public key as needed
-     * if asked for an export (main reason to do this), or other operations */
-
-    return RET_OSSL_OK;
+    return p11prov_kmgmt_load(reference, reference_sz, CKK_ML_DSA);
 }
 
 static int p11prov_mldsa_match(const void *keydata1, const void *keydata2,
                                int selection)
 {
-    P11PROV_debug("mldsa match %p %p %d", keydata1, keydata2, selection);
-
     return p11prov_kmgmt_match(keydata1, keydata2, CKK_ML_DSA, selection);
-}
-
-static int p11prov_mldsa_import(void *keydata, int selection,
-                                const OSSL_PARAM params[],
-                                CK_ML_DSA_PARAMETER_SET_TYPE param_set)
-{
-    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
-    CK_OBJECT_CLASS class = CK_UNAVAILABLE_INFORMATION;
-    CK_RV rv;
-
-    P11PROV_debug("mldsa import %p", key);
-
-    if (!key) {
-        return RET_OSSL_ERR;
-    }
-
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        class = CKO_PRIVATE_KEY;
-    } else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        class = CKO_PUBLIC_KEY;
-    } else if (selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) {
-        class = CKO_DOMAIN_PARAMETERS;
-    }
-
-    /* NOTE: the following is needed because of bug:
-     * https://github.com/openssl/openssl/issues/21596
-     * it can be removed once we can depend on a recent enough version
-     * after it is fixed */
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        const OSSL_PARAM *p;
-        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
-        if (!p) {
-            /* not really a private key */
-            class = CKO_PUBLIC_KEY;
-        }
-    }
-
-    p11prov_obj_set_class(key, class);
-    p11prov_obj_set_key_type(key, CKK_ML_DSA);
-    p11prov_obj_set_key_params(key, param_set);
-
-    rv = p11prov_obj_import_key(key, params);
-    if (rv != CKR_OK) {
-        return RET_OSSL_ERR;
-    }
-    return RET_OSSL_OK;
 }
 
 static int p11prov_mldsa_44_import(void *keydata, int selection,
                                    const OSSL_PARAM params[])
 {
-    return p11prov_mldsa_import(keydata, selection, params, CKP_ML_DSA_44);
+    return p11prov_kmgmt_import(CKK_ML_DSA, CKP_ML_DSA_44,
+                                OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
+                                params);
 }
 
 static int p11prov_mldsa_65_import(void *keydata, int selection,
                                    const OSSL_PARAM params[])
 {
-    return p11prov_mldsa_import(keydata, selection, params, CKP_ML_DSA_65);
+    return p11prov_kmgmt_import(CKK_ML_DSA, CKP_ML_DSA_65,
+                                OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
+                                params);
 }
 
 static int p11prov_mldsa_87_import(void *keydata, int selection,
                                    const OSSL_PARAM params[])
 {
-    return p11prov_mldsa_import(keydata, selection, params, CKP_ML_DSA_87);
-}
-
-static int p11prov_mldsa_export(void *keydata, int selection,
-                                OSSL_CALLBACK *cb_fn, void *cb_arg)
-{
-    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
-    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
-    CK_OBJECT_CLASS class = p11prov_obj_get_class(key);
-
-    P11PROV_debug("mldsa export %p, selection= %d", keydata, selection);
-
-    if (key == NULL) {
-        return RET_OSSL_ERR;
-    }
-
-    if (p11prov_ctx_allow_export(ctx) & DISALLOW_EXPORT_PUBLIC) {
-        return RET_OSSL_ERR;
-    }
-
-    /* if anything else is asked for we can't provide it, so be strict */
-    if ((class == CKO_PUBLIC_KEY) || (selection & ~(PUBLIC_PARAMS)) == 0) {
-        return p11prov_obj_export_public_key(key, CKK_ML_DSA, true, false,
-                                             cb_fn, cb_arg);
-    }
-
-    return RET_OSSL_ERR;
+    return p11prov_kmgmt_import(CKK_ML_DSA, CKP_ML_DSA_87,
+                                OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
+                                params);
 }
 
 #ifndef OSSL_PKEY_PARAM_ML_DSA_SEED
@@ -379,6 +258,13 @@ static int p11prov_mldsa_get_params(void *keydata, OSSL_PARAM params[])
             return ret;
         }
     }
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_MANDATORY_DIGEST);
+    if (p) {
+        ret = OSSL_PARAM_set_utf8_string(p, "");
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
     p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_PUB_KEY);
     if (p) {
         CK_ATTRIBUTE *pub;
@@ -417,20 +303,25 @@ static const OSSL_PARAM *p11prov_mldsa_gettable_params(void *provctx)
     return params;
 }
 
+#define p11prov_mldsa_gen_cleanup p11prov_kmgmt_gen_cleanup
+#define p11prov_mldsa_free p11prov_kmgmt_free
+#define p11prov_mldsa_has p11prov_kmgmt_has
+#define p11prov_mldsa_export p11prov_kmgmt_export
+
 const OSSL_DISPATCH p11prov_mldsa44_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(mldsa, NEW, new),
     DISPATCH_KEYMGMT_ELEM(mldsa_44, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(mldsa, GEN, gen),
-    DISPATCH_KEYMGMT_ELEM(mldsa, GEN_CLEANUP, gen_cleanup),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),
     DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_SET_PARAMS, gen_set_params),
     DISPATCH_KEYMGMT_ELEM(mldsa, GEN_SETTABLE_PARAMS, gen_settable_params),
     DISPATCH_KEYMGMT_ELEM(mldsa, LOAD, load),
-    DISPATCH_KEYMGMT_ELEM(mldsa, FREE, free),
-    DISPATCH_KEYMGMT_ELEM(mldsa, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
     DISPATCH_KEYMGMT_ELEM(mldsa, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(mldsa_44, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(mldsa, IMPORT_TYPES, import_types),
-    DISPATCH_KEYMGMT_ELEM(mldsa, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(mldsa, EXPORT_TYPES, export_types),
     DISPATCH_KEYMGMT_ELEM(mldsa, GET_PARAMS, get_params),
     DISPATCH_KEYMGMT_ELEM(mldsa, GETTABLE_PARAMS, gettable_params),
@@ -441,16 +332,16 @@ const OSSL_DISPATCH p11prov_mldsa65_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(mldsa, NEW, new),
     DISPATCH_KEYMGMT_ELEM(mldsa_65, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(mldsa, GEN, gen),
-    DISPATCH_KEYMGMT_ELEM(mldsa, GEN_CLEANUP, gen_cleanup),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),
     DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_SET_PARAMS, gen_set_params),
     DISPATCH_KEYMGMT_ELEM(mldsa, GEN_SETTABLE_PARAMS, gen_settable_params),
     DISPATCH_KEYMGMT_ELEM(mldsa, LOAD, load),
-    DISPATCH_KEYMGMT_ELEM(mldsa, FREE, free),
-    DISPATCH_KEYMGMT_ELEM(mldsa, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
     DISPATCH_KEYMGMT_ELEM(mldsa, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(mldsa_65, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(mldsa, IMPORT_TYPES, import_types),
-    DISPATCH_KEYMGMT_ELEM(mldsa, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(mldsa, EXPORT_TYPES, export_types),
     DISPATCH_KEYMGMT_ELEM(mldsa, GET_PARAMS, get_params),
     DISPATCH_KEYMGMT_ELEM(mldsa, GETTABLE_PARAMS, gettable_params),
@@ -461,16 +352,16 @@ const OSSL_DISPATCH p11prov_mldsa87_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(mldsa, NEW, new),
     DISPATCH_KEYMGMT_ELEM(mldsa_87, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(mldsa, GEN, gen),
-    DISPATCH_KEYMGMT_ELEM(mldsa, GEN_CLEANUP, gen_cleanup),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),
     DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_SET_PARAMS, gen_set_params),
     DISPATCH_KEYMGMT_ELEM(mldsa, GEN_SETTABLE_PARAMS, gen_settable_params),
     DISPATCH_KEYMGMT_ELEM(mldsa, LOAD, load),
-    DISPATCH_KEYMGMT_ELEM(mldsa, FREE, free),
-    DISPATCH_KEYMGMT_ELEM(mldsa, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
     DISPATCH_KEYMGMT_ELEM(mldsa, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(mldsa_87, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(mldsa, IMPORT_TYPES, import_types),
-    DISPATCH_KEYMGMT_ELEM(mldsa, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(mldsa, EXPORT_TYPES, export_types),
     DISPATCH_KEYMGMT_ELEM(mldsa, GET_PARAMS, get_params),
     DISPATCH_KEYMGMT_ELEM(mldsa, GETTABLE_PARAMS, gettable_params),

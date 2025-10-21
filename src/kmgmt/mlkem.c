@@ -5,18 +5,14 @@
 #include "kmgmt/internal.h"
 
 DISPATCH_KEYMGMT_FN(mlkem, new);
-DISPATCH_KEYMGMT_FN(mlkem, gen_cleanup);
 DISPATCH_KEYMGMT_FN(mlkem_512, gen_init);
 DISPATCH_KEYMGMT_FN(mlkem_768, gen_init);
 DISPATCH_KEYMGMT_FN(mlkem_1024, gen_init);
 DISPATCH_KEYMGMT_FN(mlkem, gen_settable_params);
 DISPATCH_KEYMGMT_FN(mlkem, gen);
-DISPATCH_KEYMGMT_FN(mlkem, free);
 DISPATCH_KEYMGMT_FN(mlkem, load);
-DISPATCH_KEYMGMT_FN(mlkem, has);
 DISPATCH_KEYMGMT_FN(mlkem, match);
 DISPATCH_KEYMGMT_FN(mlkem, import_types);
-DISPATCH_KEYMGMT_FN(mlkem, export);
 DISPATCH_KEYMGMT_FN(mlkem, export_types);
 DISPATCH_KEYMGMT_FN(mlkem, get_params);
 DISPATCH_KEYMGMT_FN(mlkem, gettable_params);
@@ -26,28 +22,8 @@ DISPATCH_KEYMGMT_FN(mlkem_1024, import);
 
 static void *p11prov_mlkem_new(void *provctx)
 {
-    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
-    CK_RV ret;
-
     P11PROV_debug("mlkem new");
-
-    ret = p11prov_ctx_status(ctx);
-    if (ret != CKR_OK) {
-        return NULL;
-    }
-
-    return p11prov_obj_new(provctx, CK_UNAVAILABLE_INFORMATION,
-                           CK_P11PROV_IMPORTED_HANDLE,
-                           CK_UNAVAILABLE_INFORMATION);
-}
-
-static void p11prov_mlkem_gen_cleanup(void *genctx)
-{
-    struct key_generator *ctx = (struct key_generator *)genctx;
-
-    P11PROV_debug("mldsa gen_cleanup %p", genctx);
-
-    p11prov_kmgmt_gen_cleanup(ctx);
+    return p11prov_kmgmt_new(provctx, CKK_ML_KEM);
 }
 
 static void *p11prov_mlkem_gen_init_int(void *provctx, int selection,
@@ -73,7 +49,7 @@ static void *p11prov_mlkem_gen_init_int(void *provctx, int selection,
 
     ret = p11prov_kmgmt_gen_set_params(ctx, params);
     if (ret != RET_OSSL_OK) {
-        p11prov_mlkem_gen_cleanup(ctx);
+        p11prov_kmgmt_gen_cleanup(ctx);
         return NULL;
     }
     return ctx;
@@ -150,136 +126,39 @@ static void *p11prov_mlkem_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
     return key;
 }
 
-static void p11prov_mlkem_free(void *key)
-{
-    P11PROV_debug("mlkem free %p", key);
-    p11prov_obj_free((P11PROV_OBJ *)key);
-}
-
 static void *p11prov_mlkem_load(const void *reference, size_t reference_sz)
 {
-    P11PROV_debug("mlkem load %p, %ld", reference, reference_sz);
-    return p11prov_obj_from_typed_reference(reference, reference_sz,
-                                            CKK_ML_KEM);
-}
-
-static int p11prov_mlkem_has(const void *keydata, int selection)
-{
-    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
-
-    P11PROV_debug("mlkem has %p %d", key, selection);
-
-    if (key == NULL) {
-        return RET_OSSL_ERR;
-    }
-
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        if (p11prov_obj_get_class(key) != CKO_PRIVATE_KEY) {
-            return RET_OSSL_ERR;
-        }
-    }
-
-    /* We always return OK when asked for a PUBLIC KEY, even if we only have a
-     * private key, as we can try to fetch the associated public key as needed
-     * if asked for an export (main reason to do this), or other operations */
-
-    return RET_OSSL_OK;
+    return p11prov_kmgmt_load(reference, reference_sz, CKK_ML_KEM);
 }
 
 static int p11prov_mlkem_match(const void *keydata1, const void *keydata2,
                                int selection)
 {
-    P11PROV_debug("mlkem match %p %p %d", keydata1, keydata2, selection);
-
     return p11prov_kmgmt_match(keydata1, keydata2, CKK_ML_KEM, selection);
-}
-
-static int p11prov_mlkem_import(void *keydata, int selection,
-                                const OSSL_PARAM params[],
-                                CK_ML_KEM_PARAMETER_SET_TYPE param_set)
-{
-    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
-    CK_OBJECT_CLASS class = CK_UNAVAILABLE_INFORMATION;
-    CK_RV rv;
-
-    P11PROV_debug("mlkem import %p", key);
-
-    if (!key) {
-        return RET_OSSL_ERR;
-    }
-
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        class = CKO_PRIVATE_KEY;
-    } else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        class = CKO_PUBLIC_KEY;
-    }
-
-    /* NOTE: the following is needed because of bug:
-     * https://github.com/openssl/openssl/issues/21596
-     * it can be removed once we can depend on a recent enough version
-     * after it is fixed */
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        const OSSL_PARAM *p;
-        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
-        if (!p) {
-            /* not really a private key */
-            class = CKO_PUBLIC_KEY;
-        }
-    }
-
-    p11prov_obj_set_class(key, class);
-    p11prov_obj_set_key_type(key, CKK_ML_KEM);
-    p11prov_obj_set_key_params(key, param_set);
-
-    rv = p11prov_obj_import_key(key, params);
-    if (rv != CKR_OK) {
-        return RET_OSSL_ERR;
-    }
-    return RET_OSSL_OK;
 }
 
 static int p11prov_mlkem_512_import(void *keydata, int selection,
                                     const OSSL_PARAM params[])
 {
-    return p11prov_mlkem_import(keydata, selection, params, CKP_ML_KEM_512);
+    return p11prov_kmgmt_import(CKK_ML_KEM, CKP_ML_KEM_512,
+                                OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
+                                params);
 }
 
 static int p11prov_mlkem_768_import(void *keydata, int selection,
                                     const OSSL_PARAM params[])
 {
-    return p11prov_mlkem_import(keydata, selection, params, CKP_ML_KEM_768);
+    return p11prov_kmgmt_import(CKK_ML_KEM, CKP_ML_KEM_768,
+                                OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
+                                params);
 }
 
 static int p11prov_mlkem_1024_import(void *keydata, int selection,
                                      const OSSL_PARAM params[])
 {
-    return p11prov_mlkem_import(keydata, selection, params, CKP_ML_KEM_1024);
-}
-
-static int p11prov_mlkem_export(void *keydata, int selection,
-                                OSSL_CALLBACK *cb_fn, void *cb_arg)
-{
-    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
-    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
-    CK_OBJECT_CLASS class = p11prov_obj_get_class(key);
-
-    P11PROV_debug("mlkem export %p, selection= %d", keydata, selection);
-
-    if (key == NULL) {
-        return RET_OSSL_ERR;
-    }
-
-    if (p11prov_ctx_allow_export(ctx) & DISALLOW_EXPORT_PUBLIC) {
-        return RET_OSSL_ERR;
-    }
-
-    /* if anything else is asked for we can't provide it, so be strict */
-    if ((class == CKO_PUBLIC_KEY) || (selection & ~(PUBLIC_PARAMS)) == 0) {
-        return p11prov_obj_export_public_key(key, CKK_ML_KEM, true, false,
-                                             cb_fn, cb_arg);
-    }
-
-    return RET_OSSL_ERR;
+    return p11prov_kmgmt_import(CKK_ML_KEM, CKP_ML_KEM_1024,
+                                OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
+                                params);
 }
 
 static const OSSL_PARAM *p11prov_mlkem_import_types(int selection)
@@ -416,16 +295,16 @@ const OSSL_DISPATCH p11prov_mlkem512_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(mlkem, NEW, new),
     DISPATCH_KEYMGMT_ELEM(mlkem_512, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(mlkem, GEN, gen),
-    DISPATCH_KEYMGMT_ELEM(mlkem, GEN_CLEANUP, gen_cleanup),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),
     DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_SET_PARAMS, gen_set_params),
     DISPATCH_KEYMGMT_ELEM(mlkem, GEN_SETTABLE_PARAMS, gen_settable_params),
     DISPATCH_KEYMGMT_ELEM(mlkem, LOAD, load),
-    DISPATCH_KEYMGMT_ELEM(mlkem, FREE, free),
-    DISPATCH_KEYMGMT_ELEM(mlkem, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
     DISPATCH_KEYMGMT_ELEM(mlkem, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(mlkem_512, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(mlkem, IMPORT_TYPES, import_types),
-    DISPATCH_KEYMGMT_ELEM(mlkem, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(mlkem, EXPORT_TYPES, export_types),
     DISPATCH_KEYMGMT_ELEM(mlkem, GET_PARAMS, get_params),
     DISPATCH_KEYMGMT_ELEM(mlkem, GETTABLE_PARAMS, gettable_params),
@@ -436,16 +315,16 @@ const OSSL_DISPATCH p11prov_mlkem768_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(mlkem, NEW, new),
     DISPATCH_KEYMGMT_ELEM(mlkem_768, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(mlkem, GEN, gen),
-    DISPATCH_KEYMGMT_ELEM(mlkem, GEN_CLEANUP, gen_cleanup),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),
     DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_SET_PARAMS, gen_set_params),
     DISPATCH_KEYMGMT_ELEM(mlkem, GEN_SETTABLE_PARAMS, gen_settable_params),
     DISPATCH_KEYMGMT_ELEM(mlkem, LOAD, load),
-    DISPATCH_KEYMGMT_ELEM(mlkem, FREE, free),
-    DISPATCH_KEYMGMT_ELEM(mlkem, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
     DISPATCH_KEYMGMT_ELEM(mlkem, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(mlkem_768, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(mlkem, IMPORT_TYPES, import_types),
-    DISPATCH_KEYMGMT_ELEM(mlkem, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(mlkem, EXPORT_TYPES, export_types),
     DISPATCH_KEYMGMT_ELEM(mlkem, GET_PARAMS, get_params),
     DISPATCH_KEYMGMT_ELEM(mlkem, GETTABLE_PARAMS, gettable_params),
@@ -456,16 +335,16 @@ const OSSL_DISPATCH p11prov_mlkem1024_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(mlkem, NEW, new),
     DISPATCH_KEYMGMT_ELEM(mlkem_1024, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(mlkem, GEN, gen),
-    DISPATCH_KEYMGMT_ELEM(mlkem, GEN_CLEANUP, gen_cleanup),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),
     DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_SET_PARAMS, gen_set_params),
     DISPATCH_KEYMGMT_ELEM(mlkem, GEN_SETTABLE_PARAMS, gen_settable_params),
     DISPATCH_KEYMGMT_ELEM(mlkem, LOAD, load),
-    DISPATCH_KEYMGMT_ELEM(mlkem, FREE, free),
-    DISPATCH_KEYMGMT_ELEM(mlkem, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
     DISPATCH_KEYMGMT_ELEM(mlkem, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(mlkem_1024, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(mlkem, IMPORT_TYPES, import_types),
-    DISPATCH_KEYMGMT_ELEM(mlkem, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(mlkem, EXPORT_TYPES, export_types),
     DISPATCH_KEYMGMT_ELEM(mlkem, GET_PARAMS, get_params),
     DISPATCH_KEYMGMT_ELEM(mlkem, GETTABLE_PARAMS, gettable_params),
