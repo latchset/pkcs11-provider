@@ -59,5 +59,13 @@ int p11prov_kmgmt_get_params(void *keydata, OSSL_PARAM params[]);
 
 void p11prov_kmgmt_gen_cleanup(struct key_generator *ctx);
 
-#define PUBLIC_PARAMS \
-    OSSL_KEYMGMT_SELECT_PUBLIC_KEY | OSSL_KEYMGMT_SELECT_ALL_PARAMETERS
+void *p11prov_kmgmt_new(void *provctx, CK_KEY_TYPE type);
+void p11prov_kmgmt_free(void *key);
+void *p11prov_kmgmt_load(const void *ref, size_t ref_sz, CK_KEY_TYPE type);
+int p11prov_kmgmt_has(const void *keydata, int selection);
+
+int p11prov_kmgmt_import(CK_KEY_TYPE type, CK_ULONG param_set,
+                         const char *priv_param_name, void *keydata,
+                         int selection, const OSSL_PARAM params[]);
+int p11prov_kmgmt_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
+                         void *cb_arg);

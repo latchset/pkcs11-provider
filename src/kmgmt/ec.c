@@ -79,17 +79,13 @@ struct {
 };
 
 DISPATCH_KEYMGMT_FN(ec, new);
-DISPATCH_KEYMGMT_FN(ec, gen_cleanup);
 DISPATCH_KEYMGMT_FN(ec, gen_init);
 DISPATCH_KEYMGMT_FN(ec, gen_settable_params);
 DISPATCH_KEYMGMT_FN(ec, gen_set_params);
 DISPATCH_KEYMGMT_FN(ec, gen);
-DISPATCH_KEYMGMT_FN(ec, free);
 DISPATCH_KEYMGMT_FN(ec, load);
-DISPATCH_KEYMGMT_FN(ec, has);
 DISPATCH_KEYMGMT_FN(ec, match);
 DISPATCH_KEYMGMT_FN(ec, import);
-DISPATCH_KEYMGMT_FN(ec, export);
 DISPATCH_KEYMGMT_FN(ec, import_types);
 DISPATCH_KEYMGMT_FN(ec, export_types);
 DISPATCH_KEYMGMT_FN(ec, query_operation_name);
@@ -100,28 +96,8 @@ DISPATCH_KEYMGMT_FN(ec, settable_params);
 
 static void *p11prov_ec_new(void *provctx)
 {
-    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
-    CK_RV ret;
-
     P11PROV_debug("ec new");
-
-    ret = p11prov_ctx_status(ctx);
-    if (ret != CKR_OK) {
-        return NULL;
-    }
-
-    return p11prov_obj_new(provctx, CK_UNAVAILABLE_INFORMATION,
-                           CK_P11PROV_IMPORTED_HANDLE,
-                           CK_UNAVAILABLE_INFORMATION);
-}
-
-static void p11prov_ec_gen_cleanup(void *genctx)
-{
-    struct key_generator *ctx = (struct key_generator *)genctx;
-
-    P11PROV_debug("ec gen_cleanup %p", genctx);
-
-    p11prov_kmgmt_gen_cleanup(ctx);
+    return p11prov_kmgmt_new(provctx, CKK_EC);
 }
 
 static void *p11prov_ec_gen_init(void *provctx, int selection,
@@ -156,7 +132,7 @@ static void *p11prov_ec_gen_init(void *provctx, int selection,
 
     ret = p11prov_ec_gen_set_params(ctx, params);
     if (ret != RET_OSSL_OK) {
-        p11prov_ec_gen_cleanup(ctx);
+        p11prov_kmgmt_gen_cleanup(ctx);
         ctx = NULL;
     }
     return ctx;
@@ -173,6 +149,8 @@ static const OSSL_PARAM *p11prov_ec_gen_settable_params(void *genctx,
     };
     return p11prov_ec_params;
 }
+
+#define P11PROV_ED_NAME "p11prov_edname"
 
 static int p11prov_ec_gen_set_params(void *genctx, const OSSL_PARAM params[])
 {
@@ -211,7 +189,7 @@ static int p11prov_ec_gen_set_params(void *genctx, const OSSL_PARAM params[])
         }
         break;
     case CKK_EC_EDWARDS:
-        p = OSSL_PARAM_locate_const(params, "p11prov_edname");
+        p = OSSL_PARAM_locate_const(params, P11PROV_ED_NAME);
         if (p) {
             if (p->data_type != OSSL_PARAM_UTF8_STRING) {
                 return RET_OSSL_ERR;
@@ -298,39 +276,9 @@ static void *p11prov_ec_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
     return key;
 }
 
-static void p11prov_ec_free(void *key)
-{
-    P11PROV_debug("ec free %p", key);
-    p11prov_obj_free((P11PROV_OBJ *)key);
-}
-
 static void *p11prov_ec_load(const void *reference, size_t reference_sz)
 {
-    P11PROV_debug("ec load %p, %ld", reference, reference_sz);
-    return p11prov_obj_from_typed_reference(reference, reference_sz, CKK_EC);
-}
-
-static int p11prov_ec_has(const void *keydata, int selection)
-{
-    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
-
-    P11PROV_debug("ec has %p %d", key, selection);
-
-    if (key == NULL) {
-        return RET_OSSL_ERR;
-    }
-
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        if (p11prov_obj_get_class(key) != CKO_PRIVATE_KEY) {
-            return RET_OSSL_ERR;
-        }
-    }
-
-    /* We always return OK when asked for a PUBLIC KEY, even if we only have a
-     * private key, as we can try to fetch the associated public key as needed
-     * if asked for an export (main reason to do this), or other operations */
-
-    return RET_OSSL_OK;
+    return p11prov_kmgmt_load(reference, reference_sz, CKK_EC);
 }
 
 static int p11prov_ec_match(const void *keydata1, const void *keydata2,
@@ -341,93 +289,12 @@ static int p11prov_ec_match(const void *keydata1, const void *keydata2,
     return p11prov_kmgmt_match(keydata1, keydata2, CKK_EC, selection);
 }
 
-static int p11prov_ec_import_genr(CK_KEY_TYPE key_type, void *keydata,
-                                  int selection, const OSSL_PARAM params[])
-{
-    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
-    CK_OBJECT_CLASS class = CK_UNAVAILABLE_INFORMATION;
-    CK_RV rv;
-
-    P11PROV_debug("ec import %p", key);
-
-    if (!key) {
-        return RET_OSSL_ERR;
-    }
-
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        class = CKO_PRIVATE_KEY;
-    } else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        class = CKO_PUBLIC_KEY;
-    } else if (selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) {
-        class = CKO_DOMAIN_PARAMETERS;
-    }
-
-    /* NOTE: the following is needed because of bug:
-     * https://github.com/openssl/openssl/issues/21596
-     * it can be removed once we can depend on a recent enough version
-     * after it is fixed */
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        const OSSL_PARAM *p;
-        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
-        if (!p) {
-            /* not really a private key */
-            class = CKO_PUBLIC_KEY;
-        }
-    }
-
-    if (class == CKO_DOMAIN_PARAMETERS && key_type != CKK_EC) {
-        P11PROV_debug("ec import of key %p domain parameters is not for EC",
-                      key);
-        /* There are no Domain parameters associated with an
-         * ECX or RSA key in OpenSSL, so there is nothing really
-         * we can import */
-        return RET_OSSL_ERR;
-    }
-
-    p11prov_obj_set_class(key, class);
-    p11prov_obj_set_key_type(key, key_type);
-
-    rv = p11prov_obj_import_key(key, params);
-    if (rv != CKR_OK) {
-        return RET_OSSL_ERR;
-    }
-    return RET_OSSL_OK;
-}
-
 static int p11prov_ec_import(void *keydata, int selection,
                              const OSSL_PARAM params[])
 {
-    return p11prov_ec_import_genr(CKK_EC, keydata, selection, params);
-}
-
-static int p11prov_ec_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
-                             void *cb_arg)
-{
-    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
-    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
-    bool params_only = true;
-
-    P11PROV_debug("ec export %p", keydata);
-
-    if (key == NULL) {
-        return RET_OSSL_ERR;
-    }
-
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        /* can't export private keys */
-        return RET_OSSL_ERR;
-    }
-
-    if (p11prov_ctx_allow_export(ctx) & DISALLOW_EXPORT_PUBLIC) {
-        return RET_OSSL_ERR;
-    }
-
-    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        params_only = false;
-    }
-
-    return p11prov_obj_export_public_key(key, CKK_EC, true, params_only, cb_fn,
-                                         cb_arg);
+    return p11prov_kmgmt_import(CKK_EC, CK_UNAVAILABLE_INFORMATION,
+                                OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
+                                params);
 }
 
 static const OSSL_PARAM p11prov_ec_key_types[] = {
@@ -694,16 +561,16 @@ const OSSL_DISPATCH p11prov_ec_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ec, NEW, new),
     DISPATCH_KEYMGMT_ELEM(ec, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(ec, GEN, gen),
-    DISPATCH_KEYMGMT_ELEM(ec, GEN_CLEANUP, gen_cleanup),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),
     DISPATCH_KEYMGMT_ELEM(ec, GEN_SET_PARAMS, gen_set_params),
     DISPATCH_KEYMGMT_ELEM(ec, GEN_SETTABLE_PARAMS, gen_settable_params),
     DISPATCH_KEYMGMT_ELEM(ec, LOAD, load),
-    DISPATCH_KEYMGMT_ELEM(ec, FREE, free),
-    DISPATCH_KEYMGMT_ELEM(ec, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
     DISPATCH_KEYMGMT_ELEM(ec, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(ec, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(ec, IMPORT_TYPES, import_types),
-    DISPATCH_KEYMGMT_ELEM(ec, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(ec, EXPORT_TYPES, export_types),
     DISPATCH_KEYMGMT_ELEM(ec, QUERY_OPERATION_NAME, query_operation_name),
     DISPATCH_KEYMGMT_ELEM(ec, GET_PARAMS, get_params),
@@ -713,24 +580,30 @@ const OSSL_DISPATCH p11prov_ec_keymgmt_functions[] = {
     { 0, NULL },
 };
 
+DISPATCH_KEYMGMT_FN(ed, new);
 DISPATCH_KEYMGMT_FN(ed25519, gen_init);
 DISPATCH_KEYMGMT_FN(ed448, gen_init);
 DISPATCH_KEYMGMT_FN(ed, gen_settable_params);
 DISPATCH_KEYMGMT_FN(ed, load);
 DISPATCH_KEYMGMT_FN(ed, match);
 DISPATCH_KEYMGMT_FN(ed, import_types);
-DISPATCH_KEYMGMT_FN(ed, export);
 DISPATCH_KEYMGMT_FN(ed, export_types);
 DISPATCH_KEYMGMT_FN(ed, get_params);
 DISPATCH_KEYMGMT_FN(ed, gettable_params);
 DISPATCH_KEYMGMT_FN(ed, set_params);
 DISPATCH_KEYMGMT_FN(ed, settable_params);
 
+static void *p11prov_ed_new(void *provctx)
+{
+    P11PROV_debug("ed new");
+    return p11prov_kmgmt_new(provctx, CKK_EC_EDWARDS);
+}
+
 static void *p11prov_ed25519_gen_init(void *provctx, int selection,
                                       const OSSL_PARAM params[])
 {
     struct key_generator *ctx = NULL;
-    const OSSL_PARAM curve[] = { OSSL_PARAM_utf8_string("p11prov_edname",
+    const OSSL_PARAM curve[] = { OSSL_PARAM_utf8_string(P11PROV_ED_NAME,
                                                         (void *)ED25519,
                                                         sizeof(ED25519)),
                                  OSSL_PARAM_END };
@@ -760,13 +633,13 @@ static void *p11prov_ed25519_gen_init(void *provctx, int selection,
     /* set defaults */
     ret = p11prov_ec_gen_set_params(ctx, curve);
     if (ret != RET_OSSL_OK) {
-        p11prov_ec_gen_cleanup(ctx);
+        p11prov_kmgmt_gen_cleanup(ctx);
         return NULL;
     }
 
     ret = p11prov_ec_gen_set_params(ctx, params);
     if (ret != RET_OSSL_OK) {
-        p11prov_ec_gen_cleanup(ctx);
+        p11prov_kmgmt_gen_cleanup(ctx);
         return NULL;
     }
     return ctx;
@@ -777,7 +650,7 @@ static void *p11prov_ed448_gen_init(void *provctx, int selection,
 {
     struct key_generator *ctx = NULL;
     const OSSL_PARAM curve[] = {
-        OSSL_PARAM_utf8_string("p11prov_edname", (void *)ED448, sizeof(ED448)),
+        OSSL_PARAM_utf8_string(P11PROV_ED_NAME, (void *)ED448, sizeof(ED448)),
         OSSL_PARAM_END
     };
     int ret;
@@ -806,13 +679,13 @@ static void *p11prov_ed448_gen_init(void *provctx, int selection,
     /* set defaults */
     ret = p11prov_ec_gen_set_params(ctx, curve);
     if (ret != RET_OSSL_OK) {
-        p11prov_ec_gen_cleanup(ctx);
+        p11prov_kmgmt_gen_cleanup(ctx);
         return NULL;
     }
 
     ret = p11prov_ec_gen_set_params(ctx, params);
     if (ret != RET_OSSL_OK) {
-        p11prov_ec_gen_cleanup(ctx);
+        p11prov_kmgmt_gen_cleanup(ctx);
         return NULL;
     }
     return ctx;
@@ -831,53 +704,21 @@ static const OSSL_PARAM *p11prov_ed_gen_settable_params(void *genctx,
 
 static void *p11prov_ed_load(const void *reference, size_t reference_sz)
 {
-    P11PROV_debug("ed load %p, %ld", reference, reference_sz);
-    return p11prov_obj_from_typed_reference(reference, reference_sz,
-                                            CKK_EC_EDWARDS);
+    return p11prov_kmgmt_load(reference, reference_sz, CKK_EC_EDWARDS);
 }
 
 static int p11prov_ed_match(const void *keydata1, const void *keydata2,
                             int selection)
 {
-    P11PROV_debug("ed match %p %p %d", keydata1, keydata2, selection);
-
     return p11prov_kmgmt_match(keydata1, keydata2, CKK_EC_EDWARDS, selection);
-}
-
-static int p11prov_ed_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
-                             void *cb_arg)
-{
-    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
-    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
-    bool params_only = true;
-
-    P11PROV_debug("ed export %p", keydata);
-
-    if (key == NULL) {
-        return RET_OSSL_ERR;
-    }
-
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        /* can't export private keys */
-        return RET_OSSL_ERR;
-    }
-
-    if (p11prov_ctx_allow_export(ctx) & DISALLOW_EXPORT_PUBLIC) {
-        return RET_OSSL_ERR;
-    }
-
-    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        params_only = false;
-    }
-
-    return p11prov_obj_export_public_key(key, CKK_EC_EDWARDS, true, params_only,
-                                         cb_fn, cb_arg);
 }
 
 static int p11prov_ed_import(void *keydata, int selection,
                              const OSSL_PARAM params[])
 {
-    return p11prov_ec_import_genr(CKK_EC_EDWARDS, keydata, selection, params);
+    return p11prov_kmgmt_import(CKK_EC_EDWARDS, CK_UNAVAILABLE_INFORMATION,
+                                OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
+                                params);
 }
 
 static const OSSL_PARAM *p11prov_ed_import_types(int selection)
@@ -1037,19 +878,19 @@ static const OSSL_PARAM *p11prov_ed_settable_params(void *provctx)
 }
 
 const OSSL_DISPATCH p11prov_ed25519_keymgmt_functions[] = {
-    DISPATCH_KEYMGMT_ELEM(ec, NEW, new),
+    DISPATCH_KEYMGMT_ELEM(ed, NEW, new),
     DISPATCH_KEYMGMT_ELEM(ed25519, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(ec, GEN, gen),
-    DISPATCH_KEYMGMT_ELEM(ec, GEN_CLEANUP, gen_cleanup),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),
     DISPATCH_KEYMGMT_ELEM(ec, GEN_SET_PARAMS, gen_set_params),
     DISPATCH_KEYMGMT_ELEM(ed, GEN_SETTABLE_PARAMS, gen_settable_params),
     DISPATCH_KEYMGMT_ELEM(ed, LOAD, load),
-    DISPATCH_KEYMGMT_ELEM(ec, FREE, free),
-    DISPATCH_KEYMGMT_ELEM(ec, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
     DISPATCH_KEYMGMT_ELEM(ed, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(ed, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(ed, IMPORT_TYPES, import_types),
-    DISPATCH_KEYMGMT_ELEM(ed, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(ed, EXPORT_TYPES, export_types),
     DISPATCH_KEYMGMT_ELEM(ed25519, QUERY_OPERATION_NAME, query_operation_name),
     DISPATCH_KEYMGMT_ELEM(ed, GET_PARAMS, get_params),
@@ -1061,19 +902,19 @@ const OSSL_DISPATCH p11prov_ed25519_keymgmt_functions[] = {
 };
 
 const OSSL_DISPATCH p11prov_ed448_keymgmt_functions[] = {
-    DISPATCH_KEYMGMT_ELEM(ec, NEW, new),
+    DISPATCH_KEYMGMT_ELEM(ed, NEW, new),
     DISPATCH_KEYMGMT_ELEM(ed448, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(ec, GEN, gen),
-    DISPATCH_KEYMGMT_ELEM(ec, GEN_CLEANUP, gen_cleanup),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),
     DISPATCH_KEYMGMT_ELEM(ec, GEN_SET_PARAMS, gen_set_params),
     DISPATCH_KEYMGMT_ELEM(ed, GEN_SETTABLE_PARAMS, gen_settable_params),
     DISPATCH_KEYMGMT_ELEM(ed, LOAD, load),
-    DISPATCH_KEYMGMT_ELEM(ec, FREE, free),
-    DISPATCH_KEYMGMT_ELEM(ec, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
     DISPATCH_KEYMGMT_ELEM(ed, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(ed, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(ed, IMPORT_TYPES, import_types),
-    DISPATCH_KEYMGMT_ELEM(ed, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(ed, EXPORT_TYPES, export_types),
     DISPATCH_KEYMGMT_ELEM(ed448, QUERY_OPERATION_NAME, query_operation_name),
     DISPATCH_KEYMGMT_ELEM(ed, GET_PARAMS, get_params),

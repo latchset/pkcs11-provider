@@ -11,12 +11,9 @@ DISPATCH_KEYMGMT_FN(rsa, gen_init);
 DISPATCH_KEYMGMT_FN(rsa, gen_settable_params);
 DISPATCH_KEYMGMT_FN(rsa, gen_set_params);
 DISPATCH_KEYMGMT_FN(rsa, gen);
-DISPATCH_KEYMGMT_FN(rsa, free);
 DISPATCH_KEYMGMT_FN(rsa, load);
-DISPATCH_KEYMGMT_FN(rsa, has);
 DISPATCH_KEYMGMT_FN(rsa, match);
 DISPATCH_KEYMGMT_FN(rsa, import);
-DISPATCH_KEYMGMT_FN(rsa, export);
 DISPATCH_KEYMGMT_FN(rsa, import_types);
 DISPATCH_KEYMGMT_FN(rsa, export_types);
 DISPATCH_KEYMGMT_FN(rsa, query_operation_name);
@@ -25,19 +22,8 @@ DISPATCH_KEYMGMT_FN(rsa, gettable_params);
 
 static void *p11prov_rsa_new(void *provctx)
 {
-    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
-    CK_RV ret;
-
     P11PROV_debug("rsa new");
-
-    ret = p11prov_ctx_status(ctx);
-    if (ret != CKR_OK) {
-        return NULL;
-    }
-
-    return p11prov_obj_new(provctx, CK_UNAVAILABLE_INFORMATION,
-                           CK_P11PROV_IMPORTED_HANDLE,
-                           CK_UNAVAILABLE_INFORMATION);
+    return p11prov_kmgmt_new(provctx, CKK_RSA);
 }
 
 static void p11prov_rsa_gen_cleanup(void *genctx)
@@ -239,113 +225,23 @@ static void *p11prov_rsa_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
     return key;
 }
 
-static void p11prov_rsa_free(void *key)
-{
-    P11PROV_debug("rsa free %p", key);
-    p11prov_obj_free((P11PROV_OBJ *)key);
-}
-
 static void *p11prov_rsa_load(const void *reference, size_t reference_sz)
 {
-    P11PROV_debug("rsa load %p, %ld", reference, reference_sz);
-    return p11prov_obj_from_typed_reference(reference, reference_sz, CKK_RSA);
-}
-
-static int p11prov_rsa_has(const void *keydata, int selection)
-{
-    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
-
-    P11PROV_debug("rsa has %p %d", key, selection);
-
-    if (key == NULL) {
-        return RET_OSSL_ERR;
-    }
-
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        if (p11prov_obj_get_class(key) != CKO_PRIVATE_KEY) {
-            return RET_OSSL_ERR;
-        }
-    }
-
-    /* We always return OK when asked for a PUBLIC KEY, even if we only have a
-     * private key, as we can try to fetch the associated public key as needed
-     * if asked for an export (main reason to do this), or other operations */
-
-    return RET_OSSL_OK;
+    return p11prov_kmgmt_load(reference, reference_sz, CKK_RSA);
 }
 
 static int p11prov_rsa_match(const void *keydata1, const void *keydata2,
                              int selection)
 {
-    P11PROV_debug("rsa match %p %p %d", keydata1, keydata2, selection);
-
     return p11prov_kmgmt_match(keydata1, keydata2, CKK_RSA, selection);
 }
 
 static int p11prov_rsa_import(void *keydata, int selection,
                               const OSSL_PARAM params[])
 {
-    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
-    CK_OBJECT_CLASS class = CKO_PUBLIC_KEY;
-    CK_RV rv;
-
-    P11PROV_debug("rsa import %p", key);
-
-    if (!key) {
-        return RET_OSSL_ERR;
-    }
-
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        class = CKO_PRIVATE_KEY;
-    }
-
-    /* NOTE: the following is needed because of bug:
-     * https://github.com/openssl/openssl/issues/21596
-     * it can be removed once we can depend on a recent enough version
-     * after it is fixed */
-    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
-        const OSSL_PARAM *p;
-        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_D);
-        if (!p) {
-            /* not really a private key */
-            class = CKO_PUBLIC_KEY;
-        }
-    }
-
-    p11prov_obj_set_class(key, class);
-    p11prov_obj_set_key_type(key, CKK_RSA);
-
-    rv = p11prov_obj_import_key(key, params);
-    if (rv != CKR_OK) {
-        return RET_OSSL_ERR;
-    }
-    return RET_OSSL_OK;
-}
-
-static int p11prov_rsa_export(void *keydata, int selection,
-                              OSSL_CALLBACK *cb_fn, void *cb_arg)
-{
-    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
-    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
-    CK_OBJECT_CLASS class = p11prov_obj_get_class(key);
-
-    P11PROV_debug("rsa export %p, selection= %d", keydata, selection);
-
-    if (key == NULL) {
-        return RET_OSSL_ERR;
-    }
-
-    if (p11prov_ctx_allow_export(ctx) & DISALLOW_EXPORT_PUBLIC) {
-        return RET_OSSL_ERR;
-    }
-
-    /* if anything else is asked for we can't provide it, so be strict */
-    if ((class == CKO_PUBLIC_KEY) || (selection & ~(PUBLIC_PARAMS)) == 0) {
-        return p11prov_obj_export_public_key(key, CKK_RSA, true, false, cb_fn,
-                                             cb_arg);
-    }
-
-    return RET_OSSL_ERR;
+    return p11prov_kmgmt_import(CKK_RSA, CK_UNAVAILABLE_INFORMATION,
+                                OSSL_PKEY_PARAM_RSA_D, keydata, selection,
+                                params);
 }
 
 #define RSA_KEY_ATTRS_SIZE 2
@@ -380,27 +276,10 @@ static const char *p11prov_rsa_query_operation_name(int operation_id)
 
 static int p11prov_rsa_secbits(int bits)
 {
-    /* common values from various NIST documents */
-    switch (bits) {
-    case 2048:
-        return 112;
-    case 3072:
-        return 128;
-    case 4096:
-        return 152;
-    case 6144:
-        return 176;
-    case 7680:
-        return 192;
-    case 8192:
-        return 200;
-    case 15360:
-        return 256;
-    }
-
     /* TODO: do better calculations,
      * see ossl_ifc_ffc_compute_security_bits() */
 
+    /* common values from various NIST documents */
     /* NOLINTBEGIN(readability-braces-around-statements) */
     if (bits >= 15360) return 256;
     if (bits >= 8192) return 200;
@@ -518,12 +397,12 @@ const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(rsa, GEN_SETTABLE_PARAMS, gen_settable_params),
     DISPATCH_KEYMGMT_ELEM(rsa, GEN_SET_PARAMS, gen_set_params),
     DISPATCH_KEYMGMT_ELEM(rsa, GEN, gen),
-    DISPATCH_KEYMGMT_ELEM(rsa, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
     DISPATCH_KEYMGMT_ELEM(rsa, LOAD, load),
-    DISPATCH_KEYMGMT_ELEM(rsa, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
     DISPATCH_KEYMGMT_ELEM(rsa, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(rsa, IMPORT, import),
-    DISPATCH_KEYMGMT_ELEM(rsa, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(rsa, IMPORT_TYPES, import_types),
     DISPATCH_KEYMGMT_ELEM(rsa, EXPORT_TYPES, export_types),
     DISPATCH_KEYMGMT_ELEM(rsa, QUERY_OPERATION_NAME, query_operation_name),
@@ -756,12 +635,12 @@ const OSSL_DISPATCH p11prov_rsapss_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(rsapss, GEN_SETTABLE_PARAMS, gen_settable_params),
     DISPATCH_KEYMGMT_ELEM(rsa, GEN_CLEANUP, gen_cleanup),
     DISPATCH_KEYMGMT_ELEM(rsa, LOAD, load),
-    DISPATCH_KEYMGMT_ELEM(rsa, FREE, free),
-    DISPATCH_KEYMGMT_ELEM(rsa, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
     DISPATCH_KEYMGMT_ELEM(rsa, MATCH, match),
     DISPATCH_KEYMGMT_ELEM(rsa, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(rsa, IMPORT_TYPES, import_types),
-    DISPATCH_KEYMGMT_ELEM(rsa, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(rsa, EXPORT_TYPES, export_types),
     DISPATCH_KEYMGMT_ELEM(rsa, QUERY_OPERATION_NAME, query_operation_name),
     DISPATCH_KEYMGMT_ELEM(rsa, GET_PARAMS, get_params),
