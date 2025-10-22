@@ -276,11 +276,26 @@ static int set_iv(struct p11prov_cipher_ctx *ctx, const unsigned char *iv,
      * fail to initialize later if the application forgets to set the IV
      * and the mechanism requires it */
     if (iv != NULL && ivlen != 0) {
-        ctx->mech.pParameter = OPENSSL_memdup(iv, ivlen);
-        if (!ctx->mech.pParameter) {
-            return CKR_HOST_MEMORY;
+        if (ctx->mech.mechanism == CKM_AES_CTR) {
+            if (ivlen > 16) {
+                return CKR_MECHANISM_PARAM_INVALID;
+            }
+            struct CK_AES_CTR_PARAMS *ctr_params =
+                OPENSSL_malloc(sizeof(struct CK_AES_CTR_PARAMS));
+            if (!ctr_params) {
+                return CKR_HOST_MEMORY;
+            }
+            memcpy(ctr_params->cb, iv, ivlen);
+            ctr_params->ulCounterBits = ivlen;
+            ctx->mech.pParameter = ctr_params;
+            ctx->mech.ulParameterLen = sizeof(struct CK_AES_CTR_PARAMS);
+        } else {
+            ctx->mech.pParameter = OPENSSL_memdup(iv, ivlen);
+            if (!ctx->mech.pParameter) {
+                return CKR_HOST_MEMORY;
+            }
+            ctx->mech.ulParameterLen = ivlen;
         }
-        ctx->mech.ulParameterLen = ivlen;
     }
     return CKR_OK;
 }
@@ -303,17 +318,18 @@ static CK_RV p11prov_cipher_prep_mech(struct p11prov_cipher_ctx *ctx,
     case CKM_AES_CBC:
     case CKM_AES_CBC_PAD:
     case CKM_AES_CTS:
-        param_as_iv = true;
-        break;
-
     case CKM_AES_OFB:
     case CKM_AES_CFB128:
     case CKM_AES_CFB1:
     case CKM_AES_CFB8:
     case CKM_AES_CTR:
-        /* TODO */
-        return CKR_MECHANISM_INVALID;
+        param_as_iv = true;
+        break;
+
     default:
+        P11PROV_debug("invalid mechanism (ctx=%p, iv=%p, "
+                      "ivlen=%lu, params=%p)",
+                      ctx, iv, ivlen, params);
         return CKR_MECHANISM_INVALID;
     }
 
@@ -326,6 +342,9 @@ static CK_RV p11prov_cipher_prep_mech(struct p11prov_cipher_ctx *ctx,
 
     ret = p11prov_aes_set_ctx_params(ctx, params);
     if (ret != RET_OSSL_OK) {
+        P11PROV_debug("invalid mechanism param (ctx=%p, iv=%p, "
+                      "ivlen=%lu, params=%p)",
+                      ctx, iv, ivlen, params);
         return CKR_MECHANISM_PARAM_INVALID;
     }
 

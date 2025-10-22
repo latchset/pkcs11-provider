@@ -17,8 +17,6 @@ sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_prop
     "${OPENSSL_CONF}" > "${OPENSSL_CONF}.ciphers"
 OPENSSL_CONF=${OPENSSL_CONF}.ciphers
 
-echo "plaintext" > "${TMPPDIR}/aes128cbc.txt"
-
 RUN_SKEYMGMT_TEST="0"
 if [[ "${SUPPORT_SYMMETRIC}" = "1" ]]; then
     # shellcheck disable=SC2089 # Quoted quotes is intentional
@@ -30,37 +28,110 @@ else
     fi
 fi
 
-title PARA "Test Symmetric Encryption on the token (legacy init)"
-ossl 'enc -e -aes128
-             -K 0102030405060708090a0b0c0d0e0f10
-             -iv 100f0e0d0c0b0a090807060504030201
-             -in ${TMPPDIR}/aes128cbc.txt
-             -out ${TMPPDIR}/aes128cbc.txt.enc' "${PROP}"
+iv_needed() {
+    # using tr instead of ${var,,} because of macos
+    mode=$(echo "$1" |tr '[:upper:]' '[:lower:]')
+    res=1
+    if echo "$mode" |grep -qE "^(cbc|cfb|ofb|ctr)"; then
+        res=0
+    fi
+    return $res
+}
 
-ossl 'enc -d -aes128
-             -K 0102030405060708090a0b0c0d0e0f10
-             -iv 100f0e0d0c0b0a090807060504030201
-             -in ${TMPPDIR}/aes128cbc.txt.enc
-             -out ${TMPPDIR}/aes128cbc.txt.dec' "${PROP}"
+#
+# Function to test a block cipher mode
+test_block_mode() {
+    local mode_name="$1" # mode, e.g., "CBC"
+    local cipher="$2" # ossl cipher without mode, e.g., "aes-128"
+    local input_len="$3" # plaintext length to test
+    local expected_outlen="$4" # expected output length
+    local key_mng="$5" # key management, "legacy" or "skey"
 
-diff "${TMPPDIR}/aes128cbc.txt" "${TMPPDIR}/aes128cbc.txt.dec"
+    # generate plaintext of length $input_len
+    printf 'Plaintext%.0s' {1..100} |head -c "$input_len" >"${TMPPDIR}"/plaintext
 
-if [[ "${RUN_SKEYMGMT_TEST}" = "1" ]]; then
-title PARA "Test Symmetric Encryption on the token (skey init)"
-ossl 'enc -e -aes128 -skeymgmt AES
-             -skeyopt hexraw-bytes:0102030405060708090a0b0c0d0e0f10
-             -iv 100f0e0d0c0b0a090807060504030201
-             -in ${TMPPDIR}/aes128cbc.txt
-             -out ${TMPPDIR}/aes128cbc.txt.skey.enc' "${PROP}"
+    # using tr instead of ${var,,} because of macos
+    mode_lower=$(echo "$mode_name" |tr '[:upper:]' '[:lower:]')
+    ossl_cipher="-$cipher-$mode_lower"
+    if [[ -z $ossl_cipher ]]; then
+       echo "Unknown ossl cipher for mode $mode_name"
+       exit 1
+    fi
+    ossl_args=("$ossl_cipher")
 
-ossl 'enc -d -aes128 -skeymgmt AES
-             -skeyopt hexraw-bytes:0102030405060708090a0b0c0d0e0f10
-             -iv 100f0e0d0c0b0a090807060504030201
-             -in ${TMPPDIR}/aes128cbc.txt.skey.enc
-             -out ${TMPPDIR}/aes128cbc.txt.skey.dec' "${PROP}"
+    if iv_needed "$mode_name"; then
+        ossl_args+=("-iv 100f0e0d0c0b0a090807060504030201")
+    fi
 
-diff "${TMPPDIR}/aes128cbc.txt" "${TMPPDIR}/aes128cbc.txt.skey.dec"
-fi
+    KEY="0102030405060708090a0b0c0d0e0f10"
+    if [[ $key_mng = "legacy" ]]; then
+        ossl_args+=("-K $KEY")
+    elif [[ $key_mng = "skey" ]]; then
+        ossl_args+=("-skeymgmt AES")
+        ossl_args+=("-skeyopt hexraw-bytes:$KEY")
+    else
+        exit 1
+    fi
+
+    title PARA "Test Symmetric Encryption AES ${mode_name} mode ($key_mng init)"
+    ossl "enc -e ${ossl_args[*]}
+             -in ${TMPPDIR}/plaintext
+             -out ${TMPPDIR}/output.enc" "${PROP}"
+
+    ossl "enc -d ${ossl_args[*]}
+             -in ${TMPPDIR}/output.enc
+             -out ${TMPPDIR}/output.dec" "${PROP}"
+
+    diff "${TMPPDIR}/plaintext" "${TMPPDIR}/output.dec"
+
+    # wc works on both linux and macos
+    outlen=$(wc -c <"${TMPPDIR}"/output.enc)
+    if ! (( outlen == expected_outlen )); then
+        hexdump -C "${TMPPDIR}"/output.enc
+        exit 1
+    fi
+
+    rm -f "${TMPPDIR}/plaintext"
+}
+
+for cipher in "aes-128" "aes-256"; do
+    # modes with padding
+    mode="CBC"
+    if [[ $SUPPORT_BLOCK_MODES =~ $mode ]]; then
+        for len in 1 15 16 17 31 32 33 63 64 65 127 128 129 254 255 256; do
+            out_len=$(( (len / 16 + 1)*16 ))
+            test_block_mode "$mode" "$cipher" "$len" "$out_len" "legacy"
+            if [[ "${RUN_SKEYMGMT_TEST}" = "1" ]]; then
+                test_block_mode "$mode" "$cipher" "$len" "$out_len" "skey"
+            fi
+        done
+    fi
+
+    # stream modes
+    for mode in "OFB" "CFB" "CFB1" "CFB8" "CTR"; do
+        if [[ $SUPPORT_BLOCK_MODES =~ $mode ]]; then
+            for len in 1 15 16 17 31 32 33 63 64 65 127 128 129 254 255 256; do
+                out_len=$len
+                test_block_mode "$mode" "$cipher" "$len" "$out_len" "legacy"
+                if [[ "${RUN_SKEYMGMT_TEST}" = "1" ]]; then
+                    test_block_mode "$mode" "$cipher" "$len" "$out_len" "skey"
+                fi
+            done
+        fi
+    done
+
+    # modes withOUT padding
+    mode="ECB"
+    if [[ $SUPPORT_BLOCK_MODES =~ $mode ]]; then
+        for len in 16 32 64 128 256; do
+            out_len=$len
+            test_block_mode "$mode" "$cipher" "$len" "$out_len" "legacy"
+            if [[ "${RUN_SKEYMGMT_TEST}" = "1" ]]; then
+                test_block_mode "$mode" "$cipher" "$len" "$out_len" "skey"
+            fi
+        done
+    fi
+done
 
 title PARA "Test Symmetric Key Generation"
 if [[ "${SUPPORT_SYMMETRIC}" = "1" ]]; then
