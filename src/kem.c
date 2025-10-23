@@ -194,7 +194,7 @@ static int p11prov_mlkem_encapsulate(void *vctx, unsigned char *ct,
     }
 
     rv = p11prov_get_session(ctx->provctx, &slot_id, NULL, NULL, mech.mechanism,
-                             NULL, NULL, NULL, NULL, &session);
+                             NULL, NULL, false, false, &session);
     if (rv != CKR_OK) {
         return RET_OSSL_ERR;
     }
@@ -297,7 +297,7 @@ static int p11prov_mlkem_decapsulate(void *vctx, unsigned char *ss,
     }
 
     rv = p11prov_get_session(ctx->provctx, &slot_id, NULL, NULL, mech.mechanism,
-                             NULL, NULL, NULL, NULL, &session);
+                             NULL, NULL, false, false, &session);
     if (rv != CKR_OK) {
         return RET_OSSL_ERR;
     }
