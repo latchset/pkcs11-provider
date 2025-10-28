@@ -53,9 +53,9 @@ if [[ "${PKCS11_PROVIDER_FORCE_FIPS_MODE}" = "1" || "$(cat /proc/sys/crypto/fips
     export NSS_FIPS=1
 
     # NSS softokn requires stronger PIN in FIPS mode
-    PINVALUE="fo0m4nchU"
+    PINVALUE="fo0m4nchU-p4sSw0rd-iS-Str0ng1234"
 else
-    PINVALUE="12345678"
+    PINVALUE="0123456789ABCDEFFEDCBA9876543210"
 fi
 
 # Check if openssl supports skey
