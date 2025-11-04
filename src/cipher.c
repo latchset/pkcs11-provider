@@ -313,10 +313,6 @@ static CK_RV p11prov_cipher_prep_mech(struct p11prov_cipher_ctx *ctx,
     case CKM_AES_CTR:
         /* TODO */
         return CKR_MECHANISM_INVALID;
-
-        param_as_iv = true;
-        break;
-
     default:
         return CKR_MECHANISM_INVALID;
     }
