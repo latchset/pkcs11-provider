@@ -1652,8 +1652,8 @@ static CK_RV store_symmetric_key(P11PROV_CTX *provctx, CK_KEY_TYPE key_type,
     size_t tmax = sizeof(template) / sizeof(CK_ATTRIBUTE);
     size_t tsize = 4;
 
-    P11PROV_debug("Creating secret key (%p[%zu]), flags: %x", secret, secretlen,
-                  usage);
+    P11PROV_debug("Creating secret key (%p[%zu]), flags: %lx", secret,
+                  secretlen, usage);
 
     if (usage) {
         rv = p11prov_usage_to_template(template, &tsize, tmax, usage);
