@@ -349,7 +349,10 @@ static int p11prov_mldsa_verify_message_final(void *ctx)
 
     P11PROV_debug("mldsa message verify final (ctx=%p)", ctx);
 
-    if (sigctx == NULL || sigctx->signature == NULL) {
+    if (!sigctx) {
+        return RET_OSSL_ERR;
+    }
+    if (sigctx->signature == NULL) {
         P11PROV_raise(sigctx->provctx, CKR_ARGUMENTS_BAD,
                       "Signature not available on context");
         return RET_OSSL_ERR;
