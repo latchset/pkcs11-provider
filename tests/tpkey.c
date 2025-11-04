@@ -501,6 +501,7 @@ int main(int argc, char *argv[])
         /* older version of softhsm do not have CKM_ECDSA_<digest> mechs */
         if (strcmp(tests[i].key_type, "P-256") == 0
             && strcmp(driver, "softhsm") == 0) {
+            EVP_PKEY_free(key);
             continue;
         }
         /* test message-based ops */
