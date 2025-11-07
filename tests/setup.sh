@@ -4,6 +4,15 @@
 
 source "${TESTSSRCDIR}/helpers.sh"
 
+_KEYID_COUNTER=0
+get_next_keyid() {
+    local id_val=${_KEYID_COUNTER}
+    ((_KEYID_COUNTER+=1))
+
+    KEYID=$(printf "%04x" ${id_val})
+    URIKEYID=$(printf "%%%02x%%%02x" $((id_val / 256)) $((id_val % 256)))
+}
+
 if [ $# -ne 1 ]; then
     echo "Usage setup.sh <tokentype>"
     exit 1
@@ -146,12 +155,11 @@ crt_selfsign() {
 }
 
 title LINE "Creating new Self Sign CA"
-KEYID='0000'
-URIKEYID="%00%00"
+get_next_keyid
 CACRTN="caCert"
 ptool --keypairgen --key-type="RSA:2048" --id="${KEYID}" \
       --label="${CACRTN}" 2>&1
-crt_selfsign $CACRTN "Issuer" $KEYID
+crt_selfsign $CACRTN "Issuer" "${KEYID}"
 
 # convert the DER cert to PEM
 CACRT_PEM="${TMPPDIR}/${CACRTN}.pem"
@@ -207,13 +215,12 @@ ca_sign() {
 
 
 # generate RSA key pair and self-signed certificate
-KEYID='0001'
-URIKEYID="%00%01"
+get_next_keyid
 TSTCRTN="testCert"
 
 ptool --keypairgen --key-type="RSA:2048" --id="$KEYID" \
       --label="${TSTCRTN}" 2>&1
-ca_sign "${TSTCRTN}" "My Test Cert" $KEYID
+ca_sign "${TSTCRTN}" "My Test Cert" "$KEYID"
 
 BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -232,13 +239,12 @@ echo "${CRTURI}"
 echo ""
 
 # generate ECC key pair
-KEYID='0002'
-URIKEYID="%00%02"
+get_next_keyid
 ECCRTN="ecCert"
 
 ptool --keypairgen --key-type="EC:secp256r1" --id="$KEYID" \
       --label="${ECCRTN}" 2>&1
-ca_sign $ECCRTN "My EC Cert" $KEYID
+ca_sign $ECCRTN "My EC Cert" "$KEYID"
 
 ECBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -247,13 +253,12 @@ ECPUBURI="pkcs11:type=public;id=${URIKEYID}"
 ECPRIURI="pkcs11:type=private;id=${URIKEYID}"
 ECCRTURI="pkcs11:type=cert;object=${ECCRTN}"
 
-KEYID='0003'
-URIKEYID="%00%03"
+get_next_keyid
 ECPEERCRTN="ecPeerCert"
 
 ptool --keypairgen --key-type="EC:secp256r1" --id="$KEYID" \
       --label="$ECPEERCRTN" 2>&1
-crt_selfsign $ECPEERCRTN "My Peer EC Cert" $KEYID
+crt_selfsign $ECPEERCRTN "My Peer EC Cert" "$KEYID"
 
 ECPEERBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECPEERBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -281,13 +286,12 @@ echo ""
 ## Softtokn does not support edwards curves yet
 if [ "${SUPPORT_ED25519}" -eq 1 ]; then
     # generate ED25519
-    KEYID='0004'
-    URIKEYID="%00%04"
+    get_next_keyid
     EDCRTN="edCert"
 
     ptool --keypairgen --key-type="EC:edwards25519" --id="$KEYID" \
     	  --label="${EDCRTN}" 2>&1
-    ca_sign $EDCRTN "My ED25519 Cert" $KEYID
+    ca_sign $EDCRTN "My ED25519 Cert" "$KEYID"
 
     EDBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
     EDBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
@@ -307,13 +311,12 @@ fi
 
 if [ "${SUPPORT_ED448}" -eq 1 ]; then
     # generate ED448
-    KEYID='0009'
-    URIKEYID="%00%09"
+    get_next_keyid
     ED2CRTN="ed2Cert"
 
     ptool --keypairgen --key-type="EC:Ed448" --id="$KEYID" \
           --label="${ED2CRTN}" 2>&1
-    ca_sign $ED2CRTN "My ED448 Cert" $KEYID
+    ca_sign $ED2CRTN "My ED448 Cert" "$KEYID"
 
     ED2BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
     ED2BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
@@ -332,14 +335,13 @@ if [ "${SUPPORT_ED448}" -eq 1 ]; then
 fi
 
 title PARA "generate RSA key pair, self-signed certificate, remove public key"
-KEYID='0005'
-URIKEYID="%00%05"
+get_next_keyid
 TSTCRTN="testCert2"
 
 ptool --keypairgen --key-type="RSA:2048" --id="$KEYID" \
       --label="${TSTCRTN}" 2>&1
-ca_sign $TSTCRTN "My Test Cert 2" $KEYID
-ptool --delete-object --type pubkey --id 0005 2>&1
+ca_sign $TSTCRTN "My Test Cert 2" "$KEYID"
+ptool --delete-object --type pubkey --id "$KEYID" 2>&1
 
 BASE2URIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 BASE2URIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=${PINFILE}"
@@ -356,14 +358,13 @@ echo "${CRT2URI}"
 echo ""
 
 title PARA "generate EC key pair, self-signed certificate, remove public key"
-KEYID='0006'
-URIKEYID="%00%06"
+get_next_keyid
 TSTCRTN="ecCert2"
 
 ptool --keypairgen --key-type="EC:secp384r1" --id="$KEYID" \
       --label="${TSTCRTN}" 2>&1
-ca_sign $TSTCRTN "My EC Cert 2" $KEYID
-ptool --delete-object --type pubkey --id 0006 2>&1
+ca_sign $TSTCRTN "My EC Cert 2" "$KEYID"
+ptool --delete-object --type pubkey --id "$KEYID" 2>&1
 
 ECBASE2URIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECBASE2URIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file${PINFILE}"
@@ -385,8 +386,7 @@ elif [ "${TOKENTYPE}" == "softokn" ]; then
     title PARA "explicit EC unsupported with softokn"
 else
     title PARA "generate explicit EC key pair"
-    KEYID='0007'
-    URIKEYID="%00%07"
+    get_next_keyid
     ECXCRTN="ecExplicitCert"
 
     ptool --write-object="${TESTSSRCDIR}/explicit_ec.key.der" --type=privkey \
@@ -408,13 +408,12 @@ else
 fi
 
 title PARA "generate EC key pair with ALWAYS AUTHENTICATE flag, self-signed certificate"
-KEYID='0008'
-URIKEYID="%00%08"
+get_next_keyid
 TSTCRTN="ecCert3"
 
 ptool --keypairgen --key-type="EC:secp521r1" --id="$KEYID" \
       --label="${TSTCRTN}" --always-auth 2>&1
-ca_sign $TSTCRTN "My EC Cert 3" $KEYID
+ca_sign $TSTCRTN "My EC Cert 3" "$KEYID"
 
 ECBASE3URIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
 ECBASE3URIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -434,8 +433,7 @@ echo ""
 
 if [ "${SUPPORT_ALLOWED_MECHANISMS}" -eq 1 ]; then
     # generate unrestricted RSA-PSS key pair and RSA-PSS certificate
-    KEYID='0010'
-    URIKEYID="%00%10"
+    get_next_keyid
     TSTCRTN="testRsaPssCert"
     MECHS="RSA-PKCS-PSS"
     MECHS+=",SHA1-RSA-PKCS-PSS,SHA224-RSA-PKCS-PSS"
@@ -443,7 +441,7 @@ if [ "${SUPPORT_ALLOWED_MECHANISMS}" -eq 1 ]; then
 
     ptool --keypairgen --key-type="RSA:2048" --id="$KEYID" \
           --label="${TSTCRTN}" --allowed-mechanisms "$MECHS" 2>&1
-    ca_sign "${TSTCRTN}" "My RsaPss Cert" $KEYID "PSS"
+    ca_sign "${TSTCRTN}" "My RsaPss Cert" "$KEYID" "PSS"
 
     RSAPSSBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
     RSAPSSBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -463,14 +461,13 @@ if [ "${SUPPORT_ALLOWED_MECHANISMS}" -eq 1 ]; then
 
     # generate RSA-PSS (3k) key pair restricted to SHA256 digests
     # and RSA-PSS certificate
-    KEYID='0011'
-    URIKEYID="%00%11"
+    get_next_keyid
     TSTCRTN="testRsaPss2Cert"
     MECHS="SHA256-RSA-PKCS-PSS"
 
     ptool --keypairgen --key-type="RSA:3092" --id="$KEYID" \
           --label="${TSTCRTN}" --allowed-mechanisms "$MECHS" 2>&1
-    ca_sign "${TSTCRTN}" "My RsaPss2 Cert" $KEYID "PSS-SHA256"
+    ca_sign "${TSTCRTN}" "My RsaPss2 Cert" "$KEYID" "PSS-SHA256"
 
     RSAPSS2BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
     RSAPSS2BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -491,8 +488,7 @@ fi
 
 if [ "$SUPPORT_ML_DSA" -eq 1 ]; then
     title PARA "generate ML-DSA Key pair"
-    KEYID='0012'
-    URIKEYID="%00%12"
+    get_next_keyid
     TSTCRTN="mlDsa"
 
     # not supported by the pkcs11-tool yet. Do it for now with OpenSSL CLI
@@ -509,7 +505,7 @@ if [ "$SUPPORT_ML_DSA" -eq 1 ]; then
             -algorithm ML-DSA-44
             -pkeyopt "pkcs11_uri:pkcs11:object=${TSTCRTN};id=${URIKEYID}"'
     OPENSSL_CONF=${ORIG_OPENSSL_CONF}
-    ca_sign $TSTCRTN "My ML-DSA Cert" $KEYID
+    ca_sign $TSTCRTN "My ML-DSA Cert" "$KEYID"
 
     MLDSABASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
     MLDSABASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -528,8 +524,7 @@ fi
 
 if [ "$SUPPORT_ML_KEM" -eq 1 ]; then
     title PARA "generate ML-KEM Key pair"
-    KEYID='0013'
-    URIKEYID="%00%13"
+    get_next_keyid
     TSTCRTN="mlKem"
 
     # not supported by the pkcs11-tool yet. Do it for now with OpenSSL CLI
