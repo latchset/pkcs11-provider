@@ -40,6 +40,8 @@ const struct fetch_attrs EC_private_attrs[] = {
 
 #define EC_EDWARDS_public_attrs EC_public_attrs
 #define EC_EDWARDS_private_attrs EC_private_attrs
+#define EC_MONTGOMERY_public_attrs EC_public_attrs
+#define EC_MONTGOMERY_private_attrs EC_private_attrs
 
 /* pre_process_ec_key_data() may add:
  * - CKA_P11PROV_CURVE_NID
@@ -107,6 +109,7 @@ const struct key_attrs {
     /* EC keys require 3 extra allocations for synthetic attributes */
     FILL_ATTRS(EC, 1 + EXTRA_EC_PARAMS),
     FILL_ATTRS(EC_EDWARDS, 1 + EXTRA_EC_PARAMS),
+    FILL_ATTRS(EC_MONTGOMERY, 1 + EXTRA_EC_PARAMS),
     FILL_ATTRS(ML_DSA, 1),
     FILL_ATTRS(ML_KEM, 1),
     FILL_KNOWN_SECRETS(1),
@@ -185,6 +188,7 @@ static CK_RV fetch_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         return CKR_OK;
     case CKK_EC:
     case CKK_EC_EDWARDS:
+    case CKK_EC_MONTGOMERY:
         /* decode CKA_EC_PARAMS and store some extra attrs for convenience */
         return pre_process_ec_key_data(key);
     case CKK_ML_DSA:
@@ -242,6 +246,8 @@ static CK_RV fetch_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
 
 const CK_BYTE ed25519_ec_params[] = { ED25519_EC_PARAMS };
 const CK_BYTE ed448_ec_params[] = { ED448_EC_PARAMS };
+const CK_BYTE x25519_ec_params[] = { X25519_EC_PARAMS };
+const CK_BYTE x448_ec_params[] = { X448_EC_PARAMS };
 
 static CK_RV pre_process_ec_key_data(P11PROV_OBJ *key)
 {
@@ -318,6 +324,43 @@ static CK_RV pre_process_ec_key_data(P11PROV_OBJ *key)
                 curve_nid = NID_ED448;
                 key->data.key.bit_size = ED448_BIT_SIZE;
                 key->data.key.size = ED448_BYTE_SIZE;
+            } else {
+                return CKR_KEY_INDIGESTIBLE;
+            }
+        }
+    } else if (type == CKK_EC_MONTGOMERY) {
+        if (attr->ulValueLen == X25519_EC_PARAMS_LEN
+            && memcmp(attr->pValue, x25519_ec_params, X25519_EC_PARAMS_LEN)
+                   == 0) {
+            curve_name = X25519_NAME;
+            curve_nid = NID_X25519;
+            key->data.key.bit_size = X25519_BIT_SIZE;
+            key->data.key.size = X25519_BYTE_SIZE;
+        } else if (attr->ulValueLen == ED448_EC_PARAMS_LEN
+                   && memcmp(attr->pValue, x448_ec_params, X448_EC_PARAMS_LEN)
+                          == 0) {
+            curve_name = X448_NAME;
+            curve_nid = NID_X448;
+            key->data.key.bit_size = X448_BIT_SIZE;
+            key->data.key.size = X448_BYTE_SIZE;
+        } else {
+            const unsigned char *p = attr->pValue;
+            ASN1_OBJECT *asn1_obj = d2i_ASN1_OBJECT(NULL, &p, attr->ulValueLen);
+            if (asn1_obj == NULL) {
+                return CKR_KEY_INDIGESTIBLE;
+            }
+            int nid = OBJ_obj2nid(asn1_obj);
+            ASN1_OBJECT_free(asn1_obj);
+            if (nid == NID_X25519) {
+                curve_name = X25519_NAME;
+                curve_nid = NID_X25519;
+                key->data.key.bit_size = X25519_BIT_SIZE;
+                key->data.key.size = X25519_BYTE_SIZE;
+            } else if (nid == NID_X448) {
+                curve_name = X448_NAME;
+                curve_nid = NID_X448;
+                key->data.key.bit_size = X448_BIT_SIZE;
+                key->data.key.size = X448_BYTE_SIZE;
             } else {
                 return CKR_KEY_INDIGESTIBLE;
             }

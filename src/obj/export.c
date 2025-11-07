@@ -509,6 +509,7 @@ static int p11prov_obj_export_public_ec_key(P11PROV_OBJ *obj, bool params_only,
         nattr = 1;
         break;
     case CKK_EC_EDWARDS:
+    case CKK_EC_MONTGOMERY:
         break;
     default:
         return RET_OSSL_ERR;
@@ -641,6 +642,7 @@ int p11prov_obj_export_public_key(P11PROV_OBJ *obj, CK_KEY_TYPE key_type,
         return p11prov_obj_export_public_rsa_key(obj, cb_fn, cb_arg);
     case CKK_EC:
     case CKK_EC_EDWARDS:
+    case CKK_EC_MONTGOMERY:
         return p11prov_obj_export_public_ec_key(obj, params_only, cb_fn,
                                                 cb_arg);
     case CKK_ML_DSA:

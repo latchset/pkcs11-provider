@@ -994,6 +994,27 @@ const OSSL_DISPATCH p11prov_ec_edwards_encoder_priv_key_info_pem_functions[] = {
     { 0, NULL },
 };
 
+static int p11prov_ec_montgomery_encoder_priv_key_info_pem_encode(
+    void *inctx, OSSL_CORE_BIO *cbio, const void *inkey,
+    const OSSL_PARAM key_abstract[], int selection,
+    OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
+{
+    return p11prov_encoder_private_key_write_pem(CKK_EC_MONTGOMERY, inctx, cbio,
+                                                 inkey, key_abstract, selection,
+                                                 cb, cbarg);
+}
+
+const OSSL_DISPATCH
+    p11prov_ec_montgomery_encoder_priv_key_info_pem_functions[] = {
+        DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
+        DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
+        DISPATCH_ENCODER_ELEM(DOES_SELECTION, common, priv_key_info, pem,
+                              does_selection),
+        DISPATCH_ENCODER_ELEM(ENCODE, ec_montgomery, priv_key_info, pem,
+                              encode),
+        { 0, NULL },
+    };
+
 static int
 p11prov_common_encoder_priv_key_info_pem_does_selection(void *inctx,
                                                         int selection)
@@ -1090,6 +1111,95 @@ const OSSL_DISPATCH p11prov_ec_edwards_encoder_text_functions[] = {
     DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
     DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
     DISPATCH_TEXT_ENCODER_ELEM(ENCODE, ec_edwards, encode_text),
+    { 0, NULL },
+};
+
+DISPATCH_TEXT_ENCODER_FN(ec_montgomery, encode);
+
+static int p11prov_ec_montgomery_encoder_encode_text(
+    void *inctx, OSSL_CORE_BIO *cbio, const void *inkey,
+    const OSSL_PARAM key_abstract[], int selection,
+    OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
+{
+    struct p11prov_encoder_ctx *ctx = (struct p11prov_encoder_ctx *)inctx;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)inkey;
+    CK_KEY_TYPE type;
+    CK_OBJECT_CLASS class;
+    CK_ULONG keysize;
+    const char *type_name = X25519_NAME;
+    const char *uri = NULL;
+    BIO *out;
+    int ret;
+
+    P11PROV_debug("x25519/x448 Text Encoder");
+
+    type = p11prov_obj_get_key_type(key);
+    if (type != CKK_EC_MONTGOMERY) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid Key Type");
+        return RET_OSSL_ERR;
+    }
+    class = p11prov_obj_get_class(key);
+
+    out = BIO_new_from_core_bio(p11prov_ctx_get_libctx(ctx->provctx), cbio);
+    if (!out) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Failed to init BIO");
+        return RET_OSSL_ERR;
+    }
+
+    keysize = p11prov_obj_get_key_bit_size(key);
+    if (keysize == X448_BIT_SIZE) {
+        type_name = X448_NAME;
+    }
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) {
+        if (class != CKO_PRIVATE_KEY) {
+            BIO_printf(out, "[Error: Invalid key data]\n");
+            goto done;
+        }
+        BIO_printf(out, "PKCS11 %s Private Key (%lu bits)\n", type_name,
+                   keysize);
+        BIO_printf(out, "[Can't export and print private key data]\n");
+    }
+
+    if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+        if (class != CKO_PUBLIC_KEY) {
+            P11PROV_OBJ *assoc;
+
+            assoc = p11prov_obj_find_associated(key, CKO_PUBLIC_KEY);
+            if (!assoc) {
+                BIO_printf(out, "[Error: Failed to source public key data]\n");
+                goto done;
+            }
+
+            /* replace key before printing the rest */
+            key = assoc;
+        }
+        BIO_printf(out, "PKCS11 %s Public Key (%lu bits)\n", type_name,
+                   keysize);
+        ret = p11prov_obj_export_public_key(key, CKK_EC_MONTGOMERY, true, false,
+                                            p11prov_ec_print_public_key, out);
+        /* FIXME if we want print in different format */
+        if (ret != RET_OSSL_OK) {
+            BIO_printf(out, "[Error: Failed to decode public key data]\n");
+        }
+    }
+
+    uri = p11prov_obj_get_public_uri(key);
+    if (uri) {
+        BIO_printf(out, "URI %s\n", uri);
+    }
+
+done:
+    if (key != inkey) {
+        p11prov_obj_free(key);
+    }
+    BIO_free(out);
+    return RET_OSSL_OK;
+}
+
+const OSSL_DISPATCH p11prov_ec_montgomery_encoder_text_functions[] = {
+    DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
+    DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
+    DISPATCH_TEXT_ENCODER_ELEM(ENCODE, ec_montgomery, encode_text),
     { 0, NULL },
 };
 

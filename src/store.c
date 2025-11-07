@@ -390,6 +390,18 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
                 return RET_OSSL_ERR;
             }
             break;
+        case CKK_EC_MONTGOMERY:
+            switch (p11prov_obj_get_key_bit_size(obj)) {
+            case X448_BIT_SIZE:
+                data_type = (char *)X448_NAME;
+                break;
+            case X25519_BIT_SIZE:
+                data_type = (char *)X25519_NAME;
+                break;
+            default:
+                return RET_OSSL_ERR;
+            }
+            break;
         case CKK_ML_DSA:
             switch (p11prov_obj_get_key_param_set(obj)) {
             case CKP_ML_DSA_44:

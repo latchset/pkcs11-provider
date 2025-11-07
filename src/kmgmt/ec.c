@@ -151,6 +151,7 @@ static const OSSL_PARAM *p11prov_ec_gen_settable_params(void *genctx,
 }
 
 #define P11PROV_ED_NAME "p11prov_edname"
+#define P11PROV_ECX_NAME "p11prov_ecxname"
 
 static int p11prov_ec_gen_set_params(void *genctx, const OSSL_PARAM params[])
 {
@@ -204,6 +205,26 @@ static int p11prov_ec_gen_set_params(void *genctx, const OSSL_PARAM params[])
                 P11PROV_raise(ctx->provctx, CKR_ARGUMENTS_BAD,
                               "Unknown edwards curve '%*s'", (int)p->data_size,
                               (char *)p->data);
+                return RET_OSSL_ERR;
+            }
+        }
+        break;
+    case CKK_EC_MONTGOMERY:
+        p = OSSL_PARAM_locate_const(params, P11PROV_ECX_NAME);
+        if (p) {
+            if (p->data_type != OSSL_PARAM_UTF8_STRING) {
+                return RET_OSSL_ERR;
+            }
+            if (strcmp(p->data, X25519_NAME) == 0) {
+                ctx->data.ec.ec_params = x25519_ec_params;
+                ctx->data.ec.ec_params_size = X25519_EC_PARAMS_LEN;
+            } else if (strcmp(p->data, X448_NAME) == 0) {
+                ctx->data.ec.ec_params = x448_ec_params;
+                ctx->data.ec.ec_params_size = X448_EC_PARAMS_LEN;
+            } else {
+                P11PROV_raise(ctx->provctx, CKR_ARGUMENTS_BAD,
+                              "Unknown montgomery curve '%*s'",
+                              (int)p->data_size, (char *)p->data);
                 return RET_OSSL_ERR;
             }
         }
@@ -264,6 +285,17 @@ static void *p11prov_ec_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
     };
     int pubtsize = EC_PUBKEY_TMPL_SIZE;
     int privtsize = EC_PRIVKEY_TMPL_SIZE;
+
+    if (ctx->type == CKK_EC_EDWARDS) {
+        /* CKA_DERIVE */
+        pubkey_template[1].pValue = DISCARD_CONST(&val_false);
+        privkey_template[1].pValue = DISCARD_CONST(&val_false);
+    } else if (ctx->type == CKK_EC_MONTGOMERY) {
+        /* CKA_VERIFY */
+        pubkey_template[2].pValue = DISCARD_CONST(&val_false);
+        /* CKA_SIGN */
+        privkey_template[4].pValue = DISCARD_CONST(&val_false);
+    }
 
     P11PROV_debug("ec gen %p %p %p", ctx, cb_fn, cb_arg);
 
@@ -528,7 +560,7 @@ static int p11prov_ec_set_params(void *keydata, const OSSL_PARAM params[])
     P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
     const OSSL_PARAM *p;
 
-    P11PROV_debug("ec set params %p", keydata);
+    P11PROV_debug("ec/ecx set params %p", keydata);
 
     if (key == NULL) {
         return RET_OSSL_ERR;
@@ -922,5 +954,310 @@ const OSSL_DISPATCH p11prov_ed448_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(ed, SET_PARAMS, set_params),
     DISPATCH_KEYMGMT_ELEM(ed, SETTABLE_PARAMS, settable_params),
     /* TODO: validate, dup? */
+    { 0, NULL },
+};
+
+DISPATCH_KEYMGMT_FN(ecx, new);
+DISPATCH_KEYMGMT_FN(x25519, gen_init);
+DISPATCH_KEYMGMT_FN(x448, gen_init);
+DISPATCH_KEYMGMT_FN(ecx, load);
+DISPATCH_KEYMGMT_FN(ecx, match);
+DISPATCH_KEYMGMT_FN(ecx, import);
+DISPATCH_KEYMGMT_FN(ecx, import_types);
+DISPATCH_KEYMGMT_FN(ecx, export_types);
+DISPATCH_KEYMGMT_FN(x25519, query_operation_name);
+DISPATCH_KEYMGMT_FN(x448, query_operation_name);
+DISPATCH_KEYMGMT_FN(ecx, get_params);
+DISPATCH_KEYMGMT_FN(ecx, gettable_params);
+
+static void *p11prov_ecx_new(void *provctx)
+{
+    P11PROV_debug("ecx new");
+    return p11prov_kmgmt_new(provctx, CKK_EC_MONTGOMERY);
+}
+
+static void *p11prov_x25519_gen_init(void *provctx, int selection,
+                                     const OSSL_PARAM params[])
+{
+    struct key_generator *ctx = NULL;
+    const OSSL_PARAM curve[] = { OSSL_PARAM_utf8_string(P11PROV_ECX_NAME,
+                                                        (void *)X25519_NAME,
+                                                        sizeof(X25519_NAME)),
+                                 OSSL_PARAM_END };
+    int ret;
+
+    P11PROV_debug("x25519 gen_init %p", provctx);
+
+    if ((selection & OSSL_KEYMGMT_SELECT_ALL) == 0) {
+        P11PROV_raise(provctx, CKR_ARGUMENTS_BAD, "Unsupported selection");
+        return NULL;
+    }
+
+    ctx = p11prov_kmgmt_gen_init(provctx, CKK_EC_MONTGOMERY,
+                                 CKM_EC_MONTGOMERY_KEY_PAIR_GEN);
+    if (!ctx) {
+        return NULL;
+    }
+
+    if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) == 0) {
+        ctx->data.ec.paramgen = true;
+    }
+
+    /* set defaults */
+    ret = p11prov_ec_gen_set_params(ctx, curve);
+    if (ret != RET_OSSL_OK) {
+        p11prov_kmgmt_gen_cleanup(ctx);
+        return NULL;
+    }
+
+    ret = p11prov_ec_gen_set_params(ctx, params);
+    if (ret != RET_OSSL_OK) {
+        p11prov_kmgmt_gen_cleanup(ctx);
+        return NULL;
+    }
+    return ctx;
+}
+
+static void *p11prov_x448_gen_init(void *provctx, int selection,
+                                   const OSSL_PARAM params[])
+{
+    struct key_generator *ctx = NULL;
+    const OSSL_PARAM curve[] = { OSSL_PARAM_utf8_string(P11PROV_ECX_NAME,
+                                                        (void *)X448_NAME,
+                                                        sizeof(X448_NAME)),
+                                 OSSL_PARAM_END };
+    int ret;
+
+    P11PROV_debug("x448 gen_init %p", provctx);
+
+    if ((selection & OSSL_KEYMGMT_SELECT_ALL) == 0) {
+        P11PROV_raise(provctx, CKR_ARGUMENTS_BAD, "Unsupported selection");
+        return NULL;
+    }
+
+    ctx = p11prov_kmgmt_gen_init(provctx, CKK_EC_MONTGOMERY,
+                                 CKM_EC_MONTGOMERY_KEY_PAIR_GEN);
+    if (!ctx) {
+        return NULL;
+    }
+
+    if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) == 0) {
+        ctx->data.ec.paramgen = true;
+    }
+
+    /* set defaults */
+    ret = p11prov_ec_gen_set_params(ctx, curve);
+    if (ret != RET_OSSL_OK) {
+        p11prov_kmgmt_gen_cleanup(ctx);
+        return NULL;
+    }
+
+    ret = p11prov_ec_gen_set_params(ctx, params);
+    if (ret != RET_OSSL_OK) {
+        p11prov_kmgmt_gen_cleanup(ctx);
+        return NULL;
+    }
+    return ctx;
+}
+
+static void *p11prov_ecx_load(const void *reference, size_t reference_sz)
+{
+    return p11prov_kmgmt_load(reference, reference_sz, CKK_EC_MONTGOMERY);
+}
+
+static int p11prov_ecx_match(const void *keydata1, const void *keydata2,
+                             int selection)
+{
+    return p11prov_kmgmt_match(keydata1, keydata2, CKK_EC_MONTGOMERY,
+                               selection);
+}
+
+static int p11prov_ecx_import(void *keydata, int selection,
+                              const OSSL_PARAM params[])
+{
+    return p11prov_kmgmt_import(CKK_EC_MONTGOMERY, CK_UNAVAILABLE_INFORMATION,
+                                OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
+                                params);
+}
+
+static const OSSL_PARAM *p11prov_ecx_import_types(int selection)
+{
+    static const OSSL_PARAM p11prov_ecx_imp_key_types[] = {
+        OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_PRIV_KEY, NULL, 0),
+        OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_PUB_KEY, NULL, 0),
+        OSSL_PARAM_END,
+    };
+    P11PROV_debug("ecx import types");
+    if (selection & OSSL_KEYMGMT_SELECT_KEYPAIR) {
+        return p11prov_ecx_imp_key_types;
+    }
+    return NULL;
+}
+
+static const OSSL_PARAM *p11prov_ecx_export_types(int selection)
+{
+    static const OSSL_PARAM p11prov_ecx_exp_key_types[] = {
+        OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_PUB_KEY, NULL, 0),
+        OSSL_PARAM_END,
+    };
+    P11PROV_debug("ecx export types");
+    if (selection == OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
+        return p11prov_ecx_exp_key_types;
+    }
+    return NULL;
+}
+
+static const char *p11prov_x25519_query_operation_name(int operation_id)
+{
+    if (operation_id == OSSL_OP_KEYEXCH) {
+        return P11PROV_NAME_X25519;
+    }
+    return NULL;
+}
+
+static const char *p11prov_x448_query_operation_name(int operation_id)
+{
+    if (operation_id == OSSL_OP_KEYEXCH) {
+        return P11PROV_NAME_X448;
+    }
+    return NULL;
+}
+
+static int p11prov_ecx_get_params(void *keydata, OSSL_PARAM params[])
+{
+    P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
+    OSSL_PARAM *p;
+    CK_ULONG group_size;
+    int ret;
+
+    P11PROV_debug("ecx get params %p", keydata);
+
+    if (key == NULL) {
+        return RET_OSSL_ERR;
+    }
+
+    group_size = p11prov_obj_get_key_bit_size(key);
+    if (group_size == CK_UNAVAILABLE_INFORMATION) {
+        return RET_OSSL_ERR;
+    }
+
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_BITS);
+    if (p) {
+        ret = OSSL_PARAM_set_int(p, group_size);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_SECURITY_BITS);
+    if (p) {
+        int secbits;
+        if (group_size == X448_BIT_SIZE) {
+            secbits = X448_SEC_BITS;
+        } else if (group_size == X25519_BIT_SIZE) {
+            secbits = X25519_SEC_BITS;
+        } else {
+            return RET_OSSL_ERR;
+        }
+        ret = OSSL_PARAM_set_int(p, secbits);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_MAX_SIZE);
+    if (p) {
+        int pubsize;
+        if (group_size == X448_BIT_SIZE) {
+            pubsize = X448_MAX_SIZE;
+        } else if (group_size == X25519_BIT_SIZE) {
+            pubsize = X25519_MAX_SIZE;
+        } else {
+            return RET_OSSL_ERR;
+        }
+        ret = OSSL_PARAM_set_int(p, pubsize);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+    }
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_PUB_KEY);
+    if (p) {
+        CK_ATTRIBUTE *pub;
+
+        if (p->data_type != OSSL_PARAM_OCTET_STRING) {
+            return RET_OSSL_ERR;
+        }
+
+        ret = p11prov_obj_get_ecx_pub_key(key, &pub);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+
+        p->return_size = pub->ulValueLen;
+        if (p->data) {
+            if (p->data_size < pub->ulValueLen) {
+                return RET_OSSL_ERR;
+            }
+            memcpy(p->data, pub->pValue, pub->ulValueLen);
+            p->data_size = pub->ulValueLen;
+        }
+    }
+
+    return RET_OSSL_OK;
+}
+
+static const OSSL_PARAM *p11prov_ecx_gettable_params(void *provctx)
+{
+    static const OSSL_PARAM params[] = {
+        OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_PUB_KEY, NULL, 0),
+        OSSL_PARAM_int(OSSL_PKEY_PARAM_BITS, NULL),
+        OSSL_PARAM_int(OSSL_PKEY_PARAM_SECURITY_BITS, NULL),
+        OSSL_PARAM_int(OSSL_PKEY_PARAM_MAX_SIZE, NULL),
+        OSSL_PARAM_END,
+    };
+    return params;
+}
+
+const OSSL_DISPATCH p11prov_x25519_keymgmt_functions[] = {
+    DISPATCH_KEYMGMT_ELEM(ecx, NEW, new),
+    DISPATCH_KEYMGMT_ELEM(x25519, GEN_INIT, gen_init),
+    DISPATCH_KEYMGMT_ELEM(ec, GEN, gen),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),
+    DISPATCH_KEYMGMT_ELEM(ec, GEN_SET_PARAMS, gen_set_params),
+    DISPATCH_KEYMGMT_ELEM(ed, GEN_SETTABLE_PARAMS, gen_settable_params),
+    DISPATCH_KEYMGMT_ELEM(ecx, LOAD, load),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(ecx, MATCH, match),
+    DISPATCH_KEYMGMT_ELEM(ecx, IMPORT, import),
+    DISPATCH_KEYMGMT_ELEM(ecx, IMPORT_TYPES, import_types),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(ecx, EXPORT_TYPES, export_types),
+    DISPATCH_KEYMGMT_ELEM(x25519, QUERY_OPERATION_NAME, query_operation_name),
+    DISPATCH_KEYMGMT_ELEM(ecx, GET_PARAMS, get_params),
+    DISPATCH_KEYMGMT_ELEM(ecx, GETTABLE_PARAMS, gettable_params),
+    DISPATCH_KEYMGMT_ELEM(ec, SET_PARAMS, set_params),
+    DISPATCH_KEYMGMT_ELEM(ec, SETTABLE_PARAMS, settable_params),
+    { 0, NULL },
+};
+
+const OSSL_DISPATCH p11prov_x448_keymgmt_functions[] = {
+    DISPATCH_KEYMGMT_ELEM(ecx, NEW, new),
+    DISPATCH_KEYMGMT_ELEM(x448, GEN_INIT, gen_init),
+    DISPATCH_KEYMGMT_ELEM(ec, GEN, gen),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),
+    DISPATCH_KEYMGMT_ELEM(ec, GEN_SET_PARAMS, gen_set_params),
+    DISPATCH_KEYMGMT_ELEM(ed, GEN_SETTABLE_PARAMS, gen_settable_params),
+    DISPATCH_KEYMGMT_ELEM(ecx, LOAD, load),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
+    DISPATCH_KEYMGMT_ELEM(ecx, MATCH, match),
+    DISPATCH_KEYMGMT_ELEM(ecx, IMPORT, import),
+    DISPATCH_KEYMGMT_ELEM(ecx, IMPORT_TYPES, import_types),
+    DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
+    DISPATCH_KEYMGMT_ELEM(ecx, EXPORT_TYPES, export_types),
+    DISPATCH_KEYMGMT_ELEM(x448, QUERY_OPERATION_NAME, query_operation_name),
+    DISPATCH_KEYMGMT_ELEM(ecx, GET_PARAMS, get_params),
+    DISPATCH_KEYMGMT_ELEM(ecx, GETTABLE_PARAMS, gettable_params),
+    DISPATCH_KEYMGMT_ELEM(ec, SET_PARAMS, set_params),
+    DISPATCH_KEYMGMT_ELEM(ec, SETTABLE_PARAMS, settable_params),
     { 0, NULL },
 };
