@@ -290,13 +290,19 @@ done:
     return ret;
 }
 
-CK_RV decode_ec_point(CK_KEY_TYPE key_type, CK_ATTRIBUTE *attr,
-                      struct data_buffer *ec_point)
+CK_RV decode_ec_point(P11PROV_CTX *provctx, CK_KEY_TYPE key_type,
+                      CK_ATTRIBUTE *attr, struct data_buffer *ec_point)
 {
     ASN1_OCTET_STRING *octet;
     const unsigned char *val;
     CK_RV ret = CKR_GENERAL_ERROR;
     int err;
+
+    /* Some of the ASN.1 operation may leave errors on the stack
+     * which cause TLS operation to fail even if they are benign
+     * by just being there, so we need to be able to pop the
+     * stack if we want to ignore an error */
+    p11prov_set_error_mark(provctx);
 
     /* in d2i functions 'in' is overwritten to return the remainder of
      * the buffer after parsing, so we always need to avoid passing in
@@ -309,11 +315,13 @@ CK_RV decode_ec_point(CK_KEY_TYPE key_type, CK_ATTRIBUTE *attr,
          * Montgomery curves so do not fail in that case and just take
          * the value as is */
         if (key_type == CKK_EC) {
-            return CKR_KEY_INDIGESTIBLE;
+            ret = CKR_KEY_INDIGESTIBLE;
+            goto done;
         } else {
             octet = ASN1_OCTET_STRING_new();
             if (!octet) {
-                return CKR_HOST_MEMORY;
+                ret = CKR_HOST_MEMORY;
+                goto done;
             }
             /* makes a copy of the value */
             err = ASN1_OCTET_STRING_set(octet, attr->pValue, attr->ulValueLen);
@@ -333,7 +341,16 @@ CK_RV decode_ec_point(CK_KEY_TYPE key_type, CK_ATTRIBUTE *attr,
 
     ret = CKR_OK;
 done:
-    ASN1_OCTET_STRING_free(octet);
+    if (ret == CKR_OK) {
+        /* we want to ignore decoding errors in this case */
+        p11prov_pop_error_to_mark(provctx);
+    } else {
+        /* we want to leave errors in this case */
+        p11prov_clear_last_error_mark(provctx);
+    }
+    if (octet) {
+        ASN1_OCTET_STRING_free(octet);
+    }
     return ret;
 }
 
@@ -357,7 +374,8 @@ CK_ATTRIBUTE *p11prov_obj_get_ec_public_raw(P11PROV_OBJ *key)
             void *tmp_ptr;
             CK_RV ret;
 
-            ret = decode_ec_point(key->data.key.type, ec_point, &data);
+            ret =
+                decode_ec_point(key->ctx, key->data.key.type, ec_point, &data);
             if (ret != CKR_OK) {
                 P11PROV_raise(key->ctx, ret, "Failed to decode EC_POINT");
                 return NULL;
