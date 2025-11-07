@@ -395,7 +395,7 @@ static CK_RV pre_process_ec_key_data(P11PROV_OBJ *key)
         return CKR_OK;
     }
 
-    ret = decode_ec_point(type, attr, &ec_point);
+    ret = decode_ec_point(key->ctx, type, attr, &ec_point);
     if (ret != CKR_OK) {
         return ret;
     }
