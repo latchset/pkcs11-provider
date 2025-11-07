@@ -1,4 +1,3 @@
-
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
    SPDX-License-Identifier: Apache-2.0 */
 
@@ -22,6 +21,8 @@ extern const OSSL_DISPATCH p11prov_ec_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_hkdf_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_ed25519_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_ed448_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_x25519_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_x448_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_mldsa44_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_mldsa65_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_mldsa87_keymgmt_functions[];

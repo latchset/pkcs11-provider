@@ -126,6 +126,30 @@ int p11prov_obj_get_ed_pub_key(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub)
     return RET_OSSL_OK;
 }
 
+int p11prov_obj_get_ecx_pub_key(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub)
+{
+    CK_ATTRIBUTE *a;
+    int ret;
+
+    P11PROV_debug("get montgomery pubkey %p", obj);
+
+    ret = prep_get_pub_key(&obj, CKK_EC_MONTGOMERY);
+    if (ret != RET_OSSL_OK) {
+        return ret;
+    }
+
+    /* See if we have cached attributes first */
+    a = p11prov_obj_get_attr(obj, CKA_P11PROV_PUB_KEY);
+    if (!a) {
+        return RET_OSSL_ERR;
+    }
+
+    if (pub) {
+        *pub = a;
+    }
+    return RET_OSSL_OK;
+}
+
 int p11prov_obj_get_ec_public_x_y(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub_x,
                                   CK_ATTRIBUTE **pub_y)
 {
@@ -390,7 +414,6 @@ CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
 
     switch (key->data.key.type) {
     case CKK_EC:
-    case CKK_EC_EDWARDS:
         /* if class is still "domain parameters" convert it to
          * a public key */
         if (key->class == CKO_DOMAIN_PARAMETERS) {
@@ -540,6 +563,7 @@ static int cmp_public_key_values(P11PROV_OBJ *pub_key1, P11PROV_OBJ *pub_key2)
         break;
     case CKK_EC:
     case CKK_EC_EDWARDS:
+    case CKK_EC_MONTGOMERY:
         ret = cmp_attr(pub_key1, pub_key2, CKA_P11PROV_PUB_KEY);
         break;
     case CKK_ML_DSA:
@@ -692,7 +716,7 @@ static int p11prov_obj_get_ed_nid(CK_ATTRIBUTE *ecp)
     }
 
     /* it might be the parameters are encoded printable string
-     * for EdDSA which OpenSSL does not understand */
+     * which OpenSSL does not understand */
     if (ecp->ulValueLen == ED25519_EC_PARAMS_LEN
         && memcmp(ecp->pValue, ed25519_ec_params, ED25519_EC_PARAMS_LEN) == 0) {
         return NID_ED25519;
@@ -700,6 +724,14 @@ static int p11prov_obj_get_ed_nid(CK_ATTRIBUTE *ecp)
                && memcmp(ecp->pValue, ed448_ec_params, ED448_EC_PARAMS_LEN)
                       == 0) {
         return NID_ED448;
+    } else if (ecp->ulValueLen == X25519_EC_PARAMS_LEN
+               && memcmp(ecp->pValue, x25519_ec_params, X25519_EC_PARAMS_LEN)
+                      == 0) {
+        return NID_X25519;
+    } else if (ecp->ulValueLen == X448_EC_PARAMS_LEN
+               && memcmp(ecp->pValue, x448_ec_params, X448_EC_PARAMS_LEN)
+                      == 0) {
+        return NID_X448;
     }
     return NID_undef;
 }
@@ -810,8 +842,9 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
         break;
 
     case CKK_EC_EDWARDS:
-        /* The EdDSA params can be encoded as printable string, which is
-         * not recognized by OpenSSL and does not have respective EC_GROUP */
+    case CKK_EC_MONTGOMERY:
+        /* The Edwards/Montgomery params can be encoded as printable string,
+         * which is not recognized by OpenSSL and does not have an EC_GROUP */
         ret = cmp_attr(key1, key2, CKA_EC_PARAMS);
         if (ret != RET_OSSL_OK) {
             /* If EC_PARAMS do not match it may be due to encoding. */

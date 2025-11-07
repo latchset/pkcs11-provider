@@ -44,5 +44,7 @@ extern const OSSL_DISPATCH p11prov_der_decoder_p11prov_rsa_functions[];
 extern const OSSL_DISPATCH p11prov_der_decoder_p11prov_ec_functions[];
 extern const OSSL_DISPATCH p11prov_der_decoder_p11prov_ed25519_functions[];
 extern const OSSL_DISPATCH p11prov_der_decoder_p11prov_ed448_functions[];
+extern const OSSL_DISPATCH p11prov_der_decoder_p11prov_x25519_functions[];
+extern const OSSL_DISPATCH p11prov_der_decoder_p11prov_x448_functions[];
 
 #endif /* _DECODER_H */

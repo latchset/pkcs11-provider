@@ -912,9 +912,11 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                              RSAPSS_SIG_MECHS,
                              RSA_ENC_MECHS,
                              CKM_EC_KEY_PAIR_GEN,
+                             CKM_EC_EDWARDS_KEY_PAIR_GEN,
                              ECDSA_SIG_MECHS,
                              CKM_ECDH1_DERIVE,
                              CKM_ECDH1_COFACTOR_DERIVE,
+                             CKM_EC_MONTGOMERY_KEY_PAIR_GEN,
                              CKM_HKDF_DERIVE,
                              DIGEST_MECHS,
                              CKM_EDDSA,
@@ -1202,6 +1204,7 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                 UNCHECK_MECHS(CKM_SHA3_512);
                 break;
             case CKM_EDDSA:
+            case CKM_EC_EDWARDS_KEY_PAIR_GEN:
                 ADD_ALGO_EXT(ED25519, signature, prop,
                              p11prov_ed25519_signature_functions);
                 ADD_ALGO_EXT(ED448, signature, prop,
@@ -1383,6 +1386,10 @@ static CK_RV static_operations_init(P11PROV_CTX *ctx)
                  p11prov_ec_edwards_encoder_text_functions);
     ADD_ALGO_EXT(ED448, encoder, DEFAULT_PROPERTY(",output=text"),
                  p11prov_ec_edwards_encoder_text_functions);
+    ADD_ALGO_EXT(X25519, encoder, DEFAULT_PROPERTY(",output=text"),
+                 p11prov_ec_montgomery_encoder_text_functions);
+    ADD_ALGO_EXT(X448, encoder, DEFAULT_PROPERTY(",output=text"),
+                 p11prov_ec_montgomery_encoder_text_functions);
     ADD_ALGO_EXT(ML_DSA_44, encoder, DEFAULT_PROPERTY(",output=text"),
                  p11prov_mldsa_encoder_text_functions);
     ADD_ALGO_EXT(ML_DSA_44, encoder,
@@ -1429,6 +1436,12 @@ static CK_RV static_operations_init(P11PROV_CTX *ctx)
         ADD_ALGO_EXT(ED448, encoder,
                      DEFAULT_PROPERTY(",output=pem,structure=PrivateKeyInfo"),
                      p11prov_ec_edwards_encoder_priv_key_info_pem_functions);
+        ADD_ALGO_EXT(X25519, encoder,
+                     DEFAULT_PROPERTY(",output=pem,structure=PrivateKeyInfo"),
+                     p11prov_ec_montgomery_encoder_priv_key_info_pem_functions);
+        ADD_ALGO_EXT(X448, encoder,
+                     DEFAULT_PROPERTY(",output=pem,structure=PrivateKeyInfo"),
+                     p11prov_ec_montgomery_encoder_priv_key_info_pem_functions);
         ADD_ALGO_EXT(ML_DSA_44, encoder,
                      DEFAULT_PROPERTY(",output=pem,structure=PrivateKeyInfo"),
                      p11prov_mldsa_encoder_priv_key_info_pem_functions);
@@ -1465,6 +1478,10 @@ static CK_RV static_operations_init(P11PROV_CTX *ctx)
                  p11prov_der_decoder_p11prov_ed25519_functions);
     ADD_ALGO_EXT(ED448, decoder, DEFAULT_PROPERTY(DER_DECODER_PROP),
                  p11prov_der_decoder_p11prov_ed448_functions);
+    ADD_ALGO_EXT(X25519, decoder, DEFAULT_PROPERTY(DER_DECODER_PROP),
+                 p11prov_der_decoder_p11prov_x25519_functions);
+    ADD_ALGO_EXT(X448, decoder, DEFAULT_PROPERTY(DER_DECODER_PROP),
+                 p11prov_der_decoder_p11prov_x448_functions);
     TERM_ALGO(decoder);
 #undef DEFAULT_PROPERTY
 
@@ -1479,6 +1496,8 @@ static CK_RV static_operations_init(P11PROV_CTX *ctx)
     ADD_ALGO(HKDF, hkdf, keymgmt, prop);
     ADD_ALGO_EXT(ED25519, keymgmt, prop, p11prov_ed25519_keymgmt_functions);
     ADD_ALGO_EXT(ED448, keymgmt, prop, p11prov_ed448_keymgmt_functions);
+    ADD_ALGO_EXT(X25519, keymgmt, prop, p11prov_x25519_keymgmt_functions);
+    ADD_ALGO_EXT(X448, keymgmt, prop, p11prov_x448_keymgmt_functions);
     ADD_ALGO_EXT(ML_DSA_44, keymgmt, prop, p11prov_mldsa44_keymgmt_functions);
     ADD_ALGO_EXT(ML_DSA_65, keymgmt, prop, p11prov_mldsa65_keymgmt_functions);
     ADD_ALGO_EXT(ML_DSA_87, keymgmt, prop, p11prov_mldsa87_keymgmt_functions);

@@ -405,6 +405,102 @@ done:
     return rv;
 }
 
+static CK_RV prep_ecx_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
+                           struct pool_find_ctx *findctx)
+{
+    const OSSL_PARAM *p;
+    const char *name;
+    const unsigned char *ecparams = NULL;
+    int ecplen;
+    CK_RV rv;
+
+    switch (findctx->class) {
+    case CKO_PUBLIC_KEY:
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PUB_KEY);
+        if (!p) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_PUB_KEY);
+            rv = CKR_KEY_INDIGESTIBLE;
+            goto done;
+        }
+
+        if (p->data_size == X25519_BYTE_SIZE) {
+            ecparams = x25519_ec_params;
+            ecplen = X25519_EC_PARAMS_LEN;
+            findctx->bit_size = X25519_BIT_SIZE;
+            findctx->key_size = X25519_BYTE_SIZE;
+        } else if (p->data_size == X448_BYTE_SIZE) {
+            ecparams = x448_ec_params;
+            ecplen = X448_EC_PARAMS_LEN;
+            findctx->bit_size = X448_BIT_SIZE;
+            findctx->key_size = X448_BYTE_SIZE;
+        } else {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE,
+                          "Public key of unknown length %lu", p->data_size);
+            rv = CKR_KEY_INDIGESTIBLE;
+            goto done;
+        }
+
+        rv = params_to_attr(ctx, findctx, params, OSSL_PKEY_PARAM_PUB_KEY,
+                            CKA_P11PROV_PUB_KEY, false);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+
+        break;
+    case CKO_PRIVATE_KEY:
+        /* A Token would never allow us to search by private exponent,
+         * so we store a hash of the private key in CKA_ID */
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+        if (!p) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_PRIV_KEY);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        if (p->data_size == X25519_BYTE_SIZE) {
+            name = "X25519";
+            ecparams = x25519_ec_params;
+            ecplen = X25519_EC_PARAMS_LEN;
+            findctx->bit_size = X25519_BIT_SIZE;
+            findctx->key_size = X25519_BYTE_SIZE;
+        } else if (p->data_size == X448_BYTE_SIZE) {
+            name = "X448";
+            ecparams = x448_ec_params;
+            ecplen = X448_EC_PARAMS_LEN;
+            findctx->bit_size = X448_BIT_SIZE;
+            findctx->key_size = X448_BYTE_SIZE;
+        } else {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE,
+                          "Private key of unknown length %lu", p->data_size);
+            rv = CKR_KEY_INDIGESTIBLE;
+            goto done;
+        }
+
+        rv = private_key_to_id(ctx, findctx, (uint8_t *)name, strlen(name),
+                               (uint8_t *)ecparams, ecplen, p->data,
+                               p->data_size);
+        if (rv != CKR_OK) {
+            return rv;
+        }
+
+        break;
+    default:
+        return CKR_GENERAL_ERROR;
+    }
+
+    /* common params */
+    rv = param_data_to_attr(findctx, CKA_EC_PARAMS, (uint8_t *)ecparams, ecplen,
+                            false);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+    rv = CKR_OK;
+
+done:
+    return rv;
+}
+
 static CK_RV prep_mldsa_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
                              struct pool_find_ctx *findctx)
 {
@@ -682,8 +778,15 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key,
         break;
 
     case CKK_EC_EDWARDS:
-        P11PROV_debug("obj import of ED public key %p", key);
+        P11PROV_debug("obj import of Edwards public key %p", key);
         rv = prep_ed_find(ctx, params, &findctx);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        break;
+    case CKK_EC_MONTGOMERY:
+        P11PROV_debug("obj import of Montgomery public key %p", key);
+        rv = prep_ecx_find(ctx, params, &findctx);
         if (rv != CKR_OK) {
             goto done;
         }
@@ -712,8 +815,12 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key,
     }
 
     allocattrs = findctx.numattrs;
-    if (findctx.type == CKK_EC || findctx.type == CKK_EC_EDWARDS) {
+    switch (findctx.type) {
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+    case CKK_EC_MONTGOMERY:
         allocattrs += 1;
+        break;
     }
 
     /* A common case with openssl is the request to import a key we already
@@ -761,8 +868,12 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key,
     key->numattrs = findctx.numattrs;
     findctx.numattrs = 0;
 
-    if (findctx.type == CKK_EC || findctx.type == CKK_EC_EDWARDS) {
+    switch (findctx.type) {
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+    case CKK_EC_MONTGOMERY:
         rv = fix_ec_key_import(key, allocattrs);
+        break;
     }
 
 done:
@@ -856,19 +967,17 @@ static CK_RV p11prov_store_rsa_public_key(P11PROV_OBJ *key)
 
 static CK_RV p11prov_store_ec_public_key(P11PROV_OBJ *key)
 {
-    CK_BBOOL val_true = CK_TRUE;
     CK_BBOOL val_false = CK_FALSE;
     CK_ATTRIBUTE template[] = {
         { CKA_CLASS, &key->class, sizeof(CK_OBJECT_CLASS) },
         { CKA_KEY_TYPE, &key->data.key.type, sizeof(CK_KEY_TYPE) },
-        /* we allow all operations as we do not know what is
-         * the purpose of this key at import time */
-        { CKA_DERIVE, &val_true, sizeof(val_true) },
-        { CKA_VERIFY, &val_true, sizeof(val_true) },
         /* public part */
-        { CKA_EC_PARAMS, NULL, 0 }, /* 4 */
-        { CKA_EC_POINT, NULL, 0 }, /* 5 */
+        { CKA_EC_PARAMS, NULL, 0 }, /* 2 */
+        { CKA_EC_POINT, NULL, 0 }, /* 3 */
         { CKA_TOKEN, &val_false, sizeof(val_false) },
+        /* place holders to add boolean attributes */
+        { 0, NULL, 0 }, /* 5 */
+        { 0, NULL, 0 }, /* 6 */
     };
     int tmpl_cnt = sizeof(template) / sizeof(CK_ATTRIBUTE);
     CK_ATTRIBUTE *a;
@@ -877,15 +986,36 @@ static CK_RV p11prov_store_ec_public_key(P11PROV_OBJ *key)
     if (!a) {
         return CKR_GENERAL_ERROR;
     }
-    template[4].pValue = a->pValue;
-    template[4].ulValueLen = a->ulValueLen;
+    template[2].pValue = a->pValue;
+    template[2].ulValueLen = a->ulValueLen;
 
     a = p11prov_obj_get_attr(key, CKA_EC_POINT);
     if (!a) {
         return CKR_GENERAL_ERROR;
     }
-    template[5].pValue = a->pValue;
-    template[5].ulValueLen = a->ulValueLen;
+    template[3].pValue = a->pValue;
+    template[3].ulValueLen = a->ulValueLen;
+
+    switch (key->data.key.type) {
+    case CKK_EC:
+        /* we allow all operations as we do not know what is
+         * the purpose of this key at import time */
+        p11prov_set_attr_bool(&template[5], CKA_DERIVE, true);
+        p11prov_set_attr_bool(&template[6], CKA_VERIFY, true);
+        break;
+    case CKK_EC_EDWARDS:
+        /* Signatures only */
+        p11prov_set_attr_bool(&template[5], CKA_VERIFY, true);
+        /* only one attr */
+        tmpl_cnt -= 1;
+        break;
+    case CKK_EC_MONTGOMERY:
+        /* Key Exchange only */
+        p11prov_set_attr_bool(&template[5], CKA_DERIVE, true);
+        /* only one attr */
+        tmpl_cnt -= 1;
+        break;
+    }
 
     return store_key(key, template, tmpl_cnt);
 }
@@ -973,6 +1103,7 @@ CK_RV p11prov_obj_store_public_key(P11PROV_OBJ *key)
         break;
     case CKK_EC:
     case CKK_EC_EDWARDS:
+    case CKK_EC_MONTGOMERY:
         rv = p11prov_store_ec_public_key(key);
         break;
     case CKK_ML_DSA:
@@ -1167,24 +1298,48 @@ static CK_RV p11prov_store_ec_private_key(P11PROV_OBJ *key,
         { CKA_SENSITIVE, &val_true, sizeof(val_true) },
         { CKA_EXTRACTABLE, &val_false, sizeof(val_false) },
         { CKA_TOKEN, &val_false, sizeof(val_false) },
-        /* we allow all operations as we do not know what is
-         * the purpose of this key at import time */
-        { CKA_DERIVE, &val_true, sizeof(val_true) },
-        { CKA_SIGN, &val_true, sizeof(val_true) },
         /* public part */
         { CKA_EC_PARAMS, findctx->attrs[1].pValue,
-          findctx->attrs[1].ulValueLen }, /* 8 */
+          findctx->attrs[1].ulValueLen }, /* 6 */
         /* private key part */
-        { CKA_VALUE, NULL, 0 }, /* 9 */
+        { CKA_VALUE, NULL, 0 }, /* 7 */
+        /* place holders to add boolean attributes*/
+        { 0, NULL, 0 }, /* 8 */
+        { 0, NULL, 0 }, /* 9 */
     };
-    int tmpl_cnt = 10;
+    int tmpl_cnt = sizeof(template) / sizeof(CK_ATTRIBUTE);
     const OSSL_PARAM *p;
     CK_RV rv = CKR_GENERAL_ERROR;
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
-    rv = get_bn(p, &template[9]);
-    if (rv != CKR_OK) {
-        goto done;
+
+    switch (key->data.key.type) {
+    case CKK_EC:
+        rv = get_bn(p, &template[7]);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        /* we allow all operations as we do not know what is
+         * the purpose of this key at import time */
+        p11prov_set_attr_bool(&template[8], CKA_DERIVE, true);
+        p11prov_set_attr_bool(&template[9], CKA_SIGN, true);
+        break;
+    case CKK_EC_EDWARDS:
+        template[7].pValue = p->data;
+        template[7].ulValueLen = p->data_size;
+        /* Signatures only */
+        p11prov_set_attr_bool(&template[8], CKA_SIGN, true);
+        /* only one attr */
+        tmpl_cnt -= 1;
+        break;
+    case CKK_EC_MONTGOMERY:
+        template[7].pValue = p->data;
+        template[7].ulValueLen = p->data_size;
+        /* Key Exchange only */
+        p11prov_set_attr_bool(&template[8], CKA_DERIVE, true);
+        /* only one attr */
+        tmpl_cnt -= 1;
+        break;
     }
 
     rv = store_key(key, template, tmpl_cnt);
@@ -1213,7 +1368,9 @@ static CK_RV p11prov_store_ec_private_key(P11PROV_OBJ *key,
     rv = CKR_OK;
 
 done:
-    OPENSSL_clear_free(template[9].pValue, template[9].ulValueLen);
+    if (key->data.key.type == CKK_EC) {
+        OPENSSL_clear_free(template[7].pValue, template[7].ulValueLen);
+    }
     return rv;
 }
 
@@ -1386,6 +1543,12 @@ static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key,
             goto done;
         }
         break;
+    case CKK_EC_MONTGOMERY:
+        rv = prep_ecx_find(ctx, params, &findctx);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        break;
     case CKK_ML_DSA:
         rv = prep_mldsa_find(ctx, params, &findctx);
         if (rv != CKR_OK) {
@@ -1440,6 +1603,7 @@ static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key,
         break;
     case CKK_EC:
     case CKK_EC_EDWARDS:
+    case CKK_EC_MONTGOMERY:
         rv = p11prov_store_ec_private_key(key, &findctx, params);
         break;
     case CKK_ML_DSA:
