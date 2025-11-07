@@ -1200,6 +1200,27 @@ static int p11prov_ecx_get_params(void *keydata, OSSL_PARAM params[])
             p->data_size = pub->ulValueLen;
         }
     }
+    p = OSSL_PARAM_locate(params, OSSL_PKEY_PARAM_ENCODED_PUBLIC_KEY);
+    if (p) {
+        CK_ATTRIBUTE *pub;
+
+        if (p->data_type != OSSL_PARAM_OCTET_STRING) {
+            return RET_OSSL_ERR;
+        }
+
+        ret = p11prov_obj_get_ecx_pub_key(key, &pub);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+
+        p->return_size = pub->ulValueLen;
+        if (p->data) {
+            if (p->data_size < pub->ulValueLen) {
+                return RET_OSSL_ERR;
+            }
+            memcpy(p->data, pub->pValue, pub->ulValueLen);
+        }
+    }
 
     return RET_OSSL_OK;
 }
@@ -1208,6 +1229,7 @@ static const OSSL_PARAM *p11prov_ecx_gettable_params(void *provctx)
 {
     static const OSSL_PARAM params[] = {
         OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_PUB_KEY, NULL, 0),
+        OSSL_PARAM_octet_string(OSSL_PKEY_PARAM_ENCODED_PUBLIC_KEY, NULL, 0),
         OSSL_PARAM_int(OSSL_PKEY_PARAM_BITS, NULL),
         OSSL_PARAM_int(OSSL_PKEY_PARAM_SECURITY_BITS, NULL),
         OSSL_PARAM_int(OSSL_PKEY_PARAM_MAX_SIZE, NULL),
