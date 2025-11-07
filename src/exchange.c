@@ -59,19 +59,19 @@ static CK_ULONG p11prov_ecdh_digest_to_kdf(CK_MECHANISM_TYPE digest)
     return CK_UNAVAILABLE_INFORMATION;
 }
 
-DISPATCH_ECDH_FN(newctx);
-DISPATCH_ECDH_FN(dupctx);
-DISPATCH_ECDH_FN(freectx);
-DISPATCH_ECDH_FN(init);
-DISPATCH_ECDH_FN(set_peer);
-DISPATCH_ECDH_FN(derive);
+DISPATCH_KEYEXCH_FN(ecdh, newctx);
+DISPATCH_KEYEXCH_FN(ecdh, dupctx);
+DISPATCH_KEYEXCH_FN(ecdh, freectx);
+DISPATCH_KEYEXCH_FN(ecdh, init);
+DISPATCH_KEYEXCH_FN(ecdh, set_peer);
+DISPATCH_KEYEXCH_FN(ecdh, derive);
 #if defined(OSSL_FUNC_KEYEXCH_DERIVE_SKEY)
-DISPATCH_ECDH_FN(derive_skey);
+DISPATCH_KEYEXCH_FN(ecdh, derive_skey);
 #endif
-DISPATCH_ECDH_FN(set_ctx_params);
-DISPATCH_ECDH_FN(settable_ctx_params);
-DISPATCH_ECDH_FN(get_ctx_params);
-DISPATCH_ECDH_FN(gettable_ctx_params);
+DISPATCH_KEYEXCH_FN(ecdh, set_ctx_params);
+DISPATCH_KEYEXCH_FN(ecdh, settable_ctx_params);
+DISPATCH_KEYEXCH_FN(ecdh, get_ctx_params);
+DISPATCH_KEYEXCH_FN(ecdh, gettable_ctx_params);
 
 static void *p11prov_ecdh_newctx(void *provctx)
 {
@@ -248,6 +248,7 @@ static void *p11prov_ecdh_derive_skey(void *ctx, const char *key_type,
     CK_OBJECT_HANDLE secret_handle;
     P11PROV_OBJ *skey = NULL;
     CK_RV ret;
+    int err;
 
     if (ecdhctx->key == NULL || ecdhctx->peer_key == NULL) {
         ERR_raise(ERR_LIB_PROV, PROV_R_MISSING_KEY);
@@ -269,12 +270,38 @@ static void *p11prov_ecdh_derive_skey(void *ctx, const char *key_type,
         }
     }
 
-    ec_point = p11prov_obj_get_ec_public_raw(ecdhctx->peer_key);
-    if (ec_point == NULL) {
+    switch (p11prov_obj_get_key_type(ecdhctx->peer_key)) {
+    case CKK_EC:
+        ec_point = p11prov_obj_get_ec_public_raw(ecdhctx->peer_key);
+        if (ec_point == NULL) {
+            P11PROV_raise(ecdhctx->provctx, CKR_KEY_INDIGESTIBLE,
+                          "Public point not found");
+            return NULL;
+        }
+        ecdhctx->ecdh_params.pPublicData = ec_point->pValue;
+        ecdhctx->ecdh_params.ulPublicDataLen = ec_point->ulValueLen;
+        break;
+    case CKK_EC_MONTGOMERY:
+        err = p11prov_obj_get_ecx_pub_key(ecdhctx->peer_key, &ec_point);
+        if (err == RET_OSSL_OK) {
+            CK_ATTRIBUTE point;
+            ret = p11prov_copy_attr(&point, ec_point);
+            if (ret != CKR_OK) {
+                return NULL;
+            }
+            ecdhctx->ecdh_params.pPublicData = point.pValue;
+            ecdhctx->ecdh_params.ulPublicDataLen = point.ulValueLen;
+        } else {
+            P11PROV_raise(ecdhctx->provctx, CKR_KEY_INDIGESTIBLE,
+                          "Public point not found");
+            return NULL;
+        }
+        break;
+    default:
+        P11PROV_raise(ecdhctx->provctx, CKR_KEY_TYPE_INCONSISTENT,
+                      "Invalid key type");
         return NULL;
     }
-    ecdhctx->ecdh_params.pPublicData = ec_point->pValue;
-    ecdhctx->ecdh_params.ulPublicDataLen = ec_point->ulValueLen;
 
     mechanism.mechanism = ecdhctx->mechtype;
     mechanism.pParameter = &ecdhctx->ecdh_params;
@@ -548,19 +575,45 @@ static const OSSL_PARAM *p11prov_ecdh_gettable_ctx_params(void *ctx, void *prov)
 }
 
 const OSSL_DISPATCH p11prov_ecdh_exchange_functions[] = {
-    DISPATCH_ECDH_ELEM(ecdh, NEWCTX, newctx),
-    DISPATCH_ECDH_ELEM(ecdh, DUPCTX, dupctx),
-    DISPATCH_ECDH_ELEM(ecdh, FREECTX, freectx),
-    DISPATCH_ECDH_ELEM(ecdh, INIT, init),
-    DISPATCH_ECDH_ELEM(ecdh, DERIVE, derive),
+    DISPATCH_KEYEXCH_ELEM(ecdh, NEWCTX, newctx),
+    DISPATCH_KEYEXCH_ELEM(ecdh, DUPCTX, dupctx),
+    DISPATCH_KEYEXCH_ELEM(ecdh, FREECTX, freectx),
+    DISPATCH_KEYEXCH_ELEM(ecdh, INIT, init),
+    DISPATCH_KEYEXCH_ELEM(ecdh, DERIVE, derive),
 #if defined(OSSL_FUNC_KEYEXCH_DERIVE_SKEY)
-    DISPATCH_ECDH_ELEM(ecdh, DERIVE_SKEY, derive_skey),
+    DISPATCH_KEYEXCH_ELEM(ecdh, DERIVE_SKEY, derive_skey),
 #endif
-    DISPATCH_ECDH_ELEM(ecdh, SET_PEER, set_peer),
-    DISPATCH_ECDH_ELEM(ecdh, SET_CTX_PARAMS, set_ctx_params),
-    DISPATCH_ECDH_ELEM(ecdh, SETTABLE_CTX_PARAMS, settable_ctx_params),
-    DISPATCH_ECDH_ELEM(ecdh, GET_CTX_PARAMS, get_ctx_params),
-    DISPATCH_ECDH_ELEM(ecdh, GETTABLE_CTX_PARAMS, gettable_ctx_params),
+    DISPATCH_KEYEXCH_ELEM(ecdh, SET_PEER, set_peer),
+    DISPATCH_KEYEXCH_ELEM(ecdh, SET_CTX_PARAMS, set_ctx_params),
+    DISPATCH_KEYEXCH_ELEM(ecdh, SETTABLE_CTX_PARAMS, settable_ctx_params),
+    DISPATCH_KEYEXCH_ELEM(ecdh, GET_CTX_PARAMS, get_ctx_params),
+    DISPATCH_KEYEXCH_ELEM(ecdh, GETTABLE_CTX_PARAMS, gettable_ctx_params),
+    { 0, NULL },
+};
+
+const OSSL_DISPATCH p11prov_x25519_exchange_functions[] = {
+    DISPATCH_KEYEXCH_ELEM(ecdh, NEWCTX, newctx),
+    DISPATCH_KEYEXCH_ELEM(ecdh, DUPCTX, dupctx),
+    DISPATCH_KEYEXCH_ELEM(ecdh, FREECTX, freectx),
+    DISPATCH_KEYEXCH_ELEM(ecdh, INIT, init),
+    DISPATCH_KEYEXCH_ELEM(ecdh, DERIVE, derive),
+    DISPATCH_KEYEXCH_ELEM(ecdh, SET_PEER, set_peer),
+#if defined(OSSL_FUNC_KEYEXCH_DERIVE_SKEY)
+    DISPATCH_KEYEXCH_ELEM(ecdh, DERIVE_SKEY, derive_skey),
+#endif
+    { 0, NULL },
+};
+
+const OSSL_DISPATCH p11prov_x448_exchange_functions[] = {
+    DISPATCH_KEYEXCH_ELEM(ecdh, NEWCTX, newctx),
+    DISPATCH_KEYEXCH_ELEM(ecdh, DUPCTX, dupctx),
+    DISPATCH_KEYEXCH_ELEM(ecdh, FREECTX, freectx),
+    DISPATCH_KEYEXCH_ELEM(ecdh, INIT, init),
+    DISPATCH_KEYEXCH_ELEM(ecdh, DERIVE, derive),
+    DISPATCH_KEYEXCH_ELEM(ecdh, SET_PEER, set_peer),
+#if defined(OSSL_FUNC_KEYEXCH_DERIVE_SKEY)
+    DISPATCH_KEYEXCH_ELEM(ecdh, DERIVE_SKEY, derive_skey),
+#endif
     { 0, NULL },
 };
 

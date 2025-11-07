@@ -46,6 +46,47 @@ ossl '
 pkeyutl -derive -inkey ${TESTSSRCDIR}/testp256.pri.pem
                 -peerkey ${TESTSSRCDIR}/testp256.pub.pem
                 -out ${TMPPDIR}/forced.both.ecdh.bin'
+
+if [[ "${SUPPORT_X25519}" = "1" ]]; then
+    title PARA "X25519 Exchange forced: public key in file"
+    ossl '
+    pkeyutl -derive -inkey ${X25519BASEURI}
+                -peerkey ${TESTSSRCDIR}/testx25519.pub.pem
+                -out ${TMPPDIR}/forced.pub.x25519.bin'
+
+    title PARA "X25519 Exchange forced: private key in file"
+    ossl '
+    pkeyutl -derive -inkey ${TESTSSRCDIR}/testx25519.pri.pem
+                -peerkey ${X25519PEERPUBURI}
+                -out ${TMPPDIR}/forced.pri.x25519.bin'
+
+    title PARA "X25519 Exchange forced: both key in file"
+    ossl '
+    pkeyutl -derive -inkey ${TESTSSRCDIR}/testx25519.pri.pem
+                -peerkey ${TESTSSRCDIR}/testx25519.pub.pem
+                -out ${TMPPDIR}/forced.both.x25519.bin'
+fi
+
+if [[ "${SUPPORT_X448}" = "1" ]]; then
+    title PARA "X448 Exchange forced: public key in file"
+    ossl '
+    pkeyutl -derive -inkey ${X448BASEURI}
+                -peerkey ${TESTSSRCDIR}/testx448.pub.pem
+                -out ${TMPPDIR}/forced.pub.x448.bin'
+
+    title PARA "X448 Exchange forced: private key in file"
+    ossl '
+    pkeyutl -derive -inkey ${TESTSSRCDIR}/testx448.pri.pem
+                -peerkey ${X448PEERPUBURI}
+                -out ${TMPPDIR}/forced.pri.x448.bin'
+
+    title PARA "X448 Exchange forced: both key in file"
+    ossl '
+    pkeyutl -derive -inkey ${TESTSSRCDIR}/testx448.pri.pem
+                -peerkey ${TESTSSRCDIR}/testx448.pub.pem
+                -out ${TMPPDIR}/forced.both.x448.bin'
+fi
+
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
 exit 0

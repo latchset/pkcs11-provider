@@ -23,6 +23,8 @@ TOKENTYPE=$1
 # defaults -- overridden below or in the per-token setup
 SUPPORT_ED25519=1
 SUPPORT_ED448=1
+SUPPORT_X25519=1
+SUPPORT_X448=1
 SUPPORT_RSA_PKCS1_ENCRYPTION=1
 SUPPORT_RSA_KEYGEN_PUBLIC_EXPONENT=1
 SUPPORT_TLSFUZZER=1
@@ -40,6 +42,9 @@ if [[ "${PKCS11_PROVIDER_FORCE_FIPS_MODE}" = "1" || "$(cat /proc/sys/crypto/fips
     # We can not use Edwards curves in FIPS mode
     SUPPORT_ED25519=0
     SUPPORT_ED448=0
+    # We can not use Montgomery curves in FIPS mode
+    SUPPORT_X25519=0
+    SUPPORT_X448=0
 
     # The FIPS does not allow the RSA-PKCS1.5 encryption
     SUPPORT_RSA_PKCS1_ENCRYPTION=0
@@ -334,6 +339,74 @@ if [ "${SUPPORT_ED448}" -eq 1 ]; then
     echo "${ED2CRTURI}"
 fi
 
+if [ "${SUPPORT_X25519}" -eq 1 ]; then
+    # generate X25519
+    get_next_keyid
+
+    ptool --keypairgen --key-type="EC:X25519" --id="$KEYID" \
+    	  --label="x25519 key" 2>&1
+
+    X25519BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+    X25519BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
+    X25519BASEURI="pkcs11:id=${URIKEYID}"
+    X25519PUBURI="pkcs11:type=public;id=${URIKEYID}"
+    X25519PRIURI="pkcs11:type=private;id=${URIKEYID}"
+
+    title LINE "X25519 PKCS11 URIS"
+    echo "${X25519BASEURIWITHPINVALUE}"
+    echo "${X25519BASEURIWITHPINSOURCE}"
+    echo "${X25519BASEURI}"
+    echo "${X25519PUBURI}"
+    echo "${X25519PRIURI}"
+
+    # And a Peer Key for Key Exchange (ECDH) tests
+    get_next_keyid
+
+    ptool --keypairgen --key-type="EC:X25519" --id="$KEYID" \
+    	  --label="x25519 key" 2>&1
+
+    X25519PEERPUBURI="pkcs11:type=public;id=${URIKEYID}"
+    X25519PEERPRIURI="pkcs11:type=private;id=${URIKEYID}"
+
+    title LINE "X25519 Peer PKCS11 URIS"
+    echo "${X25519PEERPUBURI}"
+    echo "${X25519PEERPRIURI}"
+fi
+
+if [ "${SUPPORT_X448}" -eq 1 ]; then
+    # generate X448
+    get_next_keyid
+
+    ptool --keypairgen --key-type="EC:X448" --id="$KEYID" \
+    	  --label="x448 key" 2>&1
+
+    X448BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
+    X448BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
+    X448BASEURI="pkcs11:id=${URIKEYID}"
+    X448PUBURI="pkcs11:type=public;id=${URIKEYID}"
+    X448PRIURI="pkcs11:type=private;id=${URIKEYID}"
+
+    title LINE "X448 PKCS11 URIS"
+    echo "${X448BASEURIWITHPINVALUE}"
+    echo "${X448BASEURIWITHPINSOURCE}"
+    echo "${X448BASEURI}"
+    echo "${X448PUBURI}"
+    echo "${X448PRIURI}"
+
+    # And a Peer Key for Key Exchange (ECDH) tests
+    get_next_keyid
+
+    ptool --keypairgen --key-type="EC:X448" --id="$KEYID" \
+    	  --label="x448 key" 2>&1
+
+    X448PEERPUBURI="pkcs11:type=public;id=${URIKEYID}"
+    X448PEERPRIURI="pkcs11:type=private;id=${URIKEYID}"
+
+    title LINE "X448 Peer PKCS11 URIS"
+    echo "${X448PEERPUBURI}"
+    echo "${X448PEERPRIURI}"
+fi
+
 title PARA "generate RSA key pair, self-signed certificate, remove public key"
 get_next_keyid
 TSTCRTN="testCert2"
@@ -574,6 +647,8 @@ export TESTBLDDIR="${TESTBLDDIR}"
 
 export SUPPORT_ED25519="${SUPPORT_ED25519}"
 export SUPPORT_ED448="${SUPPORT_ED448}"
+export SUPPORT_X25519="${SUPPORT_X25519}"
+export SUPPORT_X448="${SUPPORT_X448}"
 export SUPPORT_ML_DSA="${SUPPORT_ML_DSA}"
 export SUPPORT_ML_KEM="${SUPPORT_ML_KEM}"
 export SUPPORT_RSA_PKCS1_ENCRYPTION="${SUPPORT_RSA_PKCS1_ENCRYPTION}"
@@ -661,6 +736,34 @@ export ED2BASEURI="${ED2BASEURI}"
 export ED2PUBURI="${ED2PUBURI}"
 export ED2PRIURI="${ED2PRIURI}"
 export ED2CRTURI="${ED2CRTURI}"
+DBGSCRIPT
+fi
+
+if [ -n "${X25519BASEURI}" ]; then
+    cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
+
+export X25519BASEURIWITHPINVALUE="${X25519BASEURIWITHPINVALUE}"
+export X25519BASEURIWITHPINSOURCE="${X25519BASEURIWITHPINSOURCE}"
+export X25519BASEURI="${X25519BASEURI}"
+export X25519PUBURI="${X25519PUBURI}"
+export X25519PRIURI="${X25519PRIURI}"
+
+export X25519PEERPUBURI="${X25519PEERPUBURI}"
+export X25519PEERPRIURI="${X25519PEERPRIURI}"
+DBGSCRIPT
+fi
+
+if [ -n "${X448BASEURI}" ]; then
+    cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
+
+export X448BASEURIWITHPINVALUE="${X448BASEURIWITHPINVALUE}"
+export X448BASEURIWITHPINSOURCE="${X448BASEURIWITHPINSOURCE}"
+export X448BASEURI="${X448BASEURI}"
+export X448PUBURI="${X448PUBURI}"
+export X448PRIURI="${X448PRIURI}"
+
+export X448PEERPUBURI="${X448PEERPUBURI}"
+export X448PEERPRIURI="${X448PEERPRIURI}"
 DBGSCRIPT
 fi
 

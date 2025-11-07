@@ -1219,6 +1219,10 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                              p11prov_ed448ph_signature_functions);
 #endif
                 break;
+            case CKM_EC_MONTGOMERY_KEY_PAIR_GEN:
+                ADD_ALGO(X25519, x25519, exchange, prop);
+                ADD_ALGO(X448, x448, exchange, prop);
+                break;
             case CKM_ML_DSA:
             case CKM_ML_DSA_KEY_PAIR_GEN:
                 ADD_ALGO_EXT(ML_DSA_44, signature, prop,

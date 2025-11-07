@@ -33,5 +33,9 @@ export TESTPORT="30000"
 export SUPPORT_ED25519=0
 export SUPPORT_ED448=0
 
+# Montgomery curves are not supported in NSS yet
+export SUPPORT_X25519=0
+export SUPPORT_X448=0
+
 export SUPPORT_ML_DSA=0
 export SUPPORT_ML_KEM=0
