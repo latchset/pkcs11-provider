@@ -329,13 +329,13 @@ static CK_RV prep_ed_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
         }
 
         if (p->data_size == ED25519_BYTE_SIZE) {
-            ecparams = ed25519_ec_params;
-            ecplen = ED25519_EC_PARAMS_LEN;
+            ecparams = ed25519_oid;
+            ecplen = sizeof(ed25519_oid);
             findctx->bit_size = ED25519_BIT_SIZE;
             findctx->key_size = ED25519_BYTE_SIZE;
         } else if (p->data_size == ED448_BYTE_SIZE) {
-            ecparams = ed448_ec_params;
-            ecplen = ED448_EC_PARAMS_LEN;
+            ecparams = ed448_oid;
+            ecplen = sizeof(ed448_oid);
             findctx->bit_size = ED448_BIT_SIZE;
             findctx->key_size = ED448_BYTE_SIZE;
         } else {
@@ -364,14 +364,14 @@ static CK_RV prep_ed_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
 
         if (p->data_size == ED25519_BYTE_SIZE) {
             name = "ED25519";
-            ecparams = ed25519_ec_params;
-            ecplen = ED25519_EC_PARAMS_LEN;
+            ecparams = ed25519_oid;
+            ecplen = sizeof(ed25519_oid);
             findctx->bit_size = ED25519_BIT_SIZE;
             findctx->key_size = ED25519_BYTE_SIZE;
         } else if (p->data_size == ED448_BYTE_SIZE) {
             name = "ED448";
-            ecparams = ed448_ec_params;
-            ecplen = ED448_EC_PARAMS_LEN;
+            ecparams = ed448_oid;
+            ecplen = sizeof(ed448_oid);
             findctx->bit_size = ED448_BIT_SIZE;
             findctx->key_size = ED448_BYTE_SIZE;
         } else {
@@ -425,13 +425,13 @@ static CK_RV prep_ecx_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
         }
 
         if (p->data_size == X25519_BYTE_SIZE) {
-            ecparams = x25519_ec_params;
-            ecplen = X25519_EC_PARAMS_LEN;
+            ecparams = x25519_oid;
+            ecplen = sizeof(x25519_oid);
             findctx->bit_size = X25519_BIT_SIZE;
             findctx->key_size = X25519_BYTE_SIZE;
         } else if (p->data_size == X448_BYTE_SIZE) {
-            ecparams = x448_ec_params;
-            ecplen = X448_EC_PARAMS_LEN;
+            ecparams = x448_oid;
+            ecplen = sizeof(x448_oid);
             findctx->bit_size = X448_BIT_SIZE;
             findctx->key_size = X448_BYTE_SIZE;
         } else {
@@ -460,14 +460,14 @@ static CK_RV prep_ecx_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
 
         if (p->data_size == X25519_BYTE_SIZE) {
             name = "X25519";
-            ecparams = x25519_ec_params;
-            ecplen = X25519_EC_PARAMS_LEN;
+            ecparams = x25519_oid;
+            ecplen = sizeof(x25519_oid);
             findctx->bit_size = X25519_BIT_SIZE;
             findctx->key_size = X25519_BYTE_SIZE;
         } else if (p->data_size == X448_BYTE_SIZE) {
             name = "X448";
-            ecparams = x448_ec_params;
-            ecplen = X448_EC_PARAMS_LEN;
+            ecparams = x448_oid;
+            ecplen = sizeof(x448_oid);
             findctx->bit_size = X448_BIT_SIZE;
             findctx->key_size = X448_BYTE_SIZE;
         } else {

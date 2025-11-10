@@ -196,11 +196,11 @@ static int p11prov_ec_gen_set_params(void *genctx, const OSSL_PARAM params[])
                 return RET_OSSL_ERR;
             }
             if (strcmp(p->data, ED25519) == 0) {
-                ctx->data.ec.ec_params = ed25519_ec_params;
-                ctx->data.ec.ec_params_size = ED25519_EC_PARAMS_LEN;
+                ctx->data.ec.ec_params = ed25519_oid;
+                ctx->data.ec.ec_params_size = sizeof(ed25519_oid);
             } else if (strcmp(p->data, ED448) == 0) {
-                ctx->data.ec.ec_params = ed448_ec_params;
-                ctx->data.ec.ec_params_size = ED448_EC_PARAMS_LEN;
+                ctx->data.ec.ec_params = ed448_oid;
+                ctx->data.ec.ec_params_size = sizeof(ed448_oid);
             } else {
                 P11PROV_raise(ctx->provctx, CKR_ARGUMENTS_BAD,
                               "Unknown edwards curve '%*s'", (int)p->data_size,
@@ -216,11 +216,11 @@ static int p11prov_ec_gen_set_params(void *genctx, const OSSL_PARAM params[])
                 return RET_OSSL_ERR;
             }
             if (strcmp(p->data, X25519_NAME) == 0) {
-                ctx->data.ec.ec_params = x25519_ec_params;
-                ctx->data.ec.ec_params_size = X25519_EC_PARAMS_LEN;
+                ctx->data.ec.ec_params = x25519_oid;
+                ctx->data.ec.ec_params_size = sizeof(x25519_oid);
             } else if (strcmp(p->data, X448_NAME) == 0) {
-                ctx->data.ec.ec_params = x448_ec_params;
-                ctx->data.ec.ec_params_size = X448_EC_PARAMS_LEN;
+                ctx->data.ec.ec_params = x448_oid;
+                ctx->data.ec.ec_params_size = sizeof(x448_oid);
             } else {
                 P11PROV_raise(ctx->provctx, CKR_ARGUMENTS_BAD,
                               "Unknown montgomery curve '%*s'",
