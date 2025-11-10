@@ -99,39 +99,28 @@ P11PROV_OBJ *p11prov_obj_find_associated(P11PROV_OBJ *obj,
 #define ED25519_BYTE_SIZE ED25519_BIT_SIZE / 8
 #define ED25519_SEC_BITS 128
 #define ED25519_SIG_SIZE 64
-#define ED25519_EC_PARAMS \
-    0x13, 0x0c, 0x65, 0x64, 0x77, 0x61, 0x72, 0x64, 0x73, 0x32, 0x35, 0x35, \
-        0x31, 0x39
-#define ED25519_EC_PARAMS_LEN 14
 #define ED448 "ED448"
 #define ED448_BIT_SIZE 456
 #define ED448_BYTE_SIZE ED448_BIT_SIZE / 8
 #define ED448_SEC_BITS 224
 #define ED448_SIG_SIZE 114
-#define ED448_EC_PARAMS \
-    0x13, 0x0a, 0x65, 0x64, 0x77, 0x61, 0x72, 0x64, 0x73, 0x34, 0x34, 0x38
-#define ED448_EC_PARAMS_LEN 12
-extern const CK_BYTE ed25519_ec_params[];
-extern const CK_BYTE ed448_ec_params[];
 
 #define X25519_NAME "X25519"
 #define X25519_BIT_SIZE 256
 #define X25519_BYTE_SIZE X25519_BIT_SIZE / 8
 #define X25519_SEC_BITS 128
 #define X25519_MAX_SIZE 32
-#define X25519_EC_PARAMS \
-    0x13, 0x0a, 0x63, 0x75, 0x72, 0x76, 0x65, 0x32, 0x35, 0x35, 0x31, 0x39
-#define X25519_EC_PARAMS_LEN 12
 #define X448_NAME "X448"
 #define X448_BIT_SIZE 448
 #define X448_BYTE_SIZE X448_BIT_SIZE / 8
 #define X448_SEC_BITS 224
 #define X448_MAX_SIZE 56
-#define X448_EC_PARAMS \
-    0x13, 0x08, 0x63, 0x75, 0x72, 0x76, 0x65, 0x34, 0x34, 0x38
-#define X448_EC_PARAMS_LEN 10
-extern const CK_BYTE x25519_ec_params[];
-extern const CK_BYTE x448_ec_params[];
+
+#define ECX_OID_LEN 5
+extern const CK_BYTE x25519_oid[ECX_OID_LEN];
+extern const CK_BYTE x448_oid[ECX_OID_LEN];
+extern const CK_BYTE ed25519_oid[ECX_OID_LEN];
+extern const CK_BYTE ed448_oid[ECX_OID_LEN];
 
 #define MLDSA_44 "ML-DSA-44"
 #define MLDSA_65 "ML-DSA-65"

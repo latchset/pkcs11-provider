@@ -244,11 +244,6 @@ static CK_RV fetch_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     return CKR_GENERAL_ERROR;
 }
 
-const CK_BYTE ed25519_ec_params[] = { ED25519_EC_PARAMS };
-const CK_BYTE ed448_ec_params[] = { ED448_EC_PARAMS };
-const CK_BYTE x25519_ec_params[] = { X25519_EC_PARAMS };
-const CK_BYTE x448_ec_params[] = { X448_EC_PARAMS };
-
 static CK_RV pre_process_ec_key_data(P11PROV_OBJ *key)
 {
     CK_ATTRIBUTE *attr;
@@ -291,82 +286,12 @@ static CK_RV pre_process_ec_key_data(P11PROV_OBJ *key)
         key->data.key.bit_size = EC_GROUP_order_bits(group);
         key->data.key.size = (key->data.key.bit_size + 7) / 8;
         EC_GROUP_free(group);
-    } else if (type == CKK_EC_EDWARDS) {
-        if (attr->ulValueLen == ED25519_EC_PARAMS_LEN
-            && memcmp(attr->pValue, ed25519_ec_params, ED25519_EC_PARAMS_LEN)
-                   == 0) {
-            curve_name = ED25519;
-            curve_nid = NID_ED25519;
-            key->data.key.bit_size = ED25519_BIT_SIZE;
-            key->data.key.size = ED25519_BYTE_SIZE;
-        } else if (attr->ulValueLen == ED448_EC_PARAMS_LEN
-                   && memcmp(attr->pValue, ed448_ec_params, ED448_EC_PARAMS_LEN)
-                          == 0) {
-            curve_name = ED448;
-            curve_nid = NID_ED448;
-            key->data.key.bit_size = ED448_BIT_SIZE;
-            key->data.key.size = ED448_BYTE_SIZE;
-        } else {
-            const unsigned char *p = attr->pValue;
-            ASN1_OBJECT *asn1_obj = d2i_ASN1_OBJECT(NULL, &p, attr->ulValueLen);
-            if (asn1_obj == NULL) {
-                return CKR_KEY_INDIGESTIBLE;
-            }
-            int nid = OBJ_obj2nid(asn1_obj);
-            ASN1_OBJECT_free(asn1_obj);
-            if (nid == NID_ED25519) {
-                curve_name = ED25519;
-                curve_nid = NID_ED25519;
-                key->data.key.bit_size = ED25519_BIT_SIZE;
-                key->data.key.size = ED25519_BYTE_SIZE;
-            } else if (nid == NID_ED448) {
-                curve_name = ED448;
-                curve_nid = NID_ED448;
-                key->data.key.bit_size = ED448_BIT_SIZE;
-                key->data.key.size = ED448_BYTE_SIZE;
-            } else {
-                return CKR_KEY_INDIGESTIBLE;
-            }
-        }
-    } else if (type == CKK_EC_MONTGOMERY) {
-        if (attr->ulValueLen == X25519_EC_PARAMS_LEN
-            && memcmp(attr->pValue, x25519_ec_params, X25519_EC_PARAMS_LEN)
-                   == 0) {
-            curve_name = X25519_NAME;
-            curve_nid = NID_X25519;
-            key->data.key.bit_size = X25519_BIT_SIZE;
-            key->data.key.size = X25519_BYTE_SIZE;
-        } else if (attr->ulValueLen == ED448_EC_PARAMS_LEN
-                   && memcmp(attr->pValue, x448_ec_params, X448_EC_PARAMS_LEN)
-                          == 0) {
-            curve_name = X448_NAME;
-            curve_nid = NID_X448;
-            key->data.key.bit_size = X448_BIT_SIZE;
-            key->data.key.size = X448_BYTE_SIZE;
-        } else {
-            const unsigned char *p = attr->pValue;
-            ASN1_OBJECT *asn1_obj = d2i_ASN1_OBJECT(NULL, &p, attr->ulValueLen);
-            if (asn1_obj == NULL) {
-                return CKR_KEY_INDIGESTIBLE;
-            }
-            int nid = OBJ_obj2nid(asn1_obj);
-            ASN1_OBJECT_free(asn1_obj);
-            if (nid == NID_X25519) {
-                curve_name = X25519_NAME;
-                curve_nid = NID_X25519;
-                key->data.key.bit_size = X25519_BIT_SIZE;
-                key->data.key.size = X25519_BYTE_SIZE;
-            } else if (nid == NID_X448) {
-                curve_name = X448_NAME;
-                curve_nid = NID_X448;
-                key->data.key.bit_size = X448_BIT_SIZE;
-                key->data.key.size = X448_BYTE_SIZE;
-            } else {
-                return CKR_KEY_INDIGESTIBLE;
-            }
-        }
     } else {
-        return CKR_KEY_INDIGESTIBLE;
+        ret = p11prov_match_curve(type, attr, &curve_name, &curve_nid,
+                                  &key->data.key.bit_size, &key->data.key.size);
+        if (ret != CKR_OK) {
+            return ret;
+        }
     }
     buffer_size = sizeof(curve_nid);
     buffer = OPENSSL_zalloc(buffer_size);

@@ -443,6 +443,8 @@ CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
             return CKR_KEY_INDIGESTIBLE;
         }
         break;
+    case CKK_EC_MONTGOMERY:
+        break;
     default:
         P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
                       "Invalid Key type, not an EC/ED key");
@@ -721,39 +723,6 @@ done:
     return ret;
 }
 
-static int p11prov_obj_get_ed_nid(CK_ATTRIBUTE *ecp)
-{
-    const unsigned char *val = ecp->pValue;
-    ASN1_OBJECT *obj = d2i_ASN1_OBJECT(NULL, &val, ecp->ulValueLen);
-    if (obj) {
-        int nid = OBJ_obj2nid(obj);
-        ASN1_OBJECT_free(obj);
-        if (nid != NID_undef) {
-            return nid;
-        }
-    }
-
-    /* it might be the parameters are encoded printable string
-     * which OpenSSL does not understand */
-    if (ecp->ulValueLen == ED25519_EC_PARAMS_LEN
-        && memcmp(ecp->pValue, ed25519_ec_params, ED25519_EC_PARAMS_LEN) == 0) {
-        return NID_ED25519;
-    } else if (ecp->ulValueLen == ED448_EC_PARAMS_LEN
-               && memcmp(ecp->pValue, ed448_ec_params, ED448_EC_PARAMS_LEN)
-                      == 0) {
-        return NID_ED448;
-    } else if (ecp->ulValueLen == X25519_EC_PARAMS_LEN
-               && memcmp(ecp->pValue, x25519_ec_params, X25519_EC_PARAMS_LEN)
-                      == 0) {
-        return NID_X25519;
-    } else if (ecp->ulValueLen == X448_EC_PARAMS_LEN
-               && memcmp(ecp->pValue, x448_ec_params, X448_EC_PARAMS_LEN)
-                      == 0) {
-        return NID_X448;
-    }
-    return NID_undef;
-}
-
 int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
                         int cmp_type)
 {
@@ -867,6 +836,7 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
         if (ret != RET_OSSL_OK) {
             /* If EC_PARAMS do not match it may be due to encoding. */
             CK_ATTRIBUTE *ec_p;
+            CK_RV rv;
             int nid1;
             int nid2;
 
@@ -874,8 +844,9 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
             if (!ec_p) {
                 return RET_OSSL_ERR;
             }
-            nid1 = p11prov_obj_get_ed_nid(ec_p);
-            if (nid1 == NID_undef) {
+            rv = p11prov_match_curve(key1->data.key.type, ec_p, NULL, &nid1,
+                                     NULL, NULL);
+            if (rv != CKR_OK) {
                 return RET_OSSL_ERR;
             }
 
@@ -883,8 +854,9 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
             if (!ec_p) {
                 return RET_OSSL_ERR;
             }
-            nid2 = p11prov_obj_get_ed_nid(ec_p);
-            if (nid2 == NID_undef) {
+            rv = p11prov_match_curve(key2->data.key.type, ec_p, NULL, &nid2,
+                                     NULL, NULL);
+            if (rv != CKR_OK) {
                 return RET_OSSL_ERR;
             }
             if (nid1 != nid2) {
@@ -924,4 +896,97 @@ int p11prov_obj_key_cmp(P11PROV_OBJ *key1, P11PROV_OBJ *key2, CK_KEY_TYPE type,
 
     /* if nothing fails it is a match */
     return RET_OSSL_OK;
+}
+
+/* curveName params */
+#define ED25519_EC_PARAMS \
+    0x13, 0x0c, 0x65, 0x64, 0x77, 0x61, 0x72, 0x64, 0x73, 0x32, 0x35, 0x35, \
+        0x31, 0x39
+#define ED448_EC_PARAMS \
+    0x13, 0x0a, 0x65, 0x64, 0x77, 0x61, 0x72, 0x64, 0x73, 0x34, 0x34, 0x38
+#define X25519_EC_PARAMS \
+    0x13, 0x0a, 0x63, 0x75, 0x72, 0x76, 0x65, 0x32, 0x35, 0x35, 0x31, 0x39
+#define X448_EC_PARAMS \
+    0x13, 0x08, 0x63, 0x75, 0x72, 0x76, 0x65, 0x34, 0x34, 0x38
+const CK_BYTE ed25519_ec_params[] = { ED25519_EC_PARAMS };
+const CK_BYTE ed448_ec_params[] = { ED448_EC_PARAMS };
+const CK_BYTE x25519_ec_params[] = { X25519_EC_PARAMS };
+const CK_BYTE x448_ec_params[] = { X448_EC_PARAMS };
+
+/* OID params */
+#define X25519_OID 0x06, 0x03, 0x2B, 0x65, 0x6E
+#define X448_OID 0x06, 0x03, 0x2B, 0x65, 0x6F
+#define ED25519_OID 0x06, 0x03, 0x2B, 0x65, 0x70
+#define ED448_OID 0x06, 0x03, 0x2B, 0x65, 0x71
+const CK_BYTE x25519_oid[] = { X25519_OID };
+const CK_BYTE x448_oid[] = { X448_OID };
+const CK_BYTE ed25519_oid[] = { ED25519_OID };
+const CK_BYTE ed448_oid[] = { ED448_OID };
+
+struct match_curve {
+    const CK_BYTE *params;
+    CK_ULONG params_len;
+    const char *curve_name;
+    int curve_nid;
+    CK_ULONG key_bit_size;
+    CK_ULONG key_size;
+};
+
+struct match_curve ed_params_table[] = {
+    { ed25519_oid, sizeof(ed25519_oid), ED25519, NID_ED25519, ED25519_BIT_SIZE,
+      ED25519_BYTE_SIZE },
+    { ed448_oid, sizeof(ed448_oid), ED448, NID_ED448, ED448_BIT_SIZE,
+      ED448_BYTE_SIZE },
+    { ed25519_ec_params, sizeof(ed25519_ec_params), ED25519, NID_ED25519,
+      ED25519_BIT_SIZE, ED25519_BYTE_SIZE },
+    { ed448_ec_params, sizeof(ed448_ec_params), ED448, NID_ED448,
+      ED448_BIT_SIZE, ED448_BYTE_SIZE },
+};
+
+struct match_curve x_params_table[] = {
+    { x25519_oid, sizeof(x25519_oid), X25519_NAME, NID_X25519, X25519_BIT_SIZE,
+      X25519_BYTE_SIZE },
+    { x448_oid, sizeof(x448_oid), X448_NAME, NID_X448, X448_BIT_SIZE,
+      X448_BYTE_SIZE },
+    { x25519_ec_params, sizeof(x25519_ec_params), X25519_NAME, NID_X25519,
+      X25519_BIT_SIZE, X25519_BYTE_SIZE },
+    { x448_ec_params, sizeof(x448_ec_params), X448_NAME, NID_X448,
+      X448_BIT_SIZE, X448_BYTE_SIZE },
+};
+
+CK_RV p11prov_match_curve(CK_KEY_TYPE type, CK_ATTRIBUTE *attr,
+                          const char **curve_name, int *curve_nid,
+                          CK_ULONG *key_bit_size, CK_ULONG *key_size)
+{
+    CK_RV rv = CKR_KEY_INDIGESTIBLE;
+    struct match_curve *table = NULL;
+    int table_size = 0;
+
+    if (type == CKK_EC_EDWARDS) {
+        table = ed_params_table;
+        table_size = sizeof(ed_params_table) / sizeof(struct match_curve);
+    } else if (type == CKK_EC_MONTGOMERY) {
+        table = x_params_table;
+        table_size = sizeof(x_params_table) / sizeof(struct match_curve);
+    }
+    for (int i = 0; i < table_size; i++) {
+        if (attr->ulValueLen == table[i].params_len
+            && memcmp(attr->pValue, table[i].params, attr->ulValueLen) == 0) {
+            if (curve_name) {
+                *curve_name = table[i].curve_name;
+            }
+            if (curve_nid) {
+                *curve_nid = table[i].curve_nid;
+            }
+            if (key_bit_size) {
+                *key_bit_size = table[i].key_bit_size;
+            }
+            if (key_size) {
+                *key_size = table[i].key_size;
+            }
+            rv = CKR_OK;
+            break;
+        }
+    }
+    return rv;
 }

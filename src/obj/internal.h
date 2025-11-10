@@ -59,6 +59,9 @@ P11PROV_OBJ *p11prov_obj_pool_find(P11PROV_OBJ_POOL *pool,
 CK_RV decode_ec_point(P11PROV_CTX *provctx, CK_KEY_TYPE key_type,
                       CK_ATTRIBUTE *attr, struct data_buffer *ec_point);
 CK_RV get_attrs_from_cert(P11PROV_OBJ *crt, CK_ATTRIBUTE *attrs, int num);
+CK_RV p11prov_match_curve(CK_KEY_TYPE type, CK_ATTRIBUTE *attr,
+                          const char **curve_name, int *curve_nid,
+                          CK_ULONG *key_bit_size, CK_ULONG *key_size);
 
 #define CKA_P11PROV_CURVE_NAME CKA_P11PROV_BASE + 1
 #define CKA_P11PROV_CURVE_NID CKA_P11PROV_BASE + 2
