@@ -7,6 +7,16 @@
 OPENSSL=$(which openssl3 2>/dev/null || true)
 OPENSSL=${OPENSSL:-openssl}
 
+get_openssl_major()
+{
+    $OPENSSL version | cut -d' ' -f2 | cut -d'.' -f1
+}
+
+get_openssl_minor()
+{
+    $OPENSSL version | cut -d' ' -f2 | cut -d'.' -f2
+}
+
 title()
 {
     case "$1" in

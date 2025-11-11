@@ -9,6 +9,19 @@ if [[ "$NSS_FIPS" = "1" ]] && [[ "$TOKENTYPE" = "softokn" ]]; then
     exit 77;
 fi
 
+TEST_ML_DSA=0
+if [ "${SUPPORT_ML_DSA}" -eq 1 ]; then
+    if [[ "$TOKENTYPE" = "kryoptic" ]]; then
+        OSSLMAJ=$(get_openssl_major)
+        OSSLMIN=$(get_openssl_minor)
+        if [[ $OSSLMAJ -gt 3 || ( $OSSLMAJ -eq 3 && $OSSLMIN -gt 5 ) ]]; then
+            TEST_ML_DSA=1
+        fi
+    else
+        TEST_ML_DSA=1
+    fi
+fi
+
 title PARA "Test SSL_CTX creation"
 $CHECKER "${TESTBLDDIR}/tlsctx"
 
@@ -139,7 +152,7 @@ run_tests() {
         run_test "$ED2PRIURI" "$ED2CRTURI"
     fi
 
-    if [[ -n "$MLDSABASEURI" ]]; then
+    if [ "$TEST_ML_DSA" -eq 1 ]; then
         title PARA "Run sanity test with default values (ML-DSA)"
         run_test "$MLDSAPRIURI" "$MLDSACRTURI"
     fi
