@@ -147,7 +147,7 @@ static int p11prov_rsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
             key = assoc;
         }
         BIO_printf(out, "PKCS11 RSA Public Key (%lu bits)\n", keysize);
-        ret = p11prov_obj_export_public_key(key, CKK_RSA, true, false,
+        ret = p11prov_obj_export_public_key(key, CKK_RSA, true,
                                             p11prov_rsa_print_public_key, out);
         if (ret != RET_OSSL_OK) {
             BIO_printf(out, "[Error: Failed to decode public key data]\n");
@@ -239,7 +239,7 @@ static P11PROV_RSA_PUBKEY *p11prov_rsa_pubkey_to_asn1(P11PROV_OBJ *key)
         return NULL;
     }
 
-    ret = p11prov_obj_export_public_key(key, CKK_RSA, true, false,
+    ret = p11prov_obj_export_public_key(key, CKK_RSA, true,
                                         p11prov_rsa_set_asn1key_data, asn1key);
 
     if (ret != RET_OSSL_OK) {
@@ -688,7 +688,7 @@ static X509_PUBKEY *p11prov_ec_pubkey_to_x509(P11PROV_OBJ *key)
     int ret;
 
     ret = p11prov_obj_export_public_key(
-        key, CKK_EC, true, false, p11prov_ec_set_keypoint_data, &keypoint);
+        key, CKK_EC, true, p11prov_ec_set_keypoint_data, &keypoint);
     if (ret != RET_OSSL_OK) {
         ecdsa_key_point_free(&keypoint);
         return NULL;
@@ -931,7 +931,7 @@ static int p11prov_ec_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
             key = assoc;
         }
         BIO_printf(out, "PKCS11 EC Public Key (%lu bits)\n", keysize);
-        ret = p11prov_obj_export_public_key(key, CKK_EC, true, false,
+        ret = p11prov_obj_export_public_key(key, CKK_EC, true,
                                             p11prov_ec_print_public_key, out);
         if (ret != RET_OSSL_OK) {
             BIO_printf(out, "[Error: Failed to decode public key data]\n");
@@ -1086,7 +1086,7 @@ static int p11prov_ec_edwards_encoder_encode_text(
         }
         BIO_printf(out, "PKCS11 %s Public Key (%lu bits)\n", type_name,
                    keysize);
-        ret = p11prov_obj_export_public_key(key, CKK_EC_EDWARDS, true, false,
+        ret = p11prov_obj_export_public_key(key, CKK_EC_EDWARDS, true,
                                             p11prov_ec_print_public_key, out);
         /* FIXME if we want print in different format */
         if (ret != RET_OSSL_OK) {
@@ -1175,7 +1175,7 @@ static int p11prov_ec_montgomery_encoder_encode_text(
         }
         BIO_printf(out, "PKCS11 %s Public Key (%lu bits)\n", type_name,
                    keysize);
-        ret = p11prov_obj_export_public_key(key, CKK_EC_MONTGOMERY, true, false,
+        ret = p11prov_obj_export_public_key(key, CKK_EC_MONTGOMERY, true,
                                             p11prov_ec_print_public_key, out);
         /* FIXME if we want print in different format */
         if (ret != RET_OSSL_OK) {
@@ -1255,9 +1255,8 @@ static X509_PUBKEY *p11prov_mldsa_pubkey_to_x509(P11PROV_OBJ *key)
         return NULL;
     }
 
-    ret = p11prov_obj_export_public_key(key, CKK_ML_DSA, true, false,
-                                        p11prov_mldsa_set_keypoint_data,
-                                        &keypoint);
+    ret = p11prov_obj_export_public_key(
+        key, CKK_ML_DSA, true, p11prov_mldsa_set_keypoint_data, &keypoint);
     if (ret != RET_OSSL_OK) {
         OPENSSL_clear_free(keypoint.octet, keypoint.len);
         return NULL;
@@ -1459,7 +1458,7 @@ static int p11prov_mldsa_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
         }
         BIO_printf(out, "PKCS11 %s Public Key\n", type_name);
         ret = p11prov_obj_export_public_key(
-            key, CKK_ML_DSA, true, false, p11prov_mldsa_print_public_key, out);
+            key, CKK_ML_DSA, true, p11prov_mldsa_print_public_key, out);
         /* FIXME if we want print in different format */
         if (ret != RET_OSSL_OK) {
             BIO_printf(out, "[Error: Failed to decode public key data]\n");
@@ -1538,9 +1537,8 @@ static X509_PUBKEY *p11prov_mlkem_pubkey_to_x509(P11PROV_OBJ *key)
         return NULL;
     }
 
-    ret = p11prov_obj_export_public_key(key, CKK_ML_KEM, true, false,
-                                        p11prov_mlkem_set_keypoint_data,
-                                        &keypoint);
+    ret = p11prov_obj_export_public_key(
+        key, CKK_ML_KEM, true, p11prov_mlkem_set_keypoint_data, &keypoint);
     if (ret != RET_OSSL_OK) {
         OPENSSL_clear_free(keypoint.octet, keypoint.len);
         return NULL;
@@ -1743,7 +1741,7 @@ static int p11prov_mlkem_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
         }
         BIO_printf(out, "PKCS11 %s Public Key\n", type_name);
         ret = p11prov_obj_export_public_key(
-            key, CKK_ML_KEM, true, false, p11prov_mlkem_print_public_key, out);
+            key, CKK_ML_KEM, true, p11prov_mlkem_print_public_key, out);
         /* FIXME if we want print in different format */
         if (ret != RET_OSSL_OK) {
             BIO_printf(out, "[Error: Failed to decode public key data]\n");

@@ -575,6 +575,12 @@ static int p11prov_ec_set_params(void *keydata, const OSSL_PARAM params[])
             != CKR_OK) {
             return RET_OSSL_ERR;
         }
+        /* Hack to make OpenSSL happy in the TLS code path.
+         * When OpenSSL creates ECX keys it ends up never giving us a chance
+         * to mark the key as public because there are no parameters to set or
+         * anything else. Fix it here. Note that setting the class only works
+         * on mock objects so we never risk overriding a proper object */
+        p11prov_obj_set_class(key, CKO_PUBLIC_KEY);
     }
 
     return RET_OSSL_OK;
