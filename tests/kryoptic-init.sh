@@ -19,12 +19,12 @@ find_kryoptic() {
 find_kryoptic \
     "${KRYOPTIC}/target/debug/libkryoptic_pkcs11.so" \
     "${KRYOPTIC}/target/release/libkryoptic_pkcs11.so" \
-    /usr/local/lib/kryoptic/libkryoptic_pkcs11so \
+    /usr/local/lib/kryoptic/libkryoptic_pkcs11.so \
     /usr/lib64/pkcs11/libkryoptic_pkcs11.so \
     /usr/lib/pkcs11/libkryoptic_pkcs11.so \
     /usr/lib/x86_64-linux-gnu/kryoptic/libkryoptic_pkcs11.so
 
-title LINE "Creating Kyroptic database"
+title LINE "Creating Kryoptic database"
 
 # Kryoptic configuration
 cat << EOF > "$TOKDIR/kryoptic.conf"
