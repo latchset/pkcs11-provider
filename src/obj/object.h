@@ -9,6 +9,8 @@
 
 /* Special value for "imported key handle" */
 #define CK_P11PROV_IMPORTED_HANDLE (CK_UNAVAILABLE_INFORMATION - 1)
+/* Spcial value for "new key" */
+#define CKO_P11PROV_NEW_KEY CKA_P11PROV_BASE + 1
 
 /* Objects */
 CK_RV p11prov_obj_pool_init(P11PROV_CTX *ctx, CK_SLOT_ID id,
