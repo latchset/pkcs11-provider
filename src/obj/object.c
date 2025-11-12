@@ -464,57 +464,48 @@ bool p11prov_obj_get_bool(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type, bool def)
     return def;
 }
 
+static bool is_key(CK_OBJECT_CLASS class)
+{
+    switch (class) {
+    case CKO_P11PROV_NEW_KEY:
+    case CKO_PRIVATE_KEY:
+    case CKO_PUBLIC_KEY:
+    case CKO_DOMAIN_PARAMETERS:
+    case CKO_SECRET_KEY:
+        return true;
+    default:
+        return false;
+    }
+}
+
 CK_KEY_TYPE p11prov_obj_get_key_type(P11PROV_OBJ *obj)
 {
-    if (obj) {
-        switch (obj->class) {
-        case CKO_PRIVATE_KEY:
-        case CKO_PUBLIC_KEY:
-        case CKO_DOMAIN_PARAMETERS:
-        case CKO_SECRET_KEY:
-            return obj->data.key.type;
-        }
+    if (obj && is_key(obj->class)) {
+        return obj->data.key.type;
     }
     return CK_UNAVAILABLE_INFORMATION;
 }
 
 CK_ULONG p11prov_obj_get_key_bit_size(P11PROV_OBJ *obj)
 {
-    if (obj) {
-        switch (obj->class) {
-        case CKO_PRIVATE_KEY:
-        case CKO_PUBLIC_KEY:
-        case CKO_DOMAIN_PARAMETERS:
-        case CKO_SECRET_KEY:
-            return obj->data.key.bit_size;
-        }
+    if (obj && is_key(obj->class)) {
+        return obj->data.key.bit_size;
     }
     return CK_UNAVAILABLE_INFORMATION;
 }
 
 CK_ULONG p11prov_obj_get_key_size(P11PROV_OBJ *obj)
 {
-    if (obj) {
-        switch (obj->class) {
-        case CKO_PRIVATE_KEY:
-        case CKO_PUBLIC_KEY:
-        case CKO_DOMAIN_PARAMETERS:
-        case CKO_SECRET_KEY:
-            return obj->data.key.size;
-        }
+    if (obj && is_key(obj->class)) {
+        return obj->data.key.size;
     }
     return CK_UNAVAILABLE_INFORMATION;
 }
 
 CK_ULONG p11prov_obj_get_key_param_set(P11PROV_OBJ *obj)
 {
-    if (obj) {
-        switch (obj->class) {
-        case CKO_PRIVATE_KEY:
-        case CKO_PUBLIC_KEY:
-        case CKO_DOMAIN_PARAMETERS:
-            return obj->data.key.param_set;
-        }
+    if (obj && is_key(obj->class)) {
+        return obj->data.key.param_set;
     }
     return CK_UNAVAILABLE_INFORMATION;
 }

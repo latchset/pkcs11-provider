@@ -360,9 +360,8 @@ void *p11prov_kmgmt_new(void *provctx, CK_KEY_TYPE type)
         return NULL;
     }
 
-    key =
-        p11prov_obj_new(provctx, CK_UNAVAILABLE_INFORMATION,
-                        CK_P11PROV_IMPORTED_HANDLE, CK_UNAVAILABLE_INFORMATION);
+    key = p11prov_obj_new(provctx, CK_UNAVAILABLE_INFORMATION,
+                          CK_P11PROV_IMPORTED_HANDLE, CKO_P11PROV_NEW_KEY);
     if (key) {
         p11prov_obj_set_key_type(key, type);
     }
@@ -477,8 +476,6 @@ int p11prov_kmgmt_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
     P11PROV_OBJ *key = (P11PROV_OBJ *)keydata;
     P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(key);
     CK_OBJECT_CLASS class = p11prov_obj_get_class(key);
-    /* NOTE: type is often CK_UNAVAILABLE_INFORMATION here
-     * because class is not set until later */
     CK_KEY_TYPE type = p11prov_obj_get_key_type(key);
 
     P11PROV_debug("key %p export (type: %ld, selection: %d)", key, type,
