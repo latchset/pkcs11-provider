@@ -50,11 +50,13 @@ wait_for_server_at_exit() {
 trap 'wait_for_server_at_exit $SERVER_PID;' EXIT
 
 OSSL_GROUPS='secp256r1:secp521r1:secp384r1:ffdhe2048:ffdhe3072:ffdhe4096:ffdhe6144:ffdhe8192'
-if [[ "${SUPPORT_X448}" = "1" ]]; then
-    OSSL_GROUPS='?x448_mlkem1024:?x448:'${OSSL_GROUPS}
-fi
-if [[ "${SUPPORT_X25519}" = "1" ]]; then
-    OSSL_GROUPS='?x25519_mlkem768:?x25519:'${OSSL_GROUPS}
+if [ "${NO_ECX_IN_TLS:-0}" -ne 1 ]; then
+    if [ "${SUPPORT_X448:-0}" -eq 1 ]; then
+        OSSL_GROUPS='?x448_mlkem1024:?x448:'${OSSL_GROUPS}
+    fi
+    if [ "${SUPPORT_X25519:-0}" -eq 1 ]; then
+        OSSL_GROUPS='?x25519_mlkem768:?x25519:'${OSSL_GROUPS}
+    fi
 fi
 PORT=23456
 
