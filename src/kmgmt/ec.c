@@ -963,7 +963,8 @@ const OSSL_DISPATCH p11prov_ed448_keymgmt_functions[] = {
     { 0, NULL },
 };
 
-DISPATCH_KEYMGMT_FN(ecx, new);
+DISPATCH_KEYMGMT_FN(x25519, new);
+DISPATCH_KEYMGMT_FN(x448, new);
 DISPATCH_KEYMGMT_FN(x25519, gen_init);
 DISPATCH_KEYMGMT_FN(x448, gen_init);
 DISPATCH_KEYMGMT_FN(ecx, load);
@@ -976,10 +977,40 @@ DISPATCH_KEYMGMT_FN(x448, query_operation_name);
 DISPATCH_KEYMGMT_FN(ecx, get_params);
 DISPATCH_KEYMGMT_FN(ecx, gettable_params);
 
-static void *p11prov_ecx_new(void *provctx)
+static void *p11prov_x25519_new(void *provctx)
 {
-    P11PROV_debug("ecx new");
-    return p11prov_kmgmt_new(provctx, CKK_EC_MONTGOMERY);
+    P11PROV_OBJ *key;
+
+    P11PROV_debug("x25519 new");
+
+    key = p11prov_kmgmt_new(provctx, CKK_EC_MONTGOMERY);
+    if (!key) {
+        return NULL;
+    }
+
+    /* must do this now because there isn't a good way to set
+     * it later before openssl tris to query these values */
+    p11prov_obj_set_key_bits(key, X25519_BIT_SIZE, X25519_BYTE_SIZE);
+
+    return key;
+}
+
+static void *p11prov_x448_new(void *provctx)
+{
+    P11PROV_OBJ *key;
+
+    P11PROV_debug("x448 new");
+
+    key = p11prov_kmgmt_new(provctx, CKK_EC_MONTGOMERY);
+    if (!key) {
+        return NULL;
+    }
+
+    /* must do this now because there isn't a good way to set
+     * it later before openssl tris to query these values */
+    p11prov_obj_set_key_bits(key, X448_BIT_SIZE, X448_BYTE_SIZE);
+
+    return key;
 }
 
 static void *p11prov_x25519_gen_init(void *provctx, int selection,
@@ -1245,7 +1276,7 @@ static const OSSL_PARAM *p11prov_ecx_gettable_params(void *provctx)
 }
 
 const OSSL_DISPATCH p11prov_x25519_keymgmt_functions[] = {
-    DISPATCH_KEYMGMT_ELEM(ecx, NEW, new),
+    DISPATCH_KEYMGMT_ELEM(x25519, NEW, new),
     DISPATCH_KEYMGMT_ELEM(x25519, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(ec, GEN, gen),
     DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),
@@ -1268,7 +1299,7 @@ const OSSL_DISPATCH p11prov_x25519_keymgmt_functions[] = {
 };
 
 const OSSL_DISPATCH p11prov_x448_keymgmt_functions[] = {
-    DISPATCH_KEYMGMT_ELEM(ecx, NEW, new),
+    DISPATCH_KEYMGMT_ELEM(x448, NEW, new),
     DISPATCH_KEYMGMT_ELEM(x448, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(ec, GEN, gen),
     DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),

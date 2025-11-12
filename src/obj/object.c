@@ -611,3 +611,13 @@ void p11prov_obj_set_key_params(P11PROV_OBJ *obj, CK_ULONG param_set)
         obj->data.key.param_set = param_set;
     }
 }
+
+void p11prov_obj_set_key_bits(P11PROV_OBJ *obj, CK_ULONG key_bit_size,
+                              CK_ULONG key_size)
+{
+    /* allow this only for mock objects */
+    if (obj->handle == CK_P11PROV_IMPORTED_HANDLE) {
+        obj->data.key.bit_size = key_bit_size;
+        obj->data.key.size = key_size;
+    }
+}
