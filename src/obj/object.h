@@ -9,7 +9,7 @@
 
 /* Special value for "imported key handle" */
 #define CK_P11PROV_IMPORTED_HANDLE (CK_UNAVAILABLE_INFORMATION - 1)
-/* Spcial value for "new key" */
+/* Special value for "new key" */
 #define CKO_P11PROV_NEW_KEY CKA_P11PROV_BASE + 1
 
 /* Objects */
@@ -49,6 +49,8 @@ P11PROV_URI *p11prov_obj_get_refresh_uri(P11PROV_OBJ *obj);
 void p11prov_obj_set_class(P11PROV_OBJ *obj, CK_OBJECT_CLASS class);
 void p11prov_obj_set_key_type(P11PROV_OBJ *obj, CK_KEY_TYPE type);
 void p11prov_obj_set_key_params(P11PROV_OBJ *obj, CK_ULONG param_set);
+void p11prov_obj_set_key_bits(P11PROV_OBJ *obj, CK_ULONG key_bit_size,
+                              CK_ULONG key_size);
 
 typedef CK_RV (*store_obj_callback)(void *, P11PROV_OBJ *);
 CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
