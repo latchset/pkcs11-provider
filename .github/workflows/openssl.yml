@@ -116,7 +116,21 @@ jobs:
         run: |
           export LD_LIBRARY_PATH="/opt/lib64/:$LD_LIBRARY_PATH"
           export PATH="/opt/bin:$PATH"
+          # FIXME: Temporarily disable Montgomery curves in groups until we
+          # we find out the underlying failure or kryoptic is built with a
+          # newer version that does not fail
+          export NO_ECX_IN_TLS=1
           meson test --num-processes 1 -C builddir
+
+      - name: Test (with Montgomery curves, expecting failure)
+        run: |
+          export LD_LIBRARY_PATH="/opt/lib64/:$LD_LIBRARY_PATH"
+          export PATH="/opt/bin:$PATH"
+          # Re-run and expect an error, so we can catch when we can re-add
+          # Montgomery curve groups in the above test. If this test passes,
+          # the workflow will fail to indicate that the workaround can be
+          # removed.
+          ! meson test --num-processes 1 -C builddir
 
       - uses: actions/upload-artifact@v4
         if: failure()
