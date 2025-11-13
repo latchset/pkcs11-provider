@@ -4,6 +4,21 @@
 #include "provider.h"
 #include <openssl/prov_ssl.h>
 
+/* Montgomery Curves */
+unsigned int x25519_group_id = 0x001d;
+unsigned int x25519_secbits = 128;
+int x25519_mintls = TLS1_2_VERSION;
+int x25519_maxtls = 0;
+int x25519_mindtls = DTLS1_2_VERSION;
+int x25519_maxdtls = 0;
+
+unsigned int x448_group_id = 0x001e;
+unsigned int x448_secbits = 224;
+int x448_mintls = TLS1_2_VERSION;
+int x448_maxtls = 0;
+int x448_mindtls = DTLS1_2_VERSION;
+int x448_maxdtls = 0;
+
 /* NIST EC */
 unsigned int p224_group_id = 0x0015;
 unsigned int p224_secbits = 112;
@@ -89,6 +104,17 @@ struct {
     const char *name;
     const OSSL_PARAM list[10];
 } tls_params[] = {
+    {
+        "x25519",
+        TLS_PARAMS_ENTRY("x25519", "X25519", "X25519", x25519_group_id,
+                         x25519_secbits, x25519_mintls, x25519_maxtls,
+                         x25519_mindtls, x25519_maxdtls),
+    },
+    {
+        "x448",
+        TLS_PARAMS_ENTRY("x448", "X448", "X448", x448_group_id, x448_secbits,
+                         x448_mintls, x448_maxtls, x448_mindtls, x448_maxdtls),
+    },
     {
         "secp224r1",
         TLS_PARAMS_ENTRY("secp224r1", "secp224r1", "EC", p224_group_id,
