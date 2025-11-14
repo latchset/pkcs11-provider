@@ -62,6 +62,130 @@ static void p11prov_encoder_freectx(void *ctx)
     OPENSSL_free(ctx);
 }
 
+static const char *p11prov_key_type_to_name(CK_KEY_TYPE type)
+{
+    switch (type) {
+    case CKK_RSA:
+        return "RSA";
+    case CKK_EC:
+        return "EC";
+    case CKK_ML_DSA:
+        return "ML-DSA";
+    case CKK_ML_KEM:
+        return "ML-KEM";
+    default:
+        return NULL;
+    }
+}
+
+int p11prov_rsa_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key);
+int p11prov_ec_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key);
+int p11prov_mldsa_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key);
+int p11prov_mlkem_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key);
+
+static X509_PUBKEY *p11prov_pubkey_to_x509(P11PROV_OBJ *key)
+{
+    X509_PUBKEY *pubkey = NULL;
+    CK_KEY_TYPE type;
+    int ret = RET_OSSL_ERR;
+
+    pubkey = X509_PUBKEY_new();
+    if (!pubkey) {
+        return NULL;
+    }
+
+    type = p11prov_obj_get_key_type(key);
+    switch (type) {
+    case CKK_RSA:
+        ret = p11prov_rsa_pubkey_to_x509(pubkey, key);
+        break;
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+    case CKK_EC_MONTGOMERY:
+        ret = p11prov_ec_pubkey_to_x509(pubkey, key);
+        break;
+    case CKK_ML_DSA:
+        ret = p11prov_mldsa_pubkey_to_x509(pubkey, key);
+        break;
+    case CKK_ML_KEM:
+        ret = p11prov_mlkem_pubkey_to_x509(pubkey, key);
+        break;
+    default:
+        break;
+    }
+
+    if (ret != RET_OSSL_OK) {
+        X509_PUBKEY_free(pubkey);
+        pubkey = NULL;
+    }
+    return pubkey;
+}
+
+static int p11prov_common_encoder_spki_der_encode(
+    void *inctx, OSSL_CORE_BIO *cbio, const void *inkey,
+    const OSSL_PARAM key_abstract[], int selection,
+    OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
+{
+    struct p11prov_encoder_ctx *ctx = (struct p11prov_encoder_ctx *)inctx;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)inkey;
+    CK_KEY_TYPE type;
+    const char *type_name;
+    CK_ATTRIBUTE *pkeyinfo = NULL;
+    X509_PUBKEY *pubkey = NULL;
+    BIO *out = NULL;
+    int ret;
+
+    /* we only return public key info */
+    if (!(selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY)) {
+        return RET_OSSL_ERR;
+    }
+
+    type = p11prov_obj_get_key_type(key);
+    type_name = p11prov_key_type_to_name(type);
+    if (!type_name) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Unknown Key Type");
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+
+    P11PROV_debug("DER Encoding %s SubjectPublicKeyInfo", type_name);
+
+    out = BIO_new_from_core_bio(p11prov_ctx_get_libctx(ctx->provctx), cbio);
+    if (!out) {
+        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Failed to init BIO");
+        ret = RET_OSSL_ERR;
+        goto done;
+    }
+
+    if (type != CKK_RSA) {
+        /* we exclude RSA because we need to recompute a different
+         * SubjectPublicKeyInfo in the RSA-PSS case, PKCS#11 only stores
+         * a RSA-PKCS SubjectPublicKeyInfo*/
+        pkeyinfo = p11prov_obj_get_attr(key, CKA_PUBLIC_KEY_INFO);
+    }
+    if (pkeyinfo && pkeyinfo->ulValueLen > 0) {
+        int len = BIO_write(out, pkeyinfo->pValue, pkeyinfo->ulValueLen);
+        if (len == pkeyinfo->ulValueLen) {
+            ret = RET_OSSL_OK;
+        } else {
+            ret = RET_OSSL_ERR;
+        }
+    } else {
+        pubkey = p11prov_pubkey_to_x509(key);
+        if (!pubkey) {
+            ret = RET_OSSL_ERR;
+            goto done;
+        }
+
+        ret = i2d_X509_PUBKEY_bio(out, pubkey);
+    }
+
+done:
+    X509_PUBKEY_free(pubkey);
+    BIO_free(out);
+    return ret;
+}
+
 DISPATCH_TEXT_ENCODER_FN(rsa, encode);
 
 static int p11prov_rsa_print_public_key(const OSSL_PARAM *params, void *bio)
@@ -268,9 +392,8 @@ static int p11prov_rsa_pubkey_to_der(P11PROV_OBJ *key, unsigned char **der,
     return RET_OSSL_OK;
 }
 
-static X509_PUBKEY *p11prov_rsa_pubkey_to_x509(P11PROV_OBJ *key)
+int p11prov_rsa_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key)
 {
-    X509_PUBKEY *pubkey;
     unsigned char *der = NULL;
     int derlen = 0;
     int ret, nid, ptype;
@@ -278,13 +401,7 @@ static X509_PUBKEY *p11prov_rsa_pubkey_to_x509(P11PROV_OBJ *key)
 
     ret = p11prov_rsa_pubkey_to_der(key, &der, &derlen);
     if (ret != RET_OSSL_OK) {
-        return NULL;
-    }
-
-    pubkey = X509_PUBKEY_new();
-    if (!pubkey) {
-        OPENSSL_free(der);
-        return NULL;
+        return ret;
     }
 
     if (p11prov_obj_is_rsa_pss(key)) {
@@ -302,11 +419,8 @@ static X509_PUBKEY *p11prov_rsa_pubkey_to_x509(P11PROV_OBJ *key)
                                  derlen);
     if (ret != RET_OSSL_OK) {
         OPENSSL_free(der);
-        X509_PUBKEY_free(pubkey);
-        return NULL;
     }
-
-    return pubkey;
+    return ret;
 }
 
 DISPATCH_ENCODER_FN(rsa, pkcs1, der, does_selection);
@@ -369,60 +483,11 @@ static int p11prov_rsa_encoder_spki_der_does_selection(void *inctx,
     return RET_OSSL_ERR;
 }
 
-static int p11prov_rsa_encoder_spki_der_encode(void *inctx, OSSL_CORE_BIO *cbio,
-                                               const void *inkey,
-                                               const OSSL_PARAM key_abstract[],
-                                               int selection,
-                                               OSSL_PASSPHRASE_CALLBACK *cb,
-                                               void *cbarg)
-{
-    struct p11prov_encoder_ctx *ctx = (struct p11prov_encoder_ctx *)inctx;
-    P11PROV_OBJ *key = (P11PROV_OBJ *)inkey;
-    CK_KEY_TYPE type;
-    X509_PUBKEY *pubkey = NULL;
-    BIO *out = NULL;
-    int ret;
-
-    P11PROV_debug("RSA SubjectPublicKeyInfo DER Encoder");
-
-    /* we only return public key info */
-    if (!(selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY)) {
-        return RET_OSSL_ERR;
-    }
-
-    type = p11prov_obj_get_key_type(key);
-    if (type != CKK_RSA) {
-        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid Key Type");
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-
-    out = BIO_new_from_core_bio(p11prov_ctx_get_libctx(ctx->provctx), cbio);
-    if (!out) {
-        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Failed to init BIO");
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-
-    pubkey = p11prov_rsa_pubkey_to_x509(key);
-    if (!pubkey) {
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-
-    ret = i2d_X509_PUBKEY_bio(out, pubkey);
-
-done:
-    X509_PUBKEY_free(pubkey);
-    BIO_free(out);
-    return ret;
-}
-
 const OSSL_DISPATCH p11prov_rsa_encoder_spki_der_functions[] = {
     DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
     DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
     DISPATCH_ENCODER_ELEM(DOES_SELECTION, rsa, spki, der, does_selection),
-    DISPATCH_ENCODER_ELEM(ENCODE, rsa, spki, der, encode),
+    DISPATCH_ENCODER_ELEM(ENCODE, common, spki, der, encode),
     { 0, NULL },
 };
 
@@ -681,23 +746,17 @@ static int p11prov_ec_set_keypoint_data(const OSSL_PARAM *params, void *key)
     return RET_OSSL_OK;
 }
 
-static X509_PUBKEY *p11prov_ec_pubkey_to_x509(P11PROV_OBJ *key)
+int p11prov_ec_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key)
 {
     struct ecdsa_key_point keypoint = { 0 };
-    X509_PUBKEY *pubkey;
     int ret;
 
-    ret = p11prov_obj_export_public_key(
-        key, CKK_EC, true, p11prov_ec_set_keypoint_data, &keypoint);
+    ret =
+        p11prov_obj_export_public_key(key, CK_UNAVAILABLE_INFORMATION, false,
+                                      p11prov_ec_set_keypoint_data, &keypoint);
     if (ret != RET_OSSL_OK) {
         ecdsa_key_point_free(&keypoint);
-        return NULL;
-    }
-
-    pubkey = X509_PUBKEY_new();
-    if (!pubkey) {
-        ecdsa_key_point_free(&keypoint);
-        return NULL;
+        return ret;
     }
 
     ret = X509_PUBKEY_set0_param(pubkey, OBJ_nid2obj(NID_X9_62_id_ecPublicKey),
@@ -705,11 +764,10 @@ static X509_PUBKEY *p11prov_ec_pubkey_to_x509(P11PROV_OBJ *key)
                                  keypoint.octet, keypoint.octet_len);
     if (ret != RET_OSSL_OK) {
         ecdsa_key_point_free(&keypoint);
-        X509_PUBKEY_free(pubkey);
-        return NULL;
+        return ret;
     }
 
-    return pubkey;
+    return RET_OSSL_OK;
 }
 
 DISPATCH_ENCODER_FN(ec, pkcs1, der, does_selection);
@@ -776,60 +834,11 @@ static int p11prov_ec_encoder_spki_der_does_selection(void *inctx,
     return RET_OSSL_ERR;
 }
 
-static int p11prov_ec_encoder_spki_der_encode(void *inctx, OSSL_CORE_BIO *cbio,
-                                              const void *inkey,
-                                              const OSSL_PARAM key_abstract[],
-                                              int selection,
-                                              OSSL_PASSPHRASE_CALLBACK *cb,
-                                              void *cbarg)
-{
-    struct p11prov_encoder_ctx *ctx = (struct p11prov_encoder_ctx *)inctx;
-    P11PROV_OBJ *key = (P11PROV_OBJ *)inkey;
-    CK_KEY_TYPE type;
-    X509_PUBKEY *pubkey = NULL;
-    BIO *out = NULL;
-    int ret;
-
-    P11PROV_debug("EC SubjectPublicKeyInfo DER Encoder");
-
-    /* we only return public key info */
-    if (!(selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY)) {
-        return RET_OSSL_ERR;
-    }
-
-    type = p11prov_obj_get_key_type(key);
-    if (type != CKK_EC) {
-        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid Key Type");
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-
-    out = BIO_new_from_core_bio(p11prov_ctx_get_libctx(ctx->provctx), cbio);
-    if (!out) {
-        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Failed to init BIO");
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-
-    pubkey = p11prov_ec_pubkey_to_x509(key);
-    if (!pubkey) {
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-
-    ret = i2d_X509_PUBKEY_bio(out, pubkey);
-
-done:
-    X509_PUBKEY_free(pubkey);
-    BIO_free(out);
-    return ret;
-}
-
 const OSSL_DISPATCH p11prov_ec_encoder_spki_der_functions[] = {
     DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
     DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
     DISPATCH_ENCODER_ELEM(DOES_SELECTION, ec, spki, der, does_selection),
-    DISPATCH_ENCODER_ELEM(ENCODE, ec, spki, der, encode),
+    DISPATCH_ENCODER_ELEM(ENCODE, common, spki, der, encode),
     { 0, NULL },
 };
 
@@ -1233,13 +1242,12 @@ static int p11prov_mldsa_set_keypoint_data(const OSSL_PARAM *params, void *key)
 }
 #endif /* defined(NID_ML_DSA_44) */
 
-static X509_PUBKEY *p11prov_mldsa_pubkey_to_x509(P11PROV_OBJ *key)
+int p11prov_mldsa_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key)
 {
+    int ret = RET_OSSL_ERR;
 #ifdef NID_ML_DSA_44
     struct mldsa_key_point keypoint = { 0 };
-    X509_PUBKEY *pubkey;
     int nid = NID_undef;
-    int ret;
 
     switch (p11prov_obj_get_key_param_set(key)) {
     case CKP_ML_DSA_44:
@@ -1252,34 +1260,25 @@ static X509_PUBKEY *p11prov_mldsa_pubkey_to_x509(P11PROV_OBJ *key)
         nid = NID_ML_DSA_87;
         break;
     default:
-        return NULL;
+        goto done;
     }
 
     ret = p11prov_obj_export_public_key(
         key, CKK_ML_DSA, true, p11prov_mldsa_set_keypoint_data, &keypoint);
     if (ret != RET_OSSL_OK) {
-        OPENSSL_clear_free(keypoint.octet, keypoint.len);
-        return NULL;
-    }
-
-    pubkey = X509_PUBKEY_new();
-    if (!pubkey) {
-        OPENSSL_clear_free(keypoint.octet, keypoint.len);
-        return NULL;
+        goto done;
     }
 
     ret = X509_PUBKEY_set0_param(pubkey, OBJ_nid2obj(nid), V_ASN1_UNDEF, NULL,
                                  keypoint.octet, keypoint.len);
+
+done:
     if (ret != RET_OSSL_OK) {
         OPENSSL_clear_free(keypoint.octet, keypoint.len);
-        X509_PUBKEY_free(pubkey);
-        return NULL;
     }
-
-    return pubkey;
-#else
-    return NULL;
 #endif
+
+    return ret;
 }
 
 /* SubjectPublicKeyInfo DER Encode */
@@ -1294,58 +1293,11 @@ static int p11prov_mldsa_encoder_spki_der_does_selection(void *inctx,
     return RET_OSSL_ERR;
 }
 
-static int p11prov_mldsa_encoder_spki_der_encode(
-    void *inctx, OSSL_CORE_BIO *cbio, const void *inkey,
-    const OSSL_PARAM key_abstract[], int selection,
-    OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
-{
-    struct p11prov_encoder_ctx *ctx = (struct p11prov_encoder_ctx *)inctx;
-    P11PROV_OBJ *key = (P11PROV_OBJ *)inkey;
-    CK_KEY_TYPE type;
-    X509_PUBKEY *pubkey = NULL;
-    BIO *out = NULL;
-    int ret;
-
-    P11PROV_debug("mldsa SubjectPublicKeyInfo DER Encoder");
-
-    /* we only return public key info */
-    if (!(selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY)) {
-        return RET_OSSL_ERR;
-    }
-
-    type = p11prov_obj_get_key_type(key);
-    if (type != CKK_ML_DSA) {
-        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid Key Type");
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-
-    out = BIO_new_from_core_bio(p11prov_ctx_get_libctx(ctx->provctx), cbio);
-    if (!out) {
-        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Failed to init BIO");
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-
-    pubkey = p11prov_mldsa_pubkey_to_x509(key);
-    if (!pubkey) {
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-
-    ret = i2d_X509_PUBKEY_bio(out, pubkey);
-
-done:
-    X509_PUBKEY_free(pubkey);
-    BIO_free(out);
-    return ret;
-}
-
 const OSSL_DISPATCH p11prov_mldsa_encoder_spki_der_functions[] = {
     DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
     DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
     DISPATCH_ENCODER_ELEM(DOES_SELECTION, mldsa, spki, der, does_selection),
-    DISPATCH_ENCODER_ELEM(ENCODE, mldsa, spki, der, encode),
+    DISPATCH_ENCODER_ELEM(ENCODE, common, spki, der, encode),
     { 0, NULL },
 };
 
@@ -1515,13 +1467,12 @@ static int p11prov_mlkem_set_keypoint_data(const OSSL_PARAM *params, void *key)
 }
 #endif /* defined(NID_ML_KEM_512) */
 
-static X509_PUBKEY *p11prov_mlkem_pubkey_to_x509(P11PROV_OBJ *key)
+int p11prov_mlkem_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key)
 {
+    int ret = RET_OSSL_ERR;
 #ifdef NID_ML_KEM_512
     struct mlkem_key_point keypoint = { 0 };
-    X509_PUBKEY *pubkey;
     int nid = NID_undef;
-    int ret;
 
     switch (p11prov_obj_get_key_param_set(key)) {
     case CKP_ML_KEM_512:
@@ -1534,34 +1485,25 @@ static X509_PUBKEY *p11prov_mlkem_pubkey_to_x509(P11PROV_OBJ *key)
         nid = NID_ML_KEM_1024;
         break;
     default:
-        return NULL;
+        goto done;
     }
 
     ret = p11prov_obj_export_public_key(
         key, CKK_ML_KEM, true, p11prov_mlkem_set_keypoint_data, &keypoint);
     if (ret != RET_OSSL_OK) {
-        OPENSSL_clear_free(keypoint.octet, keypoint.len);
-        return NULL;
-    }
-
-    pubkey = X509_PUBKEY_new();
-    if (!pubkey) {
-        OPENSSL_clear_free(keypoint.octet, keypoint.len);
-        return NULL;
+        goto done;
     }
 
     ret = X509_PUBKEY_set0_param(pubkey, OBJ_nid2obj(nid), V_ASN1_UNDEF, NULL,
                                  keypoint.octet, keypoint.len);
+
+done:
     if (ret != RET_OSSL_OK) {
         OPENSSL_clear_free(keypoint.octet, keypoint.len);
-        X509_PUBKEY_free(pubkey);
-        return NULL;
     }
-
-    return pubkey;
-#else
-    return NULL;
 #endif
+
+    return ret;
 }
 
 /* SubjectPublicKeyInfo DER Encode */
@@ -1576,58 +1518,11 @@ static int p11prov_mlkem_encoder_spki_der_does_selection(void *inctx,
     return RET_OSSL_ERR;
 }
 
-static int p11prov_mlkem_encoder_spki_der_encode(
-    void *inctx, OSSL_CORE_BIO *cbio, const void *inkey,
-    const OSSL_PARAM key_abstract[], int selection,
-    OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg)
-{
-    struct p11prov_encoder_ctx *ctx = (struct p11prov_encoder_ctx *)inctx;
-    P11PROV_OBJ *key = (P11PROV_OBJ *)inkey;
-    CK_KEY_TYPE type;
-    X509_PUBKEY *pubkey = NULL;
-    BIO *out = NULL;
-    int ret;
-
-    P11PROV_debug("mlkem SubjectPublicKeyInfo DER Encoder");
-
-    /* we only return public key info */
-    if (!(selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY)) {
-        return RET_OSSL_ERR;
-    }
-
-    type = p11prov_obj_get_key_type(key);
-    if (type != CKK_ML_KEM) {
-        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Invalid Key Type");
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-
-    out = BIO_new_from_core_bio(p11prov_ctx_get_libctx(ctx->provctx), cbio);
-    if (!out) {
-        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR, "Failed to init BIO");
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-
-    pubkey = p11prov_mlkem_pubkey_to_x509(key);
-    if (!pubkey) {
-        ret = RET_OSSL_ERR;
-        goto done;
-    }
-
-    ret = i2d_X509_PUBKEY_bio(out, pubkey);
-
-done:
-    X509_PUBKEY_free(pubkey);
-    BIO_free(out);
-    return ret;
-}
-
 const OSSL_DISPATCH p11prov_mlkem_encoder_spki_der_functions[] = {
     DISPATCH_BASE_ENCODER_ELEM(NEWCTX, newctx),
     DISPATCH_BASE_ENCODER_ELEM(FREECTX, freectx),
     DISPATCH_ENCODER_ELEM(DOES_SELECTION, mlkem, spki, der, does_selection),
-    DISPATCH_ENCODER_ELEM(ENCODE, mlkem, spki, der, encode),
+    DISPATCH_ENCODER_ELEM(ENCODE, common, spki, der, encode),
     { 0, NULL },
 };
 
