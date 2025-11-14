@@ -3,38 +3,44 @@
 
 #include "obj/internal.h"
 
+/* clang-format off */
+#define COMMON_KEY_ATTRIBUTES \
+    { { CKA_ID, NULL, 0 }, true, false }, \
+    { { CKA_LABEL, NULL, 0 }, true, false }
+
+#define COMMON_KEYPAIR_ATTRIBUTES \
+    COMMON_KEY_ATTRIBUTES, \
+    { { CKA_PUBLIC_KEY_INFO, NULL, 0 }, true, false }
+/* clang-format on */
+
 const struct fetch_attrs RSA_public_attrs[] = {
+    COMMON_KEYPAIR_ATTRIBUTES,
     { { CKA_MODULUS, NULL, 0 }, true, true },
     { { CKA_PUBLIC_EXPONENT, NULL, 0 }, true, true },
-    { { CKA_ID, NULL, 0 }, true, false },
-    { { CKA_LABEL, NULL, 0 }, true, false },
 };
 
 const struct fetch_attrs RSA_private_attrs[] = {
+    COMMON_KEYPAIR_ATTRIBUTES,
     { { CKA_MODULUS, NULL, 0 }, true, true },
     /* not required on private keys because some tokens don't store it */
     { { CKA_PUBLIC_EXPONENT, NULL, 0 }, true, false },
-    { { CKA_ID, NULL, 0 }, true, false },
-    { { CKA_LABEL, NULL, 0 }, true, false },
     { { CKA_ALWAYS_AUTHENTICATE, NULL, 0 }, true, false },
 };
 
 const struct fetch_attrs EC_public_attrs[] = {
+    COMMON_KEYPAIR_ATTRIBUTES,
     { { CKA_EC_PARAMS, NULL, 0 }, true, true },
     { { CKA_EC_POINT, NULL, 0 }, true, true },
-    { { CKA_ID, NULL, 0 }, true, false },
-    { { CKA_LABEL, NULL, 0 }, true, false },
 };
 
 const struct fetch_attrs EC_private_attrs[] = {
+    COMMON_KEYPAIR_ATTRIBUTES,
     { { CKA_EC_PARAMS, NULL, 0 }, true, true },
     /* known vendor optimization to avoid storing
      * EC public key on HSM is to store EC_POINT on the private
      * one similarly to how RSA stores CKA_PUBLIC_EXPONENT, it is
      * out of spec but avoids p11prov_obj_find_associated later */
     { { CKA_EC_POINT, NULL, 0 }, true, false },
-    { { CKA_ID, NULL, 0 }, true, false },
-    { { CKA_LABEL, NULL, 0 }, true, false },
     { { CKA_ALWAYS_AUTHENTICATE, NULL, 0 }, true, false },
 };
 
@@ -50,14 +56,12 @@ const struct fetch_attrs EC_private_attrs[] = {
 #define EXTRA_EC_PARAMS 3
 
 const struct fetch_attrs ML_DSA_public_attrs[] = {
+    COMMON_KEYPAIR_ATTRIBUTES,
     { { CKA_VALUE, NULL, 0 }, true, true },
-    { { CKA_ID, NULL, 0 }, true, false },
-    { { CKA_LABEL, NULL, 0 }, true, false },
 };
 
 const struct fetch_attrs ML_DSA_private_attrs[] = {
-    { { CKA_ID, NULL, 0 }, true, false },
-    { { CKA_LABEL, NULL, 0 }, true, false },
+    COMMON_KEYPAIR_ATTRIBUTES,
     { { CKA_ALWAYS_AUTHENTICATE, NULL, 0 }, true, false },
 };
 
@@ -65,8 +69,7 @@ const struct fetch_attrs ML_DSA_private_attrs[] = {
 #define ML_KEM_private_attrs ML_DSA_private_attrs
 
 const struct fetch_attrs secret_key_attrs[] = {
-    { { CKA_ID, NULL, 0 }, true, false },
-    { { CKA_LABEL, NULL, 0 }, true, false },
+    COMMON_KEY_ATTRIBUTES,
     { { CKA_ALWAYS_AUTHENTICATE, NULL, 0 }, true, false },
     { { CKA_SENSITIVE, NULL, 0 }, true, false },
     { { CKA_EXTRACTABLE, NULL, 0 }, true, false },
@@ -74,7 +77,7 @@ const struct fetch_attrs secret_key_attrs[] = {
 };
 #define SKATTRS sizeof(secret_key_attrs) / sizeof(struct fetch_attrs)
 
-#define MAX_ATTRS_NUM 6
+#define MAX_ATTRS_NUM (sizeof(secret_key_attrs) / sizeof(struct fetch_attrs))
 
 #define FILL_ATTRS(name, alloc) \
     { CKO_PUBLIC_KEY, CKK_##name, name##_public_attrs, \
