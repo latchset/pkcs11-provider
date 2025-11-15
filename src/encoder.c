@@ -17,22 +17,40 @@ static int p11prov_print_bn(BIO *out, const OSSL_PARAM *p, const char *str,
     if (ret != RET_OSSL_OK) {
         return RET_OSSL_ERR;
     }
-    ASN1_bn_print(out, str, bn, NULL, indent);
+    ret = ASN1_bn_print(out, str, bn, NULL, indent);
     BN_free(bn);
 
-    return RET_OSSL_OK;
+    return ret;
 }
 
 static int p11prov_print_buf(BIO *out, const OSSL_PARAM *p, const char *str,
                              int indent)
 {
+    int ret;
+
     if (p->data_type != OSSL_PARAM_OCTET_STRING) {
         return RET_OSSL_ERR;
     }
     BIO_printf(out, "%s\n", str);
-    ASN1_buf_print(out, p->data, p->data_size, indent);
+    ret = ASN1_buf_print(out, p->data, p->data_size, indent);
 
-    return RET_OSSL_OK;
+    return ret;
+}
+
+static int p11prov_print_ASN1_INTEGER(BIO *out, ASN1_INTEGER *n,
+                                      const char *str, int indent)
+{
+    BIGNUM *bn = NULL;
+    int ret;
+
+    bn = ASN1_INTEGER_to_BN(n, NULL);
+    if (!bn) {
+        return RET_OSSL_ERR;
+    }
+    ret = ASN1_bn_print(out, str, bn, NULL, indent);
+    BN_free(bn);
+
+    return ret;
 }
 
 DISPATCH_BASE_ENCODER_FN(newctx);
@@ -65,7 +83,7 @@ static void p11prov_encoder_freectx(void *ctx)
 static const char *p11prov_key_type_name(P11PROV_OBJ *key)
 {
     CK_KEY_TYPE type;
-    CK_ULONG param_set;
+    CK_ULONG subtype;
     type = p11prov_obj_get_key_type(key);
 
     switch (type) {
@@ -74,12 +92,26 @@ static const char *p11prov_key_type_name(P11PROV_OBJ *key)
     case CKK_EC:
         return "EC";
     case CKK_EC_EDWARDS:
-        return "EC Edwards";
+        subtype = p11prov_obj_get_key_bit_size(key);
+        switch (subtype) {
+        case ED25519_BIT_SIZE:
+            return "ED25519";
+        case ED448_BIT_SIZE:
+            return "ED448";
+        }
+        break;
     case CKK_EC_MONTGOMERY:
-        return "EC Montgomery";
+        subtype = p11prov_obj_get_key_bit_size(key);
+        switch (subtype) {
+        case X25519_BIT_SIZE:
+            return "X25519";
+        case X448_BIT_SIZE:
+            return "X448";
+        }
+        break;
     case CKK_ML_DSA:
-        param_set = p11prov_obj_get_key_param_set(key);
-        switch (param_set) {
+        subtype = p11prov_obj_get_key_param_set(key);
+        switch (subtype) {
         case CKP_ML_DSA_44:
             return "ML-DSA-44";
         case CKP_ML_DSA_65:
@@ -89,8 +121,8 @@ static const char *p11prov_key_type_name(P11PROV_OBJ *key)
         }
         break;
     case CKK_ML_KEM:
-        param_set = p11prov_obj_get_key_param_set(key);
-        switch (param_set) {
+        subtype = p11prov_obj_get_key_param_set(key);
+        switch (subtype) {
         case CKP_ML_KEM_512:
             return "ML-KEM-512";
         case CKP_ML_KEM_768:
@@ -102,6 +134,8 @@ static const char *p11prov_key_type_name(P11PROV_OBJ *key)
     }
     return NULL;
 }
+
+#include "encoder.gen.c"
 
 int p11prov_rsa_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key);
 int p11prov_ec_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key);
@@ -270,6 +304,130 @@ static int p11prov_print_public_key(const OSSL_PARAM *params, void *bio)
     return RET_OSSL_OK;
 }
 
+static int p11prov_print_pkeyinfo(CK_ATTRIBUTE *pkeyinfo, BIO *out)
+{
+    X509_PUBKEY *pubkey = NULL;
+    const unsigned char *val = pkeyinfo->pValue;
+    long len = pkeyinfo->ulValueLen;
+    const unsigned char *pk;
+    int pklen;
+    ASN1_OBJECT *spkioid;
+    X509_ALGOR *alg;
+    int nid;
+    int ret;
+
+    pubkey = d2i_X509_PUBKEY(NULL, &val, len);
+    if (!pubkey) {
+        return RET_OSSL_ERR;
+    }
+
+    ret = X509_PUBKEY_get0_param(&spkioid, &pk, &pklen, &alg, pubkey);
+    if (ret != RET_OSSL_OK) {
+        goto done;
+    }
+
+    nid = OBJ_obj2nid(spkioid);
+    if (nid == NID_rsaEncryption || nid == NID_rsassaPss) {
+        P11PROV_RSA_PUBKEY *asn1key;
+
+        asn1key = d2i_P11PROV_RSA_PUBKEY(NULL, &pk, pklen);
+        if (!asn1key) {
+            ret = RET_OSSL_ERR;
+            goto done;
+        }
+
+        ret = p11prov_print_ASN1_INTEGER(out, asn1key->n, "Modulus:", 0);
+        if (ret != RET_OSSL_OK) {
+            P11PROV_RSA_PUBKEY_free(asn1key);
+            goto done;
+        }
+
+        ret = p11prov_print_ASN1_INTEGER(out, asn1key->e, "Exponent:", 0);
+        if (ret != RET_OSSL_OK) {
+            P11PROV_RSA_PUBKEY_free(asn1key);
+            goto done;
+        }
+
+        P11PROV_RSA_PUBKEY_free(asn1key);
+        ret = RET_OSSL_OK;
+
+    } else if (nid == NID_X9_62_id_ecPublicKey) {
+        const void *pval;
+        int ptype = 0;
+
+        X509_ALGOR_get0(NULL, &ptype, &pval, alg);
+        if (ptype == V_ASN1_OBJECT) {
+            const char *name;
+
+            nid = OBJ_obj2nid(pval);
+            BIO_printf(out, "ASN1 OID: %s\n", OBJ_nid2sn(nid));
+
+            name = EC_curve_nid2nist(nid);
+            if (name) {
+                BIO_printf(out, "NIST CURVE: %s\n", name);
+            }
+        } else if (ptype == V_ASN1_SEQUENCE) {
+            const ASN1_STRING *pstr = pval;
+            const unsigned char *pm = pstr->data;
+            int pmlen = pstr->length;
+            EC_GROUP *group;
+
+            group = d2i_ECPKParameters(NULL, &pm, pmlen);
+            if (group) {
+                nid = EC_GROUP_get_curve_name(group);
+                if (nid != NID_undef) {
+                    const char *name;
+                    BIO_printf(out, "ASN1 OID: %s\n", OBJ_nid2sn(nid));
+                    name = OSSL_EC_curve_nid2name(nid);
+                    if (name) {
+                        BIO_printf(out, "CURVE NAME: %s\n", name);
+                    }
+                } else {
+                    nid = EC_GROUP_get_field_type(group);
+                    BIO_printf(out, "FIELD TYPE: %s\n", OBJ_nid2sn(nid));
+                }
+                EC_GROUP_free(group);
+            } else {
+                BIO_printf(out, "Error: [Failed to decode EC Parameters]");
+            }
+        } else {
+            /* Should never happen */
+            BIO_printf(out, "Error: [Failed to decode EC Parameters]");
+            ret = RET_OSSL_ERR;
+            goto done;
+        }
+
+        BIO_printf(out, "Pub:\n");
+        ret = ASN1_buf_print(out, pk, pklen, 4);
+
+    } else if (nid == NID_ED25519 || nid == NID_ED448 || nid == NID_X25519
+               || nid == NID_X448) {
+        BIO_printf(out, "Pub:\n");
+        ret = ASN1_buf_print(out, pk, pklen, 4);
+    }
+#ifdef NID_ML_DSA_44
+    else if (nid == NID_ML_DSA_44 || nid == NID_ML_DSA_65
+             || nid == NID_ML_DSA_87) {
+        BIO_printf(out, "Pub:\n");
+        ret = ASN1_buf_print(out, pk, pklen, 4);
+    }
+#endif
+#ifdef NID_ML_KEM_512
+    else if (nid == NID_ML_KEM_512 || nid == NID_ML_KEM_768
+             || nid == NID_ML_KEM_1024) {
+        BIO_printf(out, "Pub:\n");
+        ret = ASN1_buf_print(out, pk, pklen, 4);
+    }
+#endif
+    else {
+        ret = RET_OSSL_ERR;
+    }
+
+done:
+    X509_PUBKEY_free(pubkey);
+    return ret;
+}
+
 static int p11prov_common_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
                                               const void *inkey,
                                               const OSSL_PARAM key_abstract[],
@@ -315,25 +473,60 @@ static int p11prov_common_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
 
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
         CK_KEY_TYPE type = p11prov_obj_get_key_type(key);
+        CK_ATTRIBUTE *pkeyinfo = NULL;
+        P11PROV_OBJ *public = NULL;
+        bool free_public = false;
 
-        if (class != CKO_PUBLIC_KEY) {
-            P11PROV_OBJ *assoc;
-
-            assoc = p11prov_obj_find_associated(key, CKO_PUBLIC_KEY);
-            if (!assoc) {
-                BIO_printf(out, "[Error: Failed to source public key data]\n");
-                goto done;
-            }
-
-            /* replace key before printing the rest */
-            key = assoc;
-        }
         BIO_printf(out, "PKCS11 %s Public Key (%lu bits)\n", type_name,
                    keysize);
-        ret = p11prov_obj_export_public_key(key, type, true,
-                                            p11prov_print_public_key, out);
-        if (ret != RET_OSSL_OK) {
-            BIO_printf(out, "[Error: Failed to decode public key data]\n");
+
+        if (class == CKO_PUBLIC_KEY) {
+            pkeyinfo = p11prov_obj_get_attr(key, CKA_PUBLIC_KEY_INFO);
+            if (pkeyinfo) {
+                if (pkeyinfo->ulValueLen == 0) {
+                    pkeyinfo = NULL;
+                }
+            }
+            if (!pkeyinfo) {
+                public = key;
+            }
+        } else {
+            /* Hopefully we have info on the private key */
+            pkeyinfo = p11prov_obj_get_attr(key, CKA_PUBLIC_KEY_INFO);
+            if (pkeyinfo && pkeyinfo->ulValueLen == 0) {
+                pkeyinfo = NULL;
+            }
+            /* Otherwise try the most expensive option */
+            if (!pkeyinfo) {
+                public = p11prov_obj_find_associated(key, CKO_PUBLIC_KEY);
+                free_public = true;
+            }
+            if (public) {
+                pkeyinfo = p11prov_obj_get_attr(public, CKA_PUBLIC_KEY_INFO);
+                if (pkeyinfo && pkeyinfo->ulValueLen > 0) {
+                    public = NULL;
+                } else {
+                    pkeyinfo = NULL;
+                }
+            }
+            if (!public && !pkeyinfo) {
+                BIO_printf(out, "[Error: Failed to source public key info]\n");
+            }
+        }
+        if (public) {
+            ret = p11prov_obj_export_public_key(public, type, true,
+                                                p11prov_print_public_key, out);
+            if (ret != RET_OSSL_OK) {
+                BIO_printf(out, "[Error: Failed to decode public key data]\n");
+            }
+            if (free_public) {
+                p11prov_obj_free(public);
+            }
+        } else if (pkeyinfo) {
+            ret = p11prov_print_pkeyinfo(pkeyinfo, out);
+            if (ret != RET_OSSL_OK) {
+                BIO_printf(out, "[Error: Failed to decode public key info]\n");
+            }
         }
     }
 
@@ -343,9 +536,6 @@ static int p11prov_common_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
     }
 
 done:
-    if (key != inkey) {
-        p11prov_obj_free(key);
-    }
     BIO_free(out);
     return RET_OSSL_OK;
 }
@@ -356,8 +546,6 @@ const OSSL_DISPATCH p11prov_rsa_encoder_text_functions[] = {
     DISPATCH_TEXT_ENCODER_ELEM(ENCODE, common, encode_text),
     { 0, NULL },
 };
-
-#include "encoder.gen.c"
 
 static int p11prov_rsa_set_asn1key_data(const OSSL_PARAM *params, void *key)
 {
@@ -414,8 +602,34 @@ done:
 
 static P11PROV_RSA_PUBKEY *p11prov_rsa_pubkey_to_asn1(P11PROV_OBJ *key)
 {
-    P11PROV_RSA_PUBKEY *asn1key;
+    P11PROV_RSA_PUBKEY *asn1key = NULL;
+    CK_ATTRIBUTE *pkeyinfo = NULL;
+    X509_PUBKEY *pubkey = NULL;
+    const unsigned char *val;
+    long len;
+    const unsigned char *pk;
+    int pklen;
     int ret;
+
+    /* try with Public Key Info, and fallback to exporting */
+    pkeyinfo = p11prov_obj_get_attr(key, CKA_PUBLIC_KEY_INFO);
+    if (pkeyinfo && pkeyinfo->ulValueLen > 0) {
+
+        val = pkeyinfo->pValue;
+        len = pkeyinfo->ulValueLen;
+
+        pubkey = d2i_X509_PUBKEY(NULL, &val, len);
+        if (!pubkey) {
+            return NULL;
+        }
+
+        if (X509_PUBKEY_get0_param(NULL, &pk, &pklen, NULL, pubkey) != 1) {
+            goto done;
+        }
+
+        asn1key = d2i_P11PROV_RSA_PUBKEY(NULL, &pk, pklen);
+        goto done;
+    }
 
     asn1key = P11PROV_RSA_PUBKEY_new();
     if (!asn1key) {
@@ -430,6 +644,8 @@ static P11PROV_RSA_PUBKEY *p11prov_rsa_pubkey_to_asn1(P11PROV_OBJ *key)
         return NULL;
     }
 
+done:
+    X509_PUBKEY_free(pubkey);
     return asn1key;
 }
 
