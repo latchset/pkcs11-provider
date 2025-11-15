@@ -623,6 +623,10 @@ static int match_key_with_cert(P11PROV_OBJ *priv_key, P11PROV_OBJ *pub_key)
         attrs[0].type = CKA_P11PROV_PUB_KEY;
         num = 1;
         break;
+    case CKK_ML_DSA:
+        attrs[0].type = CKA_VALUE;
+        num = 1;
+        break;
     }
 
     ret = get_attrs_from_cert(cert, attrs, num);
@@ -654,6 +658,16 @@ static int match_key_with_cert(P11PROV_OBJ *priv_key, P11PROV_OBJ *pub_key)
     case CKK_EC:
     case CKK_EC_EDWARDS:
         x = p11prov_obj_get_attr(pub_key, CKA_P11PROV_PUB_KEY);
+        if (!x || x->ulValueLen != attrs[0].ulValueLen
+            || memcmp(x->pValue, attrs[0].pValue, x->ulValueLen) != 0) {
+            ret = RET_OSSL_ERR;
+            goto done;
+        }
+
+        ret = RET_OSSL_OK;
+        break;
+    case CKK_ML_DSA:
+        x = p11prov_obj_get_attr(pub_key, CKA_VALUE);
         if (!x || x->ulValueLen != attrs[0].ulValueLen
             || memcmp(x->pValue, attrs[0].pValue, x->ulValueLen) != 0) {
             ret = RET_OSSL_ERR;
