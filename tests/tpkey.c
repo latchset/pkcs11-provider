@@ -375,7 +375,7 @@ static void check_public_info(EVP_PKEY *key)
 {
     BIO *membio = BIO_new(BIO_s_mem());
     BUF_MEM *memdata = NULL;
-    const char *type = "type=public";
+    const char *type = "URI pkcs11";
     void *found = NULL;
     int ret;
 
@@ -399,7 +399,7 @@ static void check_public_info(EVP_PKEY *key)
     found = memmem(memdata->data, memdata->length, type, sizeof(type) - 1);
     if (!found) {
         PRINTERR("%.*s\n", (int)memdata->length, memdata->data);
-        PRINTERROSSL("Public type indicator not found in printout!\n");
+        PRINTERROSSL("URI not found in printout!\n");
         exit(EXIT_FAILURE);
     }
 

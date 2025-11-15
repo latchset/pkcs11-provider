@@ -5,7 +5,7 @@
 source "${TESTSSRCDIR}/helpers.sh"
 
 title PARA "Check that storeutl returns URIs"
-ossl 'storeutl -text pkcs11:' "$helper_emit"
+ossl 'storeutl -text -propquery provider=pkcs11 pkcs11:' "$helper_emit"
 output="$helper_output"
 FAIL=0
 echo "$output" | grep "URI pkcs11:" > /dev/null 2>&1 || FAIL=1
@@ -13,6 +13,7 @@ if [ $FAIL -ne 0 ]; then
     echo "no URIs returned by storeutl"
     exit 1
 fi
+echo "$output"
 
 URISonly=$(echo "$helper_output" | grep "^URI pkcs11:")
 # poor mans mapfile for bash 3 on macos
@@ -24,7 +25,7 @@ done <<< "${URISonly//URI /}"
 title PARA "Check returned URIs work to find objects"
 for uri in "${URIS[@]}"; do
     echo "\$uri=${uri}"
-    ossl 'storeutl -text "$uri"' "$helper_emit"
+    ossl 'storeutl -text -propquery provider=pkcs11 "$uri"' "$helper_emit"
     output="$helper_output"
     matchURI=$(echo "$output" | grep "URI pkcs11:" | cut -d ' ' -f 2)
     if [[ "${uri}" != "${matchURI}" ]]; then
