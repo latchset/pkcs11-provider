@@ -2,14 +2,12 @@
 
 ## Supported Versions
 
-None yet
-
 This table will specify which versions are supported:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| X.Y     | :white_check_mark: |
-| X.Y     | :x:                |
+| 1.0     | :x:                |
+| 1.1     | :white_check_mark: |
 | ------- | ------------------ |
 
 ## Reporting a Vulnerability
