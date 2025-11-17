@@ -646,7 +646,7 @@ static CK_RV prep_mlkem_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
     return CKR_OK;
 }
 
-static CK_RV return_dup_key(P11PROV_OBJ *dst, P11PROV_OBJ *src)
+CK_RV p11prov_obj_copy_key_data(P11PROV_OBJ *dst, P11PROV_OBJ *src)
 {
     CK_RV rv;
 
@@ -667,11 +667,6 @@ static CK_RV return_dup_key(P11PROV_OBJ *dst, P11PROV_OBJ *src)
     dst->cka_copyable = src->cka_copyable;
     dst->cka_token = src->cka_token;
     dst->data.key = src->data.key;
-
-    rv = obj_add_to_pool(dst);
-    if (rv != CKR_OK) {
-        return rv;
-    }
 
     /* Free existing attributes if any */
     for (int i = 0; i < dst->numattrs; i++) {
@@ -694,6 +689,13 @@ static CK_RV return_dup_key(P11PROV_OBJ *dst, P11PROV_OBJ *src)
             return rv;
         }
         dst->numattrs++;
+    }
+
+    rv = obj_add_to_pool(dst);
+    if (rv != CKR_OK) {
+        /* Perhaps we should fail here, but failing to add the object on the
+         * pool id will not prevent its usage, so just emit a debug line */
+        P11PROV_debug("Failed to add key duplicate to pool id");
     }
 
     return CKR_OK;
@@ -723,6 +725,7 @@ static CK_RV fix_ec_key_import(P11PROV_OBJ *key, int allocattrs)
     oct.length = pub->ulValueLen;
     oct.flags = 0;
 
+    /* FIXME: should we set just bytes for Edwards and Montgomery keys? */
     len = i2d_ASN1_OCTET_STRING(&oct, &der);
     if (len < 0) {
         P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
@@ -837,7 +840,7 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key,
     }
 
     if (findctx.found) {
-        rv = return_dup_key(key, findctx.found);
+        rv = p11prov_obj_copy_key_data(key, findctx.found);
         goto done;
     }
 
@@ -1086,15 +1089,148 @@ static CK_RV p11prov_store_mlkem_public_key(P11PROV_OBJ *key)
     return store_key(key, template, tmpl_cnt);
 }
 
+CK_RV p11prov_pkeyinfo_to_pubkey(CK_ATTRIBUTE *pkeyinfo, CK_ATTRIBUTE *attr)
+{
+    X509_PUBKEY *pubkey = NULL;
+    const unsigned char *val;
+    long len;
+    const unsigned char *pk;
+    int pklen;
+    CK_RV rv = CKR_GENERAL_ERROR;
+
+    val = pkeyinfo->pValue;
+    len = pkeyinfo->ulValueLen;
+    pubkey = d2i_X509_PUBKEY(NULL, &val, len);
+    if (!pubkey) {
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    if (X509_PUBKEY_get0_param(NULL, &pk, &pklen, NULL, pubkey) != 1) {
+        rv = CKR_KEY_INDIGESTIBLE;
+        goto done;
+    }
+
+    /* EC point/ML(-DSA/KEM) key as OpenSSL handles it */
+    attr->pValue = OPENSSL_memdup(pk, pklen);
+    if (!attr->pValue) {
+        rv = CKR_HOST_MEMORY;
+        goto done;
+    }
+    attr->ulValueLen = pklen;
+
+    rv = CKR_OK;
+done:
+    X509_PUBKEY_free(pubkey);
+    return rv;
+}
+
+static CK_RV pub_from_priv_attrs(P11PROV_OBJ *key)
+{
+    CK_ATTRIBUTE *pkeyinfo;
+    CK_ATTRIBUTE *add_attrs;
+    CK_ATTRIBUTE *params;
+    CK_RV rv = CKR_GENERAL_ERROR;
+
+    if (key->assoc_obj->class != CKO_PRIVATE_KEY) {
+        rv = CKR_OBJECT_HANDLE_INVALID;
+        P11PROV_raise(key->ctx, rv, "Expected associated private key");
+        return rv;
+    }
+
+    /* ensure we have the proper class now that all
+     * attributes are in place */
+    key->class = CKO_PUBLIC_KEY;
+    key->cka_token = false;
+
+    pkeyinfo = p11prov_obj_get_attr(key->assoc_obj, CKA_PUBLIC_KEY_INFO);
+    if (!pkeyinfo) {
+        return CKR_GENERAL_ERROR;
+    }
+
+    /* max 3 attributes for each key type */
+    add_attrs =
+        OPENSSL_realloc(key->attrs, sizeof(CK_ATTRIBUTE) * (key->numattrs + 3));
+    if (!add_attrs) {
+        return CKR_HOST_MEMORY;
+    }
+    key->attrs = add_attrs;
+
+    switch (key->data.key.type) {
+    case CKK_RSA:
+        rv = rsa_pkeyinfo_to_attrs(pkeyinfo, &key->attrs[key->numattrs]);
+        if (rv != CKR_OK) {
+            break;
+        }
+        key->numattrs += 2;
+        break;
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+    case CKK_EC_MONTGOMERY:
+        /* ec params */
+        params = p11prov_obj_get_attr(key->assoc_obj, CKA_EC_PARAMS);
+        if (params) {
+            rv = p11prov_copy_attr(&key->attrs[key->numattrs], params);
+        }
+        if (rv != CKR_OK) {
+            break;
+        }
+        key->numattrs++;
+        key->attrs[key->numattrs].type = CKA_P11PROV_PUB_KEY;
+        rv = p11prov_pkeyinfo_to_pubkey(pkeyinfo, &key->attrs[key->numattrs]);
+        if (rv != CKR_OK) {
+            break;
+        }
+        key->numattrs++;
+        /* Finally convert plain point to encoded point */
+        rv = fix_ec_key_import(key, key->numattrs + 1);
+        break;
+    case CKK_ML_DSA:
+    case CKK_ML_KEM:
+        /* param set */
+        params = p11prov_obj_get_attr(key->assoc_obj, CKA_PARAMETER_SET);
+        if (params) {
+            rv = p11prov_copy_attr(&key->attrs[key->numattrs], params);
+        }
+        if (rv != CKR_OK) {
+            break;
+        }
+        key->numattrs++;
+        key->attrs[key->numattrs].type = CKA_VALUE;
+        rv = p11prov_pkeyinfo_to_pubkey(pkeyinfo, &key->attrs[key->numattrs]);
+        if (rv != CKR_OK) {
+            break;
+        }
+        key->numattrs++;
+        break;
+
+    default:
+        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR,
+                      "Unsupported key type: %08lx, should NOT happen",
+                      key->data.key.type);
+        rv = CKR_GENERAL_ERROR;
+    }
+
+    return rv;
+}
+
 CK_RV p11prov_obj_store_public_key(P11PROV_OBJ *key)
 {
     int rv;
 
     P11PROV_debug("Store imported public key=%p", key);
 
+    if (key->class == CKO_P11PROV_PUB_FROM_PRIV_KEY) {
+        rv = pub_from_priv_attrs(key);
+        if (rv != CKR_OK) {
+            P11PROV_raise(key->ctx, rv, "Failed to import pub key info");
+            return rv;
+        }
+    }
+
     if (key->class != CKO_PUBLIC_KEY) {
-        P11PROV_raise(key->ctx, CKR_OBJECT_HANDLE_INVALID, "Invalid key type");
-        return CKR_OBJECT_HANDLE_INVALID;
+        rv = CKR_OBJECT_HANDLE_INVALID;
+        P11PROV_raise(key->ctx, rv, "Invalid key type");
+        return rv;
     }
 
     switch (key->data.key.type) {
@@ -1588,7 +1724,7 @@ static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key,
     }
 
     if (findctx.found) {
-        rv = return_dup_key(key, findctx.found);
+        rv = p11prov_obj_copy_key_data(key, findctx.found);
         goto done;
     }
 

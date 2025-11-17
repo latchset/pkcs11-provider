@@ -203,6 +203,79 @@ static CK_RV get_all_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int num)
     return rv;
 }
 
+static CK_RV get_attrs_from_pkeyinfo(P11PROV_OBJ *key, CK_ATTRIBUTE *attrs,
+                                     int num)
+{
+    CK_ATTRIBUTE pubattrs[2] = { 0 };
+    CK_ATTRIBUTE *pkeyinfo;
+    CK_RV rv = CKR_GENERAL_ERROR;
+
+    pkeyinfo = p11prov_obj_get_attr(key, CKA_PUBLIC_KEY_INFO);
+    if (!pkeyinfo) {
+        return CKR_GENERAL_ERROR;
+    }
+
+    switch (key->data.key.type) {
+    case CKK_RSA:
+        rv = rsa_pkeyinfo_to_attrs(pkeyinfo, pubattrs);
+        if (rv != CKR_OK) {
+            return rv;
+        }
+        break;
+    case CKK_EC:
+    case CKK_EC_EDWARDS:
+    case CKK_EC_MONTGOMERY:
+        pubattrs[0].type = CKA_P11PROV_PUB_KEY;
+        rv = p11prov_pkeyinfo_to_pubkey(pkeyinfo, &pubattrs[0]);
+        if (rv != CKR_OK) {
+            return rv;
+        }
+        break;
+    case CKK_ML_DSA:
+    case CKK_ML_KEM:
+        pubattrs[0].type = CKA_VALUE;
+        rv = p11prov_pkeyinfo_to_pubkey(pkeyinfo, &pubattrs[0]);
+        if (rv != CKR_OK) {
+            return rv;
+        }
+        break;
+    default:
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    for (int i = 0; i < num; i++) {
+        bool found = false;
+        for (int j = 0; j < 2; j++) {
+            if (attrs[i].type == pubattrs[j].type) {
+                attrs[i].pValue = pubattrs[j].pValue;
+                pubattrs[j].pValue = NULL;
+                attrs[i].ulValueLen = pubattrs[j].ulValueLen;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            rv = CKR_GENERAL_ERROR;
+            goto done;
+        }
+    }
+
+    rv = CKR_OK;
+done:
+    /* remove any leftover */
+    for (int i = 0; i < 2; i++) {
+        OPENSSL_free(pubattrs[i].pValue);
+    }
+    if (rv != CKR_OK) {
+        for (int i = 0; i < num; i++) {
+            OPENSSL_free(attrs[i].pValue);
+            attrs[i].pValue = NULL;
+            attrs[i].ulValueLen = 0;
+        }
+    }
+    return rv;
+}
+
 static CK_RV get_public_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int num)
 {
     P11PROV_OBJ *tmp = NULL;
@@ -218,6 +291,11 @@ static CK_RV get_public_attrs(P11PROV_OBJ *obj, CK_ATTRIBUTE *attrs, int num)
         return get_all_attrs(obj, attrs, num);
     case CKO_PRIVATE_KEY:
         rv = get_all_attrs(obj, attrs, num);
+        if (rv == CKR_OK) {
+            return rv;
+        }
+        /* check if we can get public attrs from CKA_PUBLIC_KEY_INFO */
+        rv = get_attrs_from_pkeyinfo(obj, attrs, num);
         if (rv == CKR_OK) {
             return rv;
         }

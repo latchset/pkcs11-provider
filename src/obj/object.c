@@ -394,13 +394,52 @@ CK_OBJECT_HANDLE p11prov_obj_get_handle(P11PROV_OBJ *obj)
         if (obj->cached != CK_INVALID_HANDLE) {
             return obj->cached;
         }
+        /* we have a few mock object cases to handle */
         if (obj->handle == CK_P11PROV_IMPORTED_HANDLE) {
+            int rv;
+
+            /* if this is a synthetic public key,
+             * first try to find if we have an actual key in the token.
+             * if that fails, we store it like we do for imported keys.
+             */
+            if (obj->class == CKO_P11PROV_PUB_FROM_PRIV_KEY) {
+                P11PROV_OBJ *priv, *pub;
+
+                /* should never happen, but just in case */
+                if (!obj->assoc_obj
+                    || obj->assoc_obj->class != CKO_PRIVATE_KEY) {
+                    return CK_INVALID_HANDLE;
+                }
+
+                /* search */
+                priv = obj->assoc_obj;
+                pub = p11prov_obj_find_associated(priv, CKO_PUBLIC_KEY);
+                if (pub) {
+                    /* we found it, and the function re-associates this new
+                     * public key with the private, in the future priv->pub
+                     * requests will find the token key directly.
+                     *
+                     * We still need to handle code that references the mock
+                     * object though, so we copy over the pub key data */
+                    rv = p11prov_obj_copy_key_data(obj, pub);
+                    p11prov_obj_free(pub);
+                    if (rv != CKR_OK) {
+                        return CK_INVALID_HANDLE;
+                    }
+
+                    return obj->handle;
+                }
+
+                /* intentionally continue with the next step, which will
+                 * store a new public key session object on the token
+                 * from the info on the private key */
+            }
+
             /* This was a mock imported public key,
              * but we are being asked for the actual key handle
              * so it means we need to actually add the key to the
              * session in order to be able to perform operations
              * with the token */
-            int rv;
 
             rv = p11prov_obj_store_public_key(obj);
             if (rv != CKR_OK) {
@@ -467,11 +506,12 @@ bool p11prov_obj_get_bool(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type, bool def)
 static bool is_key(CK_OBJECT_CLASS class)
 {
     switch (class) {
-    case CKO_P11PROV_NEW_KEY:
     case CKO_PRIVATE_KEY:
     case CKO_PUBLIC_KEY:
     case CKO_DOMAIN_PARAMETERS:
     case CKO_SECRET_KEY:
+    case CKO_P11PROV_NEW_KEY:
+    case CKO_P11PROV_PUB_FROM_PRIV_KEY:
         return true;
     default:
         return false;

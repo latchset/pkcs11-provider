@@ -1024,17 +1024,35 @@ void byteswap_buf(unsigned char *src, unsigned char *dest, size_t len)
 CK_RV p11prov_copy_attr(CK_ATTRIBUTE *dst, CK_ATTRIBUTE *src)
 {
     if (src->ulValueLen) {
-        dst->pValue = OPENSSL_malloc(src->ulValueLen);
+        dst->pValue = OPENSSL_memdup(src->pValue, src->ulValueLen);
         if (!dst->pValue) {
             return CKR_HOST_MEMORY;
         }
-        memcpy(dst->pValue, src->pValue, src->ulValueLen);
     } else {
         dst->pValue = NULL;
     }
     dst->ulValueLen = src->ulValueLen;
     dst->type = src->type;
 
+    return CKR_OK;
+}
+
+CK_RV p11prov_bn_to_attr(CK_ATTRIBUTE *dst, BIGNUM *bn)
+{
+    int bn_len = BN_num_bytes(bn);
+
+    dst->pValue = OPENSSL_malloc(bn_len);
+    if (!dst->pValue) {
+        return CKR_HOST_MEMORY;
+    }
+
+    if (BN_bn2bin(bn, dst->pValue) != bn_len) {
+        OPENSSL_free(dst->pValue);
+        dst->pValue = NULL;
+        return CKR_GENERAL_ERROR;
+    }
+
+    dst->ulValueLen = bn_len;
     return CKR_OK;
 }
 

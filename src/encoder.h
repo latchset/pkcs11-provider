@@ -57,4 +57,6 @@ extern const OSSL_DISPATCH p11prov_mlkem_encoder_spki_pem_functions[];
 extern const OSSL_DISPATCH p11prov_mlkem_encoder_priv_key_info_pem_functions[];
 extern const OSSL_DISPATCH p11prov_mlkem_encoder_text_functions[];
 
+CK_RV rsa_pkeyinfo_to_attrs(CK_ATTRIBUTE *pkeyinfo, CK_ATTRIBUTE *attrs);
+
 #endif /* _ENCODER_H */

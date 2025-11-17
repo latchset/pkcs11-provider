@@ -990,3 +990,55 @@ CK_RV p11prov_match_curve(CK_KEY_TYPE type, CK_ATTRIBUTE *attr,
     }
     return rv;
 }
+
+/* This function attempts to return a public key from a private one.
+ *
+ * If a public key is already associated then it is immediately returned.
+ *
+ * Otherwise we create a mock object with a synthetic public key if
+ * enough data is available (CKA_PUBLIC_KEY_INFO). This will then defer
+ * searching for a key on the token only to a later time when
+ * it is actually needed, or to generate a temporary session key
+ * like we do for imported ephemeral keys.
+ *
+ * Finally if not enough public info is available we immediately try
+ * a search so proper errors are returned to callers, instead of
+ * deferring key issues to a later operation */
+P11PROV_OBJ *p11prov_obj_pub_from_priv(P11PROV_OBJ *priv)
+{
+    CK_ATTRIBUTE *pkeyinfo = NULL;
+    P11PROV_OBJ *key;
+
+    if (priv->class != CKO_PRIVATE_KEY) {
+        return NULL;
+    }
+
+    if (priv->assoc_obj
+        && (priv->assoc_obj->class == CKO_PUBLIC_KEY
+            || priv->assoc_obj->class == CKO_P11PROV_PUB_FROM_PRIV_KEY)) {
+        return priv->assoc_obj;
+    }
+
+    /* If we do not have enough data for a synthetic key return an
+     * immediate search for the object */
+    pkeyinfo = p11prov_obj_get_attr(priv, CKA_PUBLIC_KEY_INFO);
+    if (!pkeyinfo) {
+        return p11prov_obj_find_associated(priv, CKO_PUBLIC_KEY);
+    }
+
+    /* we assume that if a public key exist, it will later be found in the
+     * same slot as the private key */
+    key = p11prov_obj_new(priv->ctx, priv->slotid, CK_P11PROV_IMPORTED_HANDLE,
+                          CKO_P11PROV_PUB_FROM_PRIV_KEY);
+    if (!key) {
+        return NULL;
+    }
+
+    key->data.key = priv->data.key;
+
+    /* make sure key is associated to the private one */
+    p11prov_obj_set_associated(priv, key);
+    p11prov_obj_set_associated(key, priv);
+
+    return key;
+}

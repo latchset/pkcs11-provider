@@ -73,6 +73,7 @@ int p11prov_get_pin(P11PROV_CTX *ctx, const char *in, char **out);
 bool cyclewait_with_timeout(uint64_t max_wait, uint64_t interval,
                             uint64_t *start_time);
 CK_RV p11prov_copy_attr(CK_ATTRIBUTE *dst, CK_ATTRIBUTE *src);
+CK_RV p11prov_bn_to_attr(CK_ATTRIBUTE *dst, BIGNUM *bn);
 bool p11prov_x509_names_are_equal(CK_ATTRIBUTE *a, CK_ATTRIBUTE *b);
 char *p11prov_alloc_sprintf(int size_hint, const char *format, ...);
 
