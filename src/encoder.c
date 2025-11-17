@@ -137,6 +137,89 @@ static const char *p11prov_key_type_name(P11PROV_OBJ *key)
 
 #include "encoder.gen.c"
 
+static P11PROV_RSA_PUBKEY *decode_rsa_pubkey(CK_ATTRIBUTE *pkeyinfo)
+{
+    P11PROV_RSA_PUBKEY *rsakey = NULL;
+    X509_PUBKEY *pubkey = NULL;
+    const unsigned char *val;
+    long len;
+    const unsigned char *pk;
+    int pklen;
+
+    val = pkeyinfo->pValue;
+    len = pkeyinfo->ulValueLen;
+
+    pubkey = d2i_X509_PUBKEY(NULL, &val, len);
+    if (!pubkey) {
+        return NULL;
+    }
+
+    if (X509_PUBKEY_get0_param(NULL, &pk, &pklen, NULL, pubkey) != 1) {
+        goto done;
+    }
+
+    rsakey = d2i_P11PROV_RSA_PUBKEY(NULL, &pk, pklen);
+
+done:
+    X509_PUBKEY_free(pubkey);
+    return rsakey;
+}
+
+/* Stick this one in here because the necessary functions are in
+ * the generated code and it is easier this way, we may want to
+ * reorganize the code later on. */
+CK_RV rsa_pkeyinfo_to_attrs(CK_ATTRIBUTE *pkeyinfo, CK_ATTRIBUTE *attrs)
+{
+    P11PROV_RSA_PUBKEY *rsakey = NULL;
+    BIGNUM *n = NULL, *e = NULL;
+    CK_ATTRIBUTE *a_n = NULL;
+    CK_ATTRIBUTE *a_e = NULL;
+    CK_RV rv = CKR_GENERAL_ERROR;
+
+    rsakey = decode_rsa_pubkey(pkeyinfo);
+
+    n = ASN1_INTEGER_to_BN(rsakey->n, NULL);
+    e = ASN1_INTEGER_to_BN(rsakey->e, NULL);
+    if (!n || !e) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    /* modulus */
+    a_n = &attrs[0];
+    a_n->type = CKA_MODULUS;
+    a_n->pValue = NULL;
+    rv = p11prov_bn_to_attr(a_n, n);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    /* public exponent */
+    a_e = &attrs[1];
+    a_e->type = CKA_PUBLIC_EXPONENT;
+    a_e->pValue = NULL;
+    rv = p11prov_bn_to_attr(a_e, e);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    rv = CKR_OK;
+
+done:
+    if (rv != CKR_OK) {
+        if (a_n) {
+            OPENSSL_free(a_n->pValue);
+        }
+        if (a_e) {
+            OPENSSL_free(a_e->pValue);
+        }
+    }
+    BN_free(n);
+    BN_free(e);
+    P11PROV_RSA_PUBKEY_free(rsakey);
+    return rv;
+}
+
 int p11prov_rsa_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key);
 int p11prov_ec_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key);
 int p11prov_mldsa_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key);
@@ -603,33 +686,7 @@ done:
 static P11PROV_RSA_PUBKEY *p11prov_rsa_pubkey_to_asn1(P11PROV_OBJ *key)
 {
     P11PROV_RSA_PUBKEY *asn1key = NULL;
-    CK_ATTRIBUTE *pkeyinfo = NULL;
-    X509_PUBKEY *pubkey = NULL;
-    const unsigned char *val;
-    long len;
-    const unsigned char *pk;
-    int pklen;
     int ret;
-
-    /* try with Public Key Info, and fallback to exporting */
-    pkeyinfo = p11prov_obj_get_attr(key, CKA_PUBLIC_KEY_INFO);
-    if (pkeyinfo && pkeyinfo->ulValueLen > 0) {
-
-        val = pkeyinfo->pValue;
-        len = pkeyinfo->ulValueLen;
-
-        pubkey = d2i_X509_PUBKEY(NULL, &val, len);
-        if (!pubkey) {
-            return NULL;
-        }
-
-        if (X509_PUBKEY_get0_param(NULL, &pk, &pklen, NULL, pubkey) != 1) {
-            goto done;
-        }
-
-        asn1key = d2i_P11PROV_RSA_PUBKEY(NULL, &pk, pklen);
-        goto done;
-    }
 
     asn1key = P11PROV_RSA_PUBKEY_new();
     if (!asn1key) {
@@ -644,17 +701,22 @@ static P11PROV_RSA_PUBKEY *p11prov_rsa_pubkey_to_asn1(P11PROV_OBJ *key)
         return NULL;
     }
 
-done:
-    X509_PUBKEY_free(pubkey);
     return asn1key;
 }
 
 static int p11prov_rsa_pubkey_to_der(P11PROV_OBJ *key, unsigned char **der,
                                      int *derlen)
 {
+    CK_ATTRIBUTE *pkeyinfo = NULL;
     P11PROV_RSA_PUBKEY *asn1key;
 
-    asn1key = p11prov_rsa_pubkey_to_asn1(key);
+    /* try with Public Key Info, and fallback to exporting */
+    pkeyinfo = p11prov_obj_get_attr(key, CKA_PUBLIC_KEY_INFO);
+    if (pkeyinfo && pkeyinfo->ulValueLen > 0) {
+        asn1key = decode_rsa_pubkey(pkeyinfo);
+    } else {
+        asn1key = p11prov_rsa_pubkey_to_asn1(key);
+    }
     if (!asn1key) {
         return RET_OSSL_ERR;
     }
@@ -788,6 +850,7 @@ static int p11prov_rsa_encoder_spki_pem_encode(void *inctx, OSSL_CORE_BIO *cbio,
     struct p11prov_encoder_ctx *ctx = (struct p11prov_encoder_ctx *)inctx;
     P11PROV_OBJ *key = (P11PROV_OBJ *)inkey;
     CK_KEY_TYPE type;
+    CK_ATTRIBUTE *pkeyinfo = NULL;
     P11PROV_RSA_PUBKEY *asn1key = NULL;
     BIO *out = NULL;
     int ret;
@@ -806,7 +869,13 @@ static int p11prov_rsa_encoder_spki_pem_encode(void *inctx, OSSL_CORE_BIO *cbio,
         goto done;
     }
 
-    asn1key = p11prov_rsa_pubkey_to_asn1(key);
+    /* try with Public Key Info, and fallback to exporting */
+    pkeyinfo = p11prov_obj_get_attr(key, CKA_PUBLIC_KEY_INFO);
+    if (pkeyinfo && pkeyinfo->ulValueLen > 0) {
+        asn1key = decode_rsa_pubkey(pkeyinfo);
+    } else {
+        asn1key = p11prov_rsa_pubkey_to_asn1(key);
+    }
     if (!asn1key) {
         ret = RET_OSSL_ERR;
         goto done;

@@ -11,6 +11,8 @@
 #define CK_P11PROV_IMPORTED_HANDLE (CK_UNAVAILABLE_INFORMATION - 1)
 /* Special value for "new key" */
 #define CKO_P11PROV_NEW_KEY CKA_P11PROV_BASE + 1
+/* Special value for public key created from a private one */
+#define CKO_P11PROV_PUB_FROM_PRIV_KEY CKA_P11PROV_BASE + 2
 
 /* Objects */
 CK_RV p11prov_obj_pool_init(P11PROV_CTX *ctx, CK_SLOT_ID id,
@@ -79,6 +81,7 @@ int p11prov_obj_get_ecx_pub_key(P11PROV_OBJ *obj, CK_ATTRIBUTE **pub);
 CK_ATTRIBUTE *p11prov_obj_get_ec_public_raw(P11PROV_OBJ *key);
 P11PROV_OBJ *mock_pub_ec_key(P11PROV_CTX *ctx, CK_ATTRIBUTE_TYPE type,
                              CK_ATTRIBUTE *ec_params);
+P11PROV_OBJ *p11prov_obj_new_pub_from_priv(P11PROV_OBJ *priv);
 bool p11prov_obj_is_rsa_pss(P11PROV_OBJ *obj);
 
 #define OBJ_CMP_KEY_TYPE 0x00
@@ -96,7 +99,10 @@ P11PROV_OBJ *p11prov_obj_import_secret_key(P11PROV_CTX *ctx, CK_KEY_TYPE type,
 CK_RV p11prov_obj_set_ec_encoded_public_key(P11PROV_OBJ *key,
                                             const void *pubkey,
                                             size_t pubkey_len);
+CK_RV p11prov_pkeyinfo_to_pubkey(CK_ATTRIBUTE *pkeyinfo, CK_ATTRIBUTE *attr);
 
+CK_RV p11prov_obj_copy_key_data(P11PROV_OBJ *dst, P11PROV_OBJ *src);
+P11PROV_OBJ *p11prov_obj_pub_from_priv(P11PROV_OBJ *priv);
 P11PROV_OBJ *p11prov_obj_find_associated(P11PROV_OBJ *obj,
                                          CK_OBJECT_CLASS class);
 
