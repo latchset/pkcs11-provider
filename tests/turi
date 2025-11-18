@@ -4,8 +4,15 @@
 
 source "${TESTSSRCDIR}/helpers.sh"
 
+PROPQUERY="-propquery provider=pkcs11"
+if [[  "$TOKENTYPE" = "softhsm" ]]; then
+    # softhsm breaks if we force all operations on the token...
+    PROPQUERY=""
+fi
+export PROPQUERY
+
 title PARA "Check that storeutl returns URIs"
-ossl 'storeutl -text -propquery provider=pkcs11 pkcs11:' "$helper_emit"
+ossl 'storeutl -text ${PROPQUERY} pkcs11:' "$helper_emit"
 output="$helper_output"
 FAIL=0
 echo "$output" | grep "URI pkcs11:" > /dev/null 2>&1 || FAIL=1
@@ -25,7 +32,7 @@ done <<< "${URISonly//URI /}"
 title PARA "Check returned URIs work to find objects"
 for uri in "${URIS[@]}"; do
     echo "\$uri=${uri}"
-    ossl 'storeutl -text -propquery provider=pkcs11 "$uri"' "$helper_emit"
+    ossl 'storeutl -text ${PROPQUERY} "$uri"' "$helper_emit"
     output="$helper_output"
     matchURI=$(echo "$output" | grep "URI pkcs11:" | cut -d ' ' -f 2)
     if [[ "${uri}" != "${matchURI}" ]]; then
