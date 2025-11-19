@@ -555,7 +555,6 @@ static int p11prov_common_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
     }
 
     if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) {
-        CK_KEY_TYPE type = p11prov_obj_get_key_type(key);
         CK_ATTRIBUTE *pkeyinfo = NULL;
         P11PROV_OBJ *public = NULL;
         bool free_public = false;
@@ -597,7 +596,7 @@ static int p11prov_common_encoder_encode_text(void *inctx, OSSL_CORE_BIO *cbio,
             }
         }
         if (public) {
-            ret = p11prov_obj_export_public_key(public, type, true,
+            ret = p11prov_obj_export_public_key(public,
                                                 p11prov_print_public_key, out);
             if (ret != RET_OSSL_OK) {
                 BIO_printf(out, "[Error: Failed to decode public key data]\n");
@@ -693,8 +692,8 @@ static P11PROV_RSA_PUBKEY *p11prov_rsa_pubkey_to_asn1(P11PROV_OBJ *key)
         return NULL;
     }
 
-    ret = p11prov_obj_export_public_key(key, CKK_RSA, true,
-                                        p11prov_rsa_set_asn1key_data, asn1key);
+    ret = p11prov_obj_export_public_key(key, p11prov_rsa_set_asn1key_data,
+                                        asn1key);
 
     if (ret != RET_OSSL_OK) {
         P11PROV_RSA_PUBKEY_free(asn1key);
@@ -1095,9 +1094,8 @@ int p11prov_ec_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key)
     struct ecdsa_key_point keypoint = { 0 };
     int ret;
 
-    ret =
-        p11prov_obj_export_public_key(key, CK_UNAVAILABLE_INFORMATION, false,
-                                      p11prov_ec_set_keypoint_data, &keypoint);
+    ret = p11prov_obj_export_public_key(key, p11prov_ec_set_keypoint_data,
+                                        &keypoint);
     if (ret != RET_OSSL_OK) {
         ecdsa_key_point_free(&keypoint);
         return ret;
@@ -1325,8 +1323,8 @@ int p11prov_mldsa_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key)
         goto done;
     }
 
-    ret = p11prov_obj_export_public_key(
-        key, CKK_ML_DSA, true, p11prov_mldsa_set_keypoint_data, &keypoint);
+    ret = p11prov_obj_export_public_key(key, p11prov_mldsa_set_keypoint_data,
+                                        &keypoint);
     if (ret != RET_OSSL_OK) {
         goto done;
     }
@@ -1439,8 +1437,8 @@ int p11prov_mlkem_pubkey_to_x509(X509_PUBKEY *pubkey, P11PROV_OBJ *key)
         goto done;
     }
 
-    ret = p11prov_obj_export_public_key(
-        key, CKK_ML_KEM, true, p11prov_mlkem_set_keypoint_data, &keypoint);
+    ret = p11prov_obj_export_public_key(key, p11prov_mlkem_set_keypoint_data,
+                                        &keypoint);
     if (ret != RET_OSSL_OK) {
         goto done;
     }
