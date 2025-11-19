@@ -725,32 +725,10 @@ static int p11prov_obj_export_public_ml_key(P11PROV_OBJ *obj,
     return ret;
 }
 
-int p11prov_obj_export_public_key(P11PROV_OBJ *obj, CK_KEY_TYPE key_type,
-                                  bool search_related, OSSL_CALLBACK *cb_fn,
+int p11prov_obj_export_public_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
                                   void *cb_arg)
 {
-    if (obj == NULL) {
-        return RET_OSSL_ERR;
-    }
-
-    if (obj->class != CKO_PRIVATE_KEY && obj->class != CKO_PUBLIC_KEY) {
-        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Invalid Object Class");
-        return RET_OSSL_ERR;
-    }
-
-    if (key_type != CK_UNAVAILABLE_INFORMATION) {
-        if (key_type != obj->data.key.type) {
-            P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Invalid Key Type");
-            return RET_OSSL_ERR;
-        }
-    }
-
-    if (!search_related && obj->class != CKO_PUBLIC_KEY) {
-        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Not a public Key");
-        return RET_OSSL_ERR;
-    }
-
-    switch (obj->data.key.type) {
+    switch (p11prov_obj_get_key_type(obj)) {
     case CKK_RSA:
         return p11prov_obj_export_public_rsa_key(obj, cb_fn, cb_arg);
     case CKK_EC:
@@ -761,7 +739,8 @@ int p11prov_obj_export_public_key(P11PROV_OBJ *obj, CK_KEY_TYPE key_type,
     case CKK_ML_KEM:
         return p11prov_obj_export_public_ml_key(obj, cb_fn, cb_arg);
     default:
-        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR, "Unsupported key type");
+        P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR,
+                      "Unsupported object or key type");
         return RET_OSSL_ERR;
     }
 }
