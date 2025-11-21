@@ -17,7 +17,7 @@ sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_prop
     "${OPENSSL_CONF}" > "${OPENSSL_CONF}.ciphers"
 OPENSSL_CONF=${OPENSSL_CONF}.ciphers
 
-echo "plaintext" > "${TMPPDIR}/aes128cbc.txt"
+echo "plaintext" > "${TMPPDIR}/aes128.txt"
 
 RUN_SKEYMGMT_TEST="0"
 if [[ "${SUPPORT_SYMMETRIC}" = "1" ]]; then
@@ -34,7 +34,7 @@ title PARA "Test Symmetric Encryption on the token (legacy init)"
 ossl 'enc -e -aes128
              -K 0102030405060708090a0b0c0d0e0f10
              -iv 100f0e0d0c0b0a090807060504030201
-             -in ${TMPPDIR}/aes128cbc.txt
+             -in ${TMPPDIR}/aes128.txt
              -out ${TMPPDIR}/aes128cbc.txt.enc' "${PROP}"
 
 ossl 'enc -d -aes128
@@ -43,14 +43,14 @@ ossl 'enc -d -aes128
              -in ${TMPPDIR}/aes128cbc.txt.enc
              -out ${TMPPDIR}/aes128cbc.txt.dec' "${PROP}"
 
-diff "${TMPPDIR}/aes128cbc.txt" "${TMPPDIR}/aes128cbc.txt.dec"
+diff "${TMPPDIR}/aes128.txt" "${TMPPDIR}/aes128cbc.txt.dec"
 
 if [[ "${RUN_SKEYMGMT_TEST}" = "1" ]]; then
 title PARA "Test Symmetric Encryption on the token (skey init)"
 ossl 'enc -e -aes128 -skeymgmt AES
              -skeyopt hexraw-bytes:0102030405060708090a0b0c0d0e0f10
              -iv 100f0e0d0c0b0a090807060504030201
-             -in ${TMPPDIR}/aes128cbc.txt
+             -in ${TMPPDIR}/aes128.txt
              -out ${TMPPDIR}/aes128cbc.txt.skey.enc' "${PROP}"
 
 ossl 'enc -d -aes128 -skeymgmt AES
@@ -59,7 +59,35 @@ ossl 'enc -d -aes128 -skeymgmt AES
              -in ${TMPPDIR}/aes128cbc.txt.skey.enc
              -out ${TMPPDIR}/aes128cbc.txt.skey.dec' "${PROP}"
 
-diff "${TMPPDIR}/aes128cbc.txt" "${TMPPDIR}/aes128cbc.txt.skey.dec"
+diff "${TMPPDIR}/aes128.txt" "${TMPPDIR}/aes128cbc.txt.skey.dec"
+fi
+
+title PARA "Test Symmetric Encryption ECB mode (legacy init)"
+ossl 'enc -e -aes-128-ecb
+             -K 0102030405060708090a0b0c0d0e0f10
+             -in ${TMPPDIR}/aes128.txt
+             -out ${TMPPDIR}/aes128ecb.txt.enc' "${PROP}"
+
+ossl 'enc -d -aes-128-ecb
+             -K 0102030405060708090a0b0c0d0e0f10
+             -in ${TMPPDIR}/aes128ecb.txt.enc
+             -out ${TMPPDIR}/aes128ecb.txt.dec' "${PROP}"
+
+diff "${TMPPDIR}/aes128.txt" "${TMPPDIR}/aes128ecb.txt.dec"
+
+if [[ "${RUN_SKEYMGMT_TEST}" = "1" ]]; then
+title PARA "Test Symmetric Encryption ECB mode (skey init)"
+ossl 'enc -e -aes-128-ecb -skeymgmt AES
+             -skeyopt hexraw-bytes:0102030405060708090a0b0c0d0e0f10
+             -in ${TMPPDIR}/aes128.txt
+             -out ${TMPPDIR}/aes128ecb.txt.skey.enc' "${PROP}"
+
+ossl 'enc -d -aes-128-ecb -skeymgmt AES
+             -skeyopt hexraw-bytes:0102030405060708090a0b0c0d0e0f10
+             -in ${TMPPDIR}/aes128ecb.txt.skey.enc
+             -out ${TMPPDIR}/aes128ecb.txt.skey.dec' "${PROP}"
+
+diff "${TMPPDIR}/aes128.txt" "${TMPPDIR}/aes128ecb.txt.skey.dec"
 fi
 
 title PARA "Test Symmetric Key Generation"
