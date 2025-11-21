@@ -90,6 +90,17 @@ CK_RV get_attrs_from_cert(P11PROV_OBJ *crt, CK_ATTRIBUTE *attrs, int num)
                 break;
             }
         }
+    } else if (OPENSSL_strncasecmp(EVP_PKEY_get0_type_name(pkey), "ML-DSA", 6) == 0) {
+        for (int i = 0; i < num; i++) {
+            switch (attrs[i].type) {
+            case CKA_VALUE:
+                types[attrnum] = CKA_VALUE;
+                params[attrnum] = OSSL_PARAM_construct_octet_string(
+                    OSSL_PKEY_PARAM_PUB_KEY, NULL, 0);
+                attrnum++;
+                break;
+            }
+        }
     } else {
         rv = CKR_OBJECT_HANDLE_INVALID;
         goto done;
