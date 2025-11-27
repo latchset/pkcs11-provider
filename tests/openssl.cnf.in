@@ -23,6 +23,7 @@ activate = 1
 [pkcs11_sect]
 module = @libtoollibs@/pkcs11@SHARED_EXT@
 pkcs11-module-token-pin = file:@PINFILE@
+#pkcs11-module-default-slot-id
 ##TOKENOPTIONS
 #pkcs11-module-encode-provider-uri-to-pem
 #pkcs11-module-allow-export
