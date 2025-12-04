@@ -116,6 +116,7 @@ test_programs = {
   'ccerts': ['ccerts.c', 'util.c'],
   'tecx': ['tecx.c', 'util.c'],
   'tskey-kdf': ['tskey_kdf.c', 'util.c'],
+  'taead': ['taead.c', 'util.c'],
 }
 
 test_executables = []
@@ -171,6 +172,7 @@ tests = {
   'ecxc': {'suites': ['softhsm', 'kryoptic', 'kryoptic.nss']},
   'cms': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'pinlock': {'suites': ['kryoptic']},
+  'aead': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
 }
 
 test_wrapper = find_program('test-wrapper')
