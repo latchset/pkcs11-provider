@@ -1,4 +1,5 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+   Copyright 2025 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
@@ -863,7 +864,7 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
 #if SKEY_SUPPORT == 1
 #define AES_MECHS \
     CKM_AES_ECB, CKM_AES_CBC, CKM_AES_CBC_PAD, CKM_AES_CTR, CKM_AES_CTS, \
-        CKM_AES_OFB, CKM_AES_CFB8, CKM_AES_CFB128, CKM_AES_CFB1
+        CKM_AES_OFB, CKM_AES_CFB8, CKM_AES_CFB128, CKM_AES_CFB1, CKM_AES_GCM
 #endif
 
 static void alg_rm_mechs(CK_ULONG *checklist, CK_ULONG *rmlist, int *clsize,
@@ -1293,6 +1294,12 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                 ADD_ALGO(AES_192_CTS, aes192cts, cipher, prop);
                 ADD_ALGO(AES_128_CTS, aes128cts, cipher, prop);
                 UNCHECK_MECHS(CKM_AES_CTS);
+                break;
+            case CKM_AES_GCM:
+                ADD_ALGO(AES_256_GCM, aes256gcm, cipher, prop);
+                ADD_ALGO(AES_192_GCM, aes192gcm, cipher, prop);
+                ADD_ALGO(AES_128_GCM, aes128gcm, cipher, prop);
+                UNCHECK_MECHS(CKM_AES_GCM);
                 break;
 #endif
             default:

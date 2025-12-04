@@ -1,4 +1,5 @@
 /* Copyright (C) 2024 Simo Sorce <simo@redhat.com>
+   Copyright 2025 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 #ifndef _CIPHER_H
@@ -21,6 +22,7 @@
 #define MODE_cfb8 MODE_cfb
 #define MODE_ctr 0x10
 #define MODE_cts MODE_flag_cts | MODE_cbc
+#define MODE_gcm 0x20
 
 #define DISPATCH_CIPHER_FN(alg, name) \
     DECL_DISPATCH_FUNC(cipher, p11prov_##alg, name)
@@ -92,5 +94,8 @@ extern const OSSL_DISPATCH p11prov_aes256ctr_cipher_functions[];
 extern const OSSL_DISPATCH p11prov_aes128cts_cipher_functions[];
 extern const OSSL_DISPATCH p11prov_aes192cts_cipher_functions[];
 extern const OSSL_DISPATCH p11prov_aes256cts_cipher_functions[];
+extern const OSSL_DISPATCH p11prov_aes128gcm_cipher_functions[];
+extern const OSSL_DISPATCH p11prov_aes192gcm_cipher_functions[];
+extern const OSSL_DISPATCH p11prov_aes256gcm_cipher_functions[];
 
 #endif /* _CIPHER_H */
