@@ -1,4 +1,5 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+   Copyright 2025 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 BEGIN:
@@ -75,6 +76,15 @@ BEGIN:
     { \
         IMPL_CALL_PROLOG(name) \
         ret = intf->name(a1, a2, a3, a4, a5, a6, a7, a8); \
+        IMPL_CALL_EPILOG(name) \
+    }
+#define IMPL_INTERFACE_FN_9_ARG(name, t1, a1, t2, a2, t3, a3, t4, a4, t5, a5, \
+                                t6, a6, t7, a7, t8, a8, t9, a9) \
+    CK_RV p11prov_##name(P11PROV_CTX *ctx, t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, \
+                         t6 a6, t7 a7, t8 a8, t9 a9) \
+    { \
+        IMPL_CALL_PROLOG(name) \
+        ret = intf->name(a1, a2, a3, a4, a5, a6, a7, a8, a9); \
         IMPL_CALL_EPILOG(name) \
     }
 
@@ -245,6 +255,48 @@ IMPL_INTERFACE_FN_3_ARG(GenerateRandom, CK_SESSION_HANDLE, hSession,
 
 IMPL_INTERFACE_FN_2_ARG(SessionCancel, CK_SESSION_HANDLE, hSession,
                         CK_FLAGS, flags)
+
+IMPL_INTERFACE_FN_3_ARG(MessageEncryptInit, CK_SESSION_HANDLE, hSession,
+                        CK_MECHANISM_PTR, pMechanism, CK_OBJECT_HANDLE, hKey)
+
+IMPL_INTERFACE_FN_9_ARG(EncryptMessage, CK_SESSION_HANDLE, hSession,
+                        CK_VOID_PTR, pParameter, CK_ULONG, ulParameterLen,
+                        CK_BYTE_PTR, pAssociatedData, CK_ULONG, ulAssociatedDataLen,
+                        CK_BYTE_PTR, pPlaintext, CK_ULONG, ulPlaintextLen,
+                        CK_BYTE_PTR, pCiphertext, CK_ULONG_PTR, pulCiphertextLen)
+
+IMPL_INTERFACE_FN_5_ARG(EncryptMessageBegin, CK_SESSION_HANDLE, hSession,
+                        CK_VOID_PTR, pParameter, CK_ULONG, ulParameterLen,
+                        CK_BYTE_PTR, pAssociatedData, CK_ULONG, ulAssociatedDataLen)
+
+IMPL_INTERFACE_FN_8_ARG(EncryptMessageNext, CK_SESSION_HANDLE, hSession,
+                        CK_VOID_PTR, pParameter, CK_ULONG, ulParameterLen,
+                        CK_BYTE_PTR, pPlaintextPart, CK_ULONG, ulPlaintextPartLen,
+                        CK_BYTE_PTR, pCiphertextPart, CK_ULONG_PTR, pulCiphertextPartLen,
+                        CK_FLAGS, flags)
+
+IMPL_INTERFACE_FN_1_ARG(MessageEncryptFinal, CK_SESSION_HANDLE, hSession)
+
+IMPL_INTERFACE_FN_3_ARG(MessageDecryptInit, CK_SESSION_HANDLE, hSession,
+                        CK_MECHANISM_PTR, pMechanism, CK_OBJECT_HANDLE, hKey)
+
+IMPL_INTERFACE_FN_9_ARG(DecryptMessage, CK_SESSION_HANDLE, hSession,
+                        CK_VOID_PTR, pParameter, CK_ULONG, ulParameterLen,
+                        CK_BYTE_PTR, pAssociatedData, CK_ULONG, ulAssociatedDataLen,
+                        CK_BYTE_PTR, pCiphertext, CK_ULONG, ulCiphertextLen,
+                        CK_BYTE_PTR, pPlaintext, CK_ULONG_PTR, pulPlaintextLen)
+
+IMPL_INTERFACE_FN_5_ARG(DecryptMessageBegin, CK_SESSION_HANDLE, hSession,
+                        CK_VOID_PTR, pParameter, CK_ULONG, ulParameterLen,
+                        CK_BYTE_PTR, pAssociatedData, CK_ULONG, ulAssociatedDataLen)
+
+IMPL_INTERFACE_FN_8_ARG(DecryptMessageNext, CK_SESSION_HANDLE, hSession,
+                        CK_VOID_PTR, pParameter, CK_ULONG, ulParameterLen,
+                        CK_BYTE_PTR, pCiphertextPart, CK_ULONG, ulCiphertextPartLen,
+                        CK_BYTE_PTR, pPlaintextPart, CK_ULONG_PTR, pulPlaintextPartLen,
+                        CK_FLAGS, flags)
+
+IMPL_INTERFACE_FN_1_ARG(MessageDecryptFinal, CK_SESSION_HANDLE, hSession)
 
 IMPL_INTERFACE_FN_8_ARG(EncapsulateKey, CK_SESSION_HANDLE, hSession,
                         CK_MECHANISM_PTR, pMechanism, CK_OBJECT_HANDLE,
