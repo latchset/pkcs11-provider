@@ -1,4 +1,5 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+   Copyright 2025 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
@@ -81,6 +82,16 @@ struct p11prov_interface {
     CK_C_GenerateRandom GenerateRandom;
     CK_C_GetInterface GetInterface;
     CK_C_SessionCancel SessionCancel;
+    CK_C_MessageEncryptInit MessageEncryptInit;
+    CK_C_EncryptMessage EncryptMessage;
+    CK_C_EncryptMessageBegin EncryptMessageBegin;
+    CK_C_EncryptMessageNext EncryptMessageNext;
+    CK_C_MessageEncryptFinal MessageEncryptFinal;
+    CK_C_MessageDecryptInit MessageDecryptInit;
+    CK_C_DecryptMessage DecryptMessage;
+    CK_C_DecryptMessageBegin DecryptMessageBegin;
+    CK_C_DecryptMessageNext DecryptMessageNext;
+    CK_C_MessageDecryptFinal MessageDecryptFinal;
     CK_C_EncapsulateKey EncapsulateKey;
     CK_C_DecapsulateKey DecapsulateKey;
 };
@@ -164,6 +175,16 @@ static void populate_interface(P11PROV_INTERFACE *intf, CK_INTERFACE *ck_intf)
     if (intf->version.major >= 3) {
         ASSIGN_FN_3_0(GetInterface);
         ASSIGN_FN_3_0(SessionCancel);
+        ASSIGN_FN_3_0(MessageEncryptInit);
+        ASSIGN_FN_3_0(EncryptMessage);
+        ASSIGN_FN_3_0(EncryptMessageBegin);
+        ASSIGN_FN_3_0(EncryptMessageNext);
+        ASSIGN_FN_3_0(MessageEncryptFinal);
+        ASSIGN_FN_3_0(MessageDecryptInit);
+        ASSIGN_FN_3_0(DecryptMessage);
+        ASSIGN_FN_3_0(DecryptMessageBegin);
+        ASSIGN_FN_3_0(DecryptMessageNext);
+        ASSIGN_FN_3_0(MessageDecryptFinal);
         if (intf->version.minor >= 2) {
             ASSIGN_FN_3_2(EncapsulateKey);
             ASSIGN_FN_3_2(DecapsulateKey);

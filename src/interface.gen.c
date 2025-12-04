@@ -1413,6 +1413,319 @@ CK_RV p11prov_SessionCancel(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     return ret;
 }
 
+CK_RV p11prov_MessageEncryptInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                                 CK_MECHANISM_PTR pMechanism,
+                                 CK_OBJECT_HANDLE hKey)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_MessageEncryptInit)) {
+        P11PROV_debug("C_%s is blocked", "MessageEncryptInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->MessageEncryptInit) {
+        P11PROV_debug("C_%s is not available", "MessageEncryptInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "MessageEncryptInit");
+    ret = intf->MessageEncryptInit(hSession, pMechanism, hKey);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "MessageEncryptInit",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_EncryptMessage(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                             CK_VOID_PTR pParameter, CK_ULONG ulParameterLen,
+                             CK_BYTE_PTR pAssociatedData,
+                             CK_ULONG ulAssociatedDataLen,
+                             CK_BYTE_PTR pPlaintext, CK_ULONG ulPlaintextLen,
+                             CK_BYTE_PTR pCiphertext,
+                             CK_ULONG_PTR pulCiphertextLen)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_EncryptMessage)) {
+        P11PROV_debug("C_%s is blocked", "EncryptMessage");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->EncryptMessage) {
+        P11PROV_debug("C_%s is not available", "EncryptMessage");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "EncryptMessage");
+    ret = intf->EncryptMessage(hSession, pParameter, ulParameterLen,
+                               pAssociatedData, ulAssociatedDataLen, pPlaintext,
+                               ulPlaintextLen, pCiphertext, pulCiphertextLen);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "EncryptMessage",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_EncryptMessageBegin(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                                  CK_VOID_PTR pParameter,
+                                  CK_ULONG ulParameterLen,
+                                  CK_BYTE_PTR pAssociatedData,
+                                  CK_ULONG ulAssociatedDataLen)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_EncryptMessageBegin)) {
+        P11PROV_debug("C_%s is blocked", "EncryptMessageBegin");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->EncryptMessageBegin) {
+        P11PROV_debug("C_%s is not available", "EncryptMessageBegin");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "EncryptMessageBegin");
+    ret = intf->EncryptMessageBegin(hSession, pParameter, ulParameterLen,
+                                    pAssociatedData, ulAssociatedDataLen);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "EncryptMessageBegin",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_EncryptMessageNext(
+    P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession, CK_VOID_PTR pParameter,
+    CK_ULONG ulParameterLen, CK_BYTE_PTR pPlaintextPart,
+    CK_ULONG ulPlaintextPartLen, CK_BYTE_PTR pCiphertextPart,
+    CK_ULONG_PTR pulCiphertextPartLen, CK_FLAGS flags)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_EncryptMessageNext)) {
+        P11PROV_debug("C_%s is blocked", "EncryptMessageNext");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->EncryptMessageNext) {
+        P11PROV_debug("C_%s is not available", "EncryptMessageNext");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "EncryptMessageNext");
+    ret = intf->EncryptMessageNext(
+        hSession, pParameter, ulParameterLen, pPlaintextPart,
+        ulPlaintextPartLen, pCiphertextPart, pulCiphertextPartLen, flags);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "EncryptMessageNext",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_MessageEncryptFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_MessageEncryptFinal)) {
+        P11PROV_debug("C_%s is blocked", "MessageEncryptFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->MessageEncryptFinal) {
+        P11PROV_debug("C_%s is not available", "MessageEncryptFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "MessageEncryptFinal");
+    ret = intf->MessageEncryptFinal(hSession);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "MessageEncryptFinal",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_MessageDecryptInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                                 CK_MECHANISM_PTR pMechanism,
+                                 CK_OBJECT_HANDLE hKey)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_MessageDecryptInit)) {
+        P11PROV_debug("C_%s is blocked", "MessageDecryptInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->MessageDecryptInit) {
+        P11PROV_debug("C_%s is not available", "MessageDecryptInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "MessageDecryptInit");
+    ret = intf->MessageDecryptInit(hSession, pMechanism, hKey);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "MessageDecryptInit",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_DecryptMessage(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                             CK_VOID_PTR pParameter, CK_ULONG ulParameterLen,
+                             CK_BYTE_PTR pAssociatedData,
+                             CK_ULONG ulAssociatedDataLen,
+                             CK_BYTE_PTR pCiphertext, CK_ULONG ulCiphertextLen,
+                             CK_BYTE_PTR pPlaintext,
+                             CK_ULONG_PTR pulPlaintextLen)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DecryptMessage)) {
+        P11PROV_debug("C_%s is blocked", "DecryptMessage");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->DecryptMessage) {
+        P11PROV_debug("C_%s is not available", "DecryptMessage");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "DecryptMessage");
+    ret =
+        intf->DecryptMessage(hSession, pParameter, ulParameterLen,
+                             pAssociatedData, ulAssociatedDataLen, pCiphertext,
+                             ulCiphertextLen, pPlaintext, pulPlaintextLen);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "DecryptMessage",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_DecryptMessageBegin(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                                  CK_VOID_PTR pParameter,
+                                  CK_ULONG ulParameterLen,
+                                  CK_BYTE_PTR pAssociatedData,
+                                  CK_ULONG ulAssociatedDataLen)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DecryptMessageBegin)) {
+        P11PROV_debug("C_%s is blocked", "DecryptMessageBegin");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->DecryptMessageBegin) {
+        P11PROV_debug("C_%s is not available", "DecryptMessageBegin");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "DecryptMessageBegin");
+    ret = intf->DecryptMessageBegin(hSession, pParameter, ulParameterLen,
+                                    pAssociatedData, ulAssociatedDataLen);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "DecryptMessageBegin",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_DecryptMessageNext(
+    P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession, CK_VOID_PTR pParameter,
+    CK_ULONG ulParameterLen, CK_BYTE_PTR pCiphertextPart,
+    CK_ULONG ulCiphertextPartLen, CK_BYTE_PTR pPlaintextPart,
+    CK_ULONG_PTR pulPlaintextPartLen, CK_FLAGS flags)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DecryptMessageNext)) {
+        P11PROV_debug("C_%s is blocked", "DecryptMessageNext");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->DecryptMessageNext) {
+        P11PROV_debug("C_%s is not available", "DecryptMessageNext");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "DecryptMessageNext");
+    ret = intf->DecryptMessageNext(hSession, pParameter, ulParameterLen,
+                                   pCiphertextPart, ulCiphertextPartLen,
+                                   pPlaintextPart, pulPlaintextPartLen, flags);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "DecryptMessageNext",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_MessageDecryptFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_MessageDecryptFinal)) {
+        P11PROV_debug("C_%s is blocked", "MessageDecryptFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->MessageDecryptFinal) {
+        P11PROV_debug("C_%s is not available", "MessageDecryptFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "MessageDecryptFinal");
+    ret = intf->MessageDecryptFinal(hSession);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "MessageDecryptFinal",
+                      ret);
+    }
+    return ret;
+}
+
 CK_RV p11prov_EncapsulateKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                              CK_MECHANISM_PTR pMechanism,
                              CK_OBJECT_HANDLE hPublicKey,

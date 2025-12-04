@@ -1,4 +1,5 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+   Copyright 2025 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 #ifndef _INTERFACE_H
@@ -145,6 +146,48 @@ CK_RV p11prov_GenerateRandom(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                              CK_BYTE_PTR RandomData, CK_ULONG ulRandomLen);
 CK_RV p11prov_SessionCancel(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                             CK_FLAGS flags);
+CK_RV p11prov_MessageEncryptInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                                 CK_MECHANISM_PTR pMechanism,
+                                 CK_OBJECT_HANDLE hKey);
+CK_RV p11prov_EncryptMessage(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                             CK_VOID_PTR pParameter, CK_ULONG ulParameterLen,
+                             CK_BYTE_PTR pAssociatedData,
+                             CK_ULONG ulAssociatedDataLen,
+                             CK_BYTE_PTR pPlaintext, CK_ULONG ulPlaintextLen,
+                             CK_BYTE_PTR pCiphertext,
+                             CK_ULONG_PTR pulCiphertextLen);
+CK_RV p11prov_EncryptMessageBegin(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                                  CK_VOID_PTR pParameter,
+                                  CK_ULONG ulParameterLen,
+                                  CK_BYTE_PTR pAssociatedData,
+                                  CK_ULONG ulAssociatedDataLen);
+CK_RV p11prov_EncryptMessageNext(
+    P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession, CK_VOID_PTR pParameter,
+    CK_ULONG ulParameterLen, CK_BYTE_PTR pPlaintextPart,
+    CK_ULONG ulPlaintextPartLen, CK_BYTE_PTR pCiphertextPart,
+    CK_ULONG_PTR pulCiphertextPartLen, CK_FLAGS flags);
+CK_RV p11prov_MessageEncryptFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession);
+CK_RV p11prov_MessageDecryptInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                                 CK_MECHANISM_PTR pMechanism,
+                                 CK_OBJECT_HANDLE hKey);
+CK_RV p11prov_DecryptMessage(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                             CK_VOID_PTR pParameter, CK_ULONG ulParameterLen,
+                             CK_BYTE_PTR pAssociatedData,
+                             CK_ULONG ulAssociatedDataLen,
+                             CK_BYTE_PTR pCiphertext, CK_ULONG ulCiphertextLen,
+                             CK_BYTE_PTR pPlaintext,
+                             CK_ULONG_PTR pulPlaintextLen);
+CK_RV p11prov_DecryptMessageBegin(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                                  CK_VOID_PTR pParameter,
+                                  CK_ULONG ulParameterLen,
+                                  CK_BYTE_PTR pAssociatedData,
+                                  CK_ULONG ulAssociatedDataLen);
+CK_RV p11prov_DecryptMessageNext(
+    P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession, CK_VOID_PTR pParameter,
+    CK_ULONG ulParameterLen, CK_BYTE_PTR pCiphertextPart,
+    CK_ULONG ulCiphertextPartLen, CK_BYTE_PTR pPlaintextPart,
+    CK_ULONG_PTR pulPlaintextPartLen, CK_FLAGS flags);
+CK_RV p11prov_MessageDecryptFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession);
 CK_RV p11prov_EncapsulateKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                              CK_MECHANISM_PTR pMechanism,
                              CK_OBJECT_HANDLE hPublicKey,
@@ -228,6 +271,16 @@ CK_INFO p11prov_module_ck_info(P11PROV_MODULE *mctx);
 /* 3.x  functions: */
 #define P11PROV_BLOCK_GetInterface 0b0000000000000000
 #define P11PROV_BLOCK_SessionCancel 0b0000000000000000
+#define P11PROV_BLOCK_MessageEncryptInit 0b0000000000000000
+#define P11PROV_BLOCK_EncryptMessage 0b0000000000000000
+#define P11PROV_BLOCK_EncryptMessageBegin 0b0000000000000000
+#define P11PROV_BLOCK_EncryptMessageNext 0b0000000000000000
+#define P11PROV_BLOCK_MessageEncryptFinal 0b0000000000000000
+#define P11PROV_BLOCK_MessageDecryptInit 0b0000000000000000
+#define P11PROV_BLOCK_DecryptMessage 0b0000000000000000
+#define P11PROV_BLOCK_DecryptMessageBegin 0b0000000000000000
+#define P11PROV_BLOCK_DecryptMessageNext 0b0000000000000000
+#define P11PROV_BLOCK_MessageDecryptFinal 0b0000000000000000
 #define P11PROV_BLOCK_EncapsulateKey 0b0000000000000000
 #define P11PROV_BLOCK_DecapsulateKey 0b0000000000000000
 
