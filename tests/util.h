@@ -1,4 +1,5 @@
 /* Copyright (C) 2024 Simo Sorce <simo@redhat.com>
+   Copyright 2025 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 #include <stdio.h>
@@ -20,4 +21,5 @@ void ossl_err_print(void);
 EVP_PKEY *load_key(const char *uri);
 X509 *load_cert(const char *uri, const UI_METHOD *ui_method, void *ui_data);
 void hexify(char *out, unsigned char *byte, size_t len);
+void unhexify(unsigned char *out, size_t *outlen, const char *in);
 EVP_PKEY *util_gen_key(const char *type, const char *label);

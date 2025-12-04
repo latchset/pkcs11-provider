@@ -1,9 +1,11 @@
 /* Copyright (C) 2024 Simo Sorce <simo@redhat.com>
+   Copyright 2025 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdbool.h>
+#include <openssl/core.h>
 #include <openssl/err.h>
 #include <openssl/store.h>
 #include <openssl/evp.h>
@@ -162,6 +164,11 @@ void hexify(char *out, unsigned char *byte, size_t len)
         }
     }
     out[len * 3] = '\0';
+}
+
+void unhexify(unsigned char *out, size_t *outlen, const char *in)
+{
+    OPENSSL_hexstr2buf_ex(out, *outlen, outlen, in, '\0');
 }
 
 EVP_PKEY *util_gen_key(const char *type, const char *label)
