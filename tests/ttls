@@ -187,7 +187,12 @@ PROPQ="-propquery \"?provider=pkcs11\""
 # Try again forcing all operations on the token
 # We need to disable digest operations as OpenSSL depends on context duplication working
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
-sed -e "s/^#pkcs11-module-block-operations/pkcs11-module-block-operations = digest/" \
+BLOCKED_OPERATIONS="digest"
+if [[ "${SUPPORT_SYMMETRIC}" = "0" ]]; then
+    # For tokens that do not support symmetric key operations, disable these too
+    BLOCKED_OPERATIONS="${BLOCKED_OPERATIONS} cipher skeymgmt"
+fi
+sed -e "s/^#pkcs11-module-block-operations/pkcs11-module-block-operations = ${BLOCKED_OPERATIONS}/" \
     "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
 OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
 
