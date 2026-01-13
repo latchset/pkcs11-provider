@@ -51,6 +51,9 @@ cat >"$TMPPDIR/softhsm.conf" <<EOF
 directories.tokendir = $TOKDIR
 objectstore.backend = file
 log.level = DEBUG
+# The hashed ECDSA mechanisms wrongly do not support multi-part operations
+# https://github.com/softhsm/SoftHSMv2/pull/683
+slots.mechanisms = -CKM_ECDSA_SHA1,CKM_ECDSA_SHA224,CKM_ECDSA_SHA256,CKM_ECDSA_SHA384,CKM_ECDSA_SHA512
 EOF
 
 export SOFTHSM2_CONF=$TMPPDIR/softhsm.conf
