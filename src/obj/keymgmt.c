@@ -623,6 +623,14 @@ static int match_key_with_cert(P11PROV_OBJ *priv_key, P11PROV_OBJ *pub_key)
         attrs[0].type = CKA_P11PROV_PUB_KEY;
         num = 1;
         break;
+    case CKK_ML_DSA:
+        attrs[0].type = CKA_VALUE;
+        num = 1;
+        break;
+    default:
+        P11PROV_raise(priv_key->ctx, CKR_GENERAL_ERROR,
+                      "Unknown public key type");
+        return RET_OSSL_ERR;
     }
 
     ret = get_attrs_from_cert(cert, attrs, num);
@@ -633,36 +641,16 @@ static int match_key_with_cert(P11PROV_OBJ *priv_key, P11PROV_OBJ *pub_key)
         goto done;
     }
 
-    switch (pub_key->data.key.type) {
-    case CKK_RSA:
-        x = p11prov_obj_get_attr(pub_key, CKA_MODULUS);
-        if (!x || x->ulValueLen != attrs[0].ulValueLen
-            || memcmp(x->pValue, attrs[0].pValue, x->ulValueLen) != 0) {
+    for (int i = 0; i < num; i++) {
+        x = p11prov_obj_get_attr(pub_key, attrs[i].type);
+        if (!x || x->ulValueLen != attrs[i].ulValueLen
+            || memcmp(x->pValue, attrs[i].pValue, x->ulValueLen) != 0) {
             ret = RET_OSSL_ERR;
             goto done;
         }
-
-        x = p11prov_obj_get_attr(pub_key, CKA_PUBLIC_EXPONENT);
-        if (!x || x->ulValueLen != attrs[1].ulValueLen
-            || memcmp(x->pValue, attrs[1].pValue, x->ulValueLen) != 0) {
-            ret = RET_OSSL_ERR;
-            goto done;
-        }
-
-        ret = RET_OSSL_OK;
-        break;
-    case CKK_EC:
-    case CKK_EC_EDWARDS:
-        x = p11prov_obj_get_attr(pub_key, CKA_P11PROV_PUB_KEY);
-        if (!x || x->ulValueLen != attrs[0].ulValueLen
-            || memcmp(x->pValue, attrs[0].pValue, x->ulValueLen) != 0) {
-            ret = RET_OSSL_ERR;
-            goto done;
-        }
-
-        ret = RET_OSSL_OK;
-        break;
     }
+
+    ret = RET_OSSL_OK;
 
 done:
     for (int i = 0; i < num; i++) {
