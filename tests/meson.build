@@ -155,6 +155,7 @@ tests = {
   'fork': {'suites': all_suites},
   'oaepsha2': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'hkdf': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
+  'tls1prf': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'imported' : {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'pem_encoder': {'suites': all_suites},
   'rsa': {'suites': all_suites},
