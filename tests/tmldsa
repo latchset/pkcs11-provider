@@ -31,6 +31,14 @@ req -new -batch -key "${MLDSAPRIURI}" -out ${TMPPDIR}/mldsa_csr.pem'
 ossl '
 req -in ${TMPPDIR}/mldsa_csr.pem -verify -noout'
 
+title PARA "Create a signed cert"
+ossl '
+x509 -req -in ${TMPPDIR}/mldsa_csr.pem
+          -extfile ${OPENSSL_CONF}
+          -extensions usr_cert
+          -CA ${CACRT} -CAkey ${CAPRIURI}
+          -out ${TMPPDIR}/mldsa_signed.crt'
+
 title PARA "Test EVP_PKEY_eq on public ML-DSA key both on token"
 $CHECKER "${TESTBLDDIR}/tcmpkeys" "$MLDSAPUBURI" "$MLDSAPUBURI"
 
@@ -112,5 +120,4 @@ if [ $FAIL -ne 0 ]; then
     exit 1
 fi
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
-
 exit 0
