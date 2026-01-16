@@ -14,6 +14,7 @@ pkcs11_provider_sources = [
   'kmgmt/mldsa.c',
   'kmgmt/mlkem.c',
   'kmgmt/rsa.c',
+  'kmgmt/tls1_prf.c',
   'pk11_uri.c',
   'interface.c',
   'obj/create.c',
