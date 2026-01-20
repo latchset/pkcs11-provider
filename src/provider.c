@@ -864,7 +864,8 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
 #if SKEY_SUPPORT == 1
 #define AES_MECHS \
     CKM_AES_ECB, CKM_AES_CBC, CKM_AES_CBC_PAD, CKM_AES_CTR, CKM_AES_CTS, \
-        CKM_AES_OFB, CKM_AES_CFB8, CKM_AES_CFB128, CKM_AES_CFB1, CKM_AES_GCM
+        CKM_AES_OFB, CKM_AES_CFB8, CKM_AES_CFB128, CKM_AES_CFB1, CKM_AES_GCM, \
+        CKM_CHACHA20_POLY1305
 #endif
 
 static void alg_rm_mechs(CK_ULONG *checklist, CK_ULONG *rmlist, int *clsize,
@@ -1300,6 +1301,10 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                 ADD_ALGO(AES_192_GCM, aes192gcm, cipher, prop);
                 ADD_ALGO(AES_128_GCM, aes128gcm, cipher, prop);
                 UNCHECK_MECHS(CKM_AES_GCM);
+                break;
+            case CKM_CHACHA20_POLY1305:
+                ADD_ALGO(CHACHA20_POLY1305, chacha20256poly1305, cipher, prop);
+                UNCHECK_MECHS(CKM_CHACHA20_POLY1305);
                 break;
 #endif
             default:
