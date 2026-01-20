@@ -270,7 +270,8 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Usage: %s [algorithm] [hexkey] [hexiv] [aad] [data]\n",
                 argv[0]);
         fprintf(stderr,
-                "    Algorithms: AES-128-GCM, AES-192-GCM, AES-256-GCM\n");
+                "    Algorithms: AES-128-GCM, AES-192-GCM, AES-256-GCM,\n"
+                "                CHACHA20-POLY1305\n");
         exit(EXIT_FAILURE);
     }
 

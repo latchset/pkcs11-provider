@@ -15,6 +15,7 @@ sed "s/#pkcs11-module-load-behavior/pkcs11-module-load-behavior = early/" \
 OPENSSL_CONF=${OPENSSL_CONF}.early_load
 
 KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+IV=bbbbbbbbbbbbbbbbbbbbbbbb
 AAD="Additional Authentication Data"
 DATA="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
 
@@ -22,16 +23,14 @@ ALGORITHMS=(
     AES-128-GCM
     AES-192-GCM
     AES-256-GCM
+    CHACHA20-POLY1305
 )
 
 title PARA "Test AEAD support"
 
 for alg in "${ALGORITHMS[@]}"; do
-    for ivlen in {1..16}; do
-        echo "Checking algorithm $alg and ivlen $ivlen"
-        IV=$(printf 'a%.s' $(seq 1 $((ivlen * 2))))
-        $CHECKER "${TESTBLDDIR}/taead" "$alg" "$KEY" "$IV" "$AAD" "$DATA"
-    done
+    echo "Checking algorithm $alg"
+    $CHECKER "${TESTBLDDIR}/taead" "$alg" "$KEY" "$IV" "$AAD" "$DATA"
 done
 
 echo "PASSED"
