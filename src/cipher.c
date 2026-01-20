@@ -17,17 +17,28 @@
 #define MAX_PADDING 256;
 #define AESBLOCK 16 /* 128 bits for all AES modes except GCM */
 
+#define IVSIZE_cbc AESBLOCK
+#define IVSIZE_cfb AESBLOCK
+#define IVSIZE_cfb1 AESBLOCK
+#define IVSIZE_cfb8 AESBLOCK
+#define IVSIZE_ctr AESBLOCK
+#define IVSIZE_cts AESBLOCK
+#define IVSIZE_ecb 0
+#define IVSIZE_gcm 12
+#define IVSIZE_ofb AESBLOCK
+#define IVSIZE_poly1305 12
+
 DISPATCH_CIPHER_FN(cipher, freectx);
-DISPATCH_CIPHER_FN(aes, dupctx);
+DISPATCH_CIPHER_FN(common, dupctx);
 DISPATCH_CIPHER_FN(cipher, encrypt_init);
 DISPATCH_CIPHER_FN(cipher, decrypt_init);
 DISPATCH_CIPHER_FN(cipher, update);
 DISPATCH_CIPHER_FN(cipher, final);
-DISPATCH_CIPHER_FN(aes, cipher);
-DISPATCH_CIPHER_FN(aes, get_ctx_params);
-DISPATCH_CIPHER_FN(aes, set_ctx_params);
-DISPATCH_CIPHER_FN(aes, gettable_ctx_params);
-DISPATCH_CIPHER_FN(aes, settable_ctx_params);
+DISPATCH_CIPHER_FN(common, cipher);
+DISPATCH_CIPHER_FN(common, get_ctx_params);
+DISPATCH_CIPHER_FN(common, set_ctx_params);
+DISPATCH_CIPHER_FN(common, gettable_ctx_params);
+DISPATCH_CIPHER_FN(common, settable_ctx_params);
 DISPATCH_CIPHER_FN(cipher, encrypt_skey_init);
 DISPATCH_CIPHER_FN(cipher, decrypt_skey_init);
 
@@ -57,11 +68,14 @@ struct p11prov_cipher_ctx {
     size_t tlsmacsize;
     unsigned char *tlsmac;
 
+    size_t ivsize;
+
     unsigned char *aad;
     size_t aadsize;
 };
 
-static void *p11prov_cipher_newctx(void *provctx, int size, CK_ULONG mechanism)
+static void *p11prov_cipher_newctx(void *provctx, int size, size_t ivsize,
+                                   CK_ULONG mechanism)
 {
     P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
     struct p11prov_cipher_ctx *cctx;
@@ -77,6 +91,7 @@ static void *p11prov_cipher_newctx(void *provctx, int size, CK_ULONG mechanism)
     cctx->provctx = ctx;
     cctx->mech.mechanism = mechanism;
     cctx->keysize = size / 8;
+    cctx->ivsize = ivsize;
 
     /* OpenSSL Pads by default */
     cctx->pad = true;
@@ -115,8 +130,8 @@ static struct {
 };
 
 static int p11prov_cipher_get_params(OSSL_PARAM params[], unsigned int mode,
-                                     int flags, size_t keysize,
-                                     size_t blocksize, size_t ivsize)
+                                     int flags, size_t keysize, size_t ivsize,
+                                     size_t blocksize)
 {
     OSSL_PARAM *p;
     int ret;
@@ -175,14 +190,17 @@ static int p11prov_cipher_get_params(OSSL_PARAM params[], unsigned int mode,
     return RET_OSSL_OK;
 }
 
-static int p11prov_aes_get_params(OSSL_PARAM params[], int size, int mode,
-                                  CK_ULONG mechanism)
+#define p11prov_aes_get_params p11prov_common_get_params
+#define p11prov_chacha20_get_params p11prov_common_get_params
+
+static int p11prov_common_get_params(OSSL_PARAM params[], int size,
+                                     size_t ivsize, int mode,
+                                     CK_ULONG mechanism)
 {
     int ciph_mode = 0;
     int flags = mode & MODE_flags_mask;
     size_t keysize = size / 8;
     size_t blocksize = AESBLOCK;
-    size_t ivsize = 16; /* 128 bits for all modes but ECB/GCM */
 
     switch (mode & MODE_modes_mask) {
     case MODE_ecb:
@@ -204,6 +222,10 @@ static int p11prov_aes_get_params(OSSL_PARAM params[], int size, int mode,
         ciph_mode = EVP_CIPH_GCM_MODE;
         flags |= MODE_flag_aead | MODE_flag_custom_iv;
         break;
+    case MODE_poly1305:
+        ciph_mode = EVP_CIPH_STREAM_CIPHER;
+        flags |= MODE_flag_aead | MODE_flag_custom_iv;
+        break;
     default:
         ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
         return RET_OSSL_ERR;
@@ -213,24 +235,28 @@ static int p11prov_aes_get_params(OSSL_PARAM params[], int size, int mode,
         blocksize = 1;
     }
 
-    if (ciph_mode == EVP_CIPH_ECB_MODE) {
-        ivsize = 0;
-    } else if (ciph_mode == EVP_CIPH_GCM_MODE) {
-        ivsize = 12;
-    }
-
-    return p11prov_cipher_get_params(params, ciph_mode, flags, keysize,
-                                     blocksize, ivsize);
+    return p11prov_cipher_get_params(params, ciph_mode, flags, keysize, ivsize,
+                                     blocksize);
 };
 
 static void p11prov_cipher_free_mech(CK_MECHANISM_PTR mech)
 {
+    if (!mech->pParameter) {
+        return;
+    }
+
     if (mech->mechanism == CKM_AES_GCM) {
         CK_GCM_MESSAGE_PARAMS_PTR gcm =
             (CK_GCM_MESSAGE_PARAMS_PTR)mech->pParameter;
 
         OPENSSL_clear_free(gcm->pIv, gcm->ulIvLen);
         OPENSSL_clear_free(gcm->pTag, BITS_TO_BYTES(gcm->ulTagBits));
+    } else if (mech->mechanism == CKM_CHACHA20_POLY1305) {
+        CK_SALSA20_CHACHA20_POLY1305_MSG_PARAMS_PTR chacha =
+            (CK_SALSA20_CHACHA20_POLY1305_MSG_PARAMS_PTR)mech->pParameter;
+
+        OPENSSL_clear_free(chacha->pNonce, chacha->ulNonceLen);
+        OPENSSL_free(chacha->pTag);
     }
 
     OPENSSL_clear_free(mech->pParameter, mech->ulParameterLen);
@@ -297,7 +323,10 @@ static void p11prov_cipher_freectx(void *ctx)
     OPENSSL_clear_free(cctx, sizeof(struct p11prov_cipher_ctx));
 }
 
-static void *p11prov_aes_dupctx(void *ctx)
+#define p11prov_aes_dupctx p11prov_common_dupctx
+#define p11prov_chacha20_dupctx p11prov_common_dupctx
+
+static void *p11prov_common_dupctx(void *ctx)
 {
     return NULL;
 }
@@ -343,12 +372,17 @@ static int set_iv(struct p11prov_cipher_ctx *ctx, const unsigned char *iv,
     return CKR_OK;
 }
 
-static int p11prov_aes_set_ctx_params(void *vctx, const OSSL_PARAM params[]);
-
 static CK_RV p11prov_cipher_prep_gcm(CK_MECHANISM_PTR mech,
-                                     const unsigned char *iv, size_t ivlen,
-                                     const OSSL_PARAM params[])
+                                     const unsigned char *iv, size_t ivlen)
 {
+    if (!mech) {
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    if (ivlen > EVP_MAX_IV_LENGTH) {
+        return CKR_MECHANISM_PARAM_INVALID;
+    }
+
     if (!mech->pParameter) {
         mech->ulParameterLen = sizeof(CK_GCM_MESSAGE_PARAMS);
         mech->pParameter = OPENSSL_zalloc(mech->ulParameterLen);
@@ -359,7 +393,7 @@ static CK_RV p11prov_cipher_prep_gcm(CK_MECHANISM_PTR mech,
 
     CK_GCM_MESSAGE_PARAMS_PTR gcm = (CK_GCM_MESSAGE_PARAMS_PTR)mech->pParameter;
 
-    if (iv && ivlen) {
+    if (iv && ivlen != 0) {
         gcm->pIv = OPENSSL_memdup(iv, ivlen);
         if (!gcm->pIv) {
             return CKR_HOST_MEMORY;
@@ -368,9 +402,11 @@ static CK_RV p11prov_cipher_prep_gcm(CK_MECHANISM_PTR mech,
 
     gcm->ulIvLen = ivlen;
     gcm->ulTagBits = BYTES_TO_BITS(EVP_MAX_AEAD_TAG_LENGTH);
-    gcm->pTag = OPENSSL_zalloc(EVP_MAX_AEAD_TAG_LENGTH);
     if (!gcm->pTag) {
-        return CKR_HOST_MEMORY;
+        gcm->pTag = OPENSSL_zalloc(EVP_MAX_AEAD_TAG_LENGTH);
+        if (!gcm->pTag) {
+            return CKR_HOST_MEMORY;
+        }
     }
 
     /* The IV fixed bits and IV generator are only used
@@ -381,6 +417,52 @@ static CK_RV p11prov_cipher_prep_gcm(CK_MECHANISM_PTR mech,
 
     return CKR_OK;
 }
+
+static CK_RV p11prov_cipher_prep_chacha20_poly1305(CK_MECHANISM_PTR mech,
+                                                   const unsigned char *iv,
+                                                   size_t ivlen)
+{
+    if (!mech) {
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    if (ivlen != 0 && ivlen != 12) {
+        return CKR_MECHANISM_PARAM_INVALID;
+    }
+
+    if (!mech->pParameter) {
+        mech->ulParameterLen = sizeof(CK_SALSA20_CHACHA20_POLY1305_MSG_PARAMS);
+        mech->pParameter = OPENSSL_zalloc(mech->ulParameterLen);
+        if (!mech->pParameter) {
+            return CKR_HOST_MEMORY;
+        }
+    }
+
+    CK_SALSA20_CHACHA20_POLY1305_MSG_PARAMS_PTR chacha =
+        (CK_SALSA20_CHACHA20_POLY1305_MSG_PARAMS_PTR)mech->pParameter;
+
+    if (iv && ivlen != 0) {
+        chacha->pNonce = OPENSSL_memdup(iv, ivlen);
+        if (!chacha->pNonce) {
+            return CKR_HOST_MEMORY;
+        }
+    }
+
+    chacha->ulNonceLen = ivlen;
+    if (!chacha->pTag) {
+        chacha->pTag = OPENSSL_zalloc(EVP_CHACHAPOLY_TLS_TAG_LEN);
+        if (!chacha->pTag) {
+            return CKR_HOST_MEMORY;
+        }
+    }
+
+    return CKR_OK;
+}
+
+#define p11prov_aes_set_ctx_params p11prov_common_set_ctx_params
+#define p11prov_chacha20_set_ctx_params p11prov_common_set_ctx_params
+
+static int p11prov_common_set_ctx_params(void *vctx, const OSSL_PARAM params[]);
 
 static CK_RV p11prov_cipher_prep_mech(struct p11prov_cipher_ctx *ctx,
                                       const unsigned char *iv, size_t ivlen,
@@ -407,7 +489,10 @@ static CK_RV p11prov_cipher_prep_mech(struct p11prov_cipher_ctx *ctx,
         break;
 
     case CKM_AES_GCM:
-        return p11prov_cipher_prep_gcm(&ctx->mech, iv, ivlen, params);
+        return p11prov_cipher_prep_gcm(&ctx->mech, iv, ivlen);
+
+    case CKM_CHACHA20_POLY1305:
+        return p11prov_cipher_prep_chacha20_poly1305(&ctx->mech, iv, ivlen);
 
     default:
         P11PROV_debug("invalid mechanism (ctx=%p, iv=%p, "
@@ -423,7 +508,7 @@ static CK_RV p11prov_cipher_prep_mech(struct p11prov_cipher_ctx *ctx,
         }
     }
 
-    ret = p11prov_aes_set_ctx_params(ctx, params);
+    ret = p11prov_common_set_ctx_params(ctx, params);
     if (ret != RET_OSSL_OK) {
         P11PROV_debug("invalid mechanism param (ctx=%p, iv=%p, "
                       "ivlen=%lu, params=%p)",
@@ -552,7 +637,8 @@ static int p11prov_cipher_legacy_init(void *ctx, CK_FLAGS op,
 static CK_FLAGS p11prov_cipher_get_op(struct p11prov_cipher_ctx *ctx,
                                       CK_FLAGS def_flag)
 {
-    if (ctx->mech.mechanism == CKM_AES_GCM) {
+    if (ctx->mech.mechanism == CKM_AES_GCM
+        || ctx->mech.mechanism == CKM_CHACHA20_POLY1305) {
         switch (def_flag) {
         case CKF_ENCRYPT:
             return CKF_MESSAGE_ENCRYPT;
@@ -740,6 +826,120 @@ static CK_RV tlsunpad(struct p11prov_cipher_ctx *cctx, unsigned char *out,
     return rv;
 }
 
+static CK_RV tls_aead_get_data(CK_MECHANISM_PTR mech, data_buffer *explicitiv,
+                               data_buffer *tag)
+{
+    /* In TLS 1.2, OpenSSL provides a buffer with this layout:
+     * [explicit IV] [plaintext] [authentication tag]
+     *
+     * In the encryption case, it expects the provider to fill in
+     * the explicit IV and tag, and to overwrite the plaintext with
+     * ciphertext. Explicit IV can be either:
+     * 0 bytes: CHACHA20-POLY1305
+     * 4 bytes: AES-GCM
+     */
+
+    if (mech->mechanism == CKM_AES_GCM) {
+        CK_GCM_MESSAGE_PARAMS_PTR gcm =
+            (CK_GCM_MESSAGE_PARAMS_PTR)mech->pParameter;
+
+        explicitiv->data = gcm->pIv + BITS_TO_BYTES(gcm->ulIvFixedBits);
+        explicitiv->length = EVP_GCM_TLS_EXPLICIT_IV_LEN;
+
+        tag->data = gcm->pTag;
+        tag->length = BITS_TO_BYTES(gcm->ulTagBits);
+    } else if (mech->mechanism == CKM_CHACHA20_POLY1305) {
+        CK_SALSA20_CHACHA20_POLY1305_MSG_PARAMS_PTR chacha =
+            (CK_SALSA20_CHACHA20_POLY1305_MSG_PARAMS_PTR)mech->pParameter;
+
+        explicitiv->data = NULL;
+        explicitiv->length = 0;
+
+        tag->data = chacha->pTag;
+        tag->length = EVP_CHACHAPOLY_TLS_TAG_LEN;
+    } else {
+        return CKR_MECHANISM_INVALID;
+    }
+
+    return CKR_OK;
+}
+
+static CK_RV tls_pre_aead(struct p11prov_cipher_ctx *cctx,
+                          const unsigned char **in, size_t *inl,
+                          unsigned char **out, size_t *outl)
+{
+    data_buffer iv = { 0 };
+    data_buffer tag = { 0 };
+    CK_RV rv;
+
+    rv = tls_aead_get_data(&cctx->mech, &iv, &tag);
+    if (rv != CKR_OK) {
+        return rv;
+    }
+
+    if (cctx->mech.mechanism == CKM_CHACHA20_POLY1305) {
+        CK_SALSA20_CHACHA20_POLY1305_MSG_PARAMS_PTR chacha =
+            (CK_SALSA20_CHACHA20_POLY1305_MSG_PARAMS_PTR)cctx->mech.pParameter;
+
+        /* RFC7905: Before encrypting, XOR the nonce with the sequence number,
+         * which is encoded in the AAD. */
+        for (size_t i = 0; i < 8; i++)
+            chacha->pNonce[i + 4] ^= cctx->aad[i];
+    }
+
+    if (cctx->operation == CKF_MESSAGE_DECRYPT) {
+        if (iv.data && iv.length) {
+            memcpy(iv.data, *in, iv.length);
+        }
+        if (tag.data && tag.length) {
+            memcpy(tag.data, *in + *inl - tag.length, tag.length);
+        }
+    }
+
+    *in += iv.length;
+    *inl -= (iv.length + tag.length);
+    *out += iv.length;
+    *outl = *inl;
+
+    return CKR_OK;
+}
+
+static CK_RV tls_post_aead(struct p11prov_cipher_ctx *cctx, unsigned char *out,
+                           size_t *outl)
+{
+    data_buffer explicitiv = { 0 };
+    data_buffer tag = { 0 };
+    CK_RV rv;
+
+    rv = tls_aead_get_data(&cctx->mech, &explicitiv, &tag);
+    if (rv != CKR_OK) {
+        return rv;
+    }
+
+    if (cctx->mech.mechanism == CKM_CHACHA20_POLY1305) {
+        CK_SALSA20_CHACHA20_POLY1305_MSG_PARAMS_PTR chacha =
+            (CK_SALSA20_CHACHA20_POLY1305_MSG_PARAMS_PTR)cctx->mech.pParameter;
+
+        /* Post encryption, XOR the nonce again with the sequence number,
+         * to restore the original nonce value. */
+        for (size_t i = 0; i < 8; i++)
+            chacha->pNonce[i + 4] ^= cctx->aad[i];
+    }
+
+    if (cctx->operation == CKF_MESSAGE_ENCRYPT) {
+        if (explicitiv.data && explicitiv.length) {
+            memcpy(out - explicitiv.length, explicitiv.data, explicitiv.length);
+        }
+        if (tag.data && tag.length) {
+            memcpy(out + *outl, tag.data, tag.length);
+        }
+
+        *outl += (explicitiv.length + tag.length);
+    }
+
+    return CKR_OK;
+}
+
 static int p11prov_cipher_update(void *ctx, unsigned char *out, size_t *outl,
                                  size_t outsize, const unsigned char *in,
                                  size_t inl)
@@ -864,23 +1064,12 @@ static int p11prov_cipher_update(void *ctx, unsigned char *out, size_t *outl,
         }
         break;
     case CKF_MESSAGE_ENCRYPT:
-        if (cctx->tlsver == TLS1_2_VERSION
-            && cctx->mech.mechanism == CKM_AES_GCM) {
-            /* In TLS 1.2 with AES-GCM, OpenSSL provides a buffer with this layout:
-             * [explicit IV] [plaintext] [authentication tag]
-             *
-             * In the encryption case, it expects the provider to fill in
-             * the explicit IV and tag, and to overwrite the plaintext with
-             * ciphertext. */
-            CK_GCM_MESSAGE_PARAMS_PTR gcm =
-                (CK_GCM_MESSAGE_PARAMS_PTR)cctx->mech.pParameter;
-            size_t explicitivlen = EVP_GCM_TLS_EXPLICIT_IV_LEN;
-            size_t taglen = BITS_TO_BYTES(gcm->ulTagBits);
-
-            in += explicitivlen;
-            inl -= (explicitivlen + taglen);
-            out += explicitivlen;
-            outlen = inl;
+        if (cctx->tlsver == TLS1_2_VERSION) {
+            rv = tls_pre_aead(cctx, &in, &inl, &out, &outlen);
+            if (rv != CKR_OK) {
+                P11PROV_raise(cctx->provctx, rv, "AEAD encryption failure");
+                return RET_OSSL_ERR;
+            }
         }
 
         rv = p11prov_EncryptMessage(
@@ -888,17 +1077,8 @@ static int p11prov_cipher_update(void *ctx, unsigned char *out, size_t *outl,
             cctx->mech.ulParameterLen, (CK_BYTE_PTR)cctx->aad, cctx->aadsize,
             (CK_BYTE_PTR)in, inl, out, &outlen);
 
-        if (rv == CKR_OK && cctx->tlsver == TLS1_2_VERSION
-            && cctx->mech.mechanism == CKM_AES_GCM) {
-            CK_GCM_MESSAGE_PARAMS_PTR gcm =
-                (CK_GCM_MESSAGE_PARAMS_PTR)cctx->mech.pParameter;
-            size_t explicitivlen = EVP_GCM_TLS_EXPLICIT_IV_LEN;
-            size_t taglen = BITS_TO_BYTES(gcm->ulTagBits);
-            /* Fill in the IV and tag after encrypt */
-            memcpy(out - explicitivlen,
-                   gcm->pIv + BITS_TO_BYTES(gcm->ulIvFixedBits), explicitivlen);
-            memcpy(out + outlen, gcm->pTag, taglen);
-            outlen += explicitivlen + taglen;
+        if (rv == CKR_OK && cctx->tlsver == TLS1_2_VERSION) {
+            rv = tls_post_aead(cctx, out, &outlen);
         }
 
         OPENSSL_clear_free(cctx->aad, cctx->aadsize);
@@ -906,34 +1086,20 @@ static int p11prov_cipher_update(void *ctx, unsigned char *out, size_t *outl,
         cctx->aadsize = 0;
         break;
     case CKF_MESSAGE_DECRYPT:
-        if (cctx->tlsver == TLS1_2_VERSION
-            && cctx->mech.mechanism == CKM_AES_GCM) {
-            /* In TLS 1.2 with AES-GCM, OpenSSL provides a buffer with this layout:
-             * [explicit IV] [ciphertext] [authentication tag]
-             *
-             * In the decryption case, it expects the provider to use the
-             * provided explicit IV and tag, and to overwrite the ciphertext
-             * with plaintext. */
-            CK_GCM_MESSAGE_PARAMS_PTR gcm =
-                (CK_GCM_MESSAGE_PARAMS_PTR)cctx->mech.pParameter;
-            size_t explicitivlen = EVP_GCM_TLS_EXPLICIT_IV_LEN;
-            size_t taglen = BITS_TO_BYTES(gcm->ulTagBits);
-
-            memcpy(gcm->pIv + BITS_TO_BYTES(gcm->ulIvFixedBits), in,
-                   explicitivlen);
-
-            in += explicitivlen;
-            inl -= (explicitivlen + taglen);
-            out += explicitivlen;
-            outlen = inl;
-
-            memcpy(gcm->pTag, in + inl, taglen);
+        if (cctx->tlsver == TLS1_2_VERSION) {
+            rv = tls_pre_aead(cctx, &in, &inl, &out, &outlen);
+            if (rv != CKR_OK) {
+                P11PROV_raise(cctx->provctx, rv, "AEAD encryption failure");
+                return RET_OSSL_ERR;
+            }
         }
 
         rv = p11prov_DecryptMessage(
             cctx->provctx, session_handle, cctx->mech.pParameter,
             cctx->mech.ulParameterLen, (CK_BYTE_PTR)cctx->aad, cctx->aadsize,
             (CK_BYTE_PTR)in, inl, out, &outlen);
+
+        /* No need to call tls_post_aead() after decryption */
 
         OPENSSL_clear_free(cctx->aad, cctx->aadsize);
         cctx->aad = NULL;
@@ -996,29 +1162,94 @@ static int p11prov_cipher_final(void *ctx, unsigned char *out, size_t *outl,
     return RET_OSSL_OK;
 }
 
-static int p11prov_aes_cipher(void *ctx, unsigned char *out, size_t *outl,
-                              size_t outsize, const unsigned char *in,
-                              size_t inl)
+#define p11prov_aes_cipher p11prov_common_cipher
+#define p11prov_chacha20_cipher p11prov_common_cipher
+
+static int p11prov_common_cipher(void *ctx, unsigned char *out, size_t *outl,
+                                 size_t outsize, const unsigned char *in,
+                                 size_t inl)
 {
     return RET_OSSL_ERR;
 }
 
-static int p11prov_aes_get_ctx_params(void *ctx, OSSL_PARAM params[])
+static int p11prov_aead_get_ctx_params(struct p11prov_cipher_ctx *cctx,
+                                       OSSL_PARAM params[])
 {
-    struct p11prov_cipher_ctx *cctx = (struct p11prov_cipher_ctx *)ctx;
-    size_t ivsize = 16; /* 128 bits for all modes but ECB */
+    unsigned char *tag = NULL;
+    size_t taglen = 0;
+    OSSL_PARAM *p = NULL;
+    int ret = 0;
+
+    CK_GCM_MESSAGE_PARAMS_PTR gcm = NULL;
+    CK_SALSA20_CHACHA20_POLY1305_MSG_PARAMS_PTR chacha = NULL;
+
+    switch (cctx->mech.mechanism) {
+    case CKM_AES_GCM:
+        gcm = (CK_GCM_MESSAGE_PARAMS_PTR)cctx->mech.pParameter;
+
+        if (gcm) {
+            tag = gcm->pTag;
+            taglen = BITS_TO_BYTES(gcm->ulTagBits);
+        }
+        break;
+
+    case CKM_CHACHA20_POLY1305:
+        chacha =
+            (CK_SALSA20_CHACHA20_POLY1305_MSG_PARAMS_PTR)cctx->mech.pParameter;
+
+        if (chacha) {
+            tag = chacha->pTag;
+            taglen = EVP_CHACHAPOLY_TLS_TAG_LEN;
+        }
+        break;
+
+    default:
+        ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_AEAD);
+        return RET_OSSL_ERR;
+    }
+
+    p = OSSL_PARAM_locate(params, OSSL_CIPHER_PARAM_AEAD_TAGLEN);
+    if (p) {
+        ret = OSSL_PARAM_set_size_t(params, taglen);
+        if (ret != RET_OSSL_OK) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+            return RET_OSSL_ERR;
+        }
+    }
+
+    p = OSSL_PARAM_locate(params, OSSL_CIPHER_PARAM_AEAD_TAG);
+    if (p) {
+        ret = OSSL_PARAM_set_octet_string(p, tag, taglen);
+        if (ret != RET_OSSL_OK) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+            return RET_OSSL_ERR;
+        }
+    }
+
+    p = OSSL_PARAM_locate(params, OSSL_CIPHER_PARAM_AEAD_TLS1_AAD_PAD);
+    if (p) {
+        ret = OSSL_PARAM_set_size_t(p, taglen);
+        if (ret != RET_OSSL_OK) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+            return RET_OSSL_ERR;
+        }
+    }
+
+    return RET_OSSL_OK;
+}
+
+#define p11prov_aes_get_ctx_params p11prov_common_get_ctx_params
+#define p11prov_chacha20_get_ctx_params p11prov_common_get_ctx_params
+
+static int p11prov_common_get_ctx_params(void *ctx, OSSL_PARAM params[])
+{
+    struct p11prov_cipher_ctx *cctx = ctx;
     OSSL_PARAM *p;
     int ret;
 
-    if (cctx->mech.mechanism == CKM_AES_ECB) {
-        ivsize = 0;
-    } else if (cctx->mech.mechanism == CKM_AES_GCM) {
-        ivsize = 12;
-    }
-
     p = OSSL_PARAM_locate(params, OSSL_CIPHER_PARAM_IVLEN);
     if (p) {
-        ret = OSSL_PARAM_set_size_t(p, ivsize);
+        ret = OSSL_PARAM_set_size_t(p, cctx->ivsize);
         if (ret != RET_OSSL_OK) {
             ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
             return RET_OSSL_ERR;
@@ -1087,60 +1318,15 @@ static int p11prov_aes_get_ctx_params(void *ctx, OSSL_PARAM params[])
         }
     }
 
-    p = OSSL_PARAM_locate(params, OSSL_CIPHER_PARAM_AEAD_TAGLEN);
-    if (p) {
-        size_t taglen = 0;
-        if (cctx->mech.mechanism == CKM_AES_GCM) {
-            taglen = EVP_GCM_TLS_TAG_LEN;
-        } else {
-            ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_AEAD);
-            return RET_OSSL_ERR;
-        }
-        ret = OSSL_PARAM_set_size_t(params, taglen);
-        if (ret != RET_OSSL_OK) {
-            ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
-            return RET_OSSL_ERR;
-        }
-    }
-
-    p = OSSL_PARAM_locate(params, OSSL_CIPHER_PARAM_AEAD_TAG);
-    if (p) {
-        if (cctx->mech.mechanism == CKM_AES_GCM) {
-            CK_GCM_MESSAGE_PARAMS_PTR gcm =
-                (CK_GCM_MESSAGE_PARAMS_PTR)cctx->mech.pParameter;
-
-            ret = OSSL_PARAM_set_octet_string(p, gcm->pTag,
-                                              BITS_TO_BYTES(gcm->ulTagBits));
-            if (ret != RET_OSSL_OK) {
-                ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
-                return RET_OSSL_ERR;
-            }
-        } else {
-            ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_AEAD);
-            return RET_OSSL_ERR;
-        }
-    }
-
-    p = OSSL_PARAM_locate(params, OSSL_CIPHER_PARAM_AEAD_TLS1_AAD_PAD);
-    if (p) {
-        size_t pad = 0;
-        if (cctx->mech.mechanism == CKM_AES_GCM) {
-            pad = EVP_GCM_TLS_TAG_LEN;
-        } else {
-            ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_AEAD);
-            return RET_OSSL_ERR;
-        }
-        ret = OSSL_PARAM_set_size_t(p, pad);
-        if (ret != RET_OSSL_OK) {
-            ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
-            return RET_OSSL_ERR;
-        }
+    if (cctx->mech.mechanism == CKM_AES_GCM
+        || cctx->mech.mechanism == CKM_CHACHA20_POLY1305) {
+        return p11prov_aead_get_ctx_params(cctx, params);
     }
 
     return RET_OSSL_OK;
 }
 
-static int p11prov_aes_set_ctx_params(void *vctx, const OSSL_PARAM params[])
+static int p11prov_common_set_ctx_params(void *vctx, const OSSL_PARAM params[])
 {
     struct p11prov_cipher_ctx *ctx = (struct p11prov_cipher_ctx *)vctx;
     const OSSL_PARAM *p;
@@ -1242,6 +1428,7 @@ static int p11prov_aes_set_ctx_params(void *vctx, const OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate_const(params, OSSL_CIPHER_PARAM_AEAD_IVLEN);
     if (p) {
+        CK_RV rv = CKR_MECHANISM_PARAM_INVALID;
         size_t ivlen = 0;
         int ret = OSSL_PARAM_get_size_t(p, &ivlen);
         if (ret != RET_OSSL_OK) {
@@ -1251,26 +1438,16 @@ static int p11prov_aes_set_ctx_params(void *vctx, const OSSL_PARAM params[])
         }
 
         if (ctx->mech.mechanism == CKM_AES_GCM) {
-            if (!ctx->mech.pParameter) {
-                ctx->mech.ulParameterLen = sizeof(CK_GCM_MESSAGE_PARAMS);
-                ctx->mech.pParameter = OPENSSL_zalloc(ctx->mech.ulParameterLen);
-                if (!ctx->mech.pParameter) {
-                    return CKR_HOST_MEMORY;
-                }
-            }
-
-            CK_GCM_MESSAGE_PARAMS_PTR gcm =
-                (CK_GCM_MESSAGE_PARAMS_PTR)ctx->mech.pParameter;
-            if (!ivlen || ivlen > EVP_MAX_IV_LENGTH) {
-                P11PROV_raise(ctx->provctx, CKR_MECHANISM_PARAM_INVALID,
-                              "Invalid AEAD IV Length for GCM");
-                return RET_OSSL_ERR;
-            }
-
-            gcm->ulIvLen = ivlen;
+            rv = p11prov_cipher_prep_gcm(&ctx->mech, NULL, ivlen);
+        } else if (ctx->mech.mechanism == CKM_CHACHA20_POLY1305) {
+            rv = p11prov_cipher_prep_chacha20_poly1305(&ctx->mech, NULL, ivlen);
         } else {
-            P11PROV_raise(ctx->provctx, CKR_MECHANISM_PARAM_INVALID,
+            P11PROV_raise(ctx->provctx, rv,
                           "AEAD IV Length not supported for this mechanism");
+            return RET_OSSL_ERR;
+        }
+
+        if (rv != CKR_OK) {
             return RET_OSSL_ERR;
         }
     }
@@ -1316,7 +1493,8 @@ static int p11prov_aes_set_ctx_params(void *vctx, const OSSL_PARAM params[])
 
     p = OSSL_PARAM_locate_const(params, OSSL_CIPHER_PARAM_AEAD_TLS1_AAD);
     if (p) {
-        if (ctx->mech.mechanism == CKM_AES_GCM) {
+        if (ctx->mech.mechanism == CKM_AES_GCM
+            || ctx->mech.mechanism == CKM_CHACHA20_POLY1305) {
             OPENSSL_clear_free(ctx->aad, ctx->aadsize);
             ctx->aad = NULL;
             ctx->aadsize = 0;
@@ -1329,24 +1507,35 @@ static int p11prov_aes_set_ctx_params(void *vctx, const OSSL_PARAM params[])
                 return RET_OSSL_ERR;
             }
 
+            size_t ivlen = 0;
+            size_t taglen = 0;
+
             /* OpenSSL encodes the record length in the last two bytes of AAD, this
              * value needs to be adjusted. See also gcm_tls_init() in OpenSSL. */
+            if (ctx->mech.mechanism == CKM_AES_GCM) {
+                ivlen = EVP_GCM_TLS_EXPLICIT_IV_LEN;
+                taglen = EVP_GCM_TLS_TAG_LEN;
+            } else if (ctx->mech.mechanism == CKM_CHACHA20_POLY1305) {
+                ivlen = 0;
+                taglen = EVP_CHACHAPOLY_TLS_TAG_LEN;
+            }
+
             size_t len =
                 ctx->aad[ctx->aadsize - 2] << 8 | ctx->aad[ctx->aadsize - 1];
-            if (len <= EVP_GCM_TLS_EXPLICIT_IV_LEN) {
+            if (len <= ivlen) {
                 P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR,
                               "Invalid AAD encoded length");
                 return RET_OSSL_ERR;
             }
-            len -= EVP_GCM_TLS_EXPLICIT_IV_LEN;
+            len -= ivlen;
 
             if (ctx->operation == CKF_MESSAGE_DECRYPT) {
-                if (len <= EVP_GCM_TLS_TAG_LEN) {
+                if (len <= taglen) {
                     P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR,
                                   "Invalid AAD encoded length");
                     return RET_OSSL_ERR;
                 }
-                len -= EVP_GCM_TLS_TAG_LEN;
+                len -= taglen;
             }
 
             ctx->aad[ctx->aadsize - 2] = (unsigned char)((len >> 8) & 0xff);
@@ -1376,6 +1565,12 @@ static int p11prov_aes_set_ctx_params(void *vctx, const OSSL_PARAM params[])
             OPENSSL_clear_free(gcm->pTag, BITS_TO_BYTES(gcm->ulTagBits));
             gcm->pTag = tag;
             gcm->ulTagBits = BYTES_TO_BITS(taglen);
+        } else if (ctx->mech.mechanism == CKM_CHACHA20_POLY1305) {
+            CK_SALSA20_CHACHA20_POLY1305_MSG_PARAMS_PTR chacha =
+                (CK_SALSA20_CHACHA20_POLY1305_MSG_PARAMS_PTR)
+                    ctx->mech.pParameter;
+            OPENSSL_clear_free(chacha->pTag, EVP_CHACHAPOLY_TLS_TAG_LEN);
+            chacha->pTag = tag;
         } else {
             OPENSSL_clear_free(tag, taglen);
             P11PROV_raise(ctx->provctx, CKR_MECHANISM_PARAM_INVALID,
@@ -1398,8 +1593,11 @@ static const OSSL_PARAM p11prov_aes_generic_gettable_ctx_params[] = {
     OSSL_PARAM_END
 };
 
-static const OSSL_PARAM *p11prov_aes_gettable_ctx_params(void *vctx,
-                                                         void *provctx)
+#define p11prov_aes_gettable_ctx_params p11prov_common_gettable_ctx_params
+#define p11prov_chacha20_gettable_ctx_params p11prov_common_gettable_ctx_params
+
+static const OSSL_PARAM *p11prov_common_gettable_ctx_params(void *vctx,
+                                                            void *provctx)
 {
     struct p11prov_cipher_ctx *ctx = (struct p11prov_cipher_ctx *)vctx;
 
@@ -1445,8 +1643,11 @@ static const OSSL_PARAM p11prov_aes_cts_settable_ctx_params[] = {
     OSSL_PARAM_utf8_string(OSSL_CIPHER_PARAM_CTS_MODE, NULL, 0), OSSL_PARAM_END
 };
 
-static const OSSL_PARAM *p11prov_aes_settable_ctx_params(void *vctx,
-                                                         void *provctx)
+#define p11prov_aes_settable_ctx_params p11prov_common_settable_ctx_params
+#define p11prov_chacha20_settable_ctx_params p11prov_common_settable_ctx_params
+
+static const OSSL_PARAM *p11prov_common_settable_ctx_params(void *vctx,
+                                                            void *provctx)
 {
     struct p11prov_cipher_ctx *ctx = (struct p11prov_cipher_ctx *)vctx;
     if (!ctx) {
@@ -1496,5 +1697,6 @@ DISPATCH_TABLE_CIPHER_FN(aes, 256, cts, CKM_AES_CTS);
 DISPATCH_TABLE_CIPHER_FN(aes, 128, gcm, CKM_AES_GCM);
 DISPATCH_TABLE_CIPHER_FN(aes, 192, gcm, CKM_AES_GCM);
 DISPATCH_TABLE_CIPHER_FN(aes, 256, gcm, CKM_AES_GCM);
+DISPATCH_TABLE_CIPHER_FN(chacha20, 256, poly1305, CKM_CHACHA20_POLY1305);
 
 #endif
