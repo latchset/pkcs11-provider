@@ -168,11 +168,35 @@ run_tests() {
     title PARA "Run test with TLS 1.2 (ECDSA)"
     run_test "$ECPRIURI" "$ECCRTURI" "-tls1_2" "-tls1_2"
 
-    title PARA "Run test with TLS 1.2 and ECDH"
-    run_test "$ECPRIURI" "$ECCRTURI" "" "-tls1_2 -cipher ECDHE-ECDSA-AES128-GCM-SHA256 -groups secp256r1"
+    TLS12_CIPHERS=(
+        ECDHE-ECDSA-AES128-SHA256
+        ECDHE-ECDSA-AES256-SHA384
+        ECDHE-ECDSA-AES128-GCM-SHA256
+        ECDHE-ECDSA-AES256-GCM-SHA384
+        ECDHE-ECDSA-CHACHA20-POLY1305
+    )
+    for cipher in "${TLS12_CIPHERS[@]}"; do
+        if $OPENSSL ciphers -s -v -tls1_2 2>/dev/null | grep -q "$cipher"; then
+            title PARA "Run test with TLS 1.2 and $cipher"
+            run_test "$ECPRIURI" "$ECCRTURI" "" "-tls1_2 -cipher ${cipher} -groups secp256r1"
+        else
+            title PARA "Skipping test with TLS 1.2 and $cipher"
+        fi
+    done
 
-    title PARA "Run test with TLS 1.3 and specific suite"
-    run_test "$ECPRIURI" "$ECCRTURI" "" "-tls1_3 -ciphersuites TLS_AES_256_GCM_SHA384 -groups secp256r1"
+    TLS13_CIPHERS=(
+        TLS_AES_128_GCM_SHA256
+        TLS_AES_256_GCM_SHA384
+        TLS_CHACHA20_POLY1305_SHA256
+    )
+    for cipher in "${TLS13_CIPHERS[@]}"; do
+        if $OPENSSL ciphers -s -v -tls1_3 2>/dev/null | grep -q "$cipher"; then
+            title PARA "Run test with TLS 1.3 and $cipher"
+            run_test "$ECPRIURI" "$ECCRTURI" "" "-tls1_3 -ciphersuites ${cipher} -groups secp256r1"
+        else
+            title PARA "Skipping test with TLS 1.3 and $cipher"
+        fi
+    done
 }
 
 title SECTION "TLS with key in provider"
