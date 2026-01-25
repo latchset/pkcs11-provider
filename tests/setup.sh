@@ -97,6 +97,8 @@ elif [ "${TOKENTYPE}" == "kryoptic" ]; then
     source "${TESTSSRCDIR}/kryoptic-init.sh"
 elif [ "${TOKENTYPE}" == "kryoptic.nss" ]; then
     source "${TESTSSRCDIR}/kryoptic.nss-init.sh"
+elif [ "${TOKENTYPE}" == "kryoptic.multislot" ]; then
+    source "${TESTSSRCDIR}/kryoptic.multislot-init.sh"
 else
     echo "Unknown token type: $1"
     exit 1
@@ -796,6 +798,16 @@ export RSAPSS2BASEURI="${RSAPSS2BASEURI}"
 export RSAPSS2PUBURI="${RSAPSS2PUBURI}"
 export RSAPSS2PRIURI="${RSAPSS2PRIURI}"
 export RSAPSS2CRTURI="${RSAPSS2CRTURI}"
+DBGSCRIPT
+fi
+
+if [ -n "${PRIURI2}" ]; then
+    cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
+
+export BASEURI2WITHPINVALUE="${BASEURI2WITHPINVALUE}"
+export BASEURI2="${BASEURI2}"
+export PUBURI2="${PUBURI2}"
+export PRIURI2="${PRIURI2}"
 DBGSCRIPT
 fi
 
