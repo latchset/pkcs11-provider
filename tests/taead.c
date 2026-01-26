@@ -12,7 +12,7 @@
 #include <openssl/core_names.h>
 #include "util.h"
 
-#if SKEY_SUPPORT == 1
+#if defined(OSSL_FUNC_CIPHER_ENCRYPT_SKEY_INIT)
 
 #define MAX_DATA_LEN 1024
 
@@ -271,7 +271,7 @@ int main(int argc, char *argv[])
                 argv[0]);
         fprintf(stderr,
                 "    Algorithms: AES-128-GCM, AES-192-GCM, AES-256-GCM,\n"
-                "                CHACHA20-POLY1305\n");
+                "                ChaCha20-Poly1305\n");
         exit(EXIT_FAILURE);
     }
 
