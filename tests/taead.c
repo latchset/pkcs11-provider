@@ -12,7 +12,7 @@
 #include <openssl/core_names.h>
 #include "util.h"
 
-#if SKEY_SUPPORT == 1
+#if defined(OSSL_FUNC_CIPHER_ENCRYPT_SKEY_INIT)
 
 #define MAX_DATA_LEN 1024
 
