@@ -23,6 +23,7 @@
 #define MODE_ctr 0x10
 #define MODE_cts MODE_flag_cts | MODE_cbc
 #define MODE_gcm 0x20
+#define MODE_poly1305 0x21
 
 #define DISPATCH_CIPHER_FN(alg, name) \
     DECL_DISPATCH_FUNC(cipher, p11prov_##alg, name)
@@ -30,12 +31,12 @@
 #define DISPATCH_TABLE_CIPHER_FN(cipher, size, mode, mechanism) \
     static void *p11prov_##cipher##size##mode##_newctx(void *provctx) \
     { \
-        return p11prov_cipher_newctx(provctx, size, mechanism); \
+        return p11prov_cipher_newctx(provctx, size, IVSIZE_##mode, mechanism); \
     } \
     static int p11prov_##cipher##size##mode##_get_params(OSSL_PARAM params[]) \
     { \
-        return p11prov_##cipher##_get_params(params, size, MODE_##mode, \
-                                             mechanism); \
+        return p11prov_##cipher##_get_params(params, size, IVSIZE_##mode, \
+                                             MODE_##mode, mechanism); \
     } \
     const OSSL_DISPATCH p11prov_##cipher##size##mode##_cipher_functions[] = { \
         { OSSL_FUNC_CIPHER_NEWCTX, \
@@ -97,5 +98,6 @@ extern const OSSL_DISPATCH p11prov_aes256cts_cipher_functions[];
 extern const OSSL_DISPATCH p11prov_aes128gcm_cipher_functions[];
 extern const OSSL_DISPATCH p11prov_aes192gcm_cipher_functions[];
 extern const OSSL_DISPATCH p11prov_aes256gcm_cipher_functions[];
+extern const OSSL_DISPATCH p11prov_chacha20256poly1305_cipher_functions[];
 
 #endif /* _CIPHER_H */
