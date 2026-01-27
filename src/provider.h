@@ -1,5 +1,5 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
-   Copyright 2025 NXP
+   Copyright 2025-2026 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 #ifndef _PROVIDER_H
@@ -237,6 +237,8 @@
 #define P11PROV_NAME_GENERIC_SECRET "GENERIC-SECRET"
 #define P11PROV_NAMES_GENERIC_SECRET P11PROV_NAME_GENERIC_SECRET
 #define P11PROV_DESCS_GENERIC_SECRET "PKCS11 Generic Secret Implementation"
+#define P11PROV_NAMES_HMAC "HMAC"
+#define P11PROV_DESCS_HMAC "PKCS11 HMAC Implementation"
 
 #endif
 
@@ -340,6 +342,7 @@ int p11prov_pop_error_to_mark(P11PROV_CTX *ctx);
 #if SKEY_SUPPORT == 1
 #include "cipher.h"
 #include "kmgmt/skey.h"
+#include "mac.h"
 #endif
 
 /* TLS */

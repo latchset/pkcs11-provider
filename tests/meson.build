@@ -117,6 +117,7 @@ test_programs = {
   'tecx': ['tecx.c', 'util.c'],
   'tskey-kdf': ['tskey_kdf.c', 'util.c'],
   'taead': ['taead.c', 'util.c'],
+  'tskey-mac': ['tskey_mac.c', 'util.c'],
 }
 
 test_executables = []

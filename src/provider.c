@@ -1,5 +1,5 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
-   Copyright 2025 NXP
+   Copyright 2025-2026 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
@@ -63,6 +63,7 @@ struct p11prov_ctx {
 #if SKEY_SUPPORT == 1
     OSSL_ALGORITHM *op_cipher;
     OSSL_ALGORITHM *op_skeymgmt;
+    OSSL_ALGORITHM *op_mac;
 #endif
 
     pthread_rwlock_t quirk_lock;
@@ -554,6 +555,7 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
 #if SKEY_SUPPORT == 1
     OPENSSL_free(ctx->op_cipher);
     OPENSSL_free(ctx->op_skeymgmt);
+    OPENSSL_free(ctx->op_mac);
 #endif
 
     OSSL_LIB_CTX_free(ctx->libctx);
@@ -867,6 +869,11 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
         CKM_AES_OFB, CKM_AES_CFB8, CKM_AES_CFB128, CKM_AES_CFB1, CKM_AES_GCM
 #endif
 
+#define HMAC(hash) CKM_##hash##_HMAC, CKM_##hash##_HMAC_GENERAL
+#define HMAC_MECHS \
+    HMAC(SHA_1), HMAC(SHA224), HMAC(SHA256), HMAC(SHA384), HMAC(SHA512), \
+        HMAC(SHA3_224), HMAC(SHA3_256), HMAC(SHA3_384), HMAC(SHA3_512)
+
 static void alg_rm_mechs(CK_ULONG *checklist, CK_ULONG *rmlist, int *clsize,
                          int rmsize)
 {
@@ -923,7 +930,8 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                              CKM_EDDSA,
                              PQC_MECHS,
 #if SKEY_SUPPORT == 1
-                             AES_MECHS
+                             AES_MECHS,
+                             HMAC_MECHS
 #endif
     };
     bool add_rsasig = false;
@@ -939,6 +947,7 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
     int kem_idx = 0;
 #if SKEY_SUPPORT == 1
     int cipher_idx = 0;
+    int mac_idx = 0;
 #endif
     int slot_idx = 0;
     const char *prop = get_default_properties(ctx);
@@ -1301,6 +1310,27 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                 ADD_ALGO(AES_128_GCM, aes128gcm, cipher, prop);
                 UNCHECK_MECHS(CKM_AES_GCM);
                 break;
+            case CKM_SHA_1_HMAC:
+            case CKM_SHA_1_HMAC_GENERAL:
+            case CKM_SHA224_HMAC:
+            case CKM_SHA224_HMAC_GENERAL:
+            case CKM_SHA256_HMAC:
+            case CKM_SHA256_HMAC_GENERAL:
+            case CKM_SHA384_HMAC:
+            case CKM_SHA384_HMAC_GENERAL:
+            case CKM_SHA512_HMAC:
+            case CKM_SHA512_HMAC_GENERAL:
+            case CKM_SHA3_224_HMAC:
+            case CKM_SHA3_224_HMAC_GENERAL:
+            case CKM_SHA3_256_HMAC:
+            case CKM_SHA3_256_HMAC_GENERAL:
+            case CKM_SHA3_384_HMAC:
+            case CKM_SHA3_384_HMAC_GENERAL:
+            case CKM_SHA3_512_HMAC:
+            case CKM_SHA3_512_HMAC_GENERAL:
+                ADD_ALGO(HMAC, hmac, mac, prop);
+                UNCHECK_MECHS(HMAC_MECHS);
+                break;
 #endif
             default:
                 P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Unhandled mechanism %lu",
@@ -1330,6 +1360,7 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
     TERM_ALGO(kem);
 #if SKEY_SUPPORT == 1
     TERM_ALGO(cipher);
+    TERM_ALGO(mac);
 #endif
 
     /* handle random */
@@ -1350,6 +1381,7 @@ static CK_RV static_operations_init(P11PROV_CTX *ctx)
     int keymgmt_idx = 0;
 #if SKEY_SUPPORT == 1
     int skeymgmt_idx = 0;
+    int mac_idx = 0;
 #endif
     const char *prop = get_default_properties(ctx);
 
@@ -1523,6 +1555,9 @@ static CK_RV static_operations_init(P11PROV_CTX *ctx)
     ADD_ALGO(AES, aes, skeymgmt, prop);
     ADD_ALGO(GENERIC_SECRET, generic_secret, skeymgmt, prop);
     TERM_ALGO(skeymgmt);
+    /* mac */
+    ADD_ALGO(HMAC, hmac, mac, prop);
+    TERM_ALGO(mac);
 #endif
 
     return CKR_OK;
@@ -1607,6 +1642,9 @@ p11prov_query_operation(void *provctx, int operation_id, int *no_cache)
     case OSSL_OP_SKEYMGMT:
         *no_cache = 0;
         return ctx->op_skeymgmt;
+    case OSSL_OP_MAC:
+        *no_cache = 0;
+        return ctx->op_mac;
 #endif
     }
     *no_cache = 0;

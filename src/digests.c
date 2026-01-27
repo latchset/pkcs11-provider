@@ -1,4 +1,5 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+   Copyright 2026 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
@@ -8,57 +9,69 @@
 /* General Digest Mapping functions */
 static struct {
     CK_MECHANISM_TYPE digest;
+    CK_MECHANISM_TYPE hmac;
     size_t block_size;
     size_t digest_size;
     const char *names[5]; /* must give a size for initialization ... */
 } digest_map[] = {
     { CKM_SHA_1,
+      CKM_SHA_1_HMAC,
       64,
       20,
       { "SHA1", "SHA-1", "SSL3-SHA1", "1.3.14.3.2.26", NULL } },
     { CKM_SHA224,
+      CKM_SHA224_HMAC,
       64,
       28,
       { "SHA2-224", "SHA-224", "SHA224", "2.16.840.1.101.3.4.2.4", NULL } },
     { CKM_SHA256,
+      CKM_SHA256_HMAC,
       64,
       32,
       { "SHA2-256", "SHA-256", "SHA256", "2.16.840.1.101.3.4.2.1", NULL } },
     { CKM_SHA384,
+      CKM_SHA384_HMAC,
       128,
       48,
       { "SHA2-384", "SHA-384", "SHA384", "2.16.840.1.101.3.4.2.2", NULL } },
     { CKM_SHA512,
+      CKM_SHA512_HMAC,
       128,
       64,
       { "SHA2-512", "SHA-512", "SHA512", "2.16.840.1.101.3.4.2.3", NULL } },
     { CKM_SHA512_224,
+      CKM_SHA512_224_HMAC,
       128,
       28,
       { "SHA2-512/224", "SHA-512/224", "SHA512-224", "2.16.840.1.101.3.4.2.5",
         NULL } },
     { CKM_SHA512_256,
+      CKM_SHA512_256_HMAC,
       128,
       32,
       { "SHA2-512/256", "SHA-512/256", "SHA512-256", "2.16.840.1.101.3.4.2.6",
         NULL } },
     { CKM_SHA3_224,
+      CKM_SHA3_224_HMAC,
       (1600 - 224 * 2) / 8,
       28,
       { "SHA3-224", "2.16.840.1.101.3.4.2.7", NULL } },
     { CKM_SHA3_256,
+      CKM_SHA3_256_HMAC,
       (1600 - 256 * 2) / 8,
       32,
       { "SHA3-256", "2.16.840.1.101.3.4.2.8", NULL } },
     { CKM_SHA3_384,
+      CKM_SHA3_384_HMAC,
       (1600 - 384 * 2) / 8,
       48,
       { "SHA3-384", "2.16.840.1.101.3.4.2.9", NULL } },
     { CKM_SHA3_512,
+      CKM_SHA3_512_HMAC,
       (1600 - 512 * 2) / 8,
       64,
       { "SHA3-512", "2.16.840.1.101.3.4.2.10", NULL } },
-    { CK_UNAVAILABLE_INFORMATION, 0, 0, { NULL } },
+    { CK_UNAVAILABLE_INFORMATION, CK_UNAVAILABLE_INFORMATION, 0, 0, { NULL } },
 };
 
 CK_RV p11prov_digest_get_block_size(CK_MECHANISM_TYPE digest,
@@ -104,6 +117,29 @@ CK_RV p11prov_digest_get_by_name(const char *name, CK_MECHANISM_TYPE *digest)
                 *digest = digest_map[i].digest;
                 return CKR_OK;
             }
+        }
+    }
+    return CKR_MECHANISM_INVALID;
+}
+
+CK_RV p11prov_digest_to_hmac(CK_MECHANISM_TYPE digest, CK_MECHANISM_TYPE *hmac)
+{
+    for (int i = 0; digest_map[i].digest != CK_UNAVAILABLE_INFORMATION; i++) {
+        if (digest_map[i].digest == digest) {
+            *hmac = digest_map[i].hmac;
+            return CKR_OK;
+        }
+    }
+    return CKR_MECHANISM_INVALID;
+}
+
+CK_RV p11prov_digest_from_hmac(CK_MECHANISM_TYPE hmac,
+                               CK_MECHANISM_TYPE *digest)
+{
+    for (int i = 0; digest_map[i].hmac != CK_UNAVAILABLE_INFORMATION; i++) {
+        if (digest_map[i].hmac == hmac) {
+            *digest = digest_map[i].digest;
+            return CKR_OK;
         }
     }
     return CKR_MECHANISM_INVALID;
