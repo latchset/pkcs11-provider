@@ -20,6 +20,7 @@ P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
         { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
         { CKA_TOKEN, &val_token, sizeof(val_token) },
         { CKA_DERIVE, &val_true, sizeof(val_true) },
+        { CKA_SIGN, &val_true, sizeof(val_true) },
         { CKA_VALUE, (void *)secret, secretlen },
     };
     CK_ULONG tcount = sizeof(template) / sizeof(CK_ATTRIBUTE);

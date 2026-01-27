@@ -1,4 +1,5 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+   Copyright 2026 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 #ifndef _DIGESTS_H
@@ -60,5 +61,7 @@ CK_RV p11prov_digest_get_digest_size(CK_MECHANISM_TYPE digest,
                                      size_t *digest_size);
 CK_RV p11prov_digest_get_name(CK_MECHANISM_TYPE digest, const char **name);
 CK_RV p11prov_digest_get_by_name(const char *name, CK_MECHANISM_TYPE *digest);
-
+CK_RV p11prov_digest_to_hmac(CK_MECHANISM_TYPE digest, CK_MECHANISM_TYPE *hmac);
+CK_RV p11prov_digest_from_hmac(CK_MECHANISM_TYPE hmac,
+                               CK_MECHANISM_TYPE *digest);
 #endif /* _DIGESTS_H */
