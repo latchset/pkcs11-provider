@@ -703,43 +703,54 @@ CK_RV p11prov_obj_copy_key_data(P11PROV_OBJ *dst, P11PROV_OBJ *src)
 
 static CK_RV fix_ec_key_import(P11PROV_OBJ *key, int allocattrs)
 {
+    CK_RV ret = CKR_GENERAL_ERROR;
     CK_ATTRIBUTE *pub;
-    ASN1_OCTET_STRING oct;
+    ASN1_OCTET_STRING *oct = NULL;
     unsigned char *der = NULL;
     int len;
 
     if (key->numattrs >= allocattrs) {
-        P11PROV_raise(key->ctx, CKR_GENERAL_ERROR,
-                      "Too many attributes?? %d >= %d", key->numattrs,
-                      allocattrs);
-        return CKR_GENERAL_ERROR;
+        P11PROV_raise(key->ctx, ret, "Too many attributes?? %d >= %d",
+                      key->numattrs, allocattrs);
+        goto done;
     }
 
     pub = p11prov_obj_get_attr(key, CKA_P11PROV_PUB_KEY);
     if (!pub) {
-        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE, "No public key found");
-        return CKR_KEY_INDIGESTIBLE;
+        ret = CKR_KEY_INDIGESTIBLE;
+        P11PROV_raise(key->ctx, ret, "No public key found");
+        goto done;
     }
 
-    oct.data = pub->pValue;
-    oct.length = pub->ulValueLen;
-    oct.flags = 0;
-
+    oct = ASN1_OCTET_STRING_new();
+    if (!oct) {
+        goto done;
+    }
+    if (!ASN1_STRING_set(oct, pub->pValue, pub->ulValueLen)) {
+        goto done;
+    }
     /* FIXME: should we set just bytes for Edwards and Montgomery keys? */
-    len = i2d_ASN1_OCTET_STRING(&oct, &der);
+    len = i2d_ASN1_OCTET_STRING(oct, &der);
     if (len < 0) {
-        P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
-                      "Failure to encode EC point to DER");
-        return CKR_KEY_INDIGESTIBLE;
+        ret = CKR_KEY_INDIGESTIBLE;
+        P11PROV_raise(key->ctx, ret, "Failure to encode EC point to DER");
+        goto done;
     }
     key->attrs[key->numattrs].type = CKA_EC_POINT;
     key->attrs[key->numattrs].pValue = der;
+    der = NULL;
     key->attrs[key->numattrs].ulValueLen = len;
     key->numattrs++;
 
     P11PROV_debug("fixing EC key %p import", key);
 
-    return CKR_OK;
+    ret = CKR_OK;
+
+done:
+    OPENSSL_free(der);
+    ASN1_OCTET_STRING_free(oct);
+
+    return ret;
 }
 
 static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key,
