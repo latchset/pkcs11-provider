@@ -451,8 +451,8 @@ static int p11prov_print_pkeyinfo(CK_ATTRIBUTE *pkeyinfo, BIO *out)
             }
         } else if (ptype == V_ASN1_SEQUENCE) {
             const ASN1_STRING *pstr = pval;
-            const unsigned char *pm = pstr->data;
-            int pmlen = pstr->length;
+            const unsigned char *pm = ASN1_STRING_get0_data(pstr);
+            int pmlen = ASN1_STRING_length(pstr);
             EC_GROUP *group;
 
             group = d2i_ECPKParameters(NULL, &pm, pmlen);
@@ -1054,6 +1054,7 @@ static int p11prov_ec_set_keypoint_data(const OSSL_PARAM *params, void *key)
         keypoint->curve_type = V_ASN1_OBJECT;
     } else {
         EC_GROUP *group = EC_GROUP_new_from_params(params, NULL, NULL);
+        int len = 0;
         if (!group) {
             return RET_OSSL_ERR;
         }
@@ -1063,12 +1064,14 @@ static int p11prov_ec_set_keypoint_data(const OSSL_PARAM *params, void *key)
             EC_GROUP_free(group);
             return RET_OSSL_ERR;
         }
-        pstr->length = i2d_ECPKParameters(group, &pstr->data);
+        unsigned char *buf = NULL;
+        len = i2d_ECPKParameters(group, &buf);
         EC_GROUP_free(group);
-        if (pstr->length <= 0) {
-            ASN1_STRING_free(pstr);
+        if (len <= 0) {
+            OPENSSL_free(buf);
             return RET_OSSL_ERR;
         }
+        ASN1_STRING_set0(pstr, buf, len);
         keypoint->curve.sequence = pstr;
         keypoint->curve_type = V_ASN1_SEQUENCE;
     }
