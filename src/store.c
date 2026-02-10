@@ -14,11 +14,11 @@ struct p11prov_store_ctx {
     CK_ATTRIBUTE subject;
     CK_ATTRIBUTE issuer;
     BIGNUM *serial;
-    char *digest;
-    CK_ATTRIBUTE fingerprint;
+    char *digest; /* unused */
+    CK_ATTRIBUTE fingerprint; /* unused */
     char *alias;
     char *properties;
-    char *input_type;
+    char *input_type; /* unused */
 
     P11PROV_SESSION *session;
 
@@ -81,11 +81,81 @@ static CK_RV p11prov_store_ctx_add_obj(void *pctx, P11PROV_OBJ *obj)
     return CKR_OK;
 }
 
+static P11PROV_URI *construct_search_uri(struct p11prov_store_ctx *ctx)
+{
+    P11PROV_URI *search_uri;
+    CK_OBJECT_CLASS class;
+    CK_ATTRIBUTE label;
+    CK_RV rv = CKR_GENERAL_ERROR;
+
+    search_uri = p11prov_copy_uri(ctx->parsed_uri);
+    if (!search_uri) {
+        return NULL;
+    }
+
+    /* check if we can refine the search class if it is not
+     * already defined in the URI */
+    class = p11prov_uri_get_class(search_uri);
+
+    if (class == CK_UNAVAILABLE_INFORMATION) {
+        switch (ctx->expect) {
+        case OSSL_STORE_INFO_PUBKEY:
+            class = CKO_PUBLIC_KEY;
+            break;
+        case OSSL_STORE_INFO_PKEY:
+            class = CKO_PRIVATE_KEY;
+            break;
+        case OSSL_STORE_INFO_CERT:
+            class = CKO_CERTIFICATE;
+            break;
+#ifdef OSSL_OBJECT_SKEY
+        case OSSL_STORE_INFO_SKEY:
+            class = CKO_SECRET_KEY;
+            break;
+#endif
+        }
+    }
+    if (class == CK_UNAVAILABLE_INFORMATION) {
+        if (ctx->subject.type == CKA_SUBJECT || ctx->issuer.type == CKA_ISSUER
+            || ctx->serial) {
+            class = CKO_CERTIFICATE;
+        }
+    }
+    p11prov_uri_set_class(search_uri, class);
+
+    /* check if we can refine the search label if it is not
+     * already defined in the URI */
+    label = p11prov_uri_get_label(search_uri);
+    if (!label.pValue) {
+        if (ctx->alias) {
+            CK_ATTRIBUTE t = {
+                .type = CKA_LABEL,
+                .pValue = ctx->alias,
+                .ulValueLen = strlen(ctx->alias),
+            };
+            rv = p11prov_uri_set_label(search_uri, &t);
+            if (rv != CKR_OK) {
+                goto done;
+            }
+        }
+    }
+
+    rv = CKR_OK;
+
+done:
+    if (rv != CKR_OK) {
+        p11prov_uri_free(search_uri);
+        search_uri = NULL;
+    }
+    return search_uri;
+}
+
 static void store_fetch(struct p11prov_store_ctx *ctx,
                         OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg)
 {
     CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
     CK_SLOT_ID nextid = CK_UNAVAILABLE_INFORMATION;
+    P11PROV_URI *search_uri = NULL;
     int login_behavior;
     bool login = false;
     CK_RV ret;
@@ -101,6 +171,11 @@ static void store_fetch(struct p11prov_store_ctx *ctx,
          || p11prov_uri_get_class(ctx->parsed_uri) == CKO_CERTIFICATE)
         && login_behavior != PUBKEY_LOGIN_ALWAYS) {
         login = false;
+    }
+
+    search_uri = construct_search_uri(ctx);
+    if (!search_uri) {
+        return;
     }
 
     /* error stack mark so we can unwind in case of repeat to avoid
@@ -121,9 +196,9 @@ again:
             ctx->session = NULL;
         }
 
-        ret = p11prov_get_session(ctx->provctx, &slotid, &nextid,
-                                  ctx->parsed_uri, CK_UNAVAILABLE_INFORMATION,
-                                  pw_cb, pw_cbarg, login, false, &ctx->session);
+        ret = p11prov_get_session(ctx->provctx, &slotid, &nextid, search_uri,
+                                  CK_UNAVAILABLE_INFORMATION, pw_cb, pw_cbarg,
+                                  login, false, &ctx->session);
         if (ret != CKR_OK) {
             P11PROV_debug(
                 "Failed to get session to load keys (slotid=%lx, ret=%lx)",
@@ -138,8 +213,8 @@ again:
             continue;
         }
 
-        ret = p11prov_obj_find(ctx->provctx, ctx->session, slotid,
-                               ctx->parsed_uri, p11prov_store_ctx_add_obj, ctx);
+        ret = p11prov_obj_find(ctx->provctx, ctx->session, slotid, search_uri,
+                               p11prov_store_ctx_add_obj, ctx);
         if (ret != CKR_OK) {
             P11PROV_raise(ctx->provctx, ret,
                           "Failed to load keys from slot (%ld)", slotid);
@@ -179,6 +254,8 @@ again:
         /* otherwise clear the mark and leave errors on the stack */
         p11prov_clear_last_error_mark(ctx->provctx);
     }
+
+    p11prov_uri_free(search_uri);
 }
 
 DISPATCH_STORE_FN(open);
