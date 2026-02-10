@@ -487,8 +487,8 @@ CK_RV p11prov_obj_find(P11PROV_CTX *provctx, P11PROV_SESSION *session,
     CK_RV result = CKR_GENERAL_ERROR;
     CK_RV ret;
 
-    P11PROV_debug("Find objects [class=%lu, id-len=%lu, label=%s]", class,
-                  id.ulValueLen,
+    P11PROV_debug("Find objects [class=%lu, id-len=%lu, label=%.*s]", class,
+                  id.ulValueLen, label.type == CKA_LABEL ? label.ulValueLen : 4,
                   label.type == CKA_LABEL ? (char *)label.pValue : "None");
 
     switch (class) {
