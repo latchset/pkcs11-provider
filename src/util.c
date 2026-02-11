@@ -1226,13 +1226,14 @@ CK_RV p11prov_digest_util(P11PROV_CTX *ctx, const char *digest,
         goto done;
     }
 
-    dlen = EVP_MD_get_size(md);
-    if (dlen == -1) {
+    err = EVP_MD_get_size(md);
+    if (err < 0) {
         rv = CKR_GENERAL_ERROR;
         P11PROV_raise(ctx, rv, "Failed to get %s digest length", digest);
         goto done;
     }
 
+    dlen = (unsigned int)err;
     if (output->data) {
         if (output->length < dlen) {
             rv = CKR_GENERAL_ERROR;

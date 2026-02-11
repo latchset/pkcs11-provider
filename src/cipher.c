@@ -727,6 +727,7 @@ static CK_RV tlsunpad(struct p11prov_cipher_ctx *cctx, unsigned char *out,
     CK_ULONG padsize = out[inlen - 1];
     CK_ULONG olen = inlen;
     CK_ULONG pass;
+    CK_ULONG i, j;
 
     /* Remove explicit IV for TLS 1.1 and 1.2 */
     if (cctx->tlsver != TLS1_VERSION) {
@@ -763,7 +764,7 @@ static CK_RV tlsunpad(struct p11prov_cipher_ctx *cctx, unsigned char *out,
      * equality only the padding part, as the xoring with non-pad
      * data is ignored my the empty mask. We skip checking the
      * last value itself as that is always == padsize */
-    for (int i = 0; i < maxcheck - 1; i++) {
+    for (i = 0; i < maxcheck - 1; i++) {
         unsigned char mask = constant_smaller_mask(i, padsize);
         unsigned char data = out[olen - i - 2];
 
@@ -775,8 +776,8 @@ static CK_RV tlsunpad(struct p11prov_cipher_ctx *cctx, unsigned char *out,
 
     if (cctx->tlsmacsize > 0) {
         unsigned char randmac[EVP_MAX_MD_SIZE];
-        size_t mac_pos = olen - cctx->tlsmacsize - (pass & (padsize + 1));
-        size_t mac_area = 0;
+        CK_ULONG mac_pos = olen - cctx->tlsmacsize - (pass & (padsize + 1));
+        CK_ULONG mac_area = 0;
         int err = RET_OSSL_ERR;
 
         /* allocate space for the mac */
@@ -798,8 +799,8 @@ static CK_RV tlsunpad(struct p11prov_cipher_ctx *cctx, unsigned char *out,
             mac_area = olen - cctx->tlsmacsize - 256;
         }
 
-        for (size_t i = mac_area; i < olen; i++) {
-            for (int j = 0; j < cctx->tlsmacsize; j++) {
+        for (i = mac_area; i < olen; i++) {
+            for (j = 0; j < cctx->tlsmacsize; j++) {
                 unsigned char mask =
                     ~constant_smaller_mask(i, mac_pos)
                     & constant_smaller_mask(i, mac_pos + cctx->tlsmacsize)
@@ -809,7 +810,7 @@ static CK_RV tlsunpad(struct p11prov_cipher_ctx *cctx, unsigned char *out,
         }
 
         /* on depadding failure overwrite with random data */
-        for (int j = 0; j < cctx->tlsmacsize; j++) {
+        for (j = 0; j < cctx->tlsmacsize; j++) {
             cctx->tlsmac[j] =
                 constant_select_byte_mask(cctx->tlsmac[j], randmac[j], pass);
         }

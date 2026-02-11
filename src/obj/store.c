@@ -1291,7 +1291,7 @@ static CK_RV get_bn(const OSSL_PARAM *p, CK_ATTRIBUTE *attr)
         goto done;
     }
     attr->ulValueLen = BN_bn2bin(bn, attr->pValue);
-    if (attr->ulValueLen == 0 || attr->ulValueLen > bnlen) {
+    if (attr->ulValueLen == 0 || attr->ulValueLen > (CK_ULONG)bnlen) {
         attr->ulValueLen = bnlen;
         ret = CKR_KEY_INDIGESTIBLE;
         goto done;

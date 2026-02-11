@@ -307,7 +307,7 @@ static int p11prov_common_encoder_spki_der_encode(
     }
     if (pkeyinfo && pkeyinfo->ulValueLen > 0) {
         int len = BIO_write(out, pkeyinfo->pValue, pkeyinfo->ulValueLen);
-        if (len == pkeyinfo->ulValueLen) {
+        if (len >= 0 && (CK_ULONG)len == pkeyinfo->ulValueLen) {
             ret = RET_OSSL_OK;
         } else {
             ret = RET_OSSL_ERR;
