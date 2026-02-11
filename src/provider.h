@@ -254,7 +254,7 @@ typedef struct p11prov_session P11PROV_SESSION;
 typedef struct p11prov_session_pool P11PROV_SESSION_POOL;
 typedef struct p11prov_obj_pool P11PROV_OBJ_POOL;
 
-#if __SANITIZE_ADDRESS__
+#ifdef __SANITIZE_ADDRESS__
 #define P11PROV_ADDRESS_SANITIZER 1
 #endif
 #if defined(__has_feature)

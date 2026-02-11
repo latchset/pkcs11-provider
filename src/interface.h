@@ -5,7 +5,7 @@
 #ifndef _INTERFACE_H
 #define _INTERFACE_H
 
-#if P11PROV_ADDRESS_SANITIZER
+#ifdef P11PROV_ADDRESS_SANITIZER
 /* address sanitizer does not play well with the RTLD_DEEPBIND */
 #define P11PROV_DLOPEN_FLAGS RTLD_NOW | RTLD_LOCAL
 #else
