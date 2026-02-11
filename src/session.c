@@ -168,7 +168,7 @@ void p11prov_session_pool_free(P11PROV_SESSION_POOL *pool)
 
     /* LOCKED SECTION ------------- */
     if (MUTEX_LOCK(pool) == CKR_OK) {
-        for (int i = 0; i < pool->num_sessions; i++) {
+        for (CK_ULONG i = 0; i < pool->num_sessions; i++) {
             session_free(pool->sessions[i]);
             pool->sessions[i] = NULL;
         }
@@ -197,7 +197,7 @@ void p11prov_session_pool_fork_reset(P11PROV_SESSION_POOL *pool)
 
     if (MUTEX_LOCK(pool) == CKR_OK) {
         /* LOCKED SECTION ------------- */
-        for (int i = 0; i < pool->num_sessions; i++) {
+        for (CK_ULONG i = 0; i < pool->num_sessions; i++) {
             P11PROV_SESSION *session = pool->sessions[i];
             CK_RV ret;
 
@@ -710,6 +710,7 @@ static CK_RV fetch_session(P11PROV_SESSION_POOL *pool, CK_FLAGS flags,
 {
     P11PROV_SESSION *session = NULL;
     bool found = false;
+    CK_ULONG i;
     int ret;
 
     ret = MUTEX_LOCK(pool);
@@ -720,7 +721,7 @@ static CK_RV fetch_session(P11PROV_SESSION_POOL *pool, CK_FLAGS flags,
 
     /* try to find an existing login session first */
     if (login_session) {
-        for (int i = 0; i < pool->num_sessions && !found; i++) {
+        for (i = 0; i < pool->num_sessions && !found; i++) {
             session = pool->sessions[i];
             if (session->is_login) {
 
@@ -753,7 +754,7 @@ static CK_RV fetch_session(P11PROV_SESSION_POOL *pool, CK_FLAGS flags,
     /* try to find session with a cached handle and a reference first.
      * We want to keep the number of sessions with references as low
      * as possible do try to reuse one whenever possible */
-    for (int i = 0; i < pool->num_sessions && !found; i++) {
+    for (i = 0; i < pool->num_sessions && !found; i++) {
         session = pool->sessions[i];
         if (session->is_login || session->is_broken) {
             continue;
@@ -778,7 +779,7 @@ static CK_RV fetch_session(P11PROV_SESSION_POOL *pool, CK_FLAGS flags,
     }
 
     /* try to find session with a cached handle first */
-    for (int i = 0; i < pool->num_sessions && !found; i++) {
+    for (i = 0; i < pool->num_sessions && !found; i++) {
         session = pool->sessions[i];
         if (session->is_login || session->is_broken) {
             continue;
@@ -803,7 +804,7 @@ static CK_RV fetch_session(P11PROV_SESSION_POOL *pool, CK_FLAGS flags,
     }
 
     /* try again, get any free session */
-    for (int i = 0; i < pool->num_sessions && !found; i++) {
+    for (i = 0; i < pool->num_sessions && !found; i++) {
         session = pool->sessions[i];
         if (session->is_login || session->is_broken) {
             continue;
@@ -824,7 +825,7 @@ static CK_RV fetch_session(P11PROV_SESSION_POOL *pool, CK_FLAGS flags,
 
     /* before allocating new sessions, check if there is any broken session
      * we can now recycle */
-    for (int i = 0; i < pool->num_sessions && !found; i++) {
+    for (i = 0; i < pool->num_sessions && !found; i++) {
         session = pool->sessions[i];
         if (!session->is_broken) {
             continue;
@@ -1242,11 +1243,11 @@ void p11prov_return_session(P11PROV_SESSION *session)
         if (session->is_broken) {
             close_session = true;
         } else if (pool) {
-            int open_sessions = 0;
+            CK_ULONG open_sessions = 0;
 
             /* LOCKED SECTION ------------- */
             if (MUTEX_LOCK(pool) == CKR_OK) {
-                for (int i = 0; i < pool->num_sessions; i++) {
+                for (CK_ULONG i = 0; i < pool->num_sessions; i++) {
                     if (pool->sessions[i]->session != CK_INVALID_HANDLE) {
                         open_sessions++;
                     }

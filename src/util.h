@@ -143,7 +143,7 @@ static inline void constant_select_buf(CK_ULONG cond, CK_ULONG size,
                                        unsigned char *dst, unsigned char *a,
                                        unsigned char *b)
 {
-    for (int i = 0; i < size; i++) {
+    for (CK_ULONG i = 0; i < size; i++) {
         volatile unsigned char A = a[i];
         volatile unsigned char B = b[i];
         volatile unsigned char mask = -(unsigned char)cond;
