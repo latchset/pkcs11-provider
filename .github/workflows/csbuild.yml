@@ -1,0 +1,63 @@
+---
+name: csbuild
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  scan:
+    name: Static analysis with csbuild
+    runs-on: ubuntu-22.04
+    container: quay.io/fedora/fedora:latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          dnf -y install git clang gcc pkgconf-pkg-config meson \
+            openssl-devel openssl diffutils expect \
+            csbuild
+
+      - name: Csbuild
+        run: |
+          meson setup builddir
+          csbuild -c 'meson compile -C builddir' \
+            --color
+
+  diff_scan:
+    name: Differential static analysis with csbuild
+    runs-on: ubuntu-22.04
+    container: quay.io/fedora/fedora:latest
+    steps:
+      - name: Install Dependencies
+        if: ${{ github.event.pull_request.base.sha }}
+        run: |
+          dnf -y install git clang gcc pkgconf-pkg-config meson \
+            openssl-devel openssl diffutils expect \
+            csbuild
+
+      - name: Checkout Repository
+        if: ${{ github.event.pull_request.base.sha }}
+        uses: actions/checkout@v4
+
+      - name: Setup
+        if: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git config --global --add safe.directory \
+              /__w/pkcs11-provider/pkcs11-provider
+          git fetch origin main ${{ github.event.pull_request.base.sha }}
+
+      - name: Run differential scan
+        if: ${{ github.event.pull_request.base.sha }}
+        run: |
+          meson setup builddir
+          csbuild \
+            -g ${{ github.event.pull_request.base.sha }}..${{ github.sha }} \
+            -c 'meson compile -C builddir' \
+            --color \
+            --print-current --print-fixed
+
