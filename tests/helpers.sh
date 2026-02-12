@@ -114,6 +114,9 @@ ptool() {
     if [ -n "$P11DEFLOGIN" ]; then
         CMDOPTS+=("${P11DEFLOGIN[@]}")
     fi
+    if [ -n "$SLOTID" ]; then
+        CMDOPTS+=("--slot=${SLOTID}")
+    fi
     CMDOPTS+=("$@")
     $CHECKER pkcs11-tool "${CMDOPTS[@]}"
 }
