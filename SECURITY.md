@@ -7,7 +7,8 @@ This table will specify which versions are supported:
 | Version | Supported          |
 | ------- | ------------------ |
 | 1.0     | :x:                |
-| 1.1     | :white_check_mark: |
+| 1.1.0   | :x:                |
+| 1.2.0   | :white_check_mark: |
 | ------- | ------------------ |
 
 ## Reporting a Vulnerability
