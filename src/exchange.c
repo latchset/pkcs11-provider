@@ -1,4 +1,5 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+   Copyright 2026 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
@@ -813,5 +814,152 @@ const OSSL_DISPATCH p11prov_hkdf_exchange_functions[] = {
 #endif
     DISPATCH_EXCHHKDF_ELEM(exch_hkdf, SET_CTX_PARAMS, set_ctx_params),
     DISPATCH_EXCHHKDF_ELEM(exch_hkdf, SETTABLE_CTX_PARAMS, settable_ctx_params),
+    { 0, NULL },
+};
+
+DISPATCH_EXCHTLS1PRF_FN(newctx);
+DISPATCH_EXCHTLS1PRF_FN(freectx);
+DISPATCH_EXCHTLS1PRF_FN(init);
+DISPATCH_EXCHTLS1PRF_FN(derive);
+DISPATCH_EXCHTLS1PRF_FN(set_ctx_params);
+DISPATCH_EXCHTLS1PRF_FN(settable_ctx_params);
+
+static void *p11prov_exch_tls1_prf_newctx(void *provctx)
+{
+    P11PROV_CTX *ctx = (P11PROV_CTX *)provctx;
+    P11PROV_EXCH_CTX *tls1_prfctx;
+    EVP_KDF *kdf = NULL;
+
+    P11PROV_debug("tls1_prf exchange newctx");
+
+    tls1_prfctx = OPENSSL_zalloc(sizeof(P11PROV_EXCH_CTX));
+    if (tls1_prfctx == NULL) {
+        return NULL;
+    }
+
+    tls1_prfctx->provctx = ctx;
+
+    /* mark with mechanism type */
+    tls1_prfctx->mechtype = CKM_TLS12_MASTER_KEY_DERIVE_DH;
+
+    kdf = EVP_KDF_fetch(NULL, "TLS1-PRF", P11PROV_DEFAULT_PROPERTIES);
+    if (kdf == NULL) {
+        OPENSSL_free(tls1_prfctx);
+        return NULL;
+    }
+    tls1_prfctx->kdfctx = EVP_KDF_CTX_new(kdf);
+    EVP_KDF_free(kdf);
+
+    if (tls1_prfctx->kdfctx == NULL) {
+        OPENSSL_free(tls1_prfctx);
+        return NULL;
+    }
+
+    return tls1_prfctx;
+}
+
+static void p11prov_exch_tls1_prf_freectx(void *ctx)
+{
+    P11PROV_EXCH_CTX *tls1_prfctx = (P11PROV_EXCH_CTX *)ctx;
+
+    P11PROV_debug("tls1_prf exchange freectx");
+
+    if (tls1_prfctx == NULL) {
+        return;
+    }
+
+    EVP_KDF_CTX_free(tls1_prfctx->kdfctx);
+    p11prov_obj_free(tls1_prfctx->key);
+    OPENSSL_clear_free(tls1_prfctx, sizeof(P11PROV_EXCH_CTX));
+}
+
+static int p11prov_exch_tls1_prf_init(void *ctx, void *provkey,
+                                      const OSSL_PARAM params[])
+{
+    P11PROV_EXCH_CTX *tls1_prfctx = (P11PROV_EXCH_CTX *)ctx;
+    P11PROV_OBJ *key = (P11PROV_OBJ *)provkey;
+    CK_RV ret;
+
+    P11PROV_debug("tls1_prf exchange init (ctx:%p key:%p params:%p)", ctx, key,
+                  params);
+
+    if (ctx == NULL || provkey == NULL) {
+        return RET_OSSL_ERR;
+    }
+
+    ret = p11prov_ctx_status(tls1_prfctx->provctx);
+    if (ret != CKR_OK) {
+        return RET_OSSL_ERR;
+    }
+
+    if (provkey != &p11prov_tls1_prf_static_ctx) {
+        p11prov_obj_free(tls1_prfctx->key);
+        tls1_prfctx->key = p11prov_obj_ref(key);
+        if (tls1_prfctx->key == NULL) {
+            P11PROV_raise(tls1_prfctx->provctx, CKR_ARGUMENTS_BAD,
+                          "Invalid object");
+            return RET_OSSL_ERR;
+        }
+        if (p11prov_obj_get_class(tls1_prfctx->key) != CKO_PRIVATE_KEY) {
+            P11PROV_raise(tls1_prfctx->provctx, CKR_ARGUMENTS_BAD,
+                          "Invalid key class");
+            return RET_OSSL_ERR;
+        }
+    }
+
+    return p11prov_exch_tls1_prf_set_ctx_params(ctx, params);
+}
+
+static int p11prov_exch_tls1_prf_derive(void *ctx, unsigned char *secret,
+                                        size_t *secretlen, size_t outlen)
+{
+    P11PROV_EXCH_CTX *tls1_prfctx = (P11PROV_EXCH_CTX *)ctx;
+
+    P11PROV_debug("tls1_prf exchange derive (ctx:%p)", ctx);
+
+    if (secret == NULL) {
+        *secretlen = EVP_KDF_CTX_get_kdf_size(tls1_prfctx->kdfctx);
+        return 1;
+    }
+
+    return EVP_KDF_derive(tls1_prfctx->kdfctx, secret, outlen, NULL);
+}
+
+static int p11prov_exch_tls1_prf_set_ctx_params(void *ctx,
+                                                const OSSL_PARAM params[])
+{
+    P11PROV_EXCH_CTX *tls1_prfctx = (P11PROV_EXCH_CTX *)ctx;
+
+    P11PROV_debug("tls1_prf exchange set ctx params (ctx:%p, params:%p)", ctx,
+                  params);
+
+    return EVP_KDF_CTX_set_params(tls1_prfctx->kdfctx, params);
+}
+
+static const OSSL_PARAM *
+p11prov_exch_tls1_prf_settable_ctx_params(void *ctx, void *provctx)
+{
+    const OSSL_PARAM *params;
+    EVP_KDF *kdf;
+
+    kdf = EVP_KDF_fetch(NULL, "TLS1-PRF", P11PROV_DEFAULT_PROPERTIES);
+    if (kdf == NULL) {
+        return NULL;
+    }
+
+    params = EVP_KDF_settable_ctx_params(kdf);
+    EVP_KDF_free(kdf);
+
+    return params;
+}
+
+const OSSL_DISPATCH p11prov_tls1_prf_exchange_functions[] = {
+    DISPATCH_EXCHTLS1PRF_ELEM(exch_tls1_prf, NEWCTX, newctx),
+    DISPATCH_EXCHTLS1PRF_ELEM(exch_tls1_prf, FREECTX, freectx),
+    DISPATCH_EXCHTLS1PRF_ELEM(exch_tls1_prf, INIT, init),
+    DISPATCH_EXCHTLS1PRF_ELEM(exch_tls1_prf, DERIVE, derive),
+    DISPATCH_EXCHTLS1PRF_ELEM(exch_tls1_prf, SET_CTX_PARAMS, set_ctx_params),
+    DISPATCH_EXCHTLS1PRF_ELEM(exch_tls1_prf, SETTABLE_CTX_PARAMS,
+                              settable_ctx_params),
     { 0, NULL },
 };

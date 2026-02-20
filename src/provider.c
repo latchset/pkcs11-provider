@@ -1,5 +1,5 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
-   Copyright 2025 NXP
+   Copyright 2025-2026 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
@@ -868,6 +868,10 @@ static CK_RV alg_set_op(OSSL_ALGORITHM **op, int idx, OSSL_ALGORITHM *alg)
         CKM_CHACHA20_POLY1305
 #endif
 
+#define TLS12_MECHS \
+    CKM_TLS12_MASTER_KEY_DERIVE_DH, CKM_TLS12_EXTENDED_MASTER_KEY_DERIVE_DH, \
+        CKM_TLS12_KEY_AND_MAC_DERIVE, CKM_TLS_KDF, CKM_TLS_MAC
+
 static void alg_rm_mechs(CK_ULONG *checklist, CK_ULONG *rmlist, int *clsize,
                          int rmsize)
 {
@@ -920,6 +924,7 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                              CKM_ECDH1_COFACTOR_DERIVE,
                              CKM_EC_MONTGOMERY_KEY_PAIR_GEN,
                              CKM_HKDF_DERIVE,
+                             TLS12_MECHS,
                              DIGEST_MECHS,
                              CKM_EDDSA,
                              PQC_MECHS,
@@ -1160,6 +1165,15 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
                 ADD_ALGO(TLS13_KDF, tls13, kdf, prop);
                 ADD_ALGO(HKDF, hkdf, exchange, prop);
                 UNCHECK_MECHS(CKM_HKDF_DERIVE);
+                break;
+            case CKM_TLS12_MASTER_KEY_DERIVE_DH:
+            case CKM_TLS12_EXTENDED_MASTER_KEY_DERIVE_DH:
+            case CKM_TLS12_KEY_AND_MAC_DERIVE:
+            case CKM_TLS_KDF:
+            case CKM_TLS_MAC:
+                ADD_ALGO(TLS1_PRF, tls1_prf, kdf, prop);
+                ADD_ALGO(TLS1_PRF, tls1_prf, exchange, prop);
+                UNCHECK_MECHS(TLS12_MECHS);
                 break;
             case CKM_SHA_1:
                 ADD_ALGO(SHA1, sha1, digest, prop);
@@ -1510,6 +1524,7 @@ static CK_RV static_operations_init(P11PROV_CTX *ctx)
     ADD_ALGO(RSAPSS, rsapss, keymgmt, prop);
     ADD_ALGO(EC, ec, keymgmt, prop);
     ADD_ALGO(HKDF, hkdf, keymgmt, prop);
+    ADD_ALGO(TLS1_PRF, tls1_prf, keymgmt, prop);
     ADD_ALGO_EXT(ED25519, keymgmt, prop, p11prov_ed25519_keymgmt_functions);
     ADD_ALGO_EXT(ED448, keymgmt, prop, p11prov_ed448_keymgmt_functions);
     ADD_ALGO_EXT(X25519, keymgmt, prop, p11prov_x25519_keymgmt_functions);

@@ -1,5 +1,5 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
-   Copyright 2025 NXP
+   Copyright 2025-2026 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 #ifndef _PROVIDER_H
@@ -157,6 +157,9 @@
 #define P11PROV_NAME_TLS13_KDF "TLS13-KDF"
 #define P11PROV_NAMES_TLS13_KDF P11PROV_NAME_TLS13_KDF
 #define P11PROV_DESCS_TLS13_KDF "PKCS11 TLS 1.3 HKDF Implementation"
+#define P11PROV_NAME_TLS1_PRF "TLS1-PRF"
+#define P11PROV_NAMES_TLS1_PRF P11PROV_NAME_TLS1_PRF
+#define P11PROV_DESCS_TLS1_PRF "PKCS11 TLS1 1.2 PRF Implementation"
 #define P11PROV_NAMES_DER "DER"
 #define P11PROV_DESCS_DER "DER decoder implementation in PKCS11 provider"
 #define P11PROV_NAMES_URI "pkcs11"
