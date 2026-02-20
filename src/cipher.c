@@ -867,7 +867,7 @@ static CK_RV tls_aead_get_data(CK_MECHANISM_PTR mech, data_buffer *explicitiv,
 
 static CK_RV tls_pre_aead(struct p11prov_cipher_ctx *cctx,
                           const unsigned char **in, size_t *inl,
-                          unsigned char **out, size_t *outl)
+                          unsigned char **out, CK_ULONG *outl)
 {
     data_buffer iv = { 0 };
     data_buffer tag = { 0 };
@@ -906,7 +906,7 @@ static CK_RV tls_pre_aead(struct p11prov_cipher_ctx *cctx,
 }
 
 static CK_RV tls_post_aead(struct p11prov_cipher_ctx *cctx, unsigned char *out,
-                           size_t *outl)
+                           CK_ULONG *outl)
 {
     data_buffer explicitiv = { 0 };
     data_buffer tag = { 0 };
@@ -1475,8 +1475,9 @@ static int p11prov_common_set_ctx_params(void *vctx, const OSSL_PARAM params[])
                 return RET_OSSL_ERR;
             }
 
-            int ret = OSSL_PARAM_get_octet_string(
-                p, (void **)&gcm->pIv, gcm->ulIvLen, &gcm->ulIvFixedBits);
+            int ret =
+                OSSL_PARAM_get_octet_string(p, (void **)&gcm->pIv, gcm->ulIvLen,
+                                            (size_t *)&gcm->ulIvFixedBits);
             if (ret != RET_OSSL_OK || gcm->pIv == NULL) {
                 P11PROV_raise(ctx->provctx, CKR_HOST_MEMORY,
                               "Memory allocation failed");
