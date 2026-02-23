@@ -201,13 +201,11 @@ static int p11prov_mlkem_encapsulate(void *vctx, unsigned char *ct,
 
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
     CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
-    CK_ULONG value_len = mlkem_ss_len;
     CK_BBOOL val_false = CK_FALSE;
     CK_BBOOL val_true = CK_TRUE;
     CK_ATTRIBUTE key_template[] = {
         { CKA_CLASS, &key_class, sizeof(key_class) },
         { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
-        { CKA_VALUE_LEN, &value_len, sizeof(value_len) },
         { CKA_SENSITIVE, &val_false, sizeof(val_false) },
         { CKA_EXTRACTABLE, &val_true, sizeof(val_true) },
         { CKA_TOKEN, &val_false, sizeof(val_false) },
@@ -304,13 +302,11 @@ static int p11prov_mlkem_decapsulate(void *vctx, unsigned char *ss,
 
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
     CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
-    CK_ULONG value_len = mlkem_ss_len;
     CK_BBOOL val_false = CK_FALSE;
     CK_BBOOL val_true = CK_TRUE;
     CK_ATTRIBUTE key_template[] = {
         { CKA_CLASS, &key_class, sizeof(key_class) },
         { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
-        { CKA_VALUE_LEN, &value_len, sizeof(value_len) },
         { CKA_SENSITIVE, &val_false, sizeof(val_false) },
         { CKA_EXTRACTABLE, &val_true, sizeof(val_true) },
         { CKA_TOKEN, &val_false, sizeof(val_false) },
