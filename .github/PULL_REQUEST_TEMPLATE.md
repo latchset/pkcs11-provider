@@ -26,4 +26,3 @@ want to know about year later when sorting thorough as commits are the changelog
 - [ ] This feature/change has adequate documentation added
 - [ ] Code conform to coding style that today cannot yet be enforced via the check style test
 - [ ] Commits have short titles and sensible commit messages
-- [ ] Coverity Scan has run if needed (code PR) and no new defects were found
