@@ -5,13 +5,6 @@ conf_env = environment({
   'SHARED_EXT': shlext,
 })
 
-if p11_kit.found()
-  # p11-kit-client module doesn't support Windows, so hard-coding .so is fine
-  p11_module_path = p11_kit.get_variable(pkgconfig: 'p11_module_path')
-  p11_client_path = p11_module_path / 'p11-kit-client.so'
-  conf_env.set('P11KITCLIENTPATH', p11_client_path)
-endif
-
 nss_softokn = dependency('nss-softokn', required: false)
 if not nss_softokn.found()
   nss_softokn = dependency('nss', required: false)
