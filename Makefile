@@ -59,3 +59,10 @@ dist:
 	meson compile -C distdir pkcs11
 	meson test -C distdir
 	meson dist -C distdir
+
+coverage:
+	meson configure builddir -Db_coverage=true
+	meson compile -C builddir --clean
+	meson compile -C builddir
+	meson test -C builddir
+	ninja -C builddir coverage-html
