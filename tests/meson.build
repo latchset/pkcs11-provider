@@ -108,6 +108,7 @@ test_programs = {
   'tlsctx': ['tlsctx.c', 'util.c'],
   'tlssetkey': ['tlssetkey.c', 'util.c'],
   'tdigests': ['tdigests.c'],
+  'tdigest_dupctx': ['tdigest_dupctx.c'],
   'treadkeys': ['treadkeys.c'],
   'tcmpkeys': ['tcmpkeys.c', 'util.c'],
   'tfork': ['tfork.c', 'util.c'],
@@ -174,6 +175,7 @@ tests = {
   'cms': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'pinlock': {'suites': ['kryoptic']},
   'aead': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
+  'op_state': {'suites': all_suites},
 }
 
 test_wrapper = find_program('test-wrapper')

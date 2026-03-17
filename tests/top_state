@@ -4,6 +4,15 @@
 
 source "${TESTSSRCDIR}/helpers.sh"
 
+OPENSSL_VERSION=$($OPENSSL version | sed 's/^OpenSSL \([0-9]*\)\.\([0-9]*\).*$/\1 \2/')
+OPENSSL_VERSION_MAJOR=$(echo "$OPENSSL_VERSION" | cut -d ' ' -f 1)
+OPENSSL_VERSION_MINOR=$(echo "$OPENSSL_VERSION" | cut -d ' ' -f 2)
+
+EXP_MESSAGE="error:.*:not able to copy ctx"
+if [[ "$OPENSSL_VERSION_MAJOR" -eq 3 ]] && [[ "$OPENSSL_VERSION_MINOR" -lt 2 ]]; then
+    EXP_MESSAGE="error:.*:lib(0)::reason(0)"
+fi
+
 title PARA "OSSL error stack has error from failing C_Get/SetOperationState"
 # We need to configure early loading otherwise no digests are loaded,
 # and all checks are skipped
@@ -11,8 +20,16 @@ sed "s/#pkcs11-module-load-behavior/pkcs11-module-load-behavior = early/" \
     "${OPENSSL_CONF}" > "${OPENSSL_CONF}.op_state.early_load"
 OPENSSL_CONF=${OPENSSL_CONF}.op_state.early_load
 
-$CHECKER ./tdigest_dupctx | grep -e "error:.*:pkcs11::reason(84)"
-
+output=$($CHECKER "${TESTBLDDIR}/tdigest_dupctx")
+FAIL=0
+echo "$output" | grep -e "$EXP_MESSAGE" || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
 
 title PARA "No error is logged when quirk no-operation-state is enabled"
 sed "s/pkcs11-module-quirks = /pkcs11-module-quirks = no-operation-state /" \
@@ -20,13 +37,32 @@ sed "s/pkcs11-module-quirks = /pkcs11-module-quirks = no-operation-state /" \
 OPENSSL_CONF=${OPENSSL_CONF}.no_op_state
 
 title PARA "Test Digests support"
-$CHECKER ./tdigest_dupctx | grep -e "error:.*:lib(0)::reason(0)"
+
+
+output=$($CHECKER "${TESTBLDDIR}/tdigest_dupctx")
+FAIL=0
+echo "$output" | grep -e "$EXP_MESSAGE" || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
 
 title PARA "No errors occur with no-session-callbacks quirk enabled"
 sed "s/pkcs11-module-quirks = /pkcs11-module-quirks = no-session-callbacks /" \
     "${OPENSSL_CONF}" > "${OPENSSL_CONF}.no_callbacks"
 OPENSSL_CONF=${OPENSSL_CONF}.no_callbacks
 
-$CHECKER ./tdigest_dupctx | grep -e "error:.*:lib(0)::reason(0)"
+output=$($CHECKER "${TESTBLDDIR}/tdigest_dupctx")
+echo "$output" | grep -e "$EXP_MESSAGE" || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
 
 exit 0
