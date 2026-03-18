@@ -164,6 +164,7 @@ tests = {
   'rsapssam': {'suites': ['softhsm', 'kryoptic']},
   'genkey': {'suites': all_suites},
   'pkey': {'suites': all_suites},
+  'pkey_provider': {'suites': ['kryoptic', 'kryoptic.nss', 'softokn']},
   'session': {'suites': all_suites},
   'skey': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss'], 'timeout': 90},
   'rand': {'suites': all_suites},

@@ -1,0 +1,18 @@
+#!/bin/bash -e
+# Copyright (C) 2026 Jakub Jelen <jjelen@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+# Force all operations to happen on the token
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
+OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+
+# Run the existing tpkey test with all operations forced on token
+
+$CHECKER "${TESTBLDDIR}/tpkey"
+
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+

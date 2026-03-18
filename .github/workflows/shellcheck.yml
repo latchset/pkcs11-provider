@@ -38,6 +38,7 @@ jobs:
             tpem_encoder
             tpinlock
             tpubkey
+            tpkey_provider
             trand
             trsa
             trsapss
