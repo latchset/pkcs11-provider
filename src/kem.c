@@ -349,7 +349,9 @@ static int p11prov_mlkem_decapsulate(void *vctx, unsigned char *ss,
 static int p11prov_mlkem_set_ctx_params(void *vctx, const OSSL_PARAM params[])
 {
     P11PROV_KEM_CTX *ctx = vctx;
+#ifdef OSSL_KEM_PARAM_IKME
     const OSSL_PARAM *p;
+#endif
 
     if (ctx == NULL || params == NULL) {
         return RET_OSSL_OK;
