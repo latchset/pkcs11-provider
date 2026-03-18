@@ -218,50 +218,19 @@ static void verify_msg_op(EVP_PKEY *key, bool oneshot, const char *sigalgname,
 #if defined(OSSL_FUNC_KEM_ENCAPSULATE_INIT)
 static void kem_op(const char *keytype, const char *label)
 {
-    EVP_PKEY *priv_key = NULL, *pub_key = NULL;
+    EVP_PKEY *key_pair = NULL;
     EVP_PKEY_CTX *kctx = NULL;
     unsigned char *ct = NULL, *ss1 = NULL, *ss2 = NULL;
     size_t ctlen, ss1len, ss2len;
-    unsigned char *pub = NULL;
-    size_t publen;
     int ret;
 
     PRINTERR("Testing KEM for %s\n", keytype);
 
     /* Generate keypair */
-    priv_key = util_gen_key(keytype, label);
-
-    /*
-     * Generate a distinct key with just the public key part,
-     * and use it to perform the encapsulation function.
-     */
-    ret = EVP_PKEY_get_raw_public_key(priv_key, NULL, &publen);
-    if (ret != 1) {
-        PRINTERROSSL("Failed to get raw public key length\n");
-        exit(EXIT_FAILURE);
-    }
-
-    pub = OPENSSL_malloc(publen);
-    if (pub == NULL) {
-        PRINTERROSSL("Failed to allocate raw public key buffer\n");
-        exit(EXIT_FAILURE);
-    }
-    ret = EVP_PKEY_get_raw_public_key(priv_key, pub, &publen);
-    if (ret != 1) {
-        OPENSSL_free(pub);
-        PRINTERROSSL("Failed to get raw public key\n");
-        exit(EXIT_FAILURE);
-    }
-
-    pub_key = EVP_PKEY_new_raw_public_key_ex(NULL, keytype, NULL, pub, publen);
-    OPENSSL_free(pub);
-    if (pub_key == NULL) {
-        PRINTERROSSL("Failed to create new raw pkey\n");
-        exit(EXIT_FAILURE);
-    }
+    key_pair = util_gen_key(keytype, label);
 
     /* Encapsulate */
-    kctx = EVP_PKEY_CTX_new_from_pkey(NULL, pub_key, NULL);
+    kctx = EVP_PKEY_CTX_new_from_pkey(NULL, key_pair, NULL);
     if (kctx == NULL) {
         PRINTERROSSL("Failed to create pkey ctx for encapsulate\n");
         exit(EXIT_FAILURE);
@@ -297,7 +266,7 @@ static void kem_op(const char *keytype, const char *label)
     kctx = NULL;
 
     /* Decapsulate. */
-    kctx = EVP_PKEY_CTX_new_from_pkey(NULL, priv_key, NULL);
+    kctx = EVP_PKEY_CTX_new_from_pkey(NULL, key_pair, NULL);
     if (kctx == NULL) {
         PRINTERROSSL("Failed to create pkey ctx for decapsulate\n");
         exit(EXIT_FAILURE);
@@ -342,8 +311,7 @@ static void kem_op(const char *keytype, const char *label)
     OPENSSL_free(ss2);
     OPENSSL_free(ct);
     EVP_PKEY_CTX_free(kctx);
-    EVP_PKEY_free(pub_key);
-    EVP_PKEY_free(priv_key);
+    EVP_PKEY_free(key_pair);
 }
 
 static void run_ml_kem_tests(void)
