@@ -94,8 +94,10 @@ static int p11prov_mlkem_encapsulate_init(void *vctx, void *vkey,
     P11PROV_OBJ *key = vkey;
 
     if (p11prov_obj_get_class(key) != CKO_PUBLIC_KEY) {
-        ERR_raise(ERR_LIB_PROV, PROV_R_NOT_A_PUBLIC_KEY);
-        return RET_OSSL_ERR;
+        key = p11prov_obj_pub_from_priv(key);
+        if (!key) {
+            return CKR_KEY_TYPE_INCONSISTENT;
+        }
     }
     return p11prov_mlkem_init(vctx, EVP_PKEY_OP_ENCAPSULATE, key, params);
 }
