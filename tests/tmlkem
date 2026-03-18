@@ -1,0 +1,49 @@
+#!/bin/bash -e
+# Copyright (C) 2026 Jakub Jelen <jjelen@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+if [[ "${SUPPORT_ML_KEM}" != "1" ]]; then
+    exit 77;
+fi
+
+title PARA "Export ML-KEM Public key to a file"
+ossl 'pkey -in $MLKEMPUBURI -pubin -pubout -out ${TMPPDIR}/mlkemout.pub'
+
+title LINE "Print ML-KEM Public key from private"
+ossl 'pkey -in $MLKEMPRIURI -pubout -text' $helper_emit
+output="$helper_output"
+FAIL=0
+echo "$output" | grep "ML-KEM-512 Public Key" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -eq 1 ]; then
+    echo "Could not extract public key from private"
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
+title PARA "Test EVP_PKEY_eq on public ML-KEM key both on token"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$MLKEMPUBURI" "$MLKEMPUBURI"
+
+title PARA "Test EVP_PKEY_eq on public ML-KEM key via import"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$MLKEMPUBURI" "${TMPPDIR}"/mlkemout.pub
+title PARA "Match private ML-KEM key against public key"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$MLKEMPRIURI" "${TMPPDIR}"/mlkemout.pub
+title PARA "Match private ML-KEM key against public key (commutativity)"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/mlkemout.pub "$MLKEMPRIURI"
+
+title PARA "Test Key generation from C API"
+output=$($CHECKER "${TESTBLDDIR}"/tgenkey "ML-KEM-768" 2>&1 || true)
+FAIL=0
+echo "$output" | grep "Performed tests: 1" || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
