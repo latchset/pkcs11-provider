@@ -7,6 +7,9 @@ source "${TESTSSRCDIR}/helpers.sh"
 
 title PARA "Test imported key in token session"
 
+title LINE "Generate digest to sign"
+ossl 'dgst -sha256 -binary -out ${TMPPDIR}/sha256.bin ${SEEDFILE}'
+
 title LINE "Generate EC keypair in files"
 # older versions of openssl don't support -outpubkey ...
 #ossl 'genpkey -algorithm EC -out ${TMPPDIR}/file.ec.key.pem
@@ -30,6 +33,39 @@ ossl 'genpkey -algorithm RSA -out ${TMPPDIR}/file.rsa.key.pem
               -pkeyopt rsa_keygen_bits:2048 ${OPTS}'
 ossl 'pkey -in ${TMPPDIR}/file.rsa.key.pem
            -pubout -out ${TMPPDIR}/file.rsa.pub.key.pem'
+
+if [[ "${SUPPORT_ED25519}" = "1" ]]; then
+    ossl 'genpkey -algorithm ED25519 -out ${TMPPDIR}/file.ed25519.key.pem'
+    ossl 'pkey -in ${TMPPDIR}/file.ed25519.key.pem
+               -pubout -out ${TMPPDIR}/file.ed25519.pub.key.pem'
+fi
+if [[ "${SUPPORT_ED448}" = "1" ]]; then
+    ossl 'genpkey -algorithm ED448 -out ${TMPPDIR}/file.ed448.key.pem'
+    ossl 'pkey -in ${TMPPDIR}/file.ed448.key.pem
+               -pubout -out ${TMPPDIR}/file.ed448.pub.key.pem'
+fi
+if [[ "${SUPPORT_X25519}" = "1" ]]; then
+    ossl 'genpkey -algorithm X25519 -out ${TMPPDIR}/file.x25519.key.pem'
+    ossl 'pkey -in ${TMPPDIR}/file.x25519.key.pem
+               -pubout -out ${TMPPDIR}/file.x25519.pub.key.pem'
+fi
+if [[ "${SUPPORT_X448}" = "1" ]]; then
+    ossl 'genpkey -algorithm X448 -out ${TMPPDIR}/file.x448.key.pem'
+    ossl 'pkey -in ${TMPPDIR}/file.x448.key.pem
+               -pubout -out ${TMPPDIR}/file.x448.pub.key.pem'
+fi
+if [[ "${SUPPORT_ML_DSA}" = "1" ]]; then
+    ossl 'genpkey -algorithm ML-DSA-65 -out ${TMPPDIR}/file.ml-dsa.key.pem'
+    ossl 'pkey -in ${TMPPDIR}/file.ml-dsa.key.pem
+               -pubout -out ${TMPPDIR}/file.ml-dsa.pub.key.pem'
+fi
+if [[ "${SUPPORT_ML_KEM}" = "1" ]]; then
+    ossl 'genpkey -algorithm ML-KEM-1024 -out ${TMPPDIR}/file.ml-kem.key.pem'
+    ossl 'pkey -in ${TMPPDIR}/file.ml-kem.key.pem
+               -pubout -out ${TMPPDIR}/file.ml-kem.pub.key.pem'
+fi
+
+
 
 #After key generation force all operations to happen on the token
 ORIG_OPENSSL_CONF=${OPENSSL_CONF}
@@ -60,6 +96,94 @@ ossl 'pkeyutl -verify -pubin
               -inkey ${TMPPDIR}/file.rsa.pub.key.pem
               -sigfile ${TMPPDIR}/file.rsa.sig.bin
               -in ${TMPPDIR}/sha256.bin'
+
+if [[ "${SUPPORT_ED25519}" = "1" ]]; then
+    title LINE "Test Signing with private ED25519 key imported from file"
+    ossl 'pkeyutl -sign -rawin
+                  -inkey ${TMPPDIR}/file.ed25519.key.pem
+                  -in ${TMPPDIR}/sha256.bin
+                  -out ${TMPPDIR}/file.ed25519.sig.bin'
+
+    title LINE "Test Verifying with public ED25519 key imported from file"
+    ossl 'pkeyutl -verify -rawin -pubin
+                  -inkey ${TMPPDIR}/file.ed25519.pub.key.pem
+                  -sigfile ${TMPPDIR}/file.ed25519.sig.bin
+                  -in ${TMPPDIR}/sha256.bin'
+fi
+if [[ "${SUPPORT_ED448}" = "1" ]]; then
+    title LINE "Test Signing with private ED448 key imported from file"
+    ossl 'pkeyutl -sign -rawin
+                  -inkey ${TMPPDIR}/file.ed448.key.pem
+                  -in ${TMPPDIR}/sha256.bin
+                  -out ${TMPPDIR}/file.ed448.sig.bin'
+
+    title LINE "Test Verifying with public ED448 key imported from file"
+    ossl 'pkeyutl -verify -rawin -pubin
+                  -inkey ${TMPPDIR}/file.ed448.pub.key.pem
+                  -sigfile ${TMPPDIR}/file.ed448.sig.bin
+                  -in ${TMPPDIR}/sha256.bin'
+fi
+if [[ "${SUPPORT_ML_DSA}" = "1" ]]; then
+    title LINE "Test Signing with private ML-DSA key imported from file"
+    ossl 'pkeyutl -sign
+                  -inkey ${TMPPDIR}/file.ml-dsa.key.pem
+                  -in ${TMPPDIR}/sha256.bin
+                  -out ${TMPPDIR}/file.ml-dsa.sig.bin'
+
+    title LINE "Test Verifying with public ML-DSA key imported from file"
+    ossl 'pkeyutl -verify -pubin
+                  -inkey ${TMPPDIR}/file.ml-dsa.pub.key.pem
+                  -sigfile ${TMPPDIR}/file.ml-dsa.sig.bin
+                  -in ${TMPPDIR}/sha256.bin'
+fi
+
+## KEM
+
+if [[ "${SUPPORT_ML_KEM}" = "1" ]]; then
+    title LINE "Test Encapsulation with public ML-KEM key imported from file"
+    ossl 'pkeyutl -encap -pubin
+                  -inkey ${TMPPDIR}/file.ml-kem.pub.key.pem
+                  -secret ${TMPPDIR}/file.ml-kem.secret1
+                  -out ${TMPPDIR}/file.ml-kem.public'
+
+    title LINE "Test Decapsulation with private ML-KEM key imported from file"
+    ossl 'pkeyutl -decap
+                  -inkey ${TMPPDIR}/file.ml-kem.key.pem
+                  -in ${TMPPDIR}/file.ml-kem.public
+                  -secret ${TMPPDIR}/file.ml-kem.secret2'
+    diff "${TMPPDIR}/file.ml-kem.secret"{1,2}
+fi
+## KEM with EC keys do not work now. See
+## https://github.com/openssl-projects/pkcs11-provider/issues/711
+##
+# if [[ "${SUPPORT_X25519}" = "1" ]]; then
+#     title LINE "Test Encapsulation with public X25519 key imported from file"
+#     ossl 'pkeyutl -encap -pubin
+#                   -inkey ${TMPPDIR}/file.x25519.pub.key.pem
+#                   -secret ${TMPPDIR}/file.x25519.secret1
+#                   -out ${TMPPDIR}/file.x25519.public'
+#
+#     title LINE "Test Decapsulation with private X25519 key imported from file"
+#     ossl 'pkeyutl -decap
+#                   -inkey ${TMPPDIR}/file.x25519.key.pem
+#                   -in ${TMPPDIR}/file.x25519.public
+#                   -secret ${TMPPDIR}/file.x25519.secret2'
+#     diff "${TMPPDIR}/file.x25519.secret"{1,2}
+# fi
+# if [[ "${SUPPORT_X448}" = "1" ]]; then
+#     title LINE "Test Encapsulation with public X448 key imported from file"
+#     ossl 'pkeyutl -encap -pubin
+#                   -inkey ${TMPPDIR}/file.x448.pub.key.pem
+#                   -secret ${TMPPDIR}/file.x448.secret1
+#                   -out ${TMPPDIR}/file.x448.public'
+#
+#     title LINE "Test Decapsulation with private X448 key imported from file"
+#     ossl 'pkeyutl -decap
+#                   -inkey ${TMPPDIR}/file.x448.key.pem
+#                   -in ${TMPPDIR}/file.x448.public
+#                   -secret ${TMPPDIR}/file.x448.secret2'
+#     diff "${TMPPDIR}/file.x448.secret"{1,2}
+# fi
 
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
