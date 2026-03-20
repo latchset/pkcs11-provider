@@ -147,8 +147,8 @@ static int p11prov_mlkem_encapsulate(void *vctx, unsigned char *ct,
     size_t mlkem_ct_len, mlkem_ss_len;
     CK_OBJECT_HANDLE key_handle;
     P11PROV_SESSION *session = NULL;
+    CK_SESSION_HANDLE sess;
     CK_RV rv;
-    CK_SLOT_ID slot_id;
 
     if (ctx == NULL || ctx->key == NULL) {
         ERR_raise(ERR_LIB_PROV, PROV_R_MISSING_KEY);
@@ -188,18 +188,22 @@ static int p11prov_mlkem_encapsulate(void *vctx, unsigned char *ct,
         .ulParameterLen = 0,
     };
 
-    slot_id = p11prov_obj_get_slotid(ctx->key);
-    if (slot_id == CK_UNAVAILABLE_INFORMATION) {
-        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR,
-                      "Could not determine slot for key");
+    /* First ask for handle -- if it is mock, the pkcs11-provider will create
+     * session object */
+    key_handle = p11prov_obj_get_handle(ctx->key);
+    if (key_handle == CK_INVALID_HANDLE) {
+        P11PROV_raise(ctx->provctx, CKR_KEY_HANDLE_INVALID,
+                      "Provided key has invalid handle");
         return RET_OSSL_ERR;
     }
 
-    rv = p11prov_get_session(ctx->provctx, &slot_id, NULL, NULL, mech.mechanism,
-                             NULL, NULL, false, false, &session);
+    rv = p11prov_try_session_ref(ctx->key, mech.mechanism, false, false,
+                                 &session);
     if (rv != CKR_OK) {
+        P11PROV_raise(ctx->provctx, rv, "Failed to acquire session");
         return RET_OSSL_ERR;
     }
+    sess = p11prov_session_handle(session);
 
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
     CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
@@ -216,26 +220,22 @@ static int p11prov_mlkem_encapsulate(void *vctx, unsigned char *ct,
     CK_OBJECT_HANDLE secret_key_handle = CK_INVALID_HANDLE;
     CK_ULONG ct_len_pkcs = *ct_len;
 
-    key_handle = p11prov_obj_get_handle(ctx->key);
-
-    rv = p11prov_EncapsulateKey(
-        ctx->provctx, p11prov_session_handle(session), &mech, key_handle,
-        key_template, key_template_len, ct, &ct_len_pkcs, &secret_key_handle);
+    rv = p11prov_EncapsulateKey(ctx->provctx, sess, &mech, key_handle,
+                                key_template, key_template_len, ct,
+                                &ct_len_pkcs, &secret_key_handle);
     if (rv == CKR_OK) {
         *ct_len = ct_len_pkcs;
 
         CK_ATTRIBUTE value_attr = { CKA_VALUE, ss, *ss_len };
-        rv = p11prov_GetAttributeValue(ctx->provctx,
-                                       p11prov_session_handle(session),
-                                       secret_key_handle, &value_attr, 1);
+        rv = p11prov_GetAttributeValue(ctx->provctx, sess, secret_key_handle,
+                                       &value_attr, 1);
         if (rv == CKR_OK) {
             *ss_len = value_attr.ulValueLen;
         }
     }
 
     if (secret_key_handle != CK_INVALID_HANDLE) {
-        p11prov_DestroyObject(ctx->provctx, p11prov_session_handle(session),
-                              secret_key_handle);
+        p11prov_DestroyObject(ctx->provctx, sess, secret_key_handle);
     }
 
     p11prov_return_session(session);
@@ -256,8 +256,8 @@ static int p11prov_mlkem_decapsulate(void *vctx, unsigned char *ss,
     size_t mlkem_ct_len, mlkem_ss_len;
     CK_OBJECT_HANDLE key_handle;
     P11PROV_SESSION *session = NULL;
+    CK_SESSION_HANDLE sess;
     CK_RV rv;
-    CK_SLOT_ID slot_id;
 
     if (ctx == NULL || ctx->key == NULL) {
         ERR_raise(ERR_LIB_PROV, PROV_R_MISSING_KEY);
@@ -289,18 +289,22 @@ static int p11prov_mlkem_decapsulate(void *vctx, unsigned char *ss,
         .ulParameterLen = 0,
     };
 
-    slot_id = p11prov_obj_get_slotid(ctx->key);
-    if (slot_id == CK_UNAVAILABLE_INFORMATION) {
-        P11PROV_raise(ctx->provctx, CKR_GENERAL_ERROR,
-                      "Could not determine slot for key");
+    /* First ask for handle -- if it is mock, the pkcs11-provider will create
+     * session object */
+    key_handle = p11prov_obj_get_handle(ctx->key);
+    if (key_handle == CK_INVALID_HANDLE) {
+        P11PROV_raise(ctx->provctx, CKR_KEY_HANDLE_INVALID,
+                      "Provided key has invalid handle");
         return RET_OSSL_ERR;
     }
 
-    rv = p11prov_get_session(ctx->provctx, &slot_id, NULL, NULL, mech.mechanism,
-                             NULL, NULL, false, false, &session);
+    rv = p11prov_try_session_ref(ctx->key, mech.mechanism, false, false,
+                                 &session);
     if (rv != CKR_OK) {
+        P11PROV_raise(ctx->provctx, rv, "Failed to acquire session");
         return RET_OSSL_ERR;
     }
+    sess = p11prov_session_handle(session);
 
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
     CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
@@ -318,24 +322,21 @@ static int p11prov_mlkem_decapsulate(void *vctx, unsigned char *ss,
 
     key_handle = p11prov_obj_get_handle(ctx->key);
 
-    rv = p11prov_DecapsulateKey(ctx->provctx, p11prov_session_handle(session),
-                                &mech, key_handle, key_template,
-                                key_template_len, (CK_BYTE_PTR)ct, ct_len,
-                                &secret_key_handle);
+    rv = p11prov_DecapsulateKey(ctx->provctx, sess, &mech, key_handle,
+                                key_template, key_template_len, (CK_BYTE_PTR)ct,
+                                ct_len, &secret_key_handle);
 
     if (rv == CKR_OK) {
         CK_ATTRIBUTE value_attr = { CKA_VALUE, ss, *ss_len };
-        rv = p11prov_GetAttributeValue(ctx->provctx,
-                                       p11prov_session_handle(session),
-                                       secret_key_handle, &value_attr, 1);
+        rv = p11prov_GetAttributeValue(ctx->provctx, sess, secret_key_handle,
+                                       &value_attr, 1);
         if (rv == CKR_OK) {
             *ss_len = value_attr.ulValueLen;
         }
     }
 
     if (secret_key_handle != CK_INVALID_HANDLE) {
-        p11prov_DestroyObject(ctx->provctx, p11prov_session_handle(session),
-                              secret_key_handle);
+        p11prov_DestroyObject(ctx->provctx, sess, secret_key_handle);
     }
 
     p11prov_return_session(session);
