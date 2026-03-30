@@ -65,6 +65,7 @@ jobs:
         run: |
             if [ "${{ matrix.name }}" = "centos9" -o "${{ matrix.name }}" = "centos10" ]; then
               dnf_opts="--enablerepo=crb"
+              dnf -y install epel-release
             fi
             if [ -f /etc/redhat-release ]; then
               if [ "${{ matrix.name }}" = "almalinux8" ]; then
@@ -76,7 +77,10 @@ jobs:
               fi
               dnf -y install $dnf_opts \
                 git ${{ matrix.compiler }} meson which pkgconf-pkg-config \
-                diffutils expect valgrind opensc python3-six
+                diffutils expect valgrind opensc python3-six lcov
+              if [ "${{ matrix.compiler }}" == "clang" ]; then
+                dnf -y install llvm
+              fi
               if [ "${{ matrix.token }}" = "softokn" ]; then
                 dnf -y install nss-softokn nss-tools nss-softokn-devel \
                   nss-devel
@@ -89,7 +93,10 @@ jobs:
               apt-get -q update
               apt-get -yq install git ${{ matrix.compiler }} meson \
                 pkg-config libssl-dev openssl expect \
-                valgrind procps opensc python3-six
+                valgrind procps opensc python3-six lcov
+              if [ "${{ matrix.compiler }}" == "clang" ]; then
+                apt-get -yq install install llvm
+              fi
               if [ "${{ matrix.token }}" = "softokn" ]; then
                 apt-get -yq install libnss3 libnss3-tools libnss3-dev
               elif [ "${{ matrix.token }}" = "softhsm" ]; then
@@ -108,6 +115,10 @@ jobs:
                 echo "skiptest=true" >> $GITHUB_OUTPUT
               fi
             fi
+          elif [ "${{ matrix.name }}" = "ubuntu" -a "${{ matrix.compiler }}" ]; then
+            # The Meson in Ubuntu 24 has a bug that it can not correctly detect
+            # the clangs, gcovr and crashes. Skip it for now.
+            echo "skipcoverage=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Checkout Repository
@@ -126,11 +137,12 @@ jobs:
           git config --global --add safe.directory \
               /__w/pkcs11-provider/pkcs11-provider
           git submodule update --init
-          if [ -f /etc/redhat-release ]; then
-            CC=${{ matrix.compiler }} meson setup builddir
-          else
-            CC=${{ matrix.compiler }} meson setup builddir -Denable_explicit_EC_test=true
+
+          MESON_OPTS="-Db_coverage=true"
+          if [ ! -f /etc/redhat-release ]; then
+            MESON_OPTS="$MESON_OPTS -Denable_explicit_EC_test=true"
           fi
+          CC=${{ matrix.compiler }} meson setup builddir $MESON_OPTS
 
       - name: Build and Test
         if : ( steps.skip-check.outputs.skiptest != 'true' )
@@ -154,6 +166,12 @@ jobs:
           meson compile -C builddir
           meson test --num-processes 1 -C builddir --suite ${{ matrix.token }} "${meson_tests[@]}"
 
+      - name: Collect coverage data
+        if : ( steps.skip-check.outputs.skiptest != 'true' && steps.skip-check.outputs.skipcoverage != 'true' )
+        shell: bash
+        run: |
+          ninja -C builddir coverage
+
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
@@ -162,6 +180,14 @@ jobs:
             builddir/meson-logs/
             builddir/tests/*.log
             builddir/tests/${{ matrix.token }}
+
+      - name: Upload Coverage Data
+        uses: actions/upload-artifact@v7
+        if : ( steps.skip-check.outputs.skiptest != 'true' && steps.skip-check.outputs.skipcoverage != 'true' )
+        with:
+          retention-days: 1
+          name: coverage-${{ matrix.name }}-${{ matrix.compiler }}-${{ matrix.token }}-${{ steps.setup.outputs.cpu }}
+          path: builddir/meson-logs/coverage.info
 
       - name: Run tests with valgrind
         if : ( steps.skip-check.outputs.skiptest != 'true' && matrix.compiler == 'gcc' )
@@ -229,7 +255,9 @@ jobs:
             meson \
             openssl@3 \
             opensc \
-            p11-kit
+            p11-kit \
+            gcovr \
+            lcov
           if [ "${{ matrix.token }}" = "softokn" ]; then
             brew install nss
           elif [ "${{ matrix.token }}" = "softhsm" ]; then
@@ -247,7 +275,7 @@ jobs:
           export PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig
           export PATH=$(brew --prefix openssl@3)/bin:$PATH
 
-          CC=clang meson setup builddir
+          CC=clang meson setup builddir -Db_coverage=true
 
       - name: Build and Test
         run: |
@@ -258,6 +286,7 @@ jobs:
 
           meson compile -j$(sysctl -n hw.ncpu || echo 2) -C builddir
           meson test --num-processes 1 -C builddir
+          ninja -C builddir coverage
 
       - uses: actions/upload-artifact@v7
         if: failure()
@@ -267,3 +296,192 @@ jobs:
             builddir/meson-logs/*
             builddir/tests/*.log
             builddir/tests/${{ matrix.token }}
+
+      - name: Upload Coverage Data
+        uses: actions/upload-artifact@v7
+        if: always() # Uploads even if some tests failed!
+        with:
+          retention-days: 1
+          name: coverage-${{ matrix.os }}-${{ matrix.token }}
+          path: builddir/meson-logs/coverage.info
+
+  setup-openssl:
+    name: Build OpenSSL from master branch
+    runs-on: ubuntu-22.04
+    container: quay.io/fedora/fedora:rawhide
+    steps:
+      - name: Get Date for DNF cache entry
+        id: get-date-dnf
+        run: |
+          echo "date=$(/bin/date -u "+%Y%V")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: DNF cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            /var/cache/libdnf5
+          key: ${{ runner.os }}-dnf-openssl-${{ steps.get-date-dnf.outputs.date }}
+
+      - name: Install Dependencies
+        run: |
+            dnf -y install perl-FindBin perl-IPC-Cmd perl-File-Compare \
+              perl-File-Copy perl-Pod-Html perl-Time-Piece git clang
+
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Get Date for /opt cache entry
+        id: get-date-opt
+        run: |
+          echo "date=$(/bin/date -u "+%Y%m%d")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: /opt cache
+        id: cache-opt
+        uses: actions/cache@v5
+        with:
+          path: /opt
+          key: ${{ runner.os }}-opt-${{ steps.get-date-opt.outputs.date }}
+
+      - name: Get OpenSSL
+        if: steps.cache-opt.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/openssl/openssl.git
+
+      - name: Config, build and install OpenSSL
+        if: steps.cache-opt.outputs.cache-hit != 'true'
+        run: |
+          cd openssl
+          ./config --prefix=/opt && make && make install_sw
+
+  build-openssl-master:
+    name: Build and test pkcs11-provider against OpenSSL master
+    env:
+      OPENSSL_WITH_27483_FIX: 1
+    needs: setup-openssl
+    runs-on: ubuntu-22.04
+    container: quay.io/fedora/fedora:rawhide
+    steps:
+      - name: Get Date for DNF cache entry
+        id: get-date-dnf
+        run: |
+          echo "date=$(/bin/date -u "+%Y%V")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: DNF cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            /var/cache/libdnf5
+          key: ${{ runner.os }}-dnf-openssl-${{ steps.get-date-dnf.outputs.date }}
+
+      - name: Install Dependencies
+        run: |
+            dnf -y install clang meson cargo expect pkgconf-pkg-config opensc \
+              p11-kit-devel gcc g++ sqlite-devel python3-six which cmake \
+              nss-softokn nss-tools nss-softokn-devel nss-devel softhsm \
+              kryoptic gcovr lcov
+
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Get Date for /opt cache entry
+        id: get-date-opt
+        run: |
+          echo "date=$(/bin/date -u "+%Y%m%d")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Fetch built openssl from cache
+        id: cache-opt
+        uses: actions/cache@v5
+        with:
+          path: /opt
+          key: ${{ runner.os }}-opt-${{ steps.get-date-opt.outputs.date }}
+          fail-on-cache-miss: true
+
+      - name: Setup and build pkcs11-provider
+        run: |
+          export LD_LIBRARY_PATH="/opt/lib64/:$LD_LIBRARY_PATH"
+          export PATH="/opt/bin:$PATH"
+          export PKG_CONFIG_PATH="/opt/lib64/pkgconfig"
+          meson setup builddir -Db_coverage=true
+          meson compile -C builddir
+
+      - name: Test
+        run: |
+          export LD_LIBRARY_PATH="/opt/lib64/:$LD_LIBRARY_PATH"
+          export PATH="/opt/bin:$PATH"
+          # FIXME: Temporarily disable Montgomery curves in groups until we
+          # we find out the underlying failure or kryoptic is built with a
+          # newer version that does not fail
+          meson test --num-processes 1 -C builddir
+          ninja -C builddir coverage
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: Test logs
+          path: |
+            builddir/meson-logs/
+            builddir/tests/*.log
+
+      - name: Upload Coverage Data
+        uses: actions/upload-artifact@v7
+        if: always() # Uploads even if some tests failed!
+        with:
+          retention-days: 1
+          name: coverage-openssl-master
+          path: builddir/meson-logs/coverage.info
+
+  aggregate-coverage:
+    name: Aggregate Coverage & Annotate PR
+    needs: [build, build-macos, build-openssl-master]
+    if: success() || failure() # skip cancelled pipelines
+    runs-on: ubuntu-24.04
+    container: quay.io/opendevmirror/debian:trixie # needed for latest lcov
+    steps:
+      - name: Install Dependencies
+        if: ${{ github.event.pull_request.base.sha }}
+        run: |
+          apt-get -q update
+          apt-get -yq install git lcov gawk
+
+      - name: Checkout repository
+        if: ${{ github.event.pull_request.base.sha }}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Download all coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          path: coverage-data/
+
+      - name: Setup
+        run: |
+          git config --global --add safe.directory \
+              /__w/pkcs11-provider/pkcs11-provider
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+              git fetch origin ${{ github.base_ref }} --depth=1
+          fi
+
+      - name: Merge coverage reports
+        if: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # Find all downloaded .info files and build the merge arguments
+          LCOV_ARGS=$(find coverage-data -name "*.info" -printf "-a %p ")
+          LCOV_ARGS="--ignore-errors inconsistent,corrupt,unsupported $LCOV_ARGS"
+          # Merging traces from MacOS has different paths so standardize them
+          LCOV_ARGS="--rc "substitute=s#^.*/pkcs11-provider/pkcs11-provider/##" $LCOV_ARGS"
+
+          # Run lcov to combine them all into one master file
+          lcov $LCOV_ARGS -o merged_coverage.info
+
+      - name: Annotate Uncovered Lines
+        if: ${{ github.event.pull_request.base.sha }}
+        run: |
+          ./scripts/coverage_report.sh merged_coverage.info

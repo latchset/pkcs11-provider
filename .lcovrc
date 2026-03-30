@@ -1,0 +1,3 @@
+# Bypass strict lcov 2.0+ consistency checks that crash on macOS/Apple Clang
+ignore_errors = inconsistent,corrupt,unsupported
+check_data_consistency = 0
