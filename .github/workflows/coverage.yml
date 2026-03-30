@@ -38,6 +38,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Test valgrind logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }} - ${{ steps.setup.cpu }}
+          name: Test coverage reports
           path: |
             builddir/meson-logs/coveragereport/
