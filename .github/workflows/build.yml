@@ -157,7 +157,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: Test logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }} - ${{ steps.setup.cpu }}
+          name: Test logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }} - ${{ steps.setup.outputs.cpu }}
           path: |
             builddir/meson-logs/
             builddir/tests/*.log
