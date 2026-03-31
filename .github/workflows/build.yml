@@ -154,7 +154,7 @@ jobs:
           meson compile -C builddir
           meson test --num-processes 1 -C builddir --suite ${{ matrix.token }} "${meson_tests[@]}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: Test logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }} - ${{ steps.setup.outputs.cpu }}
@@ -184,7 +184,7 @@ jobs:
           fi
           meson test --num-processes 1 -C builddir --setup=valgrind --suite ${{ matrix.token }} "${meson_tests[@]}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: Test valgrind logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }} - ${{ steps.setup.cpu }}
@@ -201,7 +201,7 @@ jobs:
       #        meson test --num-processes 1 -C builddir
       #      fi
 
-      #- uses: actions/upload-artifact@v4
+      #- uses: actions/upload-artifact@v7
       #  if: failure()
       #  with:
       #    name: Test FIPS Mode logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
@@ -259,7 +259,7 @@ jobs:
           meson compile -j$(sysctl -n hw.ncpu || echo 2) -C builddir
           meson test --num-processes 1 -C builddir
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: Test logs on macOS-14 with ${{ matrix.token }}

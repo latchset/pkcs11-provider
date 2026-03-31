@@ -12,7 +12,7 @@ env:
 
 jobs:
   setup:
-    name: Build OpenSSL from master branch 
+    name: Build OpenSSL from master branch
     runs-on: ubuntu-22.04
     container: quay.io/fedora/fedora:rawhide
     steps:
@@ -121,7 +121,7 @@ jobs:
           # newer version that does not fail
           meson test --num-processes 1 -C builddir
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: Test logs
