@@ -437,20 +437,18 @@ jobs:
           path: builddir/meson-logs/coverage.info
 
   aggregate-coverage:
-    name: Aggregate Coverage & Annotate PR
+    name: Aggregate Coverage
     needs: [build, build-macos, build-openssl-master]
-    if: success() || failure() # skip cancelled pipelines
+    if: success() || failure()
     runs-on: ubuntu-24.04
     container: quay.io/opendevmirror/debian:trixie # needed for latest lcov
     steps:
       - name: Install Dependencies
-        if: ${{ github.event.pull_request.base.sha }}
         run: |
           apt-get -q update
           apt-get -yq install git lcov gawk
 
       - name: Checkout repository
-        if: ${{ github.event.pull_request.base.sha }}
         uses: actions/checkout@v6
         with:
           fetch-depth: 2
@@ -470,7 +468,6 @@ jobs:
           fi
 
       - name: Merge coverage reports
-        if: ${{ github.event.pull_request.base.sha }}
         run: |
           # Find all downloaded .info files and build the merge arguments
           LCOV_ARGS=$(find coverage-data -name "*.info" -printf "-a %p ")
@@ -481,7 +478,7 @@ jobs:
           # Run lcov to combine them all into one master file
           lcov $LCOV_ARGS -o merged_coverage.info
 
-      - name: Annotate Uncovered Lines
+      - name: Annotate Uncovered Lines in PR
         if: ${{ github.event.pull_request.base.sha }}
         run: |
           ./scripts/coverage_report.sh merged_coverage.info
