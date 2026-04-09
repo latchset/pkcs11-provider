@@ -443,11 +443,6 @@ CK_RV p11prov_obj_from_handle(P11PROV_CTX *ctx, P11PROV_SESSION *session,
             if (ret == CKR_OK) {
                 obj->attrs[obj->numattrs] = a[0].attr;
                 obj->numattrs++;
-            } else if (ret == CKR_ATTRIBUTE_TYPE_INVALID) {
-                token_supports_allowed_mechs = CK_FALSE;
-                (void)p11prov_token_sup_attr(ctx, obj->slotid, SET_ATTR,
-                                             CKA_ALLOWED_MECHANISMS,
-                                             &token_supports_allowed_mechs);
             }
         }
         break;
