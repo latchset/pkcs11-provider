@@ -37,6 +37,17 @@ jobs:
           ninja -C builddir coverage
 
       - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: Coverage test logs
+          path: |
+            builddir/meson-logs/
+            builddir/tests/*.log
+            builddir/tests/softokn/
+            builddir/tests/softhsm/
+            builddir/tests/kryoptic/
+
+      - uses: actions/upload-artifact@v7
         with:
           name: Test coverage reports
           path: |
