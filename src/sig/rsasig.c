@@ -285,6 +285,8 @@ static CK_RV p11prov_sig_pss_restrictions(P11PROV_SIG_CTX *sigctx,
     return CKR_OK;
 }
 
+static int p11prov_rsasig_set_pss_saltlen_max(void *ctx, bool max_to_digest);
+
 /* fixates pss_params based on defaults if values are not set */
 static CK_RV pss_defaults(P11PROV_SIG_CTX *sigctx)
 {
@@ -299,15 +301,11 @@ static CK_RV pss_defaults(P11PROV_SIG_CTX *sigctx)
         sigctx->pss_params.mgf = data->mgf;
     }
     if (sigctx->pss_params.sLen == 0) {
-        /* default to digest size if not set */
-        size_t size;
-        CK_RV ret;
-
-        ret = p11prov_digest_get_digest_size(data->digest, &size);
-        if (ret != CKR_OK) {
-            return ret;
+        /* default to digest size or max awailable if not set */
+        int ret = p11prov_rsasig_set_pss_saltlen_max(sigctx, true);
+        if (ret != RET_OSSL_OK) {
+            return CKR_MECHANISM_INVALID;
         }
-        sigctx->pss_params.sLen = size;
     }
 
     return CKR_OK;
@@ -341,6 +339,7 @@ static int p11prov_rsasig_set_pss_saltlen_max(void *ctx, bool max_to_digest)
     size_t digest_size;
     CK_ULONG key_size;
     CK_ULONG key_bit_size;
+    CK_ULONG min_required_size;
     CK_RV rv;
 
     if (sigctx->digest == 0) {
@@ -357,20 +356,29 @@ static int p11prov_rsasig_set_pss_saltlen_max(void *ctx, bool max_to_digest)
 
     key_size = p11prov_obj_get_key_size(sigctx->key);
     if (key_size == CK_UNAVAILABLE_INFORMATION) {
-        P11PROV_raise(sigctx->provctx, rv, "Unavailable key");
+        P11PROV_raise(sigctx->provctx, CKR_KEY_INDIGESTIBLE, "Unavailable key");
         return RET_OSSL_ERR;
     }
     key_bit_size = p11prov_obj_get_key_bit_size(sigctx->key);
     if (key_bit_size == CK_UNAVAILABLE_INFORMATION) {
-        P11PROV_raise(sigctx->provctx, rv, "Unavailable key");
+        P11PROV_raise(sigctx->provctx, CKR_KEY_INDIGESTIBLE, "Unavailable key");
+        return RET_OSSL_ERR;
+    }
+
+    min_required_size = digest_size + 2;
+    if ((key_bit_size & 0x07) == 1) {
+        min_required_size += 1;
+    }
+
+    if (key_size < min_required_size) {
+        P11PROV_raise(sigctx->provctx, CKR_KEY_INDIGESTIBLE,
+                      "Key size too small for the requested digest");
         return RET_OSSL_ERR;
     }
 
     /* from openssl */
-    sigctx->pss_params.sLen = key_size - digest_size - 2;
-    if ((key_bit_size & 0x07) == 1) {
-        sigctx->pss_params.sLen -= 1;
-    }
+    sigctx->pss_params.sLen = key_size - min_required_size;
+
     if (max_to_digest && sigctx->pss_params.sLen > digest_size) {
         sigctx->pss_params.sLen = digest_size;
     }
