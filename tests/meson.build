@@ -85,7 +85,7 @@ if get_option('b_sanitize') == 'address'
   add_env = {
     'ASAN_OPTIONS': 'fast_unwind_on_malloc=0:detect_leaks=1',
     'LSAN_OPTIONS': 'suppressions=@0@/lsan.supp'.format(meson.current_source_dir()),
-    'FAKE_DLCLOSE': fake_dlclose.full_path(),
+    'OPENSC_DEEPBIND': '0',
     'CHECKER': checker,
   }
 
