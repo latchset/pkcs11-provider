@@ -177,6 +177,9 @@ CK_RV rsa_pkeyinfo_to_attrs(CK_ATTRIBUTE *pkeyinfo, CK_ATTRIBUTE *attrs)
     CK_RV rv = CKR_GENERAL_ERROR;
 
     rsakey = decode_rsa_pubkey(pkeyinfo);
+    if (!rsakey) {
+        return CKR_KEY_INDIGESTIBLE;
+    }
 
     n = ASN1_INTEGER_to_BN(rsakey->n, NULL);
     e = ASN1_INTEGER_to_BN(rsakey->e, NULL);
