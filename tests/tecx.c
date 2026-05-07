@@ -11,9 +11,9 @@
 
 static void ecdh_test(EVP_PKEY *a, EVP_PKEY *b)
 {
-    unsigned char secret[16];
-    size_t secretlen = 16;
-    EVP_PKEY_CTX *derivectx;
+    unsigned char secret[16], secret2[16];
+    size_t secretlen = 16, secret2len = 16;
+    EVP_PKEY_CTX *derivectx, *dup_ctx, *dup_ctx2;
 
     derivectx = EVP_PKEY_CTX_new_from_pkey(NULL, a, NULL);
     if (!derivectx) {
@@ -34,13 +34,44 @@ static void ecdh_test(EVP_PKEY *a, EVP_PKEY *b)
         exit(EXIT_FAILURE);
     }
 
+    /* Trigger the context duplication to verify it works */
+    dup_ctx = EVP_PKEY_CTX_dup(derivectx);
+    if (!dup_ctx) {
+        fprintf(stderr, "EVP_PKEY_CTX_dup failed!\n");
+        ossl_err_print();
+        exit(EXIT_FAILURE);
+    }
+
+    /* Do derivation with original context */
     if (EVP_PKEY_derive(derivectx, secret, &secretlen) != 1) {
         fprintf(stderr, "EVP_PKEY_derive failed!\n");
         ossl_err_print();
         exit(EXIT_FAILURE);
     }
 
+    /* Do derivation with duplicate context */
+    if (EVP_PKEY_derive(dup_ctx, secret2, &secret2len) != 1) {
+        fprintf(stderr, "EVP_PKEY_derive failed!\n");
+        ossl_err_print();
+        exit(EXIT_FAILURE);
+    }
+
+    /* Duplicate also already completed derivation */
+    dup_ctx2 = EVP_PKEY_CTX_dup(derivectx);
+    if (!dup_ctx2) {
+        fprintf(stderr, "EVP_PKEY_CTX_dup of finalized context failed!\n");
+        ossl_err_print();
+        exit(EXIT_FAILURE);
+    }
+
     EVP_PKEY_CTX_free(derivectx);
+    EVP_PKEY_CTX_free(dup_ctx);
+    EVP_PKEY_CTX_free(dup_ctx2);
+
+    if (secretlen != secret2len || memcmp(secret, secret2, secretlen) != 0) {
+        fprintf(stderr, "Secret from duplicated context does not match!\n");
+        exit(EXIT_FAILURE);
+    }
 }
 
 int main(int argc, char *argv[])
