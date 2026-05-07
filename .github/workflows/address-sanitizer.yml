@@ -33,7 +33,7 @@ jobs:
               openssl-devel openssl diffutils expect \
               softhsm opensc p11-kit-devel \
               nss-softokn nss-tools nss-softokn-devel \
-              dnf-command\(debuginfo-install\) libasan
+              dnf-command\(debuginfo-install\) libasan xxd
             dnf -y debuginfo-install openssl
           elif [ -f /etc/debian_version ]; then
             cat .github/sid.debug.list > /etc/apt/sources.list.d/debug.list
@@ -42,7 +42,7 @@ jobs:
               pkg-config libssl-dev openssl expect \
               procps libnss3 libnss3-tools libnss3-dev softhsm2 opensc p11-kit \
               libp11-kit-dev p11-kit-modules \
-              openssl-dbgsym libssl3t64-dbgsym
+              openssl-dbgsym libssl3t64-dbgsym xxd
           fi
 
       - name: Setup

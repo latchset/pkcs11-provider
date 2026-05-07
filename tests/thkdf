@@ -9,7 +9,7 @@ if [[ "$NSS_FIPS" = "1" ]] && [[ "$TOKENTYPE" = "softokn" ]]; then
     exit 77;
 fi
 
-title PARA "HKDF Derivation"
+title PARA "HKDF Derivation: Extract and Expand"
 export HKDF_HEX_SECRET=ffeeddccbbaa
 export HKDF_HEX_SALT=ffeeddccbbaa
 export HKDF_HEX_INFO=ffeeddccbbaa
@@ -52,4 +52,50 @@ pkeyutl -derive -kdf HKDF -kdflen 48
                 -pkeyopt salt:"${HKDF_SALT}"
                 -pkeyopt info:"${HKDF_INFO}"
                 -out ${TMPPDIR}/hkdf2-out.bin'
+
 diff "${TMPPDIR}/hkdf2-out-pkcs11.bin" "${TMPPDIR}/hkdf2-out.bin"
+
+
+title PARA "HKDF Derivation: Extract only"
+export HKDF_HEX_SECRET=6dc3bcf529a350e0423befb3deef8aef78d912c4f1dc3e6e52bf61f681e40904
+export HKDF_SALT="I'm a Salt!"
+ossl '
+pkeyutl -derive -kdf HKDF -kdflen 32
+                -pkeyopt md:SHA256
+                -pkeyopt mode:EXTRACT_ONLY
+                -pkeyopt hexkey:${HKDF_HEX_SECRET}
+                -pkeyopt salt:"${HKDF_SALT}"
+                -out ${TMPPDIR}/hkdf3-out-pkcs11.bin
+                -propquery provider=pkcs11'
+ossl '
+pkeyutl -derive -kdf HKDF -kdflen 32
+                -pkeyopt md:SHA256
+                -pkeyopt mode:EXTRACT_ONLY
+                -pkeyopt hexkey:${HKDF_HEX_SECRET}
+                -pkeyopt salt:"${HKDF_SALT}"
+                -out ${TMPPDIR}/hkdf3-out.bin'
+diff "${TMPPDIR}/hkdf3-out-pkcs11.bin" "${TMPPDIR}/hkdf3-out.bin"
+
+
+title PARA "HKDF Derivation: Expand only"
+PRK_HEX=$(xxd -p -c 256 "${TMPPDIR}/hkdf3-out-pkcs11.bin")
+export PRK_HEX
+export HKDF_SALT="I'm a Salt!"
+ossl '
+pkeyutl -derive -kdf HKDF -kdflen 48
+                -pkeyopt md:SHA256
+                -pkeyopt mode:EXPAND_ONLY
+                -pkeyopt hexkey:${PRK_HEX}
+                -pkeyopt info:"${HKDF_INFO}"
+                -out ${TMPPDIR}/hkdf4-out-pkcs11.bin
+                -propquery provider=pkcs11'
+ossl '
+pkeyutl -derive -kdf HKDF -kdflen 48
+                -pkeyopt md:SHA256
+                -pkeyopt mode:EXPAND_ONLY
+                -pkeyopt hexkey:${PRK_HEX}
+                -pkeyopt info:"${HKDF_INFO}"
+                -out ${TMPPDIR}/hkdf4-out.bin'
+diff "${TMPPDIR}/hkdf4-out-pkcs11.bin" "${TMPPDIR}/hkdf4-out.bin"
+# it should also match the extract and expand output
+diff "${TMPPDIR}/hkdf4-out-pkcs11.bin" "${TMPPDIR}/hkdf2-out.bin"

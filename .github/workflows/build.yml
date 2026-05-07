@@ -77,7 +77,7 @@ jobs:
               fi
               dnf -y install $dnf_opts \
                 git ${{ matrix.compiler }} meson which pkgconf-pkg-config \
-                diffutils expect valgrind opensc python3-six lcov
+                diffutils expect valgrind opensc python3-six lcov vim-common
               if [ "${{ matrix.compiler }}" == "clang" ]; then
                 dnf -y install llvm
               fi
@@ -93,7 +93,7 @@ jobs:
               apt-get -q update
               apt-get -yq install git ${{ matrix.compiler }} meson \
                 pkg-config libssl-dev openssl expect \
-                valgrind procps opensc python3-six lcov
+                valgrind procps opensc python3-six lcov xxd
               if [ "${{ matrix.compiler }}" == "clang" ]; then
                 apt-get -yq install install llvm
               fi
@@ -381,7 +381,7 @@ jobs:
             dnf -y install clang meson cargo expect pkgconf-pkg-config opensc \
               p11-kit-devel gcc g++ sqlite-devel python3-six which cmake \
               nss-softokn nss-tools nss-softokn-devel nss-devel softhsm \
-              kryoptic gcovr lcov
+              kryoptic gcovr lcov xxd
 
       - name: Checkout Repository
         uses: actions/checkout@v6

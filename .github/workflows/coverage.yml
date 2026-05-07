@@ -18,7 +18,7 @@ jobs:
           dnf -y install git clang gcc meson which pkgconf-pkg-config \
             openssl-devel openssl diffutils expect opensc python3-six \
             nss-softokn nss-tools nss-softokn-devel  nss-devel softhsm \
-            p11-kit-devel kryoptic gcovr lcov
+            p11-kit-devel kryoptic gcovr lcov xxd
 
       - name: Checkout Repository
         uses: actions/checkout@v6

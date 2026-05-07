@@ -34,13 +34,13 @@ jobs:
                 git gcc meson expect python3 python3-six which \
                 pkgconf-pkg-config openssl-devel openssl xz \
                 nss-softokn nss-tools nss-softokn-devel \
-                softhsm opensc p11-kit-devel rpm-build nss-devel
+                softhsm opensc p11-kit-devel rpm-build nss-devel vim-common
             elif [ -f /etc/debian_version ]; then
               apt-get -q update
               apt-get -yq install git gcc meson expect \
                 pkg-config libssl-dev openssl \
                 xz-utils libnss3 libnss3-tools libnss3-dev \
-                softhsm2 opensc p11-kit libp11-kit-dev p11-kit-modules
+                softhsm2 opensc p11-kit libp11-kit-dev p11-kit-modules xxd
             fi
 
       - name: Checkout Repository

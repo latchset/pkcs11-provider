@@ -30,7 +30,7 @@ jobs:
         run: |
             dnf -y install clang git meson cargo expect pkgconf-pkg-config \
               openssl-devel openssl opensc p11-kit-devel \
-              gcc g++ sqlite-devel python3-six which
+              gcc g++ sqlite-devel python3-six which xxd
 
       - name: Checkout Repository
         uses: actions/checkout@v6

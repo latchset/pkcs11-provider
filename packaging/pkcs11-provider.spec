@@ -31,6 +31,7 @@ BuildRequires: opensc
 BuildRequires: p11-kit-devel
 BuildRequires: xz
 BuildRequires: expect
+BuildRequires: xxd
 
 
 %description

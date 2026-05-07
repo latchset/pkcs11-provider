@@ -19,7 +19,7 @@ jobs:
       - name: Install Dependencies
         run: |
           dnf -y install git clang gcc pkgconf-pkg-config meson \
-            openssl-devel openssl diffutils expect \
+            openssl-devel openssl diffutils expect xxd \
             csbuild
 
       - name: Csbuild
@@ -37,7 +37,7 @@ jobs:
         if: ${{ github.event.pull_request.base.sha }}
         run: |
           dnf -y install git clang gcc pkgconf-pkg-config meson \
-            openssl-devel openssl diffutils expect \
+            openssl-devel openssl diffutils expect xxd \
             csbuild
 
       - name: Checkout Repository
