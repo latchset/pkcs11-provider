@@ -75,6 +75,16 @@ fi
 # Now reset the token counter with a good try
 ptool -l -T -p "${PINVALUE}"
 
+title LINE "Again with bad pin and fail to exercise the code path of wrong pin"
+ossl '
+pkeyutl -sign -inkey "${BADPINURI}"
+    -in ${TMPPDIR}/sha256.bin
+    -out ${TMPPDIR}/pinlock-sig.bin' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Operation should have failed, pin lock prevention not working"
+    exit 1
+fi
+
 # Now we test one operation with a good pin.
 # It should succeed
 title LINE "Try op with good pin and succeed"
