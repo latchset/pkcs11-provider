@@ -21,6 +21,8 @@ if [ $FAIL -eq 0 ]; then
     exit 1
 fi
 
+ossl 'dgst -sha256 -binary -out ${TMPPDIR}/sha256.bin ${SEEDFILE}'
+
 # Kryoptic allows for 10 tries by default
 for i in {1..10}; do
     echo "Login attempt: $i"
