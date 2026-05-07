@@ -155,6 +155,7 @@ static void p11prov_ecdh_freectx(void *ctx)
 
     p11prov_obj_free(ecdhctx->key);
     p11prov_obj_free(ecdhctx->peer_key);
+    OPENSSL_free(ecdhctx->ecdh_params.pPublicData);
     OPENSSL_clear_free(ecdhctx->ecdh_params.pSharedData,
                        ecdhctx->ecdh_params.ulSharedDataLen);
     OPENSSL_clear_free(ecdhctx, sizeof(P11PROV_EXCH_CTX));
@@ -247,6 +248,7 @@ static void *p11prov_ecdh_derive_skey(void *ctx, const char *key_type,
     CK_MECHANISM mechanism;
     CK_OBJECT_HANDLE secret_handle;
     P11PROV_OBJ *skey = NULL;
+    CK_ATTRIBUTE point;
     CK_RV ret;
     int err;
 
@@ -278,20 +280,10 @@ static void *p11prov_ecdh_derive_skey(void *ctx, const char *key_type,
                           "Public point not found");
             return NULL;
         }
-        ecdhctx->ecdh_params.pPublicData = ec_point->pValue;
-        ecdhctx->ecdh_params.ulPublicDataLen = ec_point->ulValueLen;
         break;
     case CKK_EC_MONTGOMERY:
         err = p11prov_obj_get_ecx_pub_key(ecdhctx->peer_key, &ec_point);
-        if (err == RET_OSSL_OK) {
-            CK_ATTRIBUTE point;
-            ret = p11prov_copy_attr(&point, ec_point);
-            if (ret != CKR_OK) {
-                return NULL;
-            }
-            ecdhctx->ecdh_params.pPublicData = point.pValue;
-            ecdhctx->ecdh_params.ulPublicDataLen = point.ulValueLen;
-        } else {
+        if (err != RET_OSSL_OK) {
             P11PROV_raise(ecdhctx->provctx, CKR_KEY_INDIGESTIBLE,
                           "Public point not found");
             return NULL;
@@ -302,6 +294,13 @@ static void *p11prov_ecdh_derive_skey(void *ctx, const char *key_type,
                       "Invalid key type");
         return NULL;
     }
+
+    ret = p11prov_copy_attr(&point, ec_point);
+    if (ret != CKR_OK) {
+        return NULL;
+    }
+    ecdhctx->ecdh_params.pPublicData = point.pValue;
+    ecdhctx->ecdh_params.ulPublicDataLen = point.ulValueLen;
 
     mechanism.mechanism = ecdhctx->mechtype;
     mechanism.pParameter = &ecdhctx->ecdh_params;
