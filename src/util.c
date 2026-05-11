@@ -30,7 +30,8 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
 
     /* try one shot, then fallback to individual calls if that fails */
     ret = p11prov_GetAttributeValue(ctx, sess, object, q, attrnums);
-    if (ret == CKR_OK) {
+    if (ret == CKR_OK || ret == CKR_ATTRIBUTE_TYPE_INVALID
+        || ret == CKR_ATTRIBUTE_SENSITIVE) {
         unsigned long retrnums = 0;
         for (size_t i = 0; i < attrnums; i++) {
             if (q[i].ulValueLen == CK_UNAVAILABLE_INFORMATION) {
@@ -60,6 +61,9 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
              * necessary */
             attrs[i].attr = q[i];
         }
+        /* all ok if no attributes are required, and all non-required one
+         * can't be retrieved */
+        ret = CKR_OK;
         if (retrnums > 0) {
             P11PROV_debug("(Re)Fetching %lu attributes", retrnums);
             ret = p11prov_GetAttributeValue(ctx, sess, object, r, retrnums);
@@ -69,56 +73,6 @@ CK_RV p11prov_fetch_attributes(P11PROV_CTX *ctx, P11PROV_SESSION *session,
                           attrs[i].attr.type, attrs[i].attr.pValue,
                           attrs[i].attr.ulValueLen);
         }
-    } else if (attrnums > 1
-               && (ret == CKR_ATTRIBUTE_SENSITIVE
-                   || ret == CKR_ATTRIBUTE_TYPE_INVALID)) {
-        P11PROV_debug("Querying attributes one by one");
-        /* go one by one as this PKCS11 does not have some attributes
-         * and does not handle it gracefully */
-        for (size_t i = 0; i < attrnums; i++) {
-            if (attrs[i].allocate) {
-                ret = p11prov_GetAttributeValue(ctx, sess, object,
-                                                &attrs[i].attr, 1);
-                if (ret != CKR_OK) {
-                    if (attrs[i].required) {
-                        return ret;
-                    }
-                    /* Invalid attribute: No need to call the function again for
-                     * this attribute */
-                    continue;
-                } else {
-                    CK_ULONG len = attrs[i].attr.ulValueLen;
-                    if (len == CK_UNAVAILABLE_INFORMATION) {
-                        /* The attribute is known to the module, but not
-                         * available on this object */
-                        continue;
-                    }
-                    attrs[i].attr.pValue = OPENSSL_zalloc(len + 1);
-                    if (!attrs[i].attr.pValue) {
-                        ret = CKR_HOST_MEMORY;
-                        P11PROV_raise(ctx, ret, "Failed to get attributes");
-                        goto done;
-                    }
-                }
-            }
-            ret =
-                p11prov_GetAttributeValue(ctx, sess, object, &attrs[i].attr, 1);
-            if (ret != CKR_OK) {
-                if (attrs[i].required) {
-                    return ret;
-                } else {
-                    if (attrs[i].allocate && attrs[i].attr.pValue) {
-                        OPENSSL_free(attrs[i].attr.pValue);
-                        attrs[i].attr.pValue = NULL;
-                        attrs[i].attr.ulValueLen = CK_UNAVAILABLE_INFORMATION;
-                    }
-                }
-            }
-            P11PROV_debug("Attribute| type:0x%08lX value:%p, len:%lu",
-                          attrs[i].attr.type, attrs[i].attr.pValue,
-                          attrs[i].attr.ulValueLen);
-        }
-        ret = CKR_OK;
     }
 done:
     if (ret == CKR_OK) {
