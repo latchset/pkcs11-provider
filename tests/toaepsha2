@@ -24,3 +24,29 @@ pkeyutl -decrypt -inkey "${PRIURI}"
                  -in ${SECRETFILE}.enc
                  -out ${SECRETFILE}.dec'
 diff "${SECRETFILE}" "${SECRETFILE}.dec"
+
+# Do the same while forcing the encryption to be done on the token
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
+OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+
+title LINE "RSA basic encrypt and decrypt, forcing encryption on token"
+ossl '
+pkeyutl -encrypt -inkey "${BASEURI}"
+                 -pubin
+                 -pkeyopt pad-mode:oaep
+                 -pkeyopt digest:sha256
+                 -pkeyopt mgf1-digest:sha256
+                 -in ${SECRETFILE}
+                 -out ${SECRETFILE}.enc'
+ossl '
+pkeyutl -decrypt -inkey "${PRIURI}"
+                 -pkeyopt pad-mode:oaep
+                 -pkeyopt digest:sha256
+                 -pkeyopt mgf1-digest:sha256
+                 -in ${SECRETFILE}.enc
+                 -out ${SECRETFILE}.dec'
+diff "${SECRETFILE}" "${SECRETFILE}.dec"
+
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}

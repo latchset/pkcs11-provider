@@ -98,6 +98,32 @@ if [[ "$SUPPORT_RSA_PKCS1_ENCRYPTION" = "1" ]]; then
                      -in ${SECRETFILE}.enc
                      -out ${SECRETFILE}.dec'
     diff "${SECRETFILE}" "${SECRETFILE}.dec"
+
+    # Do the same while forcing the encryption to be done on the token
+    ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+    BLOCKED_OPERATIONS="digest"
+    if [[ "${SUPPORT_SYMMETRIC}" = "0" ]]; then
+        # For tokens that do not support symmetric key operations, disable these too
+        BLOCKED_OPERATIONS="${BLOCKED_OPERATIONS} cipher skeymgmt"
+    fi
+    sed -e "s/^#pkcs11-module-block-operations/pkcs11-module-block-operations = ${BLOCKED_OPERATIONS}/" \
+        "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
+    sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
+        -i "${OPENSSL_CONF}.forcetoken"
+    OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+
+    title LINE "RSA basic encrypt and decrypt, forcing encryption on token"
+    ossl '
+    pkeyutl -encrypt -inkey "${PUBURI}" -pubin
+                     -in ${SECRETFILE}
+                     -out ${SECRETFILE}.enc'
+    ossl '
+    pkeyutl -decrypt -inkey "${PRIURI}"
+                     -in ${SECRETFILE}.enc
+                     -out ${SECRETFILE}.dec'
+    diff "${SECRETFILE}" "${SECRETFILE}.dec"
+
+    OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 fi
 
 # Test RSA fallback code to emulate digest-sign via Raw RSA
