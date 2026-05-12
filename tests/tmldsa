@@ -56,13 +56,20 @@ sed -e "s/#pkcs11-module-encode-provider-uri-to-pem/pkcs11-module-encode-provide
     "${OPENSSL_CONF}" > "${OPENSSL_CONF}.mldsa_pem_uri"
 OPENSSL_CONF=${OPENSSL_CONF}.mldsa_pem_uri
 
-title PARA "Generate ML-DSA-65 key and test signatures"
+title PARA "Generate keys and test signatures"
 
 title LINE "Generate ML-DSA-65 key"
 ossl '
 genpkey -propquery "provider=pkcs11"
         -algorithm ML-DSA-65 -pkeyopt "pkcs11_uri:pkcs11:object=Test-ML-DSA-65"
         -out ${TMPPDIR}/mldsa-65-genpkey.pem'
+
+title LINE "Generate ML-DSA-87 key"
+ossl '
+genpkey -propquery "provider=pkcs11"
+        -algorithm ML-DSA-87 -pkeyopt "pkcs11_uri:pkcs11:object=Test-ML-DSA-87"
+        -out ${TMPPDIR}/mldsa-87-genpkey.pem'
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
 title LINE "Sign random data with ML-DSA-65"
 ossl '
@@ -77,7 +84,21 @@ pkeyutl -verify
         -inkey "pkcs11:type=public;object=Test-ML-DSA-65" -pubin
         -in ${RAND64FILE} -rawin
         -sigfile ${TMPPDIR}/ml-dsa-65.sig'
-OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
+title LINE "Sign random data with ML-DSA-87 using deterministic signature"
+ossl '
+pkeyutl -sign
+        -inkey "pkcs11:type=private;object=Test-ML-DSA-87"
+        -in ${RAND64FILE} -rawin
+        -pkeyopt deterministic:1
+        -out ${TMPPDIR}/ml-dsa-87.sig'
+
+title LINE "Verify signature with ML-DSA-87"
+ossl '
+pkeyutl -verify
+        -inkey "pkcs11:type=public;object=Test-ML-DSA-87" -pubin
+        -in ${RAND64FILE} -rawin
+        -sigfile ${TMPPDIR}/ml-dsa-87.sig'
 
 title PARA "Test Key generation from C API"
 output=$($CHECKER "${TESTBLDDIR}"/tgenkey "ML-DSA-44" 2>&1 || true)
