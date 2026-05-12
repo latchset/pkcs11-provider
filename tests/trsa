@@ -101,15 +101,6 @@ if [[ "$SUPPORT_RSA_PKCS1_ENCRYPTION" = "1" ]]; then
 
     # Do the same while forcing the encryption to be done on the token
     ORIG_OPENSSL_CONF=${OPENSSL_CONF}
-    BLOCKED_OPERATIONS="digest"
-    if [[ "${SUPPORT_SYMMETRIC}" = "0" ]]; then
-        # For tokens that do not support symmetric key operations, disable these too
-        BLOCKED_OPERATIONS="${BLOCKED_OPERATIONS} cipher skeymgmt"
-    fi
-    sed -e "s/^#pkcs11-module-block-operations/pkcs11-module-block-operations = ${BLOCKED_OPERATIONS}/" \
-        "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
-    sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
-        -i "${OPENSSL_CONF}.forcetoken"
     OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
 
     title LINE "RSA basic encrypt and decrypt, forcing encryption on token"
@@ -130,8 +121,6 @@ fi
 if [[  "$TOKENTYPE" = "kryoptic" ]]; then
     title PARA "Fallback DigestVerify  and DigestSign with RSA forced on token"
     ORIG_OPENSSL_CONF=${OPENSSL_CONF}
-    sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
-        "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
     OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
 
     ORIG_KRYOPTIC_CONF=${KRYOPTIC_CONF}

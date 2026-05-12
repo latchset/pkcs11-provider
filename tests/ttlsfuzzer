@@ -114,8 +114,8 @@ if [[ "${SUPPORT_SYMMETRIC}" = "0" ]]; then
     BLOCKED_OPERATIONS="${BLOCKED_OPERATIONS} cipher skeymgmt"
 fi
 sed -e "s/^#pkcs11-module-block-operations/pkcs11-module-block-operations = ${BLOCKED_OPERATIONS}/" \
-    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
-export OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.blockops"
+export OPENSSL_CONF=${OPENSSL_CONF}.blockops
 
 run_tests
 

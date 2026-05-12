@@ -137,6 +137,17 @@ sed -e "s|@libtoollibs@|${LIBSPATH}|g" \
     -e "s|##TOKENOPTIONS|${TOKENOPTIONS}|g" \
     "${TESTSSRCDIR}/openssl.cnf.in" > "${OPENSSL_CONF}"
 
+# setup configuration that forces all operations on token here
+BLOCKED_OPERATIONS="digest"
+if [[ "${SUPPORT_SYMMETRIC}" = "0" ]]; then
+    # For tokens that do not support symmetric key operations, disable these too
+    BLOCKED_OPERATIONS="${BLOCKED_OPERATIONS} cipher skeymgmt"
+fi
+sed -e "s/^#pkcs11-module-block-operations/pkcs11-module-block-operations = ${BLOCKED_OPERATIONS}/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.forcetoken"
+sed -e "s/#MORECONF/alg_section = algorithm_sec\n\n[algorithm_sec]\ndefault_properties = ?provider=pkcs11/" \
+     "${sed_inplace[@]}" "${OPENSSL_CONF}.forcetoken"
+
 # Serial = 1 is the CA
 SERIAL=0
 
@@ -627,7 +638,6 @@ if [ "$SUPPORT_ML_KEM" -eq 1 ]; then
     echo "${MLKEMPRIURI}"
     echo ""
 fi
-
 
 title PARA "Show contents of ${TOKENTYPE} token"
 echo " ----------------------------------------------------------------------------------------------------"
