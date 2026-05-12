@@ -37,6 +37,38 @@ pkeyutl -verify -inkey "${EDBASEURI}" -pubin
                 -rawin
                 -sigfile ${TMPPDIR}/sha256-eddgstsig.bin'
 
+if [[ "${SUPPORT_EDDSA_PARAMS}" = "1" ]]; then
+    title PARA "DigestSign and DigestVerify with ED25519 and context string"
+    ossl '
+    pkeyutl -sign -inkey "${EDBASEURI}"
+                  -in ${RAND64FILE}
+                  -rawin
+                  -pkeyopt instance:Ed25519ctx
+                  -pkeyopt context-string:pkcs11-provider-context
+                  -out ${TMPPDIR}/sha256-eddgstsig.bin'
+    ossl '
+    pkeyutl -verify -inkey "${EDBASEURI}" -pubin
+                    -in ${RAND64FILE}
+                    -rawin
+                    -pkeyopt instance:Ed25519ctx
+                    -pkeyopt context-string:pkcs11-provider-context
+                    -sigfile ${TMPPDIR}/sha256-eddgstsig.bin'
+
+    title PARA "DigestSign and DigestVerify with PureED25519"
+    ossl '
+    pkeyutl -sign -inkey "${EDBASEURI}"
+                  -in ${RAND64FILE}
+                  -rawin
+                  -pkeyopt instance:Ed25519
+                  -out ${TMPPDIR}/eddgstsig.bin'
+    ossl '
+    pkeyutl -verify -inkey "${EDBASEURI}" -pubin
+                    -in ${RAND64FILE}
+                    -rawin
+                    -pkeyopt instance:Ed25519
+                    -sigfile ${TMPPDIR}/eddgstsig.bin'
+fi
+
 title PARA "Test CSR generation from private ED25519 keys"
 ossl '
 req -new -batch -key "${EDPRIURI}" -out ${TMPPDIR}/ed25519_csr.pem'
@@ -95,6 +127,36 @@ if [[ -n $ED2BASEURI ]]; then
                     -in ${RAND64FILE}
                     -rawin
                     -sigfile ${TMPPDIR}/sha256-eddgstsig.bin'
+
+    if [[ "${SUPPORT_EDDSA_PARAMS}" = "1" ]]; then
+        title PARA "DigestSign and DigestVerify with ED448 and context string"
+        ossl '
+        pkeyutl -sign -inkey "${ED2BASEURI}"
+                      -in ${RAND64FILE}
+                      -rawin
+                      -pkeyopt context-string:pkcs11-provider-context
+                      -out ${TMPPDIR}/sha256-eddgstsig.bin'
+        ossl '
+        pkeyutl -verify -inkey "${ED2BASEURI}" -pubin
+                        -in ${RAND64FILE}
+                        -rawin
+                        -pkeyopt context-string:pkcs11-provider-context
+                        -sigfile ${TMPPDIR}/sha256-eddgstsig.bin'
+
+        title PARA "DigestSign and DigestVerify with PureED448"
+        ossl '
+        pkeyutl -sign -inkey "${ED2BASEURI}"
+                      -in ${RAND64FILE}
+                      -rawin
+                      -pkeyopt instance:Ed448
+                      -out ${TMPPDIR}/eddgstsig.bin'
+        ossl '
+        pkeyutl -verify -inkey "${ED2BASEURI}" -pubin
+                        -in ${RAND64FILE}
+                        -rawin
+                        -pkeyopt instance:Ed448
+                        -sigfile ${TMPPDIR}/eddgstsig.bin'
+    fi
 
     title PARA "Test CSR generation from private ED448 keys"
     ossl '

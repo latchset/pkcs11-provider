@@ -83,3 +83,6 @@ export SUPPORT_ML_KEM=0
 export SUPPORT_X25519=0
 export SUPPORT_X448=0
 
+# SoftHSM ignores EdDSA mechanism params including context string
+# https://github.com/softhsm/SoftHSMv2/issues/873
+export SUPPORT_EDDSA_PARAMS=0
