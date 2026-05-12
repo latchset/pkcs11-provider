@@ -45,24 +45,9 @@ CK_RV get_attrs_from_cert(P11PROV_OBJ *crt, CK_ATTRIBUTE *attrs, int num)
         goto done;
     }
 
-    if (EVP_PKEY_is_a(pkey, "RSA")) {
-        for (int i = 0; i < num; i++) {
-            switch (attrs[i].type) {
-            case CKA_MODULUS:
-                types[attrnum] = CKA_MODULUS;
-                params[attrnum] =
-                    OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_N, NULL, 0);
-                attrnum++;
-                break;
-            case CKA_PUBLIC_EXPONENT:
-                types[attrnum] = CKA_PUBLIC_EXPONENT;
-                params[attrnum] =
-                    OSSL_PARAM_construct_BN(OSSL_PKEY_PARAM_RSA_E, NULL, 0);
-                attrnum++;
-                break;
-            }
-        }
-    } else if (EVP_PKEY_is_a(pkey, "EC")) {
+    /* All the other key types have public key material available on private key
+     * object and they could not reach here */
+    if (EVP_PKEY_is_a(pkey, "EC")) {
         for (int i = 0; i < num; i++) {
             switch (attrs[i].type) {
             case CKA_P11PROV_CURVE_NAME:
@@ -73,29 +58,6 @@ CK_RV get_attrs_from_cert(P11PROV_OBJ *crt, CK_ATTRIBUTE *attrs, int num)
                 break;
             case CKA_P11PROV_PUB_KEY:
                 types[attrnum] = CKA_P11PROV_PUB_KEY;
-                params[attrnum] = OSSL_PARAM_construct_octet_string(
-                    OSSL_PKEY_PARAM_PUB_KEY, NULL, 0);
-                attrnum++;
-                break;
-            }
-        }
-    } else if (EVP_PKEY_is_a(pkey, ED25519) || EVP_PKEY_is_a(pkey, ED448)) {
-        for (int i = 0; i < num; i++) {
-            switch (attrs[i].type) {
-            case CKA_P11PROV_PUB_KEY:
-                types[attrnum] = CKA_P11PROV_PUB_KEY;
-                params[attrnum] = OSSL_PARAM_construct_octet_string(
-                    OSSL_PKEY_PARAM_PUB_KEY, NULL, 0);
-                attrnum++;
-                break;
-            }
-        }
-    } else if (EVP_PKEY_is_a(pkey, MLDSA_44) || EVP_PKEY_is_a(pkey, MLDSA_65)
-               || EVP_PKEY_is_a(pkey, MLDSA_87)) {
-        for (int i = 0; i < num; i++) {
-            switch (attrs[i].type) {
-            case CKA_VALUE:
-                types[attrnum] = CKA_VALUE;
                 params[attrnum] = OSSL_PARAM_construct_octet_string(
                     OSSL_PKEY_PARAM_PUB_KEY, NULL, 0);
                 attrnum++;
