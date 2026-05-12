@@ -45,14 +45,14 @@ if [[ "${SUPPORT_EDDSA_PARAMS}" = "1" ]]; then
                   -rawin
                   -pkeyopt instance:Ed25519ctx
                   -pkeyopt context-string:pkcs11-provider-context
-                  -out ${TMPPDIR}/sha256-eddgstsig.bin'
+                  -out ${TMPPDIR}/sha256-eddgstsig-ctx.bin'
     ossl '
     pkeyutl -verify -inkey "${EDBASEURI}" -pubin
                     -in ${RAND64FILE}
                     -rawin
                     -pkeyopt instance:Ed25519ctx
                     -pkeyopt context-string:pkcs11-provider-context
-                    -sigfile ${TMPPDIR}/sha256-eddgstsig.bin'
+                    -sigfile ${TMPPDIR}/sha256-eddgstsig-ctx.bin'
 
     title PARA "DigestSign and DigestVerify with PureED25519"
     ossl '
@@ -67,6 +67,31 @@ if [[ "${SUPPORT_EDDSA_PARAMS}" = "1" ]]; then
                     -rawin
                     -pkeyopt instance:Ed25519
                     -sigfile ${TMPPDIR}/eddgstsig.bin'
+
+    # Verify signatures on the token. Even the simple case is broken on SoftHSM
+    ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+    OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+
+    ossl '
+    pkeyutl -verify -inkey "${EDBASEURI}" -pubin
+                    -in ${RAND64FILE}
+                    -rawin
+                    -sigfile ${TMPPDIR}/sha256-eddgstsig.bin'
+    ossl '
+    pkeyutl -verify -inkey "${EDBASEURI}" -pubin
+                    -in ${RAND64FILE}
+                    -rawin
+                    -pkeyopt instance:Ed25519ctx
+                    -pkeyopt context-string:pkcs11-provider-context
+                    -sigfile ${TMPPDIR}/sha256-eddgstsig-ctx.bin'
+    ossl '
+    pkeyutl -verify -inkey "${EDBASEURI}" -pubin
+                    -in ${RAND64FILE}
+                    -rawin
+                    -pkeyopt instance:Ed25519
+                    -sigfile ${TMPPDIR}/eddgstsig.bin'
+
+    OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 fi
 
 title PARA "Test CSR generation from private ED25519 keys"
@@ -135,13 +160,13 @@ if [[ -n $ED2BASEURI ]]; then
                       -in ${RAND64FILE}
                       -rawin
                       -pkeyopt context-string:pkcs11-provider-context
-                      -out ${TMPPDIR}/sha256-eddgstsig.bin'
+                      -out ${TMPPDIR}/sha256-eddgstsig-ctx.bin'
         ossl '
         pkeyutl -verify -inkey "${ED2BASEURI}" -pubin
                         -in ${RAND64FILE}
                         -rawin
                         -pkeyopt context-string:pkcs11-provider-context
-                        -sigfile ${TMPPDIR}/sha256-eddgstsig.bin'
+                        -sigfile ${TMPPDIR}/sha256-eddgstsig-ctx.bin'
 
         title PARA "DigestSign and DigestVerify with PureED448"
         ossl '
@@ -156,6 +181,32 @@ if [[ -n $ED2BASEURI ]]; then
                         -rawin
                         -pkeyopt instance:Ed448
                         -sigfile ${TMPPDIR}/eddgstsig.bin'
+
+        # Verify signatures on the token
+        ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+        OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+
+        ossl '
+        pkeyutl -verify -inkey "${ED2BASEURI}" -pubin
+                        -in ${RAND64FILE}
+                        -rawin
+                        -sigfile ${TMPPDIR}/sha256-eddgstsig.bin'
+
+        ossl '
+        pkeyutl -verify -inkey "${ED2BASEURI}" -pubin
+                        -in ${RAND64FILE}
+                        -rawin
+                        -pkeyopt context-string:pkcs11-provider-context
+                        -sigfile ${TMPPDIR}/sha256-eddgstsig-ctx.bin'
+
+        ossl '
+        pkeyutl -verify -inkey "${ED2BASEURI}" -pubin
+                        -in ${RAND64FILE}
+                        -rawin
+                        -pkeyopt instance:Ed448
+                        -sigfile ${TMPPDIR}/eddgstsig.bin'
+
+        OPENSSL_CONF=${ORIG_OPENSSL_CONF}
     fi
 
     title PARA "Test CSR generation from private ED448 keys"
