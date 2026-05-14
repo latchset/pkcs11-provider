@@ -10,7 +10,7 @@
 
 #define COMMON_KEYPAIR_ATTRIBUTES \
     COMMON_KEY_ATTRIBUTES, \
-    { { CKA_PUBLIC_KEY_INFO, NULL, 0 }, true, false }
+    { { CKA_PUBLIC_KEY_INFO, NULL, 0 }, false, false }
 /* clang-format on */
 
 const struct fetch_attrs RSA_public_attrs[] = {
@@ -24,7 +24,7 @@ const struct fetch_attrs RSA_private_attrs[] = {
     { { CKA_MODULUS, NULL, 0 }, true, true },
     /* not required on private keys because some tokens don't store it */
     { { CKA_PUBLIC_EXPONENT, NULL, 0 }, true, false },
-    { { CKA_ALWAYS_AUTHENTICATE, NULL, 0 }, true, false },
+    { { CKA_ALWAYS_AUTHENTICATE, NULL, 0 }, false, false },
 };
 
 const struct fetch_attrs EC_public_attrs[] = {
@@ -40,8 +40,8 @@ const struct fetch_attrs EC_private_attrs[] = {
      * EC public key on HSM is to store EC_POINT on the private
      * one similarly to how RSA stores CKA_PUBLIC_EXPONENT, it is
      * out of spec but avoids p11prov_obj_find_associated later */
-    { { CKA_EC_POINT, NULL, 0 }, true, false },
-    { { CKA_ALWAYS_AUTHENTICATE, NULL, 0 }, true, false },
+    { { CKA_EC_POINT, NULL, 0 }, false, false },
+    { { CKA_ALWAYS_AUTHENTICATE, NULL, 0 }, false, false },
 };
 
 #define EC_EDWARDS_public_attrs EC_public_attrs
