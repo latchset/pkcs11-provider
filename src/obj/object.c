@@ -59,7 +59,18 @@ static void cache_key(P11PROV_OBJ *obj)
 {
     P11PROV_SESSION *session = NULL;
     CK_BBOOL val_false = CK_FALSE;
-    CK_ATTRIBUTE template[] = { { CKA_TOKEN, &val_false, sizeof(val_false) } };
+    /* Cache as a session object.  Clear CKA_ID and give the copy a fixed
+     * CKA_LABEL; otherwise it inherits the original id/label and, being a
+     * separate object, is returned alongside the real key by id/label lookups
+     * (e.g. a pkcs11: URI), breaking callers that expect a single match.  The
+     * provider only refers to the copy by handle; the label keeps it
+     * identifiable on the token. */
+    CK_ATTRIBUTE template[] = {
+        { CKA_TOKEN, &val_false, sizeof(val_false) },
+        { CKA_ID, (CK_BYTE_PTR) "", 0 },
+        { CKA_LABEL, (CK_BYTE_PTR) "Internal Session Only Copy",
+          sizeof("Internal Session Only Copy") - 1 },
+    };
     CK_SESSION_HANDLE sess;
     CK_BBOOL can_cache = CK_TRUE;
     CK_RV ret;
@@ -98,7 +109,8 @@ static void cache_key(P11PROV_OBJ *obj)
 
     sess = p11prov_session_handle(session);
     ret = p11prov_CopyObject(obj->ctx, sess, p11prov_obj_get_handle(obj),
-                             template, 1, &obj->cached);
+                             template, sizeof(template) / sizeof(template[0]),
+                             &obj->cached);
     if (ret != CKR_OK) {
         P11PROV_raise(obj->ctx, ret, "Failed to cache key");
         if (ret == CKR_FUNCTION_NOT_SUPPORTED) {
