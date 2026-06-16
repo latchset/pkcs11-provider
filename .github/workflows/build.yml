@@ -256,6 +256,7 @@ jobs:
             openssl@3 \
             opensc \
             p11-kit \
+            coreutils \
             gcovr \
             lcov
           if [ "${{ matrix.token }}" = "softokn" ]; then

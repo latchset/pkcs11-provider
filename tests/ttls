@@ -9,6 +9,15 @@ if [[ "$NSS_FIPS" = "1" ]] && [[ "$TOKENTYPE" = "softokn" ]]; then
     exit 77;
 fi
 
+if command -v timeout >/dev/null 2>&1; then
+    TIMEOUT=timeout
+elif command -v gtimeout >/dev/null 2>&1; then
+    TIMEOUT=gtimeout
+else
+    title "timeout or gtimeout not available"
+    exit 77;
+fi
+
 TEST_ML_DSA=0
 if [ "${SUPPORT_ML_DSA}" -eq 1 ]; then
     if [[ "$TOKENTYPE" = "kryoptic" ]]; then
@@ -67,7 +76,8 @@ run_test() {
     CLNT_ARGS=$4
 
     export PKCS11_PROVIDER_DEBUG="file:${TMPPDIR}/p11prov-debug-tls-server.log"
-    expect -c "spawn $CHECKER $OPENSSL s_server $PROPQ -accept \"${PORT}\" -groups \"${OSSL_GROUPS}\" -naccept 1 -key \"${KEY}\" -cert \"${CERT}\" $SRV_ARGS;
+    # Limit the server run time so a stuck start does not block the whole test
+    $TIMEOUT 15 expect -c "spawn $CHECKER $OPENSSL s_server $PROPQ -accept \"${PORT}\" -groups \"${OSSL_GROUPS}\" -naccept 1 -key \"${KEY}\" -cert \"${CERT}\" $SRV_ARGS;
         set timeout 10;
         expect {
             \"ACCEPT\" {};
@@ -102,7 +112,13 @@ run_test() {
         }" &> "${TMPPDIR}/s_server_output" &
     SERVER_PID=$!
 
-    read -r < "${TMPPDIR}/s_server_ready"
+    # Wait for the server with a timeout, otherwise we block here forever if
+    # the server exits before writing to the fifo
+    if ! $TIMEOUT 15 cat "${TMPPDIR}/s_server_ready" >/dev/null 2>&1; then
+        echo "Server failed to start"
+        wait_for_server_at_exit "$SERVER_PID"
+        exit 1
+    fi
 
     export PKCS11_PROVIDER_DEBUG="file:${TMPPDIR}/p11prov-debug-tls-client.log"
     expect -c "spawn $CHECKER $OPENSSL s_client $PROPQ -groups \"${OSSL_GROUPS}\" -connect \"localhost:${PORT}\" -CAfile \"${CACRT}\" $CLNT_ARGS;
