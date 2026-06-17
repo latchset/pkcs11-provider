@@ -281,6 +281,9 @@ CK_RV p11prov_ctx_set_quirk(P11PROV_CTX *ctx, CK_SLOT_ID id, const char *name,
 CK_RV p11prov_token_sup_attr(P11PROV_CTX *ctx, CK_SLOT_ID id, int action,
                              CK_ATTRIBUTE_TYPE attr, CK_BBOOL *data);
 
+#define CKU_LUNA_CU 0x80000001UL
+CK_USER_TYPE p11prov_ctx_user_type(P11PROV_CTX *ctx);
+
 #define ALLOW_EXPORT_PUBLIC 0
 #define DISALLOW_EXPORT_PUBLIC 1
 int p11prov_ctx_allow_export(P11PROV_CTX *ctx);

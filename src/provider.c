@@ -41,6 +41,7 @@ struct p11prov_ctx {
     bool no_deinit;
     bool no_allowed_mechanisms;
     bool no_session_callbacks;
+    CK_USER_TYPE user_type;
     uint64_t blocked_calls;
     bool blocked_ops[OSSL_OP__HIGHEST + 1];
 
@@ -536,6 +537,11 @@ CK_RV p11prov_ctx_status(P11PROV_CTX *ctx)
 CK_UTF8CHAR_PTR p11prov_ctx_pin(P11PROV_CTX *ctx)
 {
     return (CK_UTF8CHAR_PTR)ctx->pin;
+}
+
+CK_USER_TYPE p11prov_ctx_user_type(P11PROV_CTX *ctx)
+{
+    return ctx->user_type;
 }
 
 static void p11prov_ctx_free(P11PROV_CTX *ctx)
@@ -1825,6 +1831,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         return RET_OSSL_ERR;
     }
     ctx->handle = handle;
+    ctx->user_type = CKU_USER;
 
     P11PROV_debug("Starting provider %s %d.%d", PACKAGE_NAME, PACKAGE_MAJOR,
                   PACKAGE_MINOR);
@@ -1982,6 +1989,10 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
             } else if (strncmp(str, "no-session-callbacks", toklen) == 0) {
                 show_quirks = true;
                 ctx->no_session_callbacks = true;
+            } else if (strncmp(str, "luna-non-standard-cku-user", toklen)
+                       == 0) {
+                show_quirks = true;
+                ctx->user_type = CKU_LUNA_CU;
             }
             len -= toklen;
             if (sep) {
@@ -2002,6 +2013,9 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         }
         if (ctx->no_session_callbacks) {
             P11PROV_debug(" No session callbacks");
+        }
+        if (ctx->user_type != CKU_USER) {
+            P11PROV_debug(" Vendor user type: [%08x]", ctx->user_type);
         }
         if (ctx->blocked_calls) {
             P11PROV_debug(" Blocked calls: [%08lx]", ctx->blocked_calls);

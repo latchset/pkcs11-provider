@@ -182,6 +182,10 @@ Example:
 Workarounds that may be needed to deal with some tokens and cannot be
 autodetcted yet are not appropriate defaults.
 
+### luna-non-standard-cku-user
+Use the non-standard Crypto User (user type 0x80000001) available in
+Thales Luna HSMs instead of the normal Crypto Officer (CKU_USER).
+
 ### no-deinit
 It prevents de-initing when OpenSSL winds down the provider.
 NOTE this option may leak memory and may cause some modules to

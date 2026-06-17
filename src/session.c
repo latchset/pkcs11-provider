@@ -592,7 +592,7 @@ static CK_RV token_login(P11PROV_SESSION *session, P11PROV_URI *uri,
     ret = p11prov_Login(session->provctx, session->session, user_type, pin,
                         pinlen);
     if (ret == CKR_OK) {
-        if (user_type == CKU_USER) {
+        if (user_type == p11prov_ctx_user_type(session->provctx)) {
             p11prov_session_ref(session);
             session->is_login = true;
         }
@@ -919,7 +919,8 @@ static CK_RV slot_login(P11PROV_SLOT *slot, P11PROV_URI *uri,
         /* we seem to already have a valid logged in session */
         ret = CKR_OK;
     } else {
-        ret = token_login(session, uri, pw_cb, pw_cbarg, slot, CKU_USER);
+        ret = token_login(session, uri, pw_cb, pw_cbarg, slot,
+                          p11prov_ctx_user_type(session->provctx));
     }
 
 done:
