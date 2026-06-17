@@ -345,7 +345,7 @@ openssl.cnf:
     [pkcs11_sect]
     module = /usr/lib64/ossl-modules/pkcs11.so
     pkcs11-module-path = /usr/lib64/pkcs11/vendor_pkcs11.so
-    pkcs11-module-token-pin = /etc/ssl/pinfile.txt
+    pkcs11-module-token-pin = file:/etc/ssl/pinfile.txt
     activate = 1
 
 
