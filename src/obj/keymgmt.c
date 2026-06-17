@@ -930,6 +930,14 @@ const CK_BYTE x448_oid[] = { X448_OID };
 const CK_BYTE ed25519_oid[] = { ED25519_OID };
 const CK_BYTE ed448_oid[] = { ED448_OID };
 
+/* Thales Luna HSM OIDs */
+#define ED25519_LUNA \
+    0x06, 0x09, 0x2B, 0x06, 0x01, 0x04, 0x01, 0xDA, 0x47, 0x0F, 0x01
+#define X25519_LUNA \
+    0x06, 0x0A, 0x2B, 0x06, 0x01, 0x04, 0x01, 0x95, 0x55, 0x01, 0x05, 0x01
+const CK_BYTE ed25519_luna[] = { ED25519_LUNA };
+const CK_BYTE x25519_luna[] = { X25519_LUNA };
+
 struct match_curve {
     const CK_BYTE *params;
     CK_ULONG params_len;
@@ -948,6 +956,8 @@ struct match_curve ed_params_table[] = {
       ED25519_BIT_SIZE, ED25519_BYTE_SIZE },
     { ed448_ec_params, sizeof(ed448_ec_params), ED448, NID_ED448,
       ED448_BIT_SIZE, ED448_BYTE_SIZE },
+    { ed25519_luna, sizeof(ed25519_luna), ED25519, NID_ED25519,
+      ED25519_BIT_SIZE, ED25519_BYTE_SIZE },
 };
 
 struct match_curve x_params_table[] = {
@@ -959,6 +969,8 @@ struct match_curve x_params_table[] = {
       X25519_BIT_SIZE, X25519_BYTE_SIZE },
     { x448_ec_params, sizeof(x448_ec_params), X448_NAME, NID_X448,
       X448_BIT_SIZE, X448_BYTE_SIZE },
+    { x25519_luna, sizeof(x25519_luna), X25519_NAME, NID_X25519,
+      X25519_BIT_SIZE, X25519_BYTE_SIZE },
 };
 
 CK_RV p11prov_match_curve(CK_KEY_TYPE type, CK_ATTRIBUTE *attr,
