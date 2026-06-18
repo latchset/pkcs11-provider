@@ -38,6 +38,7 @@
 
 #define P11PROV_DEFAULT_PROPERTIES "provider=pkcs11"
 #define P11PROV_FIPS_PROPERTIES "provider=pkcs11,fips=yes"
+#define P11PROV_DEFAULT_PROVIDER "provider=default"
 
 #define P11PROV_NAME_RSA "RSA"
 #define P11PROV_NAMES_RSA "RSA:rsaEncryption:1.2.840.113549.1.1.1"

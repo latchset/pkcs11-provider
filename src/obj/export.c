@@ -33,9 +33,15 @@ CK_RV get_attrs_from_cert(P11PROV_OBJ *crt, CK_ATTRIBUTE *attrs, int num)
         return CKR_GENERAL_ERROR;
     }
 
+    x509 = X509_new_ex(p11prov_ctx_get_libctx(crt->ctx),
+                       "?" P11PROV_DEFAULT_PROVIDER);
+    if (x509 == NULL) {
+        return CKR_GENERAL_ERROR;
+    }
+
     val = value->pValue;
-    x509 = d2i_X509(NULL, &val, value->ulValueLen);
-    if (!x509) {
+    if (d2i_X509(&x509, &val, value->ulValueLen) == NULL) {
+        /* x509 is freed by d2i_X509 on error */
         return CKR_GENERAL_ERROR;
     }
 
