@@ -57,11 +57,13 @@ const struct fetch_attrs EC_private_attrs[] = {
 
 const struct fetch_attrs ML_DSA_public_attrs[] = {
     COMMON_KEYPAIR_ATTRIBUTES,
+    { { CKA_PARAMETER_SET, NULL, 0 }, true, true },
     { { CKA_VALUE, NULL, 0 }, true, true },
 };
 
 const struct fetch_attrs ML_DSA_private_attrs[] = {
     COMMON_KEYPAIR_ATTRIBUTES,
+    { { CKA_PARAMETER_SET, NULL, 0 }, true, true },
     { { CKA_ALWAYS_AUTHENTICATE, NULL, 0 }, true, false },
 };
 
@@ -176,6 +178,16 @@ static CK_RV fetch_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
         return rv;
     }
     p11prov_move_alloc_attrs(attrs, asize, key->attrs, &key->numattrs);
+
+    a = p11prov_obj_get_attr(key, CKA_PARAMETER_SET);
+    if (a) {
+        if (a->ulValueLen != sizeof(CK_ULONG)) {
+            P11PROV_raise(key->ctx, CKR_GENERAL_ERROR,
+                          "Unsupported Parameter Set format");
+            return CKR_GENERAL_ERROR;
+        }
+        key->data.key.param_set = *(CK_ULONG *)a->pValue;
+    }
 
     /* key->data.key.type is checked for validity in prep_key_attrs(),
      * here it is just a selector defaulting to secret keys */
