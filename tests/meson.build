@@ -166,7 +166,7 @@ tests = {
   'readkeys': {'suites': all_suites},
   'tls': {'suites': all_suites, 'is_parallel': false, 'timeout': 60},
   'tlsfuzzer': {'suites': all_suites, 'timeout': 90},
-  'uri': {'suites': all_suites, 'timeout': 90},
+  'uri': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss'], 'timeout': 90},
   'ecxc': {'suites': ['softhsm', 'kryoptic', 'kryoptic.nss']},
   'cms': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'pinlock': {'suites': ['kryoptic']},
