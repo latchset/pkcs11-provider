@@ -24,7 +24,7 @@ else
     export TOKENLABELURI="NSS%20Certificate%20DB"
 fi
 
-export TOKENOPTIONS="${TOKENOPTIONS}\npkcs11-module-quirks = no-operation-state no-allowed-mechanisms"
+export TOKENOPTIONS="${TOKENOPTIONS}\npkcs11-module-quirks = no-allowed-mechanisms"
 export TOKENCONFIGVARS="export NSS_LIB_PARAMS=configDir=${TOKDIR}"
 
 export TESTPORT="30000"
@@ -41,3 +41,4 @@ export SUPPORT_ML_DSA=0
 export SUPPORT_ML_KEM=0
 
 export SUPPORT_BLOCK_MODES="CBC CTR ECB"
+export SUPPORT_OPERATION_STATE=1

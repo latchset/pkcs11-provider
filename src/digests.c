@@ -221,6 +221,7 @@ static void *p11prov_digest_dupctx(void *ctx)
 done:
     if (ret != CKR_OK) {
 #if OPENSSL_VERSION_NUMBER >= 0x30200000L
+        P11PROV_raise(dctx->provctx, ret, "Failed to create operation state");
         /* For OpenSSL 3.2+ we can fail duplication */
         p11prov_digest_freectx(newctx);
         newctx = NULL;

@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
     EVP_MD *pk11md = EVP_MD_fetch(NULL, digest, propq);
     if (!pk11md) {
         fprintf(stderr, "%s: Unsupported by pkcs11 token\n", digest);
-        exit(EXIT_FAILURE);
+        exit(EXIT_TEST_SKIPPED);
     }
 
     pk11prov = EVP_MD_get0_provider(pk11md);
@@ -35,20 +35,25 @@ int main(int argc, char *argv[])
     }
 
     EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
-    EVP_DigestInit_ex(mdctx, pk11md, NULL);
+    if (mdctx == NULL || EVP_DigestInit_ex(mdctx, pk11md, NULL) == 0) {
+        fprintf(stderr, "%s: Failed to initialize digest\n", digest);
+        EVP_MD_free(pk11md);
+        exit(EXIT_FAILURE);
+    }
 
     EVP_MD_CTX *mdctx_dup = EVP_MD_CTX_new();
-    EVP_MD_CTX_copy(mdctx_dup, mdctx);
-
-    char error_string[2048];
-    ERR_error_string_n(ERR_peek_last_error(), error_string,
-                       sizeof error_string);
-    printf("%s\n", error_string);
+    if (EVP_MD_CTX_copy_ex(mdctx_dup, mdctx) == 0) {
+        char error_string[2048];
+        ERR_error_string_n(ERR_peek_last_error(), error_string,
+                           sizeof error_string);
+        fprintf(stderr, "%s\n", error_string);
+        exit(EXIT_FAILURE);
+    }
 
     EVP_MD_CTX_free(mdctx);
     EVP_MD_CTX_free(mdctx_dup);
-
     EVP_MD_free(pk11md);
 
+    fprintf(stderr, "Success");
     exit(EXIT_SUCCESS);
 }

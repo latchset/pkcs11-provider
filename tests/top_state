@@ -9,60 +9,68 @@ OPENSSL_VERSION_MAJOR=$(echo "$OPENSSL_VERSION" | cut -d ' ' -f 1)
 OPENSSL_VERSION_MINOR=$(echo "$OPENSSL_VERSION" | cut -d ' ' -f 2)
 
 EXP_MESSAGE="error:.*:not able to copy ctx"
-if [[ "$OPENSSL_VERSION_MAJOR" -eq 3 ]] && [[ "$OPENSSL_VERSION_MINOR" -lt 2 ]]; then
-    EXP_MESSAGE="error:.*:lib(0)::reason(0)"
-fi
 
-title PARA "OSSL error stack has error from failing C_Get/SetOperationState"
+title PARA "Test Digests dupctx support / Early load"
 # We need to configure early loading otherwise no digests are loaded,
 # and all checks are skipped
 sed "s/#pkcs11-module-load-behavior/pkcs11-module-load-behavior = early/" \
     "${OPENSSL_CONF}" > "${OPENSSL_CONF}.op_state.early_load"
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
 OPENSSL_CONF=${OPENSSL_CONF}.op_state.early_load
 
-output=$($CHECKER "${TESTBLDDIR}/tdigest_dupctx")
 FAIL=0
-echo "$output" | grep -e "$EXP_MESSAGE" || FAIL=1
-if [ $FAIL -ne 0 ]; then
+UNEXPECTED_ERROR=0
+UNEXPECTED_SUCCESS=0
+output=$(bash -c "${CHECKER} ${TESTBLDDIR}/tdigest_dupctx" 2>&1) || FAIL=1
+if [ $FAIL -eq 1 ]; then
+    if [[ "$SUPPORT_OPERATION_STATE" -eq 1 ]]; then
+        UNEXPECTED_ERROR=1
+    else
+        echo "$output" | grep -e "$EXP_MESSAGE" || UNEXPECTED_ERROR=1
+    fi
+else
+    if [[ "$OPENSSL_VERSION_MAJOR" -eq 3 ]] && [[ "$OPENSSL_VERSION_MINOR" -lt 2 ]]; then
+        echo "Older than 3.2.0 passes by swapping context"
+    else
+        if [[ "$SUPPORT_OPERATION_STATE" -eq 0 ]]; then
+            UNEXPECTED_SUCCESS=1
+        fi
+    fi
+fi
+
+if [ $UNEXPECTED_ERROR -ne 0 ]; then
     echo
     echo "Original command output:"
     echo "$output"
     echo
     exit 1
 fi
+if [ $UNEXPECTED_SUCCESS -ne 0 ]; then
+    echo "Test unexpectedly succeeded"
+    echo
+    exit 1
+fi
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
-title PARA "No error is logged when quirk no-operation-state is enabled"
-sed "s/pkcs11-module-quirks = /pkcs11-module-quirks = no-operation-state /" \
-    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.no_op_state"
-OPENSSL_CONF=${OPENSSL_CONF}.no_op_state
+title PARA "Test Digests dupctx support / No-Operation-State"
+sed -e "s/#pkcs11-module-load-behavior/pkcs11-module-load-behavior = early/" \
+    -e "s/pkcs11-module-quirks = /pkcs11-module-quirks = no-operation-state /" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.op_state.no_op_state"
+OPENSSL_CONF=${OPENSSL_CONF}.op_state.no_op_state
 
-title PARA "Test Digests support"
-
-
-output=$($CHECKER "${TESTBLDDIR}/tdigest_dupctx")
 FAIL=0
-echo "$output" | grep -e "$EXP_MESSAGE" || FAIL=1
-if [ $FAIL -ne 0 ]; then
-    echo
-    echo "Original command output:"
-    echo "$output"
+UNEXPECTED_SUCCESS=0
+output=$(bash -c "${CHECKER} ${TESTBLDDIR}/tdigest_dupctx" 2>&1) || FAIL=1
+if [ $FAIL -ne 1 ]; then
+    if [[ "$OPENSSL_VERSION_MAJOR" -eq 3 ]] && [[ "$OPENSSL_VERSION_MINOR" -lt 2 ]]; then
+        echo "Older than 3.2.0 passes by swapping context"
+    else
+        UNEXPECTED_SUCCESS=1
+    fi
+fi
+if [ $UNEXPECTED_SUCCESS -ne 0 ]; then
+    echo "Test unexpectedly succeeded"
     echo
     exit 1
 fi
-
-title PARA "No errors occur with no-session-callbacks quirk enabled"
-sed "s/pkcs11-module-quirks = /pkcs11-module-quirks = no-session-callbacks /" \
-    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.no_callbacks"
-OPENSSL_CONF=${OPENSSL_CONF}.no_callbacks
-
-output=$($CHECKER "${TESTBLDDIR}/tdigest_dupctx")
-echo "$output" | grep -e "$EXP_MESSAGE" || FAIL=1
-if [ $FAIL -ne 0 ]; then
-    echo
-    echo "Original command output:"
-    echo "$output"
-    echo
-    exit 1
-fi
-
-exit 0
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
