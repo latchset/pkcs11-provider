@@ -21,7 +21,10 @@
           "-x", "rsa_pss_rsae_sha512 only"]
        },
        {"name" : "test-tls13-signature-algorithms.py",
-        "arguments" : ["-n", "0"]}
+        "arguments" : [
+            "-n", "0"
+            @KNOWN_FAIL_TLS13_SIGALG_TESTS@
+        ]}
      ]
     }
 

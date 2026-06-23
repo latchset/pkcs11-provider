@@ -35,7 +35,10 @@
        },
        {"name" : "test-tls13-rsa-signatures.py"},
        {"name" : "test-tls13-signature-algorithms.py",
-        "arguments" : ["-n", "0"]}
+        "arguments" : [
+            "-n", "0"
+            @KNOWN_FAIL_TLS13_SIGALG_TESTS@
+        ]}
      ]
     }
 

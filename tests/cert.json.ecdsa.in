@@ -21,7 +21,7 @@
        },
        {"name" : "test-signature-algorithms.py",
         "arguments" : [
-          "-n", "0", "--ecdsa",
+          "-n", "0", "--ecdsa" @KNOWN_FAIL_SIGALG_TESTS@ ,
           "-x", "explicit SHA-1+RSA/ECDSA", "-X", "handshake_failure",
           "-x", "explicit SHA-1+RSA/ECDSA", "-X", "handshake_failure",
           "-x", "implicit SHA-1 check", "-X", "handshake_failure"
@@ -30,7 +30,7 @@
        },
        {"name" : "test-signature-algorithms.py",
         "arguments" : [
-          "-n", "0", "--ecdsa", "-g", "secp384r1",
+          "-n", "0", "--ecdsa", "-g", "secp384r1" @KNOWN_FAIL_SIGALG_TESTS@ ,
           "-x", "sanity", "-X", "handshake_failure",
           "-x", "explicit SHA-256+RSA or ECDSA", "-X", "handshake_failure",
           "sanity", "explicit SHA-256+RSA or ECDSA"

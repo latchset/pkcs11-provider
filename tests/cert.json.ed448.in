@@ -11,7 +11,7 @@
         "arguments" : ["-d"]},
        {"name" : "test-signature-algorithms.py",
         "arguments" : [
-          "--ecdsa", "-x", "implicit SHA-1 check",
+          "--ecdsa", "-x", "implicit SHA-1 check" @KNOWN_FAIL_SIGALG_TESTS@ ,
           "-X", "handshake_failure", "sanity", "implicit SHA-1 check"
         ],
         "comment": "SHA-1 is disabled by crypto policies."

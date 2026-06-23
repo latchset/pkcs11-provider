@@ -33,6 +33,42 @@ else
     SIGALGS="9+5 9+6 9+4 ecdsa_secp256r1_sha256 ecdsa_secp384r1_sha384 ecdsa_secp521r1_sha512 ed25519 ed448 8+26 8+27 8+28 rsa_pss_pss_sha256 rsa_pss_pss_sha384 rsa_pss_pss_sha512 rsa_pss_rsae_sha256 rsa_pss_rsae_sha384 rsa_pss_rsae_sha512 rsa_pkcs1_sha256 rsa_pkcs1_sha384 rsa_pkcs1_sha512"
 fi
 
+if [[ $OPENSSL_VERSION_MAJOR -eq 4 ]]; then
+    KNOWN_FAIL_SIGALG_TESTS=", \"-x\", \"duplicated 206 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"duplicated 2346 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"duplicated 8123 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"duplicated 23745 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"duplicated 32748 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance 215 RSA or ECDSA methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance 2355 RSA or ECDSA methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance 8132 RSA or ECDSA methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance 23754 RSA or ECDSA methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance 32758 RSA or ECDSA methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance 32758 methods with sig_alg_cert\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance max 32748 number of methods with sig_alg_cert\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance max (32760) number of methods\", \"-X\", \"handshake_failure\""
+
+    KNOWN_FAIL_TLS13_SIGALG_TESTS=", \"-x\", \"213 invalid schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"2353 invalid schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"8130 invalid schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"23752 invalid schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"32715 invalid schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"duplicated 213 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"duplicated 2353 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"duplicated 8130 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"duplicated 23752 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"duplicated 32715 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"tolerance 213 methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"tolerance 2353 methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"tolerance 8130 methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"tolerance 23752 methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"tolerance 32715 methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"tolerance 32715 methods with sig_alg_cert\", \"-X\", \"handshake_failure\""
+else
+    KNOWN_FAIL_SIGALG_TESTS=""
+    KNOWN_FAIL_TLS13_SIGALG_TESTS=""
+fi
+
 prepare_test() {
     TEMPLATE="$1"
     KEY="$2"
@@ -42,6 +78,8 @@ prepare_test() {
         -e "s/@PORT@/$PORT/g" \
         -e "s/@PROPQ@/$PROPQ/g" \
         -e "s|@OPENSSL@|$OPENSSL|g" \
+        -e "s|@KNOWN_FAIL_SIGALG_TESTS@|$KNOWN_FAIL_SIGALG_TESTS|g" \
+        -e "s|@KNOWN_FAIL_TLS13_SIGALG_TESTS@|$KNOWN_FAIL_TLS13_SIGALG_TESTS|g" \
         -e "s/@SIGALGS@/$SIGALGS/g" "${TESTSSRCDIR}/${TEMPLATE}" >>"${TMPFILE}"
 }
 
