@@ -2015,7 +2015,7 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
             P11PROV_debug(" No session callbacks");
         }
         if (ctx->user_type != CKU_USER) {
-            P11PROV_debug(" Vendor user type: [%08x]", ctx->user_type);
+            P11PROV_debug(" Vendor user type: [%08lx]", ctx->user_type);
         }
         if (ctx->blocked_calls) {
             P11PROV_debug(" Blocked calls: [%08lx]", ctx->blocked_calls);
