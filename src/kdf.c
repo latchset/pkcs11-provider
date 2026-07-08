@@ -1,10 +1,13 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+   Copyright 2026 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
 #include "platform/endian.h"
 #include <string.h>
 #include <openssl/kdf.h>
+#include <openssl/ssl3.h>
+#include <openssl/tls1.h>
 
 struct p11prov_kdf_ctx {
     P11PROV_CTX *provctx;
@@ -30,6 +33,35 @@ struct p11prov_kdf_ctx {
     bool is_tls13_kdf;
 };
 typedef struct p11prov_kdf_ctx P11PROV_KDF_CTX;
+
+static struct {
+    CK_ULONG keytype;
+    CK_MECHANISM_TYPE cipher;
+    CK_ULONG keylen;
+    CK_ULONG maclen;
+    CK_ULONG ivlen;
+} tls12_cipher_map[] = {
+    { .keytype = CKK_AES,
+      .cipher = CKM_AES_CBC,
+      .keylen = 32,
+      .maclen = 48,
+      .ivlen = 16 },
+    { .keytype = CKK_AES,
+      .cipher = CKM_AES_CBC,
+      .keylen = 16,
+      .maclen = 32,
+      .ivlen = 16 },
+    { .keytype = CKK_AES,
+      .cipher = CKM_AES_GCM,
+      .keylen = 32,
+      .maclen = 0,
+      .ivlen = 4 },
+    { .keytype = CKK_AES,
+      .cipher = CKM_AES_GCM,
+      .keylen = 16,
+      .maclen = 0,
+      .ivlen = 4 },
+};
 
 DISPATCH_HKDF_FN(newctx);
 DISPATCH_HKDF_FN(freectx);
@@ -993,5 +1025,561 @@ const OSSL_DISPATCH p11prov_tls13_kdf_functions[] = {
     DISPATCH_HKDF_ELEM(hkdf, SET_SKEY, set_skey),
     DISPATCH_HKDF_ELEM(tls13_kdf, DERIVE_SKEY, derive_skey),
 #endif
+    { 0, NULL },
+};
+
+static int inner_derive_master_key(P11PROV_CTX *ctx, P11PROV_OBJ *key,
+                                   P11PROV_SESSION **session,
+                                   CK_MECHANISM *mechanism, size_t keylen,
+                                   CK_OBJECT_HANDLE *dkey_handle)
+{
+    CK_OBJECT_CLASS class = CKO_SECRET_KEY;
+    CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
+    CK_BBOOL val_false = CK_FALSE;
+    CK_BBOOL val_true = CK_TRUE;
+    CK_ULONG key_size = keylen;
+    CK_ATTRIBUTE key_template[] = {
+        { CKA_CLASS, &class, sizeof(class) },
+        { CKA_TOKEN, &val_false, sizeof(val_false) },
+        { CKA_VALUE_LEN, &key_size, sizeof(key_size) },
+        { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
+        { CKA_SIGN, &val_true, sizeof(val_true) },
+        { CKA_VERIFY, &val_true, sizeof(val_true) },
+        { CKA_DERIVE, &val_true, sizeof(val_true) },
+        { CKA_SENSITIVE, &val_false, sizeof(val_false) },
+        { CKA_EXTRACTABLE, &val_true, sizeof(val_true) }
+    };
+
+    return p11prov_derive_key(key, mechanism, key_template,
+                              sizeof(key_template) / sizeof(CK_ATTRIBUTE),
+                              session, dkey_handle);
+}
+
+static int inner_derive_key_expansion(P11PROV_CTX *ctx, P11PROV_OBJ *key,
+                                      P11PROV_SESSION **session,
+                                      CK_KEY_TYPE key_type,
+                                      CK_MECHANISM *mechanism, size_t keylen,
+                                      CK_OBJECT_HANDLE *dkey_handle)
+{
+    CK_BBOOL val_false = CK_FALSE;
+    CK_BBOOL val_true = CK_TRUE;
+    CK_ULONG key_size = keylen;
+    CK_OBJECT_CLASS class = CKO_SECRET_KEY;
+    CK_ATTRIBUTE key_template[] = {
+        { CKA_CLASS, &class, sizeof(class) },
+        { CKA_TOKEN, &val_false, sizeof(val_false) },
+        { CKA_VALUE_LEN, &key_size, sizeof(key_size) },
+        { CKA_KEY_TYPE, &key_type, sizeof(key_type) },
+        { CKA_SENSITIVE, &val_false, sizeof(val_false) },
+        { CKA_EXTRACTABLE, &val_true, sizeof(val_true) },
+        { CKA_ENCRYPT, &val_true, sizeof(val_true) },
+        { CKA_DECRYPT, &val_true, sizeof(val_true) },
+    };
+
+    return p11prov_derive_key(key, mechanism, key_template,
+                              sizeof(key_template) / sizeof(CK_ATTRIBUTE),
+                              session, dkey_handle);
+}
+
+static CK_RV inner_tls_sign(P11PROV_KDF_CTX *tls12ctx, CK_MECHANISM *mechanism,
+                            CK_BYTE_PTR data, CK_ULONG datalen, CK_BYTE_PTR sig,
+                            CK_ULONG siglen)
+{
+    CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
+    CK_RV rv;
+
+    if (tls12ctx->session == NULL) {
+        rv = p11prov_get_session(tls12ctx->provctx, &slotid, NULL, NULL,
+                                 mechanism->mechanism, NULL, NULL, false, false,
+                                 &tls12ctx->session);
+        if (rv != CKR_OK) {
+            return rv;
+        }
+    }
+    if (tls12ctx->session == NULL) {
+        return CKR_SESSION_HANDLE_INVALID;
+    }
+
+    rv = p11prov_SignInit(tls12ctx->provctx,
+                          p11prov_session_handle(tls12ctx->session), mechanism,
+                          p11prov_obj_get_handle(tls12ctx->key));
+    if (rv != CKR_OK) {
+        return rv;
+    }
+
+    return p11prov_Sign(tls12ctx->provctx,
+                        p11prov_session_handle(tls12ctx->session), data,
+                        datalen, sig, &siglen);
+}
+
+static const OSSL_PARAM *p11prov_tls1_prf_kdf_settable_ctx_params(void *ctx,
+                                                                  void *prov)
+{
+    static const OSSL_PARAM params[] = {
+        OSSL_PARAM_utf8_string(OSSL_KDF_PARAM_DIGEST, NULL, 0),
+        OSSL_PARAM_octet_string(OSSL_KDF_PARAM_SECRET, NULL, 0),
+        OSSL_PARAM_octet_string(OSSL_KDF_PARAM_SEED, NULL, 0),
+        OSSL_PARAM_END,
+    };
+    return params;
+}
+
+static int p11prov_tls1_prf_kdf_set_ctx_params(void *ctx,
+                                               const OSSL_PARAM params[])
+{
+    P11PROV_KDF_CTX *kdfctx = (P11PROV_KDF_CTX *)ctx;
+    const OSSL_PARAM *p;
+    int ret;
+
+    P11PROV_debug("tls1_prf set ctx params (ctx=%p, params=%p)", kdfctx,
+                  params);
+
+    p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_DIGEST);
+    if (p) {
+        const char *digest = NULL;
+        CK_RV rv;
+
+        ret = OSSL_PARAM_get_utf8_string_ptr(p, &digest);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+
+        rv = p11prov_digest_get_by_name(digest, &kdfctx->hash_mech);
+        if (rv != CKR_OK) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DIGEST);
+            return RET_OSSL_ERR;
+        }
+        P11PROV_debug("set digest to %lu", kdfctx->hash_mech);
+    }
+
+    p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_SECRET);
+    if (p) {
+        const void *secret = NULL;
+        size_t secret_len;
+
+        ret = OSSL_PARAM_get_octet_string_ptr(p, &secret, &secret_len);
+        if (ret != RET_OSSL_OK) {
+            return ret;
+        }
+
+        /* Create Session and key from key material */
+        p11prov_obj_free(kdfctx->key);
+        ret = inner_pkcs11_key(kdfctx, CKM_TLS12_MASTER_KEY_DERIVE_DH, secret,
+                               secret_len, &kdfctx->key);
+        if (ret != CKR_OK) {
+            return RET_OSSL_ERR;
+        }
+        P11PROV_debug("set secret (len:%lu)", secret_len);
+    }
+
+    p = OSSL_PARAM_locate_const(params, OSSL_KDF_PARAM_SEED);
+    if (p) {
+        OPENSSL_clear_free(kdfctx->data, kdfctx->datalen);
+        kdfctx->data = NULL;
+        kdfctx->datalen = 0;
+    }
+
+    /* can be multiple parameters, which will be all concatenated */
+    for (; p; p = OSSL_PARAM_locate_const(p + 1, OSSL_KDF_PARAM_SEED)) {
+        uint8_t *ptr;
+        size_t len;
+
+        if (p->data_size == 0 || p->data == NULL) {
+            continue;
+        }
+
+        len = kdfctx->datalen + p->data_size;
+        ptr = OPENSSL_realloc(kdfctx->data, len);
+        if (ptr == NULL) {
+            OPENSSL_clear_free(kdfctx->data, kdfctx->datalen);
+            kdfctx->data = NULL;
+            kdfctx->datalen = 0;
+            return RET_OSSL_ERR;
+        }
+        memcpy(ptr + kdfctx->datalen, p->data, p->data_size);
+        kdfctx->data = ptr;
+        kdfctx->datalen = len;
+        P11PROV_debug("set seed (len:%lu)", kdfctx->datalen);
+    }
+
+    return RET_OSSL_OK;
+}
+
+#define HAS_TLS12_LABEL(data, datalen, label) \
+    (datalen >= TLS_MD_##label##_CONST_SIZE \
+     && !CRYPTO_memcmp(data, TLS_MD_##label##_CONST, \
+                       TLS_MD_##label##_CONST_SIZE))
+
+static CK_RV p11prov_tls1_prf_derive_generic(P11PROV_KDF_CTX *tls12ctx,
+                                             unsigned char *key, size_t keylen)
+{
+    CK_RV rv;
+
+    if (!HAS_TLS12_LABEL(tls12ctx->data, tls12ctx->datalen, MASTER_SECRET)
+        && !HAS_TLS12_LABEL(tls12ctx->data, tls12ctx->datalen, KEY_EXPANSION)) {
+        return CKR_DATA_INVALID;
+    }
+
+    CK_TLS_KDF_PARAMS mechparams;
+    mechparams.prfMechanism = tls12ctx->hash_mech;
+    mechparams.pContextData = NULL_PTR;
+    mechparams.ulContextDataLength = 0;
+    mechparams.pLabel = tls12ctx->data;
+    mechparams.ulLabelLength = TLS_MD_MASTER_SECRET_CONST_SIZE;
+    mechparams.RandomInfo.ulClientRandomLen = SSL3_RANDOM_SIZE;
+    mechparams.RandomInfo.ulServerRandomLen = SSL3_RANDOM_SIZE;
+    mechparams.RandomInfo.pClientRandom =
+        tls12ctx->data + TLS_MD_MASTER_SECRET_CONST_SIZE;
+    mechparams.RandomInfo.pServerRandom =
+        tls12ctx->data + TLS_MD_MASTER_SECRET_CONST_SIZE + SSL3_RANDOM_SIZE;
+
+    CK_MECHANISM mech = { .mechanism = CKM_TLS_KDF,
+                          .pParameter = &mechparams,
+                          .ulParameterLen = sizeof(mechparams) };
+
+    CK_OBJECT_HANDLE dkey_handle = CK_INVALID_HANDLE;
+    rv = inner_derive_key_expansion(tls12ctx->provctx, tls12ctx->key,
+                                    &tls12ctx->session, CKK_GENERIC_SECRET,
+                                    &mech, keylen, &dkey_handle);
+    if (rv != CKR_OK) {
+        return rv;
+    }
+
+    return inner_extract_key_value(tls12ctx->provctx, tls12ctx->session,
+                                   dkey_handle, key, keylen);
+}
+
+static CK_RV p11prov_tls1_prf_derive_master_secret(P11PROV_KDF_CTX *tls12ctx,
+                                                   unsigned char *key,
+                                                   size_t keylen)
+{
+    CK_RV rv;
+
+    if (keylen != SSL3_MASTER_SECRET_SIZE) {
+        P11PROV_raise(tls12ctx->provctx, CKR_ARGUMENTS_BAD,
+                      "Invalid length for master secret");
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    if (tls12ctx->datalen
+        != TLS_MD_MASTER_SECRET_CONST_SIZE + 2 * SSL3_RANDOM_SIZE) {
+        P11PROV_raise(tls12ctx->provctx, CKR_ARGUMENTS_BAD,
+                      "Invalid seed length for master secret");
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    CK_TLS12_MASTER_KEY_DERIVE_PARAMS mechparams;
+    mechparams.pVersion = NULL_PTR;
+    mechparams.prfHashMechanism = tls12ctx->hash_mech;
+    mechparams.RandomInfo.ulClientRandomLen = SSL3_RANDOM_SIZE;
+    mechparams.RandomInfo.ulServerRandomLen = SSL3_RANDOM_SIZE;
+    mechparams.RandomInfo.pClientRandom =
+        tls12ctx->data + TLS_MD_MASTER_SECRET_CONST_SIZE;
+    mechparams.RandomInfo.pServerRandom =
+        tls12ctx->data + TLS_MD_MASTER_SECRET_CONST_SIZE + SSL3_RANDOM_SIZE;
+
+    CK_MECHANISM mech = { .mechanism = CKM_TLS12_MASTER_KEY_DERIVE_DH,
+                          .pParameter = &mechparams,
+                          .ulParameterLen = sizeof(mechparams) };
+
+    CK_OBJECT_HANDLE dkey_handle = CK_INVALID_HANDLE;
+    rv = inner_derive_master_key(tls12ctx->provctx, tls12ctx->key,
+                                 &tls12ctx->session, &mech, keylen,
+                                 &dkey_handle);
+    if (rv != CKR_OK) {
+        return rv;
+    }
+
+    return inner_extract_key_value(tls12ctx->provctx, tls12ctx->session,
+                                   dkey_handle, key, keylen);
+}
+
+static CK_RV
+p11prov_tls1_prf_derive_ext_master_secret(P11PROV_KDF_CTX *tls12ctx,
+                                          unsigned char *key, size_t keylen)
+{
+    CK_RV rv;
+    size_t digest_size = 0;
+
+    if (keylen != SSL3_MASTER_SECRET_SIZE) {
+        P11PROV_raise(tls12ctx->provctx, CKR_ARGUMENTS_BAD,
+                      "Invalid length for extended master secret");
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    rv = p11prov_digest_get_digest_size(tls12ctx->hash_mech, &digest_size);
+    if (rv != CKR_OK) {
+        return rv;
+    }
+
+    if (tls12ctx->datalen
+        != TLS_MD_EXTENDED_MASTER_SECRET_CONST_SIZE + digest_size) {
+        P11PROV_raise(tls12ctx->provctx, CKR_ARGUMENTS_BAD,
+                      "Invalid seed length for extended master secret");
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    CK_TLS12_EXTENDED_MASTER_KEY_DERIVE_PARAMS mechparams;
+    mechparams.pVersion = NULL_PTR;
+    mechparams.prfHashMechanism = tls12ctx->hash_mech;
+    mechparams.pSessionHash =
+        tls12ctx->data + TLS_MD_EXTENDED_MASTER_SECRET_CONST_SIZE;
+    mechparams.ulSessionHashLen =
+        tls12ctx->datalen - TLS_MD_EXTENDED_MASTER_SECRET_CONST_SIZE;
+
+    CK_MECHANISM mech = { .mechanism = CKM_TLS12_EXTENDED_MASTER_KEY_DERIVE_DH,
+                          .pParameter = &mechparams,
+                          .ulParameterLen = sizeof(mechparams) };
+
+    CK_OBJECT_HANDLE dkey_handle = CK_INVALID_HANDLE;
+    rv = inner_derive_master_key(tls12ctx->provctx, tls12ctx->key,
+                                 &tls12ctx->session, &mech, keylen,
+                                 &dkey_handle);
+    if (rv != CKR_OK) {
+        return rv;
+    }
+
+    return inner_extract_key_value(tls12ctx->provctx, tls12ctx->session,
+                                   dkey_handle, key, keylen);
+}
+
+static CK_RV p11prov_tls1_prf_derive_key_expansion(P11PROV_KDF_CTX *tls12ctx,
+                                                   unsigned char *key,
+                                                   size_t keylen)
+{
+    CK_RV rv;
+
+    if (tls12ctx->datalen
+        != TLS_MD_KEY_EXPANSION_CONST_SIZE + 2 * SSL3_RANDOM_SIZE) {
+        P11PROV_raise(tls12ctx->provctx, CKR_ARGUMENTS_BAD,
+                      "Invalid seed length for key expansion");
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    /*
+     * OpenSSL does not give any hints about which ciphersuite is being used,
+     * it expects the provider to fill `keylen` bytes of output.
+     *
+     * If the generic CKM_TLS_KDF mechanism is not available and we have to
+     * use CKM_TLS12_KEY_AND_MAC_DERIVE, we need to know more information about
+     * the selected ciphersuite: the mac key size, the enc key size and the IV
+     * size.
+     *
+     * We can use the size of the requested key block to "guess" the ciphersuite.
+     */
+    CK_ULONG macsz = 0, keysz = 0, ivsz = 0;
+    for (size_t i = 0;
+         i < sizeof(tls12_cipher_map) / sizeof(tls12_cipher_map[0]); i++) {
+        CK_ULONG keyblocklen = tls12_cipher_map[i].maclen
+                               + tls12_cipher_map[i].keylen
+                               + tls12_cipher_map[i].ivlen;
+        keyblocklen *= 2;
+
+        if (keyblocklen == keylen) {
+            macsz = tls12_cipher_map[i].maclen;
+            keysz = tls12_cipher_map[i].keylen;
+            ivsz = tls12_cipher_map[i].ivlen;
+            break;
+        }
+    }
+
+    /* Couldn't find a corresponding cipher for this length; macsz can be 0 */
+    if (!keysz || !ivsz) {
+        P11PROV_raise(tls12ctx->provctx, CKR_GENERAL_ERROR,
+                      "Cannot determine ciphersuite");
+        return CKR_GENERAL_ERROR;
+    }
+
+    CK_BYTE iv[EVP_MAX_IV_LENGTH * 2] = { 0 };
+    CK_SSL3_KEY_MAT_OUT keymaterial = { 0 };
+    keymaterial.pIVClient = iv;
+    keymaterial.pIVServer = iv + ivsz;
+
+    CK_TLS12_KEY_MAT_PARAMS mechparams;
+    mechparams.bIsExport = CK_FALSE;
+    mechparams.prfHashMechanism = tls12ctx->hash_mech;
+    mechparams.pReturnedKeyMaterial = &keymaterial;
+    mechparams.RandomInfo.ulClientRandomLen = SSL3_RANDOM_SIZE;
+    mechparams.RandomInfo.ulServerRandomLen = SSL3_RANDOM_SIZE;
+    mechparams.RandomInfo.pServerRandom =
+        tls12ctx->data + TLS_MD_KEY_EXPANSION_CONST_SIZE;
+    mechparams.RandomInfo.pClientRandom =
+        tls12ctx->data + TLS_MD_KEY_EXPANSION_CONST_SIZE + SSL3_RANDOM_SIZE;
+    mechparams.ulMacSizeInBits = macsz * 8;
+    mechparams.ulKeySizeInBits = keysz * 8;
+    mechparams.ulIVSizeInBits = ivsz * 8;
+
+    CK_MECHANISM mech = { .mechanism = CKM_TLS12_KEY_AND_MAC_DERIVE,
+                          .pParameter = &mechparams,
+                          .ulParameterLen = sizeof(mechparams) };
+
+    rv = inner_derive_key_expansion(tls12ctx->provctx, tls12ctx->key,
+                                    &tls12ctx->session, CKK_AES, &mech, keysz,
+                                    NULL_PTR);
+    if (rv != CKR_OK) {
+        P11PROV_raise(tls12ctx->provctx, rv, "Key expansion failed");
+        return rv;
+    }
+
+    unsigned char keyval[EVP_MAX_KEY_LENGTH] = { 0 };
+    size_t offset = 0;
+
+    if (mechparams.ulMacSizeInBits) {
+        rv = inner_extract_key_value(
+            tls12ctx->provctx, tls12ctx->session,
+            mechparams.pReturnedKeyMaterial->hClientMacSecret, keyval, macsz);
+        if (rv != CKR_OK) {
+            return rv;
+        }
+        memcpy(key + offset, keyval, macsz);
+        offset += macsz;
+
+        rv = inner_extract_key_value(
+            tls12ctx->provctx, tls12ctx->session,
+            mechparams.pReturnedKeyMaterial->hServerMacSecret, keyval, macsz);
+        if (rv != CKR_OK) {
+            return rv;
+        }
+        memcpy(key + offset, keyval, macsz);
+        offset += macsz;
+    }
+
+    rv = inner_extract_key_value(tls12ctx->provctx, tls12ctx->session,
+                                 mechparams.pReturnedKeyMaterial->hClientKey,
+                                 keyval, keysz);
+    if (rv != CKR_OK) {
+        return rv;
+    }
+    memcpy(key + offset, keyval, keysz);
+    offset += keysz;
+
+    rv = inner_extract_key_value(tls12ctx->provctx, tls12ctx->session,
+                                 mechparams.pReturnedKeyMaterial->hServerKey,
+                                 keyval, keysz);
+    if (rv != CKR_OK) {
+        return rv;
+    }
+    memcpy(key + offset, keyval, keysz);
+    offset += keysz;
+
+    memcpy(key + offset, mechparams.pReturnedKeyMaterial->pIVClient, ivsz);
+    offset += ivsz;
+
+    memcpy(key + offset, mechparams.pReturnedKeyMaterial->pIVServer, ivsz);
+    offset += ivsz;
+
+    /* At this point, offset should be equal to keylen */
+    if (offset != keylen) {
+        P11PROV_raise(tls12ctx->provctx, CKR_GENERAL_ERROR,
+                      "Key material size mismatch");
+        return CKR_GENERAL_ERROR;
+    }
+
+    return rv;
+}
+
+static CK_RV p11prov_tls1_prf_derive_finished(P11PROV_KDF_CTX *tls12ctx,
+                                              unsigned char *key, size_t keylen,
+                                              CK_ULONG flag)
+{
+    if (flag != 1 && flag != 2) {
+        P11PROV_raise(tls12ctx->provctx, CKR_GENERAL_ERROR,
+                      "Invalid server or client flag");
+        return CKR_GENERAL_ERROR;
+    }
+
+    CK_TLS_MAC_PARAMS mechparams;
+    mechparams.prfHashMechanism = tls12ctx->hash_mech;
+    mechparams.ulMacLength = TLS1_FINISH_MAC_LENGTH;
+    mechparams.ulServerOrClient = flag;
+
+    CK_MECHANISM mech = { .mechanism = CKM_TLS_MAC,
+                          .pParameter = &mechparams,
+                          .ulParameterLen = sizeof(mechparams) };
+
+    /* The data passed to CKM_TLS_MAC must not include the "client" or "server"
+     * label, so we must skip over the first few bytes. TLS_MD_CLIENT_FINISH_CONST_SIZE
+     * and TLS_MD_SERVER_FINISH_CONST_SIZE have the same value, so use the first one. */
+    return inner_tls_sign(
+        tls12ctx, &mech, tls12ctx->data + TLS_MD_CLIENT_FINISH_CONST_SIZE,
+        tls12ctx->datalen - TLS_MD_CLIENT_FINISH_CONST_SIZE, key, keylen);
+}
+
+static int p11prov_tls1_prf_kdf_derive(void *ctx, unsigned char *key,
+                                       size_t keylen, const OSSL_PARAM params[])
+{
+    P11PROV_KDF_CTX *tls12ctx = (P11PROV_KDF_CTX *)ctx;
+    CK_RV rv = CKR_OK;
+
+    P11PROV_debug("tls1_prf derive (ctx:%p, key:%p[%zu], params:%p)", ctx, key,
+                  keylen, params);
+
+    rv = p11prov_tls1_prf_kdf_set_ctx_params(ctx, params);
+    if (rv != RET_OSSL_OK) {
+        P11PROV_raise(tls12ctx->provctx, rv, "Invalid params");
+        return RET_OSSL_ERR;
+    }
+
+    if (tls12ctx->key == NULL || key == NULL) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_MISSING_KEY);
+        return RET_OSSL_ERR;
+    }
+
+    if (keylen == 0) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_KEY_LENGTH);
+        return RET_OSSL_ERR;
+    }
+
+    if (tls12ctx->datalen == 0) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_DATA);
+        return RET_OSSL_ERR;
+    }
+
+    /* Try the generic TLS1-PRF derivation mechanism if possible */
+    CK_SLOT_ID slotid = p11prov_session_slotid(tls12ctx->session);
+    if (slotid != CK_UNAVAILABLE_INFORMATION) {
+        rv = p11prov_check_mechanism(tls12ctx->provctx, slotid, CKM_TLS_KDF);
+        if (rv == CKR_OK) {
+            rv = p11prov_tls1_prf_derive_generic(tls12ctx, key, keylen);
+            if (rv == CKR_OK) {
+                return RET_OSSL_OK;
+            }
+        }
+    }
+
+    if (HAS_TLS12_LABEL(tls12ctx->data, tls12ctx->datalen, MASTER_SECRET)) {
+        rv = p11prov_tls1_prf_derive_master_secret(tls12ctx, key, keylen);
+    } else if (HAS_TLS12_LABEL(tls12ctx->data, tls12ctx->datalen,
+                               EXTENDED_MASTER_SECRET)) {
+        rv = p11prov_tls1_prf_derive_ext_master_secret(tls12ctx, key, keylen);
+    } else if (HAS_TLS12_LABEL(tls12ctx->data, tls12ctx->datalen,
+                               KEY_EXPANSION)) {
+        rv = p11prov_tls1_prf_derive_key_expansion(tls12ctx, key, keylen);
+    } else if (HAS_TLS12_LABEL(tls12ctx->data, tls12ctx->datalen,
+                               SERVER_FINISH)) {
+        rv = p11prov_tls1_prf_derive_finished(tls12ctx, key, keylen, 1);
+    } else if (HAS_TLS12_LABEL(tls12ctx->data, tls12ctx->datalen,
+                               CLIENT_FINISH)) {
+        rv = p11prov_tls1_prf_derive_finished(tls12ctx, key, keylen, 2);
+    } else {
+        P11PROV_raise(tls12ctx->provctx, CKR_ARGUMENTS_BAD,
+                      "Unknown seed for TLS1.2 derivation");
+        return RET_OSSL_ERR;
+    }
+
+    if (rv == CKR_OK) {
+        return RET_OSSL_OK;
+    }
+
+    return RET_OSSL_ERR;
+}
+
+const OSSL_DISPATCH p11prov_tls1_prf_kdf_functions[] = {
+    DISPATCH_HKDF_ELEM(hkdf, NEWCTX, newctx),
+    DISPATCH_HKDF_ELEM(hkdf, FREECTX, freectx),
+    DISPATCH_HKDF_ELEM(hkdf, RESET, reset),
+    DISPATCH_HKDF_ELEM(tls1_prf_kdf, DERIVE, derive),
+    DISPATCH_HKDF_ELEM(tls1_prf_kdf, SET_CTX_PARAMS, set_ctx_params),
+    DISPATCH_HKDF_ELEM(tls1_prf_kdf, SETTABLE_CTX_PARAMS, settable_ctx_params),
     { 0, NULL },
 };

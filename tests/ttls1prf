@@ -1,0 +1,125 @@
+#!/bin/bash -e
+# Copyright 2026 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+title PARA "TLS1-PRF Derivation"
+
+PREMASTER_SECRET=aabbccddeeffaabbccddeeffaabbccdd
+MASTER_SECRET=aabbccddeeffaabbccddeeffaabbccddeeffaabbccddeeff
+
+CLIENT_RANDOM=00000000000000000000000000000000
+SERVER_RANDOM=11111111111111111111111111111111
+SESSION_HASH=2222222222222222222222222222222222222222222222222222222222222222
+VERIFY_DATA=33333333333333333333333333333333
+
+declare -a DIGESTS=(
+    SHA256
+    SHA-256
+    SHA2-256
+    SHA384
+    SHA-384
+    SHA2-384
+)
+
+declare -a KDF_LENGTHS=(
+    192 # AES-CBC-256
+    128 # AES-CBC-128
+    72  # AES-GCM-256
+    40  # AES-GCM-128
+)
+
+for digest in "${DIGESTS[@]}"; do
+    # Derive master secret
+    ossl "
+    pkeyutl -derive -kdf TLS1-PRF -kdflen 48
+                    -pkeyopt digest:${digest}
+                    -pkeyopt secret:${PREMASTER_SECRET}
+                    -pkeyopt seed:master\ secret${CLIENT_RANDOM}${SERVER_RANDOM}
+                    -propquery provider=pkcs11
+                    -out ${TMPPDIR}/tls1-prf-1-out-pkcs11.bin"
+    ossl "
+    pkeyutl -derive -kdf TLS1-PRF -kdflen 48
+                    -pkeyopt digest:${digest}
+                    -pkeyopt secret:${PREMASTER_SECRET}
+                    -pkeyopt seed:master\ secret${CLIENT_RANDOM}${SERVER_RANDOM}
+                    -out ${TMPPDIR}/tls1-prf-1-out.bin"
+    diff "${TMPPDIR}/tls1-prf-1-out-pkcs11.bin" "${TMPPDIR}/tls1-prf-1-out.bin"
+
+    # Get a substring from SESSION_HASH with an appropriate length
+    digestlen=0
+    if [[ $digest == *256 ]]; then
+        digestlen=32
+    elif [[ $digest == *384 ]]; then
+        digestlen=48
+    fi
+    echo $digestlen
+    sessionhash=${SESSION_HASH:0:$digestlen}
+
+    # Derive extended master secret
+    ossl "
+    pkeyutl -derive -kdf TLS1-PRF -kdflen 48
+                    -pkeyopt digest:${digest}
+                    -pkeyopt secret:${PREMASTER_SECRET}
+                    -pkeyopt seed:extended\ master\ secret${sessionhash}
+                    -propquery provider=pkcs11
+                    -out ${TMPPDIR}/tls1-prf-2-out-pkcs11.bin"
+    ossl "
+    pkeyutl -derive -kdf TLS1-PRF -kdflen 48
+                    -pkeyopt digest:${digest}
+                    -pkeyopt secret:${PREMASTER_SECRET}
+                    -pkeyopt seed:extended\ master\ secret${sessionhash}
+                    -out ${TMPPDIR}/tls1-prf-2-out.bin"
+    diff "${TMPPDIR}/tls1-prf-2-out-pkcs11.bin" "${TMPPDIR}/tls1-prf-2-out.bin"
+
+    for kdflen in "${KDF_LENGTHS[@]}"; do
+        # Derive key expansion
+        ossl "
+        pkeyutl -derive -kdf TLS1-PRF -kdflen ${kdflen}
+                        -pkeyopt digest:${digest}
+                        -pkeyopt secret:${MASTER_SECRET}
+                        -pkeyopt seed:key\ expansion${SERVER_RANDOM}${CLIENT_RANDOM}
+                        -propquery provider=pkcs11
+                        -out ${TMPPDIR}/tls1-prf-3-out-pkcs11.bin"
+        ossl "
+        pkeyutl -derive -kdf TLS1-PRF -kdflen ${kdflen}
+                        -pkeyopt digest:${digest}
+                        -pkeyopt secret:${MASTER_SECRET}
+                        -pkeyopt seed:key\ expansion${SERVER_RANDOM}${CLIENT_RANDOM}
+                        -out ${TMPPDIR}/tls1-prf-3-out.bin"
+        diff "${TMPPDIR}/tls1-prf-3-out-pkcs11.bin" "${TMPPDIR}/tls1-prf-3-out.bin"
+
+        # Derive client finished
+        ossl "
+        pkeyutl -derive -kdf TLS1-PRF -kdflen 12
+                        -pkeyopt digest:${digest}
+                        -pkeyopt secret:${MASTER_SECRET}
+                        -pkeyopt seed:client\ finished${VERIFY_DATA}
+                        -propquery provider=pkcs11
+                        -out ${TMPPDIR}/tls1-prf-4-out-pkcs11.bin"
+        ossl "
+        pkeyutl -derive -kdf TLS1-PRF -kdflen 12
+                        -pkeyopt digest:${digest}
+                        -pkeyopt secret:${MASTER_SECRET}
+                        -pkeyopt seed:client\ finished${VERIFY_DATA}
+                        -out ${TMPPDIR}/tls1-prf-4-out.bin"
+        diff "${TMPPDIR}/tls1-prf-4-out-pkcs11.bin" "${TMPPDIR}/tls1-prf-4-out.bin"
+
+        # Derive server finished
+        ossl "
+        pkeyutl -derive -kdf TLS1-PRF -kdflen 12
+                        -pkeyopt digest:${digest}
+                        -pkeyopt secret:${MASTER_SECRET}
+                        -pkeyopt seed:server\ finished${VERIFY_DATA}
+                        -propquery provider=pkcs11
+                        -out ${TMPPDIR}/tls1-prf-5-out-pkcs11.bin"
+        ossl "
+        pkeyutl -derive -kdf TLS1-PRF -kdflen 12
+                        -pkeyopt digest:${digest}
+                        -pkeyopt secret:${MASTER_SECRET}
+                        -pkeyopt seed:server\ finished${VERIFY_DATA}
+                        -out ${TMPPDIR}/tls1-prf-5-out.bin"
+        diff "${TMPPDIR}/tls1-prf-5-out-pkcs11.bin" "${TMPPDIR}/tls1-prf-5-out.bin"
+    done
+done

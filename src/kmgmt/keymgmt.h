@@ -1,4 +1,5 @@
 /* Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+   Copyright 2026 NXP
    SPDX-License-Identifier: Apache-2.0 */
 
 #ifndef _KEYMGMT_H
@@ -19,6 +20,7 @@ extern const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_rsapss_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_ec_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_hkdf_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_tls1_prf_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_ed25519_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_ed448_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_x25519_keymgmt_functions[];
