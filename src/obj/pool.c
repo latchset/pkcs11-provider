@@ -102,6 +102,11 @@ CK_RV obj_add_to_pool(P11PROV_OBJ *obj)
     P11PROV_OBJ_POOL *pool;
     CK_RV ret;
 
+    if (obj->poolid != -1) {
+        /* already in the pool */
+        return CKR_OK;
+    }
+
     ret = p11prov_slot_get_obj_pool(obj->ctx, obj->slotid, &pool);
     if (ret != CKR_OK) {
         return ret;

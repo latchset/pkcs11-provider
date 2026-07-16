@@ -185,4 +185,8 @@ fi
 
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
+title PARA "Test stored pub key object is freed"
+"${TESTBLDDIR}/tstorepubkeyfree" "${PRIURI}" "${PUBURI}" \
+    "pkcs11:token=${TOKENLABELURI};type=public"
+
 exit 0
