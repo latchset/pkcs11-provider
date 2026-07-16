@@ -55,6 +55,39 @@ static void destroy_key_cache(P11PROV_OBJ *obj, P11PROV_SESSION *session)
     }
 }
 
+static void destroy_owned_key(P11PROV_OBJ *obj)
+{
+    P11PROV_SESSION *session = NULL;
+    CK_RV ret;
+
+    if (!obj->owns_key) {
+        return;
+    }
+    /* nothing to destroy if the key was never stored or was reset */
+    if (obj->handle == CK_INVALID_HANDLE
+        || obj->handle == CK_P11PROV_IMPORTED_HANDLE) {
+        return;
+    }
+
+    ret = p11prov_try_session_ref(obj, CK_UNAVAILABLE_INFORMATION, false, false,
+                                  &session);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Failed to get session to destroy owned key. "
+                      "Error %lx",
+                      ret);
+        return;
+    }
+
+    ret = p11prov_DestroyObject(obj->ctx, p11prov_session_handle(session),
+                                obj->handle);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Failed to destroy owned key. Error %lx", ret);
+    }
+    obj->handle = CK_INVALID_HANDLE;
+
+    p11prov_return_session(session);
+}
+
 static void cache_key(P11PROV_OBJ *obj)
 {
     P11PROV_SESSION *session = NULL;
@@ -153,6 +186,27 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
     CK_RV ret;
 
     P11PROV_debug("Refresh object %p", obj);
+
+    if (obj->ref_obj) {
+        /* re-borrow the handle from the owner */
+        obj->handle = p11prov_obj_get_handle(obj->ref_obj);
+        obj->raf = false;
+        return;
+    }
+
+    if (obj->owns_key) {
+        /* the key is not on the token anymore, as refresh happens on fork
+         * where we fully reset the token sessions.
+         * This means it needs to be stored again */
+        ret = p11prov_obj_store_public_key(obj);
+        if (ret != CKR_OK) {
+            P11PROV_raise(obj->ctx, ret, "Failed to refresh stored object %p",
+                          obj);
+            return;
+        }
+        obj->raf = false;
+        return;
+    }
 
     if (obj->class == CKO_PRIVATE_KEY || obj->class == CKO_SECRET_KEY) {
         login = true;
@@ -298,12 +352,15 @@ void p11prov_obj_free(P11PROV_OBJ *obj)
         return;
     }
 
+    /* stop being findable in the pool before destroying the handle */
+    obj_rm_from_pool(obj);
+
+    destroy_owned_key(obj);
+
     if (obj->ref_session) {
         p11prov_session_deref(obj->ref_session);
         obj->ref_session = NULL;
     }
-
-    obj_rm_from_pool(obj);
 
     destroy_key_cache(obj, NULL);
 
@@ -316,6 +373,7 @@ void p11prov_obj_free(P11PROV_OBJ *obj)
     p11prov_uri_free(obj->refresh_uri);
 
     p11prov_obj_free(obj->assoc_obj);
+    p11prov_obj_free(obj->ref_obj);
 
     OPENSSL_clear_free(obj, sizeof(P11PROV_OBJ));
 }
@@ -680,6 +738,9 @@ void p11prov_obj_set_associated(P11PROV_OBJ *obj, P11PROV_OBJ *assoc)
 void p11prov_obj_set_session_ref(P11PROV_OBJ *obj, P11PROV_SESSION *session)
 {
     p11prov_session_ref(session);
+    if (obj->ref_session) {
+        p11prov_session_deref(obj->ref_session);
+    }
     obj->ref_session = session;
 }
 

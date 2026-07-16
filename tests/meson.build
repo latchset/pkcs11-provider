@@ -107,6 +107,7 @@ test_programs = {
   'tcachekeys': ['tcachekeys.c', 'util.c'],
   'tfork': ['tfork.c', 'util.c'],
   'tstorepubkey': ['tstorepubkey.c', 'util.c'],
+  'tstorepubkeyfree': ['tstorepubkeyfree.c', 'util.c'],
   'tpkey': ['tpkey.c', 'util.c'],
   'pincache': ['pincache.c'],
   'ccerts': ['ccerts.c', 'util.c'],

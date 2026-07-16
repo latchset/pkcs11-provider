@@ -659,7 +659,19 @@ CK_RV p11prov_obj_copy_key_data(P11PROV_OBJ *dst, P11PROV_OBJ *src)
     }
 
     dst->slotid = src->slotid;
+    /* ensure the source handle is valid (this may refresh the object or
+     * store a mock one), but then borrow the real handle directly, as
+     * get_handle() may return the volatile cache copy which is destroyed
+     * independently of dst */
+    (void)p11prov_obj_get_handle(src);
     dst->handle = src->handle;
+    if (src->ref_obj) {
+        /* borrow the handle from the same owner as the source */
+        dst->ref_obj = p11prov_obj_ref_no_cache(src->ref_obj);
+    } else if (src->owns_key) {
+        /* keep the owner alive as the handle is destroyed on its free */
+        dst->ref_obj = p11prov_obj_ref_no_cache(src);
+    }
     dst->class = src->class;
     dst->cka_copyable = src->cka_copyable;
     dst->cka_token = src->cka_token;
@@ -1265,6 +1277,8 @@ CK_RV p11prov_obj_store_public_key(P11PROV_OBJ *key)
     }
 
     if (rv == CKR_OK) {
+        /* destroy the session object when key is freed */
+        key->owns_key = true;
         /* this is a real object now, add it to the pool, but do not
          * fail if the operation goes haywire for some reason */
         (void)obj_add_to_pool(key);

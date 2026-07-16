@@ -24,6 +24,12 @@ struct p11prov_crt {
 struct p11prov_obj {
     P11PROV_CTX *ctx;
     bool raf; /* re-init after fork */
+    /* The provider stored the key on the token itself and this object
+     * exclusively owns the resulting session object, which needs to be
+     * destroyed when this structure is freed. Not equivalent to
+     * cka_token being false: session objects can also be found on the
+     * token or borrow their handle. */
+    bool owns_key;
 
     CK_SLOT_ID slotid;
     CK_OBJECT_HANDLE handle;
@@ -47,6 +53,8 @@ struct p11prov_obj {
     int poolid;
 
     P11PROV_OBJ *assoc_obj;
+    /* reference held on the object that owns the borrowed handle */
+    P11PROV_OBJ *ref_obj;
     P11PROV_SESSION *ref_session;
 };
 
