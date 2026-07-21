@@ -282,7 +282,7 @@ static const OSSL_PARAM *p11prov_aes_imp_settable_params(void *provctx)
 static const OSSL_PARAM aes_generate_params[] = {
     OSSL_PARAM_size_t(OSSL_SKEY_PARAM_KEY_LENGTH, NULL),
     OSSL_PARAM_utf8_string(P11PROV_PARAM_URI, NULL, 0),
-    OSSL_PARAM_octet_string(P11PROV_PARAM_KEY_USAGE, NULL, 0),
+    OSSL_PARAM_utf8_string(P11PROV_PARAM_KEY_USAGE, NULL, 0),
     OSSL_PARAM_int(P11PROV_PARAM_EPHEMERAL, NULL), OSSL_PARAM_END
 };
 
@@ -641,7 +641,7 @@ p11prov_generic_secret_imp_settable_params(void *provctx)
 static const OSSL_PARAM generic_secret_generate_params[] = {
     OSSL_PARAM_size_t(OSSL_SKEY_PARAM_KEY_LENGTH, NULL),
     OSSL_PARAM_utf8_string(P11PROV_PARAM_URI, NULL, 0),
-    OSSL_PARAM_octet_string(P11PROV_PARAM_KEY_USAGE, NULL, 0),
+    OSSL_PARAM_utf8_string(P11PROV_PARAM_KEY_USAGE, NULL, 0),
     OSSL_PARAM_int(P11PROV_PARAM_EPHEMERAL, NULL), OSSL_PARAM_END
 };
 
