@@ -27,7 +27,7 @@ struct p11prov_module_ctx {
     bool reinit;
 };
 
-/* This structure is effectively equivalent to CK_FUNCTION_LIST_3_0
+/* This structure is effectively equivalent to CK_FUNCTION_LIST_3_2
  * however we list only the symbols we are actually using in the
  * code plus flags */
 struct p11prov_interface {
@@ -94,6 +94,10 @@ struct p11prov_interface {
     CK_C_MessageDecryptFinal MessageDecryptFinal;
     CK_C_EncapsulateKey EncapsulateKey;
     CK_C_DecapsulateKey DecapsulateKey;
+    CK_C_VerifySignatureInit VerifySignatureInit;
+    CK_C_VerifySignature VerifySignature;
+    CK_C_VerifySignatureUpdate VerifySignatureUpdate;
+    CK_C_VerifySignatureFinal VerifySignatureFinal;
 };
 
 #include "interface.gen.c"
@@ -188,6 +192,10 @@ static void populate_interface(P11PROV_INTERFACE *intf, CK_INTERFACE *ck_intf)
         if (intf->version.minor >= 2) {
             ASSIGN_FN_3_2(EncapsulateKey);
             ASSIGN_FN_3_2(DecapsulateKey);
+            ASSIGN_FN_3_2(VerifySignatureInit);
+            ASSIGN_FN_3_2(VerifySignature);
+            ASSIGN_FN_3_2(VerifySignatureUpdate);
+            ASSIGN_FN_3_2(VerifySignatureFinal);
         }
     }
 }

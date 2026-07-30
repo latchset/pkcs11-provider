@@ -83,10 +83,12 @@ void *p11prov_sig_dupctx(void *ctx)
     newctx->use_eddsa_params = sigctx->use_eddsa_params;
 
     newctx->mldsa_paramset = sigctx->mldsa_paramset;
-    newctx->mldsa_params = sigctx->mldsa_params;
-    if (sigctx->mldsa_params.pContext) {
-        newctx->mldsa_params.pContext = OPENSSL_memdup(
-            sigctx->mldsa_params.pContext, sigctx->mldsa_params.ulContextLen);
+    newctx->slhdsa_paramset = sigctx->slhdsa_paramset;
+    newctx->additional_context = sigctx->additional_context;
+    if (sigctx->additional_context.pContext) {
+        newctx->additional_context.pContext =
+            OPENSSL_memdup(sigctx->additional_context.pContext,
+                           sigctx->additional_context.ulContextLen);
     }
 
     if (sigctx->signature) {
@@ -117,6 +119,8 @@ void *p11prov_sig_dupctx(void *ctx)
     }
 
     newctx->fallback_operate = sigctx->fallback_operate;
+
+    newctx->verify_signature = sigctx->verify_signature;
 
     if (sigctx->session == NULL) {
         return newctx;
@@ -212,6 +216,9 @@ void p11prov_sig_freectx(void *ctx)
             if (sigctx->operation == CKF_SIGN) {
                 ret = p11prov_SignInit(sigctx->provctx, sess, NULL,
                                        CK_INVALID_HANDLE);
+            } else if (sigctx->verify_signature) {
+                ret = p11prov_VerifySignatureInit(sigctx->provctx, sess, NULL,
+                                                  CK_INVALID_HANDLE, NULL, 0);
             } else {
                 ret = p11prov_VerifyInit(sigctx->provctx, sess, NULL,
                                          CK_INVALID_HANDLE);
@@ -234,8 +241,8 @@ void p11prov_sig_freectx(void *ctx)
         p11prov_return_session(sigctx->session);
     }
 
-    OPENSSL_clear_free(sigctx->mldsa_params.pContext,
-                       sigctx->mldsa_params.ulContextLen);
+    OPENSSL_clear_free(sigctx->additional_context.pContext,
+                       sigctx->additional_context.ulContextLen);
     OPENSSL_clear_free(sigctx->eddsa_params.pContextData,
                        sigctx->eddsa_params.ulContextDataLen);
     OPENSSL_free(sigctx->signature);
@@ -412,6 +419,13 @@ static CK_RV p11prov_sig_operate_init(P11PROV_SIG_CTX *sigctx, bool digest_op,
         if (sigctx->operation == CKF_SIGN) {
             ret = p11prov_SignInit(sigctx->provctx, sess, &sigctx->mechanism,
                                    handle);
+        } else if (sigctx->signature) {
+            ret = p11prov_VerifySignatureInit(
+                sigctx->provctx, sess, &sigctx->mechanism, handle,
+                sigctx->signature, sigctx->signature_len);
+            if (ret == CKR_OK) {
+                sigctx->verify_signature = true;
+            }
         } else {
             ret = p11prov_VerifyInit(sigctx->provctx, sess, &sigctx->mechanism,
                                      handle);
@@ -464,7 +478,7 @@ CK_RV p11prov_sig_operate(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
     CK_ULONG sig_size = sigsize;
     CK_RV ret;
 
-    if (sig == NULL) {
+    if (!sigctx->signature && sig == NULL) {
         return CKR_ARGUMENTS_BAD;
     }
 
@@ -476,6 +490,8 @@ CK_RV p11prov_sig_operate(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
 
     if (sigctx->operation == CKF_SIGN) {
         ret = p11prov_Sign(sigctx->provctx, sess, tbs, tbslen, sig, &sig_size);
+    } else if (sigctx->verify_signature) {
+        ret = p11prov_VerifySignature(sigctx->provctx, sess, tbs, tbslen);
     } else {
         ret = p11prov_Verify(sigctx->provctx, sess, tbs, tbslen, sig, sigsize);
     }
@@ -515,6 +531,9 @@ int p11prov_sig_digest_update(P11PROV_SIG_CTX *sigctx, unsigned char *data,
     sess = p11prov_session_handle(sigctx->session);
     if (sigctx->operation == CKF_SIGN) {
         ret = p11prov_SignUpdate(sigctx->provctx, sess, data, datalen);
+    } else if (sigctx->verify_signature) {
+        ret =
+            p11prov_VerifySignatureUpdate(sigctx->provctx, sess, data, datalen);
     } else {
         ret = p11prov_VerifyUpdate(sigctx->provctx, sess, data, datalen);
     }
@@ -601,11 +620,13 @@ int p11prov_sig_digest_final(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
     int result = RET_OSSL_ERR;
     CK_RV ret;
 
-    if (sig == NULL) {
-        goto done;
-    }
-    if (sigctx->operation == CKF_VERIFY && sigsize == 0) {
-        goto done;
+    if (!sigctx->verify_signature) {
+        if (sig == NULL) {
+            goto done;
+        }
+        if (sigctx->operation == CKF_VERIFY && sigsize == 0) {
+            goto done;
+        }
     }
 
     if (sigctx->fallback_digest) {
@@ -631,6 +652,8 @@ int p11prov_sig_digest_final(P11PROV_SIG_CTX *sigctx, unsigned char *sig,
     sess = p11prov_session_handle(sigctx->session);
     if (sigctx->operation == CKF_SIGN) {
         ret = p11prov_SignFinal(sigctx->provctx, sess, sig, &sig_size);
+    } else if (sigctx->verify_signature) {
+        ret = p11prov_VerifySignatureFinal(sigctx->provctx, sess);
     } else {
         ret = p11prov_VerifyFinal(sigctx->provctx, sess, sig, sigsize);
     }

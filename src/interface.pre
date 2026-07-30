@@ -309,3 +309,16 @@ IMPL_INTERFACE_FN_8_ARG(DecapsulateKey, CK_SESSION_HANDLE, hSession,
                         hPrivateKey, CK_ATTRIBUTE_PTR, pTemplate, CK_ULONG,
                         ulAttributeCount, CK_BYTE_PTR, pCiphertext, CK_ULONG,
                         ulCiphertextLen, CK_OBJECT_HANDLE_PTR, phKey)
+
+IMPL_INTERFACE_FN_5_ARG(VerifySignatureInit, CK_SESSION_HANDLE, hSession,
+                        CK_MECHANISM_PTR, pMechanism, CK_OBJECT_HANDLE, hKey,
+                        CK_BYTE_PTR, pSignature, CK_ULONG, ulSignatureLen)
+
+IMPL_INTERFACE_FN_3_ARG(VerifySignature, CK_SESSION_HANDLE, hSession,
+                        CK_BYTE_PTR, pData, CK_ULONG, ulDataLen)
+
+IMPL_INTERFACE_FN_3_ARG(VerifySignatureUpdate, CK_SESSION_HANDLE, hSession,
+                        CK_BYTE_PTR, pPart, CK_ULONG, ulPartLen)
+
+IMPL_INTERFACE_FN_1_ARG(VerifySignatureFinal, CK_SESSION_HANDLE, hSession)
+

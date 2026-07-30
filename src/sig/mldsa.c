@@ -31,8 +31,16 @@ DISPATCH_MLDSA_FN(settable_ctx_params);
 static CK_RV p11prov_mldsa_set_mechanism(P11PROV_SIG_CTX *sigctx)
 {
     sigctx->mechanism.mechanism = CKM_ML_DSA;
-    sigctx->mechanism.pParameter = NULL;
-    sigctx->mechanism.ulParameterLen = 0;
+    /* we set the optional additional context only if non-default parameters
+     * need to be passed in */
+    if (sigctx->additional_context.pContext
+        || sigctx->additional_context.hedgeVariant != CKH_HEDGE_PREFERRED) {
+        sigctx->mechanism.pParameter = &sigctx->additional_context;
+        sigctx->mechanism.ulParameterLen = sizeof(CK_SIGN_ADDITIONAL_CONTEXT);
+    } else {
+        sigctx->mechanism.pParameter = NULL;
+        sigctx->mechanism.ulParameterLen = 0;
+    }
     return CKR_OK;
 }
 
@@ -80,7 +88,7 @@ static void *p11prov_mldsa_newctx(void *provctx, const char *properties,
     }
 
     sigctx->mldsa_paramset = paramset;
-    sigctx->fallback_operate = &p11prov_mldsa_operate;
+    sigctx->additional_context.hedgeVariant = CKH_HEDGE_PREFERRED;
 
     return sigctx;
 }
@@ -126,7 +134,7 @@ static int p11prov_mldsa_sign(void *ctx, unsigned char *sig, size_t *siglen,
     P11PROV_debug("mldsa sign (ctx=%p)", ctx);
 
     if (sig == NULL) {
-        if (siglen == 0) {
+        if (siglen == NULL) {
             return RET_OSSL_ERR;
         }
         ret = p11prov_mldsa_sig_size(sigctx, siglen);
@@ -447,15 +455,15 @@ static int p11prov_mldsa_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_CONTEXT_STRING);
     if (p) {
         size_t datalen;
-        OPENSSL_clear_free(sigctx->mldsa_params.pContext,
-                           sigctx->mldsa_params.ulContextLen);
-        sigctx->mldsa_params.pContext = NULL;
+        OPENSSL_clear_free(sigctx->additional_context.pContext,
+                           sigctx->additional_context.ulContextLen);
+        sigctx->additional_context.pContext = NULL;
         ret = OSSL_PARAM_get_octet_string(
-            p, (void **)&sigctx->mldsa_params.pContext, 0, &datalen);
+            p, (void **)&sigctx->additional_context.pContext, 0, &datalen);
         if (ret != RET_OSSL_OK) {
             return ret;
         }
-        sigctx->mldsa_params.ulContextLen = datalen;
+        sigctx->additional_context.ulContextLen = datalen;
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_DETERMINISTIC);
@@ -475,7 +483,7 @@ static int p11prov_mldsa_set_ctx_params(void *ctx, const OSSL_PARAM params[])
                           "Unsupported 'deterministic' value");
             return RET_OSSL_ERR;
         }
-        sigctx->mldsa_params.hedgeVariant = hedge;
+        sigctx->additional_context.hedgeVariant = hedge;
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_SIGNATURE_PARAM_MESSAGE_ENCODING);
