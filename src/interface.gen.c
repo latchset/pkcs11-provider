@@ -1795,3 +1795,118 @@ CK_RV p11prov_DecapsulateKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     }
     return ret;
 }
+
+CK_RV p11prov_VerifySignatureInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                                  CK_MECHANISM_PTR pMechanism,
+                                  CK_OBJECT_HANDLE hKey, CK_BYTE_PTR pSignature,
+                                  CK_ULONG ulSignatureLen)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_VerifySignatureInit)) {
+        P11PROV_debug("C_%s is blocked", "VerifySignatureInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->VerifySignatureInit) {
+        P11PROV_debug("C_%s is not available", "VerifySignatureInit");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "VerifySignatureInit");
+    ret = intf->VerifySignatureInit(hSession, pMechanism, hKey, pSignature,
+                                    ulSignatureLen);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "VerifySignatureInit",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_VerifySignature(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                              CK_BYTE_PTR pData, CK_ULONG ulDataLen)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_VerifySignature)) {
+        P11PROV_debug("C_%s is blocked", "VerifySignature");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->VerifySignature) {
+        P11PROV_debug("C_%s is not available", "VerifySignature");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "VerifySignature");
+    ret = intf->VerifySignature(hSession, pData, ulDataLen);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "VerifySignature",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_VerifySignatureUpdate(P11PROV_CTX *ctx,
+                                    CK_SESSION_HANDLE hSession,
+                                    CK_BYTE_PTR pPart, CK_ULONG ulPartLen)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_VerifySignatureUpdate)) {
+        P11PROV_debug("C_%s is blocked", "VerifySignatureUpdate");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->VerifySignatureUpdate) {
+        P11PROV_debug("C_%s is not available", "VerifySignatureUpdate");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "VerifySignatureUpdate");
+    ret = intf->VerifySignatureUpdate(hSession, pPart, ulPartLen);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "VerifySignatureUpdate",
+                      ret);
+    }
+    return ret;
+}
+
+CK_RV p11prov_VerifySignatureFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_VerifySignatureFinal)) {
+        P11PROV_debug("C_%s is blocked", "VerifySignatureFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->VerifySignatureFinal) {
+        P11PROV_debug("C_%s is not available", "VerifySignatureFinal");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "VerifySignatureFinal");
+    ret = intf->VerifySignatureFinal(hSession);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "VerifySignatureFinal",
+                      ret);
+    }
+    return ret;
+}

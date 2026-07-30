@@ -38,9 +38,10 @@ struct p11prov_sig_ctx {
     CK_EDDSA_PARAMS eddsa_params;
     CK_BBOOL use_eddsa_params;
 
-    /* ML-DSA param data */
+    /* ML-DSA & SLH-DSA param data */
     CK_ML_DSA_PARAMETER_SET_TYPE mldsa_paramset;
-    CK_SIGN_ADDITIONAL_CONTEXT mldsa_params;
+    CK_SLH_DSA_PARAMETER_SET_TYPE slhdsa_paramset;
+    CK_SIGN_ADDITIONAL_CONTEXT additional_context;
 
     /* Signature to be verified, used by verify_message_final() */
     unsigned char *signature;
@@ -58,6 +59,9 @@ struct p11prov_sig_ctx {
      * separately and then applying a raw signature on the result. */
     EVP_MD_CTX *fallback_digest;
     p11prov_sig_operate_t *fallback_operate;
+
+    /* Whether C_VerifySignature* APIs are in use */
+    bool verify_signature;
 };
 
 P11PROV_SIG_CTX *p11prov_sig_newctx(P11PROV_CTX *ctx, CK_MECHANISM_TYPE type,

@@ -66,4 +66,20 @@ extern const OSSL_DISPATCH p11prov_mldsa_44_signature_functions[];
 extern const OSSL_DISPATCH p11prov_mldsa_65_signature_functions[];
 extern const OSSL_DISPATCH p11prov_mldsa_87_signature_functions[];
 
+/* slhdsa sig functions */
+#define DISPATCH_SLHDSA_FN(name) \
+    DECL_DISPATCH_FUNC(signature, p11prov_slhdsa, name)
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_128s_signature_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_128s_signature_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_128f_signature_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_128f_signature_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_192s_signature_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_192s_signature_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_192f_signature_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_192f_signature_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_256s_signature_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_256s_signature_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_256f_signature_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_256f_signature_functions[];
+
 #endif /* _SIGNATURE_H */

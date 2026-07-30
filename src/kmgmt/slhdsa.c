@@ -114,12 +114,12 @@ static void *p11prov_slhdsa_gen(void *genctx, OSSL_CALLBACK *cb_fn,
     };
 #define SLHDSA_PRIVKEY_TMPL_SIZE 4
     CK_ATTRIBUTE
-        privkey_template[SLHDSA_PRIVKEY_TMPL_SIZE + COMMON_TMPL_SIZE] = {
-            { CKA_TOKEN, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
-            { CKA_PRIVATE, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
-            { CKA_SENSITIVE, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
-            { CKA_SIGN, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
-        };
+    privkey_template[SLHDSA_PRIVKEY_TMPL_SIZE + COMMON_TMPL_SIZE] = {
+        { CKA_TOKEN, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_PRIVATE, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_SENSITIVE, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+        { CKA_SIGN, DISCARD_CONST(&val_true), sizeof(CK_BBOOL) },
+    };
     int pubtsize = SLHDSA_PUBKEY_TMPL_SIZE;
     int privtsize = SLHDSA_PRIVKEY_TMPL_SIZE;
 
