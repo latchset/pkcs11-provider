@@ -36,3 +36,5 @@ export SUPPORT_ALLOWED_MECHANISMS=0
 export SUPPORT_ML_DSA=0
 # not yet
 export SUPPORT_ML_KEM=0
+# not yet
+export SUPPORT_SLH_DSA=0

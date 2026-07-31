@@ -62,6 +62,10 @@ fi
 if [ -z "$SUPPORT_ML_KEM" ]; then
     export SUPPORT_ML_KEM=1
 fi
+# Enable SUPPORT_SLH_DSA as long as it is not set already.
+if [ -z "$SUPPORT_SLH_DSA" ]; then
+    export SUPPORT_SLH_DSA=1
+fi
 
 # In theory Kryoptic could be statically linked to a version of OpenSSL that
 # does support serializing contexts, even though the system as whole does
