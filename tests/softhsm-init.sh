@@ -1,0 +1,89 @@
+#!/bin/bash -e
+# Copyright (C) 2022 Jakub Jelen <jjelen@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+title SECTION "Searching for SoftHSM PKCS#11 library"
+
+if ! command -v softhsm2-util &> /dev/null
+then
+    echo "SoftHSM is is required"
+    exit 0
+fi
+
+find_softhsm() {
+    for _lib in "$@" ; do
+        if test -f "$_lib" ; then
+            echo "Using softhsm path $_lib"
+            P11LIB="$_lib"
+            return
+        fi
+    done
+    echo "skipped: Unable to find softhsm PKCS#11 library"
+    exit 0
+}
+
+# Attempt to guess the path to libsofthsm2.so relative to that. This fixes
+# auto-detection on platforms such as macOS with MacPorts (and potentially
+# Homebrew).
+#
+# This should never be empty, since we checked for the presence of
+# softhsm2-util above and use it below.
+
+# Strip bin/softhsm2-util
+softhsm_prefix=$(dirname "$(dirname "$(type -p softhsm2-util)")")
+
+find_softhsm \
+    "$softhsm_prefix/lib64/softhsm/libsofthsm2.so" \
+    "$softhsm_prefix/lib/softhsm/libsofthsm2.so" \
+    "$softhsm_prefix/lib64/pkcs11/libsofthsm2.so" \
+    "$softhsm_prefix/lib/pkcs11/libsofthsm2.so" \
+    /usr/local/lib/softhsm/libsofthsm2.so \
+    /usr/lib64/pkcs11/libsofthsm2.so \
+    /usr/lib/pkcs11/libsofthsm2.so \
+    /usr/lib/x86_64-linux-gnu/softhsm/libsofthsm2.so
+
+export P11LIB
+
+title SECTION "Set up testing system"
+
+# Create SoftHSM configuration file
+cat >"$TMPPDIR/softhsm.conf" <<EOF
+directories.tokendir = $TOKDIR
+objectstore.backend = file
+log.level = DEBUG
+# The hashed ECDSA mechanisms wrongly do not support multi-part operations
+# https://github.com/softhsm/SoftHSMv2/pull/683
+slots.mechanisms = -CKM_ECDSA_SHA1,CKM_ECDSA_SHA224,CKM_ECDSA_SHA256,CKM_ECDSA_SHA384,CKM_ECDSA_SHA512
+EOF
+
+export SOFTHSM2_CONF=$TMPPDIR/softhsm.conf
+
+export TOKENLABEL="SoftHSM Token"
+export TOKENLABELURI="SoftHSM%20Token"
+
+# init
+softhsm2-util --init-token --label "${TOKENLABEL}" --free --pin "${PINVALUE}" --so-pin "${PINVALUE}"
+
+#softhsm crashes on de-init so we need to default to this quirk
+export TOKENOPTIONS="${TOKENOPTIONS}\npkcs11-module-quirks = no-deinit no-operation-state"
+
+export TOKENCONFIGVARS="export SOFTHSM2_CONF=${TMPPDIR}/softhsm.conf"
+
+export TESTPORT="32000"
+
+export SUPPORT_ALLOWED_MECHANISMS=1
+
+# softhsm loops into itself badly on symmetric operation
+export SUPPORT_SYMMETRIC=0
+
+export SUPPORT_ML_DSA=0
+export SUPPORT_ML_KEM=0
+export SUPPORT_SLH_DSA=0
+
+# Montgomery curves are not supported in softhsm
+export SUPPORT_X25519=0
+export SUPPORT_X448=0
+
+# SoftHSM ignores EdDSA mechanism params including context string
+# https://github.com/softhsm/SoftHSMv2/issues/873
+export SUPPORT_EDDSA_PARAMS=0

@@ -1,0 +1,34 @@
+---
+name: Check Style
+
+on:
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    name: Check Style
+    runs-on: ubuntu-22.04
+    container: quay.io/fedora/fedora:latest
+    steps:
+      - name: Install Dependencies
+        run: |
+          dnf -y install gcc meson pkgconf-pkg-config \
+                git openssl-devel clang-tools-extra \
+                python3-pip codespell
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+      - name: Setup
+        if: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git config --global --add safe.directory \
+              /__w/pkcs11-provider/pkcs11-provider
+          git fetch origin main ${{ github.event.pull_request.base.sha }}
+      - name: Generate Makefile
+        run: |
+          meson setup builddir
+      - name: Check the Style
+        run: make check-style || (make check-style-show; exit -1)
+      - name: Check spelling
+        run: codespell --ignore-words-list="sorce,clen,adin" *.md Makefile \
+            meson.build meson_options.txt src tests -S src/pkcs11.h

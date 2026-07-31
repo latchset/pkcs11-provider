@@ -1,0 +1,109 @@
+#!/bin/bash -e
+# Copyright (C) 2026 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+if [[ "${SUPPORT_SLH_DSA}" != "1" ]]; then
+    exit 77;
+fi
+
+title PARA "Export SLH-DSA Public key to a file"
+ossl 'pkey -in $SLHDSAPUBURI -pubin -pubout -out ${TMPPDIR}/slhdsaout.pub'
+
+title LINE "Print SLH-DSA Public key from private"
+ossl 'pkey -in $SLHDSAPRIURI -pubout -text' $helper_emit
+output="$helper_output"
+FAIL=0
+echo "$output" | grep "SLH-DSA-SHA2-128s Public Key" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -eq 1 ]; then
+    echo "Could not extract public key from private"
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
+title PARA "Test CSR generation from private SLH-DSA keys"
+ossl '
+req -new -batch -key "${SLHDSAPRIURI}" -out ${TMPPDIR}/slhdsa_csr.pem'
+ossl '
+req -in ${TMPPDIR}/slhdsa_csr.pem -verify -noout'
+
+title PARA "Create a signed cert"
+ossl '
+x509 -req -in ${TMPPDIR}/slhdsa_csr.pem
+          -extfile ${OPENSSL_CONF}
+          -extensions usr_cert
+          -CA ${CACRT} -CAkey ${CAPRIURI}
+          -out ${TMPPDIR}/slhdsa_signed.crt'
+
+
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$SLHDSAPUBURI" "$SLHDSAPUBURI"
+
+title PARA "Test EVP_PKEY_eq on public SLH-DSA key via import"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$SLHDSAPUBURI" "${TMPPDIR}"/slhdsaout.pub
+title PARA "Match private SLH-DSA key against public key"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$SLHDSAPRIURI" "${TMPPDIR}"/slhdsaout.pub
+title PARA "Match private SLH-DSA key against public key (commutativity)"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/slhdsaout.pub "$SLHDSAPRIURI"
+
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+# We need to configure pkcs11 to allow emitting PEM URIs so that the
+# genpkey command does not fail on trying to emit the private key PEM file.
+sed -e "s/#pkcs11-module-encode-provider-uri-to-pem/pkcs11-module-encode-provider-uri-to-pem = true/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.slhdsa_pem_uri"
+OPENSSL_CONF=${OPENSSL_CONF}.slhdsa_pem_uri
+
+title PARA "Generate keys and test signatures"
+
+# It is too expensive to test all variants, so we just pick one
+title LINE "Generate SLH-DSA-SHAKE-128s key"
+ossl '
+genpkey -propquery "provider=pkcs11"
+        -algorithm SLH-DSA-SHAKE-128s -pkeyopt "pkcs11_uri:pkcs11:object=Test-SLH-DSA-SHA2-192s"
+        -out ${TMPPDIR}/slhdsa-shake-128s-genpkey.pem'
+
+title LINE "Sign random data with SLH-DSA-SHAKE-128s"
+ossl '
+pkeyutl -sign
+        -inkey "pkcs11:type=private;object=Test-SLH-DSA-SHAKE-128s"
+        -in ${RAND64FILE} -rawin
+        -out ${TMPPDIR}/slh-dsa-shake-128s.sig'
+
+title LINE "Verify signature with SLH-DSA-SHAKE-128s"
+ossl '
+pkeyutl -verify
+        -inkey "pkcs11:type=public;object=Test-SLH-DSA-SHAKE-128s" -pubin
+        -in ${RAND64FILE} -rawin
+        -sigfile ${TMPPDIR}/slh-dsa-shake-128s.sig'
+
+title LINE "Sign random data with SLH-DSA-SHAKE-128s using deterministic signature"
+ossl '
+pkeyutl -sign
+        -inkey "pkcs11:type=private;object=Test-SLH-DSA-SHAKE-128s"
+        -in ${RAND64FILE} -rawin
+        -pkeyopt deterministic:1
+        -out ${TMPPDIR}/slh-dsa-shake-128s-det.sig'
+
+title LINE "Verify signature with SLH-DSA-SHAKE-128s"
+ossl '
+pkeyutl -verify
+        -inkey "pkcs11:type=public;object=Test-SLH-DSA-SHAKE-128s" -pubin
+        -in ${RAND64FILE} -rawin
+        -sigfile ${TMPPDIR}/slh-dsa-shake-128s-det.sig'
+
+title PARA "Test Key generation from C API"
+output=$($CHECKER "${TESTBLDDIR}"/tgenkey "SLH-DSA-SHA2-128s" 2>&1 || true)
+FAIL=0
+echo "$output" | grep "Performed tests: 1" || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
+exit 0

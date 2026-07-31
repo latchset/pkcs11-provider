@@ -1,0 +1,183 @@
+#!/bin/bash -e
+# Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+# Forward declaration to avoid shellcheck's SC2153 did you mean ...
+: "${PRIURI:?}" "${ECPRIURI:?}" "${EDPRIURI:=}"
+: "${PUBURI:?}" "${ECPUBURI:?}" "${EDPUBURI:=}"
+
+# We need to configure early loading otherwise no digests are loaded,
+# and all checks are skipped
+sed -e "s/#pkcs11-module-encode-provider-uri-to-pem/pkcs11-module-encode-provider-uri-to-pem = true/" \
+    -e "s/#pkcs11-module-load-behavior/pkcs11-module-load-behavior = early/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.encode_to_pem"
+OPENSSL_CONF=${OPENSSL_CONF}.encode_to_pem
+make-uri-pem() {
+    export LC_ALL=C
+
+    URI=$1
+    OUT=$2
+    DESC="${3:-PKCS#11 Provider URI v1.0}"
+
+    DESC_HEX=$(printf '%s' "${DESC}" | od -An -t x1)
+    URI_HEX=$(printf '%s' "${URI}"   | od -An -t x1)
+    PEM_HEX=$(printf '30 82 %04x 1a 82 %04x %s 0c 82 %04x %s'  \
+                     "$((${#URI} + ${#DESC} + 8))" \
+                     "${#DESC}" \
+                     "${DESC_HEX[*]}" \
+                     "${#URI}" \
+                     "${URI_HEX[*]}" \
+                  | tr -d '\r\n\t ' \
+                  | sed -e 's,\(.\{2\}\),\\x\1,g')
+    {
+        echo "-----BEGIN PKCS#11 PROVIDER URI-----"
+        # shellcheck disable=SC2059 # printf should treat variable as format string
+        printf "${PEM_HEX}" | base64
+        echo "-----END PKCS#11 PROVIDER URI-----"
+    }  > "${OUT}"
+}
+
+sign-verify() {
+    # shellcheck disable=SC2034 # shellcheck can't see it is actually used
+    PRIV_KEY=$1
+    # shellcheck disable=SC2034 # shellcheck can't see it is actually used
+    PUB_KEY=$2
+    # shellcheck disable=SC2034 # shellcheck can't see it is actually used
+    FILE=$3
+    NO_DIGEST=$4
+
+    RANDOM_HEX=$(od -A n -N 15 -t x1 /dev/random)
+    TMP_FILE="${TMPPDIR}/sign-verify-pem-encoder-${RANDOM_HEX// /}.bin"
+
+    if [[ -z "${NO_DIGEST}" ]]; then
+        ossl 'pkeyutl -sign -rawin -digest sha256
+                 -inkey "${PRIV_KEY}"
+                 -in "${FILE}"
+                 -out "${TMP_FILE}"'
+
+        ossl 'pkeyutl -verify -rawin -digest sha256
+                 -inkey "${PUB_KEY}"
+                 -pubin
+                 -in "${FILE}"
+                 -sigfile "${TMP_FILE}"'
+    else
+        ossl 'pkeyutl -sign -rawin
+                 -inkey "${PRIV_KEY}"
+                 -in "${FILE}"
+                 -out "${TMP_FILE}"'
+
+        ossl 'pkeyutl -verify -rawin
+                 -inkey "${PUB_KEY}"
+                 -pubin
+                 -in "${FILE}"
+                 -sigfile "${TMP_FILE}"'
+    fi
+
+    rm "${TMP_FILE}"
+}
+
+RANDOM_HEX=$(od -A n -N 15 -t x1 /dev/random)
+export LABEL_SUFFIX_URI=${RANDOM_HEX// /}
+
+title PARA "Test PEM Encoding RSA support"
+
+make-uri-pem "${PRIURI}" "${TMPPDIR}/priuri-pkey.pem"
+sign-verify "${TMPPDIR}/priuri-pkey.pem" "${PUBURI}" "${TMPPDIR}/64krandom.bin"
+
+export ALGORITHM=rsa
+export ALGORITHM_OPT=rsa_keygen_bits:2048
+ossl '
+genpkey -propquery "provider=pkcs11"
+        -algorithm "${ALGORITHM}" -pkeyopt "${ALGORITHM_OPT}"
+        -pkeyopt "pkcs11_uri:pkcs11:object=Test-PEM-Encode-RSA-${LABEL_SUFFIX_URI}"
+        -out "${TMPPDIR}/rsa-pkey-uri.pem"'
+
+grep -e "-----BEGIN PKCS#11 PROVIDER URI-----" "${TMPPDIR}/rsa-pkey-uri.pem"
+
+sign-verify "${TMPPDIR}/rsa-pkey-uri.pem" \
+            "pkcs11:object=Test-PEM-Encode-RSA-${LABEL_SUFFIX_URI}" \
+            "${TMPPDIR}/64krandom.bin"
+
+title PARA "Test PEM Encoding EC support"
+
+make-uri-pem "${ECPRIURI}" "${TMPPDIR}/ecpriuri-pkey.pem"
+sign-verify "${TMPPDIR}/ecpriuri-pkey.pem" "${ECPUBURI}" "${TMPPDIR}/64krandom.bin"
+
+export ALGORITHM=EC
+export ALGORITHM_OPT=ec_paramgen_curve:prime256v1
+ossl '
+genpkey -propquery "provider=pkcs11"
+        -algorithm "${ALGORITHM}" -pkeyopt "${ALGORITHM_OPT}"
+        -pkeyopt "pkcs11_uri:pkcs11:object=Test-PEM-Encode-EC-${LABEL_SUFFIX_URI}"
+        -out "${TMPPDIR}/ec-pkey-uri.pem"'
+
+grep -e "-----BEGIN PKCS#11 PROVIDER URI-----" "${TMPPDIR}/ec-pkey-uri.pem"
+
+sign-verify "${TMPPDIR}/ec-pkey-uri.pem" \
+            "pkcs11:object=Test-PEM-Encode-EC-${LABEL_SUFFIX_URI}" \
+            "${TMPPDIR}/64krandom.bin"
+
+# Only run ED test if setup created ed key
+if [[ -n "${EDPRIURI}" ]]; then
+    title PARA "Test PEM Encoding ED support"
+
+    make-uri-pem "${EDPRIURI}" "${TMPPDIR}/ed25519priuri-pkey.pem"
+    sign-verify "${TMPPDIR}/ed25519priuri-pkey.pem" "${EDPUBURI}" "${TMPPDIR}/64krandom.bin" "no-digest"
+
+    export ALGORITHM=ED25519
+    ossl '
+    genpkey -propquery "provider=pkcs11"
+            -algorithm "${ALGORITHM}"
+            -pkeyopt "pkcs11_uri:pkcs11:object=Test-PEM-Encode-ED25519-${LABEL_SUFFIX_URI}"
+            -out "${TMPPDIR}/ed25519-pkey-uri.pem"'
+
+    grep -e "-----BEGIN PKCS#11 PROVIDER URI-----" "${TMPPDIR}/ed25519-pkey-uri.pem"
+
+    sign-verify "${TMPPDIR}/ed25519-pkey-uri.pem" \
+                "pkcs11:object=Test-PEM-Encode-ED25519-${LABEL_SUFFIX_URI}" \
+                "${TMPPDIR}/64krandom.bin" "no-digest"
+else
+    title PARA "Skipping Test PEM Encoding ED support"
+fi;
+
+title PARA "Test visible string has to match"
+make-uri-pem "${PRIURI}" "${TMPPDIR}/priuri-wrong-version-key.pem" "PKCS#11 Provider URI v2.0"
+FAIL=0
+ossl 'storeutl "${TMPPDIR}/priuri-wrong-version-key.pem"' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Should fail because visible string does not match"
+    exit 1
+fi
+
+make-uri-pem "${PRIURI}" "${TMPPDIR}/priuri-too-long-key.pem" "PKCS#11 Provider URI v1.0-INVALID"
+FAIL=0
+ossl 'storeutl "${TMPPDIR}/priuri-too-long-key.pem"' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Should fail because visible string does not match"
+    exit 1
+fi
+
+make-uri-pem "${PRIURI}" "${TMPPDIR}/priuri-too-short-key.pem" "PKCS#11 Provider URI v1"
+FAIL=0
+ossl 'storeutl "${TMPPDIR}/priuri-too-short-key.pem"' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Should fail because visible string does not match"
+    exit 1
+fi
+
+
+title PARA "Test public key is usable"
+make-uri-pem "${PUBURI}" "${TMPPDIR}/puburi-key.pem"
+ossl '
+storeutl
+        -out "${TMPPDIR}/storeutl-puburi-key.txt"
+        "${TMPPDIR}/puburi-key.pem"'
+DATA=$(cat "${TMPPDIR}/storeutl-puburi-key.txt")
+if [[ ! ${DATA} =~ "Total found: 1" ]]; then
+    echo "Should return public key"
+    exit 1
+fi
+
+exit 0

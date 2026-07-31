@@ -1,0 +1,94 @@
+---
+name: Kryoptic
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    name: CI with kryoptic token
+    runs-on: ubuntu-22.04
+    container: quay.io/fedora/fedora:rawhide
+    steps:
+      - name: Get Date for DNF cache entry
+        id: get-date
+        run: |
+          echo "date=$(/bin/date -u "+%Y%V")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: DNF cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            /var/cache/libdnf5
+          key: ${{ runner.os }}-dnf-${{ steps.get-date.outputs.date }}
+
+      - name: Install Dependencies
+        run: |
+            dnf -y install clang git meson cargo expect pkgconf-pkg-config \
+              openssl-devel openssl opensc p11-kit-devel \
+              gcc g++ sqlite-devel python3-six which xxd
+
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Get Kryoptic
+        id: kryoptic_setup
+        run: |
+          git clone https://github.com/latchset/kryoptic.git
+          cd kryoptic
+          echo "KRYOPTIC=${PWD}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate lock file
+        run: |
+          cd kryoptic
+          cargo generate-lockfile
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            kryoptic/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('kryoptic/**/Cargo.lock') }}
+
+      - name: Build Kryoptic
+        run: |
+          cd kryoptic
+          cargo build --features dynamic,standard,nssdb,pqc
+          cargo test --features dynamic,standard,nssdb,pqc | tee testout.log 2>&1
+          grep -q "0 failed" testout.log
+
+      - name: Setup
+        run: |
+          git config --global --add safe.directory \
+              /__w/pkcs11-provider/pkcs11-provider
+          git submodule update --init
+          meson setup builddir
+
+      - name: Build
+        run:
+          meson compile -C builddir
+
+      - name: Test
+        env:
+          KRYOPTIC: ${{ steps.kryoptic_setup.outputs.KRYOPTIC }}
+        run:
+          meson test --num-processes 1 -C builddir
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: Test logs kryoptic
+          path: |
+            builddir/meson-logs/
+            builddir/tests/kryoptic*/p11prov-debug.log
+            builddir/tests/kryoptic*/testvars
+            builddir/tests/kryoptic*/openssl.cnf
+            builddir/tests/*.log

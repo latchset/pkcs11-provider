@@ -1,0 +1,48 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: PKCS#11 Provider
+Upstream-Contact: Simo Sorce <simo@redhat.com>
+Source: https://github.com/latchset/pkcs11-provider/
+
+#
+# Build system, data files from tests, and misc cruft
+#
+Files: .github/*
+       .gitignore
+       .gitmodules
+       Makefile
+       meson.build
+       meson_options.txt
+       *.md
+       src/meson.build
+       src/provider.map
+       src/*.gen.c
+       tests/README
+       tests/openssl.cnf.in
+       tests/explicit_ec.*
+       tests/meson.build
+       .clang-format
+       .clang-format-ignore
+       packaging/pkcs11-provider.spec
+       packaging/sbom.cdx.json
+       docs/*
+       tests/lsan.supp
+       tools/openssl*.cnf
+       tests/*.pem
+       tests/cert.json.in
+       tests/cert.json.rsa.in
+       tests/cert.json.rsapss.in
+       tests/cert.json.ecdsa.in
+       tests/cert.json.ed25519.in
+       tests/cert.json.ed448.in
+       scripts/clean-dist.sh
+       scripts/coverage_report.sh
+       .lcovrc
+Copyright: (C) 2022 - 2026 Simo Sorce <simo@redhat.com>
+License: Apache-2.0
+
+#
+# Public Domain PKCS#11 headers
+#
+Files: src/pkcs11.h
+Copyright: 2023 Public Domain
+License: LicenseRef-Public-Domain-PKCS11-Headers

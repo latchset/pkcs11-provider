@@ -1,0 +1,16 @@
+#!/bin/bash -e
+# Copyright (C) 2026 Jakub Jelen <jjelen@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+# Force all operations to happen on the token
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+
+# Run the existing tpkey test with all operations forced on token
+
+$CHECKER "${TESTBLDDIR}/tpkey"
+
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+

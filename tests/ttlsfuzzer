@@ -1,0 +1,163 @@
+#!/bin/bash -e
+# Copyright (C) 2024 Jakub Jelen <jjelen@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+if [[ ! -d "${TESTSSRCDIR}/../tlsfuzzer/tlsfuzzer" ]]; then
+    title "TLS fuzzer is not available -- skipping"
+    exit 77;
+fi
+
+if [[ "${SUPPORT_TLSFUZZER}" = "0" ]]; then
+    title "TLS fuzzer does not work in FIPS Mode"
+    exit 77;
+fi
+
+TMPFILE="${TMPPDIR}/tls-fuzzer.$$.tmp"
+PORT="$TESTPORT"
+PYTHON=$(which python3)
+
+OPENSSL_VERSION=$($OPENSSL version | sed 's/^OpenSSL \([0-9]*\)\.\([0-9]*\).*$/\1 \2/')
+OPENSSL_VERSION_MAJOR=$(echo "$OPENSSL_VERSION" | cut -d ' ' -f 1)
+OPENSSL_VERSION_MINOR=$(echo "$OPENSSL_VERSION" | cut -d ' ' -f 2)
+
+# It is safe to assume that openssl version is at least 3.0
+if [[ $OPENSSL_VERSION_MAJOR -eq 3 ]] && [[ $OPENSSL_VERSION_MINOR -lt 2 ]]; then
+    SIGALGS="ecdsa_secp256r1_sha256 ecdsa_secp384r1_sha384 ecdsa_secp521r1_sha512 ed25519 ed448 rsa_pss_pss_sha256 rsa_pss_pss_sha384 rsa_pss_pss_sha512 rsa_pss_rsae_sha256 rsa_pss_rsae_sha384 rsa_pss_rsae_sha512 rsa_pkcs1_sha256 rsa_pkcs1_sha384 rsa_pkcs1_sha512 ecdsa_sha224 rsa_pkcs1_sha224"
+elif [[ $OPENSSL_VERSION_MAJOR -eq 3 ]] && [[ $OPENSSL_VERSION_MINOR -lt 5 ]]; then
+    # Algorithms with brainpool curves added
+    SIGALGS="ecdsa_secp256r1_sha256 ecdsa_secp384r1_sha384 ecdsa_secp521r1_sha512 ed25519 ed448 8+26 8+27 8+28 rsa_pss_pss_sha256 rsa_pss_pss_sha384 rsa_pss_pss_sha512 rsa_pss_rsae_sha256 rsa_pss_rsae_sha384 rsa_pss_rsae_sha512 rsa_pkcs1_sha256 rsa_pkcs1_sha384 rsa_pkcs1_sha512 ecdsa_sha224 rsa_pkcs1_sha224"
+else
+    # PQC algorithms added
+    SIGALGS="9+5 9+6 9+4 ecdsa_secp256r1_sha256 ecdsa_secp384r1_sha384 ecdsa_secp521r1_sha512 ed25519 ed448 8+26 8+27 8+28 rsa_pss_pss_sha256 rsa_pss_pss_sha384 rsa_pss_pss_sha512 rsa_pss_rsae_sha256 rsa_pss_rsae_sha384 rsa_pss_rsae_sha512 rsa_pkcs1_sha256 rsa_pkcs1_sha384 rsa_pkcs1_sha512"
+fi
+
+if [[ $OPENSSL_VERSION_MAJOR -eq 4 ]]; then
+    KNOWN_FAIL_SIGALG_TESTS=", \"-x\", \"duplicated 206 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"duplicated 2346 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"duplicated 8123 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"duplicated 23745 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"duplicated 32748 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance 215 RSA or ECDSA methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance 2355 RSA or ECDSA methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance 8132 RSA or ECDSA methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance 23754 RSA or ECDSA methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance 32758 RSA or ECDSA methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance 32758 methods with sig_alg_cert\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance max 32748 number of methods with sig_alg_cert\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_SIGALG_TESTS+="\"-x\", \"tolerance max (32760) number of methods\", \"-X\", \"handshake_failure\""
+
+    KNOWN_FAIL_TLS13_SIGALG_TESTS=", \"-x\", \"213 invalid schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"2353 invalid schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"8130 invalid schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"23752 invalid schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"32715 invalid schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"duplicated 213 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"duplicated 2353 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"duplicated 8130 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"duplicated 23752 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"duplicated 32715 non-rsa schemes\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"tolerance 213 methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"tolerance 2353 methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"tolerance 8130 methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"tolerance 23752 methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"tolerance 32715 methods\", \"-X\", \"handshake_failure\", "
+    KNOWN_FAIL_TLS13_SIGALG_TESTS+="\"-x\", \"tolerance 32715 methods with sig_alg_cert\", \"-X\", \"handshake_failure\""
+else
+    KNOWN_FAIL_SIGALG_TESTS=""
+    KNOWN_FAIL_TLS13_SIGALG_TESTS=""
+fi
+
+prepare_test() {
+    TEMPLATE="$1"
+    KEY="$2"
+    CERT="$3"
+    # Prepare the tlsfuzzer configuration
+    sed -e "s|@PRIURI@|$KEY|g" -e "s|@CRTURI@|$CERT|g" \
+        -e "s/@PORT@/$PORT/g" \
+        -e "s/@PROPQ@/$PROPQ/g" \
+        -e "s|@OPENSSL@|$OPENSSL|g" \
+        -e "s|@KNOWN_FAIL_SIGALG_TESTS@|$KNOWN_FAIL_SIGALG_TESTS|g" \
+        -e "s|@KNOWN_FAIL_TLS13_SIGALG_TESTS@|$KNOWN_FAIL_TLS13_SIGALG_TESTS|g" \
+        -e "s/@SIGALGS@/$SIGALGS/g" "${TESTSSRCDIR}/${TEMPLATE}" >>"${TMPFILE}"
+}
+
+run_test() {
+    # Run openssl under checker program if needed
+    if [[ -n "$CHECKER" ]]; then
+        IFS=" " read -r -a ARR <<< "$CHECKER"
+        sed -e "s|@CHECKER@|$(printf "\"%s\", " "${ARR[@]}")|g" "${sed_inplace[@]}" "${TMPFILE}"
+    else
+        sed -e "s|@CHECKER@||g" "${sed_inplace[@]}" "${TMPFILE}"
+    fi
+
+    pushd "${TESTSSRCDIR}/../tlsfuzzer"
+    test -L ecdsa || ln -s ../python-ecdsa/src/ecdsa ecdsa
+    test -L tlslite || ln -s ../tlslite-ng/tlslite tlslite 2>/dev/null
+    PYTHONPATH=. "${PYTHON}" tests/scripts_retention.py "${TMPFILE}" "${OPENSSL}" 821
+    popd
+}
+
+run_tests() {
+    # truncate
+    true > "${TMPFILE}"
+
+    title PARA "Prepare CertificateVerify test with RSA"
+    prepare_test cert.json.in "$PRIURI" "$CRTURI"
+
+    title PARA "Prepare test for RSA"
+    prepare_test cert.json.rsa.in "$PRIURI" "$CRTURI"
+
+    if [[ -n "$RSAPSSBASEURI" ]]; then
+        title PARA "Prepare test for RSA-PSS"
+        prepare_test cert.json.rsapss.in  "$RSAPSSPRIURI" "$RSAPSSCRTURI"
+    fi
+
+    title PARA "Prepare test for ECDSA"
+    # Note, that tlsfuzzer expects the homogeneous CA and server keys
+    # so we are using here the self-signed peer EC Key, instead of
+    # the default ECC key
+    prepare_test cert.json.ecdsa.in "$ECPEERPRIURI" "$ECPEERCRTURI"
+
+    if [[ -n "$EDBASEURI" ]]; then
+        title PARA "Prepare test for Ed25519"
+        prepare_test cert.json.ed25519.in "$EDPRIURI" "$EDCRTURI"
+    fi
+
+    if [[ -n "$ED2BASEURI" ]]; then
+        title PARA "Prepare test for Ed448"
+        prepare_test cert.json.ed448.in "$ED2PRIURI" "$ED2CRTURI"
+    fi
+
+    # the missing closing brace
+    echo "]" >> "${TMPFILE}"
+
+    run_test
+}
+
+title SECTION "Run TLS fuzzer with server key on provider"
+run_tests
+title ENDSECTION
+
+title SECTION "Run TLS fuzzer forcing the provider for all server operations"
+# We can not put this into the openssl.cnf directly, as it would be picked up by softhsm
+# causing infinite recursion when doing EdDSA key operations.
+PROPQ="\"-propquery\", \"?provider=pkcs11\", "
+# We need to disable digest operations as OpenSSL depends on context duplication working
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+BLOCKED_OPERATIONS="digest"
+if [[ "${SUPPORT_SYMMETRIC}" = "0" ]]; then
+    # For tokens that do not support symmetric key operations, disable these too
+    BLOCKED_OPERATIONS="${BLOCKED_OPERATIONS} cipher skeymgmt"
+fi
+sed -e "s/^#pkcs11-module-block-operations/pkcs11-module-block-operations = ${BLOCKED_OPERATIONS}/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.blockops"
+export OPENSSL_CONF=${OPENSSL_CONF}.blockops
+
+run_tests
+
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+title ENDSECTION
+
+exit 0

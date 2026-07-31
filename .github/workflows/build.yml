@@ -1,0 +1,485 @@
+---
+name: Build
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    name: CI
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on: [ubuntu-24.04, ubuntu-24.04-arm]
+        name: [fedora, debian, centos9, centos10, ubuntu, almalinux8]
+        compiler: [gcc, clang]
+        token: [softokn, softhsm, kryoptic]
+        include:
+          - name: fedora
+            container: quay.io/fedora/fedora:rawhide
+          - name: debian
+            container: quay.io/opendevmirror/debian:trixie
+          - name: centos9
+            container: quay.io/centos/centos:stream9
+          - name: centos10
+            container: quay.io/centos/centos:stream10
+          - name: ubuntu
+            container: quay.io/opendevmirror/ubuntu:24.04
+          - name: almalinux8
+            container: quay.io/almalinuxorg/almalinux:8
+        exclude:
+          # Testing EL8 on a single compler (gcc) is sufficient.
+          - name: almalinux8
+            compiler: clang
+          # For whatever reason tests fail on EL8 with SoftHSM2.
+          - name: almalinux8
+            token: softhsm
+          - name: debian
+            token: kryoptic
+          - name: centos9
+            token: kryoptic
+          - name: centos10
+            token: kryoptic
+          - name: ubuntu
+            token: kryoptic
+          - name: almalinux8
+            token: kryoptic
+          # Test on ARM only some use cases
+          - runs-on: ubuntu-24.04-arm
+            name: debian
+          - runs-on: ubuntu-24.04-arm
+            name: centos9
+          - runs-on: ubuntu-24.04-arm
+            name: centos10
+          - runs-on: ubuntu-24.04-arm
+            name: ubuntu
+          - runs-on: ubuntu-24.04-arm
+            name: almalinux8
+    container: ${{ matrix.container }}
+    steps:
+      - name: Install Dependencies
+        run: |
+            if [ "${{ matrix.name }}" = "centos9" -o "${{ matrix.name }}" = "centos10" ]; then
+              dnf_opts="--enablerepo=crb"
+              dnf -y install epel-release
+            fi
+            if [ -f /etc/redhat-release ]; then
+              if [ "${{ matrix.name }}" = "almalinux8" ]; then
+                dnf -y install epel-release
+                dnf -y install openssl3-devel openssl3
+                dnf_opts="--enablerepo=powertools"
+              else
+                dnf -y install openssl-devel openssl
+              fi
+              dnf -y install $dnf_opts \
+                git ${{ matrix.compiler }} meson which pkgconf-pkg-config \
+                diffutils expect valgrind opensc python3-six lcov vim-common
+              if [ "${{ matrix.compiler }}" == "clang" ]; then
+                dnf -y install llvm
+              fi
+              if [ "${{ matrix.token }}" = "softokn" ]; then
+                dnf -y install nss-softokn nss-tools nss-softokn-devel \
+                  nss-devel
+              elif [ "${{ matrix.token }}" = "softhsm" ]; then
+                dnf -y install softhsm p11-kit-devel
+              elif [ "${{ matrix.token }}" = "kryoptic" ]; then
+                dnf -y install kryoptic
+              fi
+            elif [ -f /etc/debian_version ]; then
+              apt-get -q update
+              apt-get -yq install git ${{ matrix.compiler }} meson \
+                pkg-config libssl-dev openssl expect \
+                valgrind procps opensc python3-six lcov xxd
+              if [ "${{ matrix.compiler }}" == "clang" ]; then
+                apt-get -yq install install llvm
+              fi
+              if [ "${{ matrix.token }}" = "softokn" ]; then
+                apt-get -yq install libnss3 libnss3-tools libnss3-dev
+              elif [ "${{ matrix.token }}" = "softhsm" ]; then
+                apt-get -yq install softhsm2 p11-kit libp11-kit-dev \
+                  p11-kit-modules
+              fi
+            fi
+
+      - name: Check Cases to skip
+        id: skip-check
+        run: |
+          if [ "${{ matrix.name }}" = "centos9" -o "${{ matrix.name }}" = "centos10" ]; then
+            if [ "${{ matrix.token }}" = "softokn" ]; then
+              NSSMINVER=`nss-config --version nss | cut -d '.' -f 2`
+              if [ $NSSMINVER -lt 101 ]; then
+                echo "skiptest=true" >> $GITHUB_OUTPUT
+              fi
+            fi
+          elif [ "${{ matrix.name }}" = "ubuntu" -a "${{ matrix.compiler }}" ]; then
+            # The Meson in Ubuntu 24 has a bug that it can not correctly detect
+            # the clangs, gcovr and crashes. Skip it for now.
+            echo "skipcoverage=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout Repository
+        if : ( steps.skip-check.outputs.skiptest != 'true' )
+        uses: actions/checkout@v6
+
+      - name: Setup
+        id: setup
+        if : ( steps.skip-check.outputs.skiptest != 'true' )
+        run: |
+          if [ "${{ matrix.runs-on }}" = "ubuntu-24.04-arm" ]; then
+              echo "cpu=ARM64" >> $GITHUB_OUTPUT
+          else
+              echo "cpu=X86_64" >> $GITHUB_OUTPUT
+          fi
+          git config --global --add safe.directory \
+              /__w/pkcs11-provider/pkcs11-provider
+          git submodule update --init
+
+          MESON_OPTS="-Db_coverage=true"
+          if [ ! -f /etc/redhat-release ]; then
+            MESON_OPTS="$MESON_OPTS -Denable_explicit_EC_test=true"
+          fi
+          CC=${{ matrix.compiler }} meson setup builddir $MESON_OPTS
+
+      - name: Build and Test
+        if : ( steps.skip-check.outputs.skiptest != 'true' )
+        shell: bash
+        run: |
+          meson_tests=()
+          if [ "${{ matrix.name }}" = "debian" ] && [ "${{ matrix.token }}" = "softhsm" ]; then
+            # TLS tests are currently broken on debian+softhsm so we have to
+            # provide an explict list of test excluding tls.
+            while IFS= read -r line; do
+              meson_tests+=("$line")
+            done < <(meson test -C builddir --suite ${{ matrix.token }} --list |cut -d " " -f 3 | grep -v -E 'tls')
+          fi
+          if [ "${{ matrix.name }}" = "ubuntu" ] && [ "${{ matrix.token }}" = "softhsm" ]; then
+            # pem_encoder tests are currently broken on ubuntu+softhsm due to some unrelated
+            # RNG engine issue so we have to provide an explict list of test excluding pem_encoder.
+            while IFS= read -r line; do
+              meson_tests+=("$line")
+            done < <(meson test -C builddir --suite ${{ matrix.token }} --list |cut -d " " -f 3 | grep -v -E 'pem_encoder')
+          fi
+          meson compile -C builddir
+          meson test --num-processes 1 -C builddir --suite ${{ matrix.token }} "${meson_tests[@]}"
+
+      - name: Collect coverage data
+        if : ( steps.skip-check.outputs.skiptest != 'true' && steps.skip-check.outputs.skipcoverage != 'true' )
+        shell: bash
+        run: |
+          ninja -C builddir coverage
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: Test logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }} - ${{ steps.setup.outputs.cpu }}
+          path: |
+            builddir/meson-logs/
+            builddir/tests/*.log
+            builddir/tests/${{ matrix.token }}
+
+      - name: Upload Coverage Data
+        uses: actions/upload-artifact@v7
+        if : ( steps.skip-check.outputs.skiptest != 'true' && steps.skip-check.outputs.skipcoverage != 'true' )
+        with:
+          retention-days: 1
+          name: coverage-${{ matrix.name }}-${{ matrix.compiler }}-${{ matrix.token }}-${{ steps.setup.outputs.cpu }}
+          path: builddir/meson-logs/coverage.info
+
+      - name: Run tests with valgrind
+        if : ( steps.skip-check.outputs.skiptest != 'true' && matrix.compiler == 'gcc' )
+        shell: bash
+        run: |
+          meson_tests=()
+          if [ "${{ matrix.name }}" = "debian" ] && [ "${{ matrix.token }}" = "softhsm" ]; then
+            # TLS tests are currently broken on debian+softhsm so we have to
+            # provide an explict list of test excluding tls.
+            while IFS= read -r line; do
+              meson_tests+=("$line")
+            done < <(meson test -C builddir --suite ${{ matrix.token }} --list |cut -d " " -f 3 | grep -v -E 'tls')
+          fi
+          if [ "${{ matrix.name }}" = "ubuntu" ] && [ "${{ matrix.token }}" = "softhsm" ]; then
+            # pem_encoder tests are currently broken on ubuntu+softhsm due to some unrelated
+            # RNG engine issue so we have to provide an explict list of test excluding pem_encoder.
+            while IFS= read -r line; do
+              meson_tests+=("$line")
+            done < <(meson test -C builddir --suite ${{ matrix.token }} --list |cut -d " " -f 3 | grep -v -E 'pem_encoder')
+          fi
+          meson test --num-processes 1 -C builddir --setup=valgrind --suite ${{ matrix.token }} "${meson_tests[@]}"
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: Test valgrind logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }} - ${{ steps.setup.cpu }}
+          path: |
+            builddir/meson-logs/
+            builddir/tests/*.log
+            builddir/tests/${{ matrix.token }}/p11prov-debug.log
+
+      #- name: Run tests in FIPS Mode (on CentOS + gcc only)
+      #  if : ( steps.skip-check.outputs.skiptest != 'true' )
+      #  run: |
+      #      if [ "${{ matrix.compiler }}" = "gcc" -a \( "${{ matrix.name }}" = "centos9" -o "${{ matrix.name }}" = "centos10" \) ]; then
+      #        PKCS11_PROVIDER_FORCE_FIPS_MODE=1 \
+      #        meson test --num-processes 1 -C builddir
+      #      fi
+
+      #- uses: actions/upload-artifact@v7
+      #  if: failure()
+      #  with:
+      #    name: Test FIPS Mode logs ${{ matrix.name }}, ${{ matrix.compiler }}, ${{ matrix.token }}
+      #    path: |
+      #      builddir/meson-logs/
+      #      builddir/tests/${{ matrix.token }}/p11prov-debug.log
+      #      builddir/tests/${{ matrix.token }}/testvars
+      #      builddir/tests/${{ matrix.token }}/openssl.cnf
+
+
+  build-macos:
+    name: CI
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14]
+        token: [softokn]
+        #, softhsm]
+    steps:
+      - name: Install Dependencies
+        run: |
+          brew update
+          brew install \
+            meson \
+            openssl@3 \
+            opensc \
+            p11-kit \
+            coreutils \
+            gcovr \
+            lcov
+          if [ "${{ matrix.token }}" = "softokn" ]; then
+            brew install nss
+          elif [ "${{ matrix.token }}" = "softhsm" ]; then
+            brew install softhsm
+          fi
+
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Setup
+        run: |
+          git config --global --add safe.directory \
+              /__w/pkcs11-provider/pkcs11-provider
+          git submodule update --init
+          export PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig
+          export PATH=$(brew --prefix openssl@3)/bin:$PATH
+
+          CC=clang meson setup builddir -Db_coverage=true
+
+      - name: Build and Test
+        run: |
+          export PATH=$(brew --prefix openssl@3)/bin:$PATH
+
+          # Temporarily disable tlsfuzzer tests
+          rm -rf tlsfuzzer
+
+          meson compile -j$(sysctl -n hw.ncpu || echo 2) -C builddir
+          meson test --num-processes 1 -C builddir
+          ninja -C builddir coverage
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: Test logs on macOS-14 with ${{ matrix.token }}
+          path: |
+            builddir/meson-logs/*
+            builddir/tests/*.log
+            builddir/tests/${{ matrix.token }}
+
+      - name: Upload Coverage Data
+        uses: actions/upload-artifact@v7
+        if: always() # Uploads even if some tests failed!
+        with:
+          retention-days: 1
+          name: coverage-${{ matrix.os }}-${{ matrix.token }}
+          path: builddir/meson-logs/coverage.info
+
+  setup-openssl:
+    name: Build OpenSSL from master branch
+    runs-on: ubuntu-22.04
+    container: quay.io/fedora/fedora:rawhide
+    steps:
+      - name: Get Date for DNF cache entry
+        id: get-date-dnf
+        run: |
+          echo "date=$(/bin/date -u "+%Y%V")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: DNF cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            /var/cache/libdnf5
+          key: ${{ runner.os }}-dnf-openssl-${{ steps.get-date-dnf.outputs.date }}
+
+      - name: Install Dependencies
+        run: |
+            dnf -y install perl-FindBin perl-IPC-Cmd perl-File-Compare \
+              perl-File-Copy perl-Pod-Html perl-Time-Piece git clang
+
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Get Date for /opt cache entry
+        id: get-date-opt
+        run: |
+          echo "date=$(/bin/date -u "+%Y%m%d")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: /opt cache
+        id: cache-opt
+        uses: actions/cache@v5
+        with:
+          path: /opt
+          key: ${{ runner.os }}-opt-${{ steps.get-date-opt.outputs.date }}
+
+      - name: Get OpenSSL
+        if: steps.cache-opt.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/openssl/openssl.git
+
+      - name: Config, build and install OpenSSL
+        if: steps.cache-opt.outputs.cache-hit != 'true'
+        run: |
+          cd openssl
+          ./config --prefix=/opt && make && make install_sw
+
+  build-openssl-master:
+    name: Build and test pkcs11-provider against OpenSSL master
+    env:
+      OPENSSL_WITH_27483_FIX: 1
+    needs: setup-openssl
+    runs-on: ubuntu-22.04
+    container: quay.io/fedora/fedora:rawhide
+    steps:
+      - name: Get Date for DNF cache entry
+        id: get-date-dnf
+        run: |
+          echo "date=$(/bin/date -u "+%Y%V")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: DNF cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            /var/cache/libdnf5
+          key: ${{ runner.os }}-dnf-openssl-${{ steps.get-date-dnf.outputs.date }}
+
+      - name: Install Dependencies
+        run: |
+            dnf -y install clang meson cargo expect pkgconf-pkg-config opensc \
+              p11-kit-devel gcc g++ sqlite-devel python3-six which cmake \
+              nss-softokn nss-tools nss-softokn-devel nss-devel softhsm \
+              kryoptic gcovr lcov xxd
+
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Get Date for /opt cache entry
+        id: get-date-opt
+        run: |
+          echo "date=$(/bin/date -u "+%Y%m%d")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Fetch built openssl from cache
+        id: cache-opt
+        uses: actions/cache@v5
+        with:
+          path: /opt
+          key: ${{ runner.os }}-opt-${{ steps.get-date-opt.outputs.date }}
+          fail-on-cache-miss: true
+
+      - name: Setup and build pkcs11-provider
+        run: |
+          export LD_LIBRARY_PATH="/opt/lib64/:$LD_LIBRARY_PATH"
+          export PATH="/opt/bin:$PATH"
+          export PKG_CONFIG_PATH="/opt/lib64/pkgconfig"
+          meson setup builddir -Db_coverage=true
+          meson compile -C builddir
+
+      - name: Test
+        run: |
+          export LD_LIBRARY_PATH="/opt/lib64/:$LD_LIBRARY_PATH"
+          export PATH="/opt/bin:$PATH"
+          # FIXME: Temporarily disable Montgomery curves in groups until we
+          # we find out the underlying failure or kryoptic is built with a
+          # newer version that does not fail
+          meson test --num-processes 1 -C builddir
+          ninja -C builddir coverage
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: Test logs
+          path: |
+            builddir/meson-logs/
+            builddir/tests/*.log
+
+      - name: Upload Coverage Data
+        uses: actions/upload-artifact@v7
+        if: always() # Uploads even if some tests failed!
+        with:
+          retention-days: 1
+          name: coverage-openssl-master
+          path: builddir/meson-logs/coverage.info
+
+  aggregate-coverage:
+    name: Aggregate Coverage
+    needs: [build, build-macos, build-openssl-master]
+    if: success() || failure()
+    runs-on: ubuntu-24.04
+    container: quay.io/opendevmirror/debian:trixie # needed for latest lcov
+    steps:
+      - name: Install Dependencies
+        run: |
+          apt-get -q update
+          apt-get -yq install git lcov gawk
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Download all coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          path: coverage-data/
+
+      - name: Setup
+        run: |
+          git config --global --add safe.directory \
+              /__w/pkcs11-provider/pkcs11-provider
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+              git fetch origin ${{ github.base_ref }} --depth=1
+          fi
+
+      - name: Merge coverage reports
+        run: |
+          # Find all downloaded .info files and build the merge arguments
+          LCOV_ARGS=$(find coverage-data -name "*.info" -printf "-a %p ")
+          LCOV_ARGS="--ignore-errors inconsistent,corrupt,unsupported $LCOV_ARGS"
+          # Merging traces from MacOS has different paths so standardize them
+          LCOV_ARGS="--rc "substitute=s#^.*/pkcs11-provider/pkcs11-provider/##" $LCOV_ARGS"
+
+          # Run lcov to combine them all into one master file
+          lcov $LCOV_ARGS -o merged_coverage.info
+
+      - name: Annotate Uncovered Lines in PR
+        if: ${{ github.event.pull_request.base.sha }}
+        run: |
+          ./scripts/coverage_report.sh merged_coverage.info

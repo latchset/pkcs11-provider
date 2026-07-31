@@ -1,0 +1,59 @@
+#!/bin/bash -e
+# Copyright (C) 2023 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+PROPQUERY="-propquery provider=pkcs11"
+if [[  "$TOKENTYPE" = "softhsm" ]]; then
+    # softhsm breaks if we force all operations on the token...
+    PROPQUERY=""
+fi
+export PROPQUERY
+
+title PARA "Check that storeutl returns URIs"
+ossl 'storeutl -text ${PROPQUERY} pkcs11:' "$helper_emit"
+output="$helper_output"
+FAIL=0
+echo "$output" | grep "URI pkcs11:" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo "no URIs returned by storeutl"
+    exit 1
+fi
+echo "$output"
+
+URISonly=$(echo "$helper_output" | grep "^URI pkcs11:")
+# poor mans mapfile for bash 3 on macos
+declare -a URIS
+while read -r var; do
+    URIS+=("$var")
+done <<< "${URISonly//URI /}"
+
+title PARA "Check returned URIs work to find objects"
+for uri in "${URIS[@]}"; do
+    echo "\$uri=${uri}"
+    ossl 'storeutl -text ${PROPQUERY} "$uri"' "$helper_emit"
+    output="$helper_output"
+    matchURI=$(echo "$output" | grep "URI pkcs11:" | cut -d ' ' -f 2)
+    if [[ "${uri}" != "${matchURI}" ]]; then
+        echo "Unmatched URI returned by storeutl"
+        echo "Expected $uri"
+        echo "Received $matchURI"
+        exit 1
+    fi
+done
+
+firstURI=${URIS[0]#URI pkcs11:}
+IFS=";" read -r -a firstCMPS <<< "$firstURI"
+
+title PARA "Check each URI component is tested"
+
+for cmp in "${firstCMPS[@]}"; do
+    echo "\$cmp=${cmp}"
+    ossl 'storeutl -text "pkcs11:${cmp}"' "$helper_emit"
+    output="$helper_output"
+    echo "$output" | grep "URI pkcs11:" > /dev/null 2>&1 || FAIL=1
+    if [ $FAIL -ne 0 ]; then
+        echo "Failed to get an object with URI \"pkcs11:${cmp}\""
+    fi
+done

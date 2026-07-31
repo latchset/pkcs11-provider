@@ -1,0 +1,153 @@
+#!/bin/bash -e
+# Copyright (C) 2025 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+title PARA "Raw Sign"
+#Ensure the first byte is small otherwise there is a 50/50 change the random
+#value will exceed the numeric value of the modulus.
+dd if=/dev/zero of="${TMPPDIR}/255Brandom.bin" bs=1 count=1 >/dev/null 2>&1
+dd if=/dev/urandom of="${TMPPDIR}/255Brandom.bin" seek=1 bs=1 count=255 >/dev/null 2>&1
+ossl '
+rsautl -sign -inkey "${PRIURI}" -raw
+              -in ${TMPPDIR}/255Brandom.bin
+              -out ${TMPPDIR}/raw-sig.bin'
+
+title PARA "Raw Verify"
+ossl '
+rsautl -verify -inkey "${PUBURI}" -pubin -raw
+              -in ${TMPPDIR}/raw-sig.bin
+              -out ${TMPPDIR}/raw-text.out'
+diff "${TMPPDIR}/255Brandom.bin" "${TMPPDIR}/raw-text.out"
+
+
+title PARA "Raw Sign check error"
+dd if=/dev/urandom of="${TMPPDIR}/64Brandom.bin" bs=64 count=1 >/dev/null 2>&1
+FAIL=0
+ossl '
+pkeyutl -sign -inkey "${BASEURI}"
+              -pkeyopt pad-mode:none
+              -in ${TMPPDIR}/64Brandom.bin
+              -out ${TMPPDIR}/no-raw-sig.bin' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Raw signature should not allow data != modulus size"
+    exit 1
+fi
+# unfortunately pkeyutl simply does not make it possible to sign anything
+# that is bigger than a hash, which means we'd need a very small RSA key
+# to really check a raw signature through pkeyutl
+
+title PARA "Sign and Verify with provided Hash and RSA"
+ossl 'dgst -sha256 -binary -out ${TMPPDIR}/sha256.bin ${SEEDFILE}'
+ossl '
+pkeyutl -sign -inkey "${PRIURI}"
+              -in ${TMPPDIR}/sha256.bin
+              -out ${TMPPDIR}/sha256-sig.bin'
+
+ossl '
+pkeyutl -verify -inkey "${PUBURI}"
+                -pubin
+                -in ${TMPPDIR}/sha256.bin
+                -sigfile ${TMPPDIR}/sha256-sig.bin'
+
+title PARA "Sign and Verify with provided Hash and RSA with DigestInfo struct"
+ossl '
+pkeyutl -sign -inkey "${PRIURI}" -pkeyopt digest:sha256
+              -in ${TMPPDIR}/sha256.bin
+              -out ${TMPPDIR}/sha256-sig.bin'
+
+ossl '
+pkeyutl -verify -inkey "${PUBURI}" -pkeyopt digest:sha256
+                -pubin
+                -in ${TMPPDIR}/sha256.bin
+                -sigfile ${TMPPDIR}/sha256-sig.bin'
+
+title PARA "DigestSign and DigestVerify with RSA"
+ossl '
+pkeyutl -sign -inkey "${BASEURI}"
+              -digest sha256
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha256-dgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${BASEURI}" -pubin
+                -digest sha256
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${PUBURI}"
+                -pubin
+                -digest sha256
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
+
+if [[ "$SUPPORT_RSA_PKCS1_ENCRYPTION" = "1" ]]; then
+    SECRETFILE=${TMPPDIR}/rsasecret.txt
+    echo "Super Secret" > "${SECRETFILE}"
+
+    title LINE "RSA basic encrypt and decrypt"
+    ossl '
+    pkeyutl -encrypt -inkey "${PUBURI}" -pubin
+                     -in ${SECRETFILE}
+                     -out ${SECRETFILE}.enc'
+    ossl '
+    pkeyutl -decrypt -inkey "${PRIURI}"
+                     -in ${SECRETFILE}.enc
+                     -out ${SECRETFILE}.dec'
+    diff "${SECRETFILE}" "${SECRETFILE}.dec"
+
+    # Do the same while forcing the encryption to be done on the token
+    ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+    OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+
+    title LINE "RSA basic encrypt and decrypt, forcing encryption on token"
+    ossl '
+    pkeyutl -encrypt -inkey "${PUBURI}" -pubin
+                     -in ${SECRETFILE}
+                     -out ${SECRETFILE}.enc'
+    ossl '
+    pkeyutl -decrypt -inkey "${PRIURI}"
+                     -in ${SECRETFILE}.enc
+                     -out ${SECRETFILE}.dec'
+    diff "${SECRETFILE}" "${SECRETFILE}.dec"
+
+    OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+fi
+
+# Test RSA fallback code to emulate digest-sign via Raw RSA
+if [[  "$TOKENTYPE" = "kryoptic" ]]; then
+    title PARA "Fallback DigestVerify  and DigestSign with RSA forced on token"
+    ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+    OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+
+    ORIG_KRYOPTIC_CONF=${KRYOPTIC_CONF}
+    sed "s/#mechanisms*/mechanisms = [\"DENY\", \"CKM_SHA256_RSA_PKCS\"]/" "${KRYOPTIC_CONF}" > "${KRYOPTIC_CONF}.no_rsa_sha256"
+    KRYOPTIC_CONF=${KRYOPTIC_CONF}.no_rsa_sha256
+
+    ossl 'pkeyutl -verify -inkey "${PUBURI}"
+             -pubin
+             -digest sha256
+             -in ${RAND64FILE}
+             -rawin
+             -sigfile ${TMPPDIR}/sha256-dgstsig.bin'
+
+    ossl 'pkeyutl -sign -inkey "${BASEURI}"
+             -digest sha256
+             -in ${RAND64FILE}
+             -rawin
+             -out ${TMPPDIR}/sha256-fbcksig.bin'
+    KRYOPTIC_CONF=${ORIG_KRYOPTIC_CONF}
+    OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
+    title LINE "Check the Generated Fallback Signature"
+    ossl 'pkeyutl -verify -inkey "${PUBURI}"
+             -pubin
+             -digest sha256
+             -in ${RAND64FILE}
+             -rawin
+             -sigfile ${TMPPDIR}/sha256-fbcksig.bin'
+
+fi

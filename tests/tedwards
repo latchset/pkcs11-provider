@@ -1,0 +1,271 @@
+#!/bin/bash -e
+# Copyright (C) 2023 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+if [[ "${SUPPORT_ED25519}" = "0" ]]; then
+    exit 77;
+fi
+
+title PARA "Export ED25519 Public key to a file"
+ossl 'pkey -in $EDPUBURI -pubin -pubout -out ${TMPPDIR}/edout.pub'
+
+title LINE "Print ED25519 Public key from private"
+ossl 'pkey -in $EDPRIURI -pubout -text' $helper_emit
+output="$helper_output"
+FAIL=0
+echo "$output" | grep "ED25519 Public Key" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -eq 1 ]; then
+    echo "Could not extract public key from private"
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
+title PARA "DigestSign and DigestVerify with ED25519"
+ossl '
+pkeyutl -sign -inkey "${EDBASEURI}"
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha256-eddgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${EDBASEURI}" -pubin
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha256-eddgstsig.bin'
+
+if [[ "${SUPPORT_EDDSA_PARAMS}" = "1" ]]; then
+    title PARA "DigestSign and DigestVerify with ED25519 and context string"
+    ossl '
+    pkeyutl -sign -inkey "${EDBASEURI}"
+                  -in ${RAND64FILE}
+                  -rawin
+                  -pkeyopt instance:Ed25519ctx
+                  -pkeyopt context-string:pkcs11-provider-context
+                  -out ${TMPPDIR}/sha256-eddgstsig-ctx.bin'
+    ossl '
+    pkeyutl -verify -inkey "${EDBASEURI}" -pubin
+                    -in ${RAND64FILE}
+                    -rawin
+                    -pkeyopt instance:Ed25519ctx
+                    -pkeyopt context-string:pkcs11-provider-context
+                    -sigfile ${TMPPDIR}/sha256-eddgstsig-ctx.bin'
+
+    title PARA "DigestSign and DigestVerify with PureED25519"
+    ossl '
+    pkeyutl -sign -inkey "${EDBASEURI}"
+                  -in ${RAND64FILE}
+                  -rawin
+                  -pkeyopt instance:Ed25519
+                  -out ${TMPPDIR}/eddgstsig.bin'
+    ossl '
+    pkeyutl -verify -inkey "${EDBASEURI}" -pubin
+                    -in ${RAND64FILE}
+                    -rawin
+                    -pkeyopt instance:Ed25519
+                    -sigfile ${TMPPDIR}/eddgstsig.bin'
+
+    # Verify signatures on the token. Even the simple case is broken on SoftHSM
+    ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+    OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+
+    ossl '
+    pkeyutl -verify -inkey "${EDBASEURI}" -pubin
+                    -in ${RAND64FILE}
+                    -rawin
+                    -sigfile ${TMPPDIR}/sha256-eddgstsig.bin'
+    ossl '
+    pkeyutl -verify -inkey "${EDBASEURI}" -pubin
+                    -in ${RAND64FILE}
+                    -rawin
+                    -pkeyopt instance:Ed25519ctx
+                    -pkeyopt context-string:pkcs11-provider-context
+                    -sigfile ${TMPPDIR}/sha256-eddgstsig-ctx.bin'
+    ossl '
+    pkeyutl -verify -inkey "${EDBASEURI}" -pubin
+                    -in ${RAND64FILE}
+                    -rawin
+                    -pkeyopt instance:Ed25519
+                    -sigfile ${TMPPDIR}/eddgstsig.bin'
+
+    OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+fi
+
+title PARA "Test CSR generation from private ED25519 keys"
+ossl '
+req -new -batch -key "${EDPRIURI}" -out ${TMPPDIR}/ed25519_csr.pem'
+ossl '
+req -in ${TMPPDIR}/ed25519_csr.pem -verify -noout'
+
+title PARA "Test EVP_PKEY_eq on public Edwards key both on token"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$EDPUBURI" "$EDPUBURI"
+
+title PARA "Test EVP_PKEY_eq on public ED key via import"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$EDPUBURI" "${TMPPDIR}"/edout.pub
+title PARA "Match private ED key against public key"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$EDPRIURI" "${TMPPDIR}"/edout.pub
+title PARA "Match private ED key against public key (commutativity)"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/edout.pub "$EDPRIURI"
+
+title PARA "Test Key generation"
+output=$($CHECKER "${TESTBLDDIR}"/tgenkey "ED25519" 2>&1 || true)
+FAIL=0
+echo "$output" | grep "Performed tests: 1" || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
+# Test Ed448 too if supported
+if [[ -n $ED2BASEURI ]]; then
+    title PARA "Export ED448 Public key to a file"
+    ossl 'pkey -in $ED2PUBURI -pubin -pubout -out ${TMPPDIR}/ed2out.pub'
+
+    title LINE "Print ED448 Public key from private"
+    ossl 'pkey -in $ED2PRIURI -pubout -text' $helper_emit
+    output="$helper_output"
+    FAIL=0
+    echo "$output" | grep "ED448 Public Key" > /dev/null 2>&1 || FAIL=1
+    if [ $FAIL -eq 1 ]; then
+        echo "Could not extract public key from private"
+        echo
+        echo "Original command output:"
+        echo "$output"
+        echo
+        exit 1
+    fi
+
+    title PARA "DigestSign and DigestVerify with ED448"
+    ossl '
+    pkeyutl -sign -inkey "${ED2BASEURI}"
+                  -in ${RAND64FILE}
+                  -rawin
+                  -out ${TMPPDIR}/sha256-eddgstsig.bin'
+    ossl '
+    pkeyutl -verify -inkey "${ED2BASEURI}" -pubin
+                    -in ${RAND64FILE}
+                    -rawin
+                    -sigfile ${TMPPDIR}/sha256-eddgstsig.bin'
+
+    if [[ "${SUPPORT_EDDSA_PARAMS}" = "1" ]]; then
+        title PARA "DigestSign and DigestVerify with ED448 and context string"
+        ossl '
+        pkeyutl -sign -inkey "${ED2BASEURI}"
+                      -in ${RAND64FILE}
+                      -rawin
+                      -pkeyopt context-string:pkcs11-provider-context
+                      -out ${TMPPDIR}/sha256-eddgstsig-ctx.bin'
+        ossl '
+        pkeyutl -verify -inkey "${ED2BASEURI}" -pubin
+                        -in ${RAND64FILE}
+                        -rawin
+                        -pkeyopt context-string:pkcs11-provider-context
+                        -sigfile ${TMPPDIR}/sha256-eddgstsig-ctx.bin'
+
+        title PARA "DigestSign and DigestVerify with PureED448"
+        ossl '
+        pkeyutl -sign -inkey "${ED2BASEURI}"
+                      -in ${RAND64FILE}
+                      -rawin
+                      -pkeyopt instance:Ed448
+                      -out ${TMPPDIR}/eddgstsig.bin'
+        ossl '
+        pkeyutl -verify -inkey "${ED2BASEURI}" -pubin
+                        -in ${RAND64FILE}
+                        -rawin
+                        -pkeyopt instance:Ed448
+                        -sigfile ${TMPPDIR}/eddgstsig.bin'
+
+        # Verify signatures on the token
+        ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+        OPENSSL_CONF=${OPENSSL_CONF}.forcetoken
+
+        ossl '
+        pkeyutl -verify -inkey "${ED2BASEURI}" -pubin
+                        -in ${RAND64FILE}
+                        -rawin
+                        -sigfile ${TMPPDIR}/sha256-eddgstsig.bin'
+
+        ossl '
+        pkeyutl -verify -inkey "${ED2BASEURI}" -pubin
+                        -in ${RAND64FILE}
+                        -rawin
+                        -pkeyopt context-string:pkcs11-provider-context
+                        -sigfile ${TMPPDIR}/sha256-eddgstsig-ctx.bin'
+
+        ossl '
+        pkeyutl -verify -inkey "${ED2BASEURI}" -pubin
+                        -in ${RAND64FILE}
+                        -rawin
+                        -pkeyopt instance:Ed448
+                        -sigfile ${TMPPDIR}/eddgstsig.bin'
+
+        OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+    fi
+
+    title PARA "Test CSR generation from private ED448 keys"
+    ossl '
+    req -new -batch -key "${ED2PRIURI}" -out ${TMPPDIR}/ed448_csr.pem'
+    ossl '
+    req -in ${TMPPDIR}/ed448_csr.pem -verify -noout'
+
+    title PARA "Test EVP_PKEY_eq on public Edwards key both on token"
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ED2PUBURI" "$ED2PUBURI"
+
+    title PARA "Test EVP_PKEY_eq on public ED448 key via import"
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ED2PUBURI" "${TMPPDIR}"/ed2out.pub
+    title PARA "Match private ED448 key against public key"
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "$ED2PRIURI" "${TMPPDIR}"/ed2out.pub
+    title PARA "Match private ED448 key against public key (commutativity)"
+    $CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/ed2out.pub "$ED2PRIURI"
+fi
+
+title PARA "Test Ed448 Key generation"
+output=$($CHECKER "${TESTBLDDIR}"/tgenkey "ED448" 2>&1 || true)
+FAIL=0
+echo "$output" | grep "Performed tests: 1" || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed "s/^pkcs11-module-token-pin.*$/##nopin/" "${OPENSSL_CONF}" > "${OPENSSL_CONF}.nopin"
+OPENSSL_CONF=${OPENSSL_CONF}.nopin
+
+title PARA "Test interactive Login on key without ALWAYS AUTHENTICATE"
+# shellcheck disable=SC2153 # It is correctly defined in the testvars
+output=$(expect -c "spawn -noecho $CHECKER ${TESTBLDDIR}/tsession \"$EDBASEURI\";
+                expect \"Enter PIN for PKCS#11 Token (Slot *:\" {
+                    send \"${PINVALUE}\r\"; exp_continue; }
+                expect \"ALL A-OK\";")
+FAIL=0
+echo "$output" | grep "Enter PIN for PKCS#11 Token (Slot .*):" > /dev/null 2>&1 || FAIL=1
+prompts=$(echo "$output" | grep -c "Enter PIN for PKCS#11 Token (Slot .*):" 2>&1)
+# 1 login to read key only
+if [ "$prompts" -ne "1" ]; then
+    echo "Failed receive expected amount of prompts (got $prompts, expected 1)"
+    FAIL=2
+fi
+if [ $FAIL -eq 1 ]; then
+    echo "Failed to obtain expected prompt"
+fi
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
+exit 0

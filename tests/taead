@@ -1,0 +1,41 @@
+#!/bin/bash -e
+# Copyright 2025 NXP
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+# Run tests only if OpenSSL has SKEY support
+if [[ "${SUPPORT_SKEY}" = "0" ]]; then
+    exit 77
+fi
+
+# We need to configure early loading otherwise no ciphers are loaded
+sed "s/#pkcs11-module-load-behavior/pkcs11-module-load-behavior = early/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.early_load"
+OPENSSL_CONF=${OPENSSL_CONF}.early_load
+
+KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+IV=bbbbbbbbbbbbbbbbbbbbbbbb
+AAD="Additional Authentication Data"
+DATA="Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+
+ALGORITHMS=(
+    AES-128-GCM
+    AES-192-GCM
+    AES-256-GCM
+    ChaCha20-Poly1305
+)
+
+title PARA "Test AEAD support"
+
+for alg in "${ALGORITHMS[@]}"; do
+    echo "Checking algorithm $alg"
+    if $OPENSSL list -cipher-algorithms -propquery "provider=pkcs11" 2>/dev/null | grep -q "$alg"; then
+        title PARA "Run AEAD test with $alg"
+        $CHECKER "${TESTBLDDIR}/taead" "$alg" "$KEY" "$IV" "$AAD" "$DATA"
+    else
+        title PARA "Skipping AEAD test with $alg"
+    fi
+done
+
+echo "PASSED"

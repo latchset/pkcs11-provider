@@ -1,0 +1,96 @@
+#!/bin/bash -e
+# Copyright (C) 2024 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+title PARA "Test PIN lock prevention"
+
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed "s/^pkcs11-module-token-pin.*$/##nopin/" "${OPENSSL_CONF}" > "${OPENSSL_CONF}.nopin"
+OPENSSL_CONF=${OPENSSL_CONF}.nopin
+
+BADPIN="bad"
+export BADPINURI="${PRIURI}?pin-value=${BADPIN}"
+export GOODPINURI="${PRIURI}?pin-value=${PINVALUE}"
+
+FAIL=0
+ptool -T | grep "PIN initialized" && FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Failed to detect PIN status"
+    exit 1
+fi
+
+ossl 'dgst -sha256 -binary -out ${TMPPDIR}/sha256.bin ${SEEDFILE}'
+
+# Kryoptic allows for 10 tries by default
+for i in {1..10}; do
+    echo "Login attempt: $i"
+    FAIL=1
+    ptool -l -I -p "${BADPIN}" || FAIL=0
+    if [ $FAIL -eq 0 ]; then
+        echo "Should have failed!"
+        exit 1
+    fi
+    DETECT=0
+    ptool -T | grep "final user PIN try" && DETECT=1
+    if [ $DETECT -eq 1 ]; then
+        break
+    fi
+done
+FAIL=0
+ptool -T | grep "final user PIN try" && FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Failed to reach "final try" status"
+    exit 1
+fi
+
+# Now we test one operation with a bad pin.
+# It should fail but not lock the token
+title LINE "Try op with bad pin and fail"
+FAIL=0
+ossl '
+pkeyutl -sign -inkey "${BADPINURI}"
+    -in ${TMPPDIR}/sha256.bin
+    -out ${TMPPDIR}/pinlock-sig.bin' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Operation should have failed, pin lock prevention not working"
+    exit 1
+fi
+
+# Now we test one operation with a good pin.
+# It should fail because the token is on last try
+title LINE "Try op with good pin and fail"
+FAIL=0
+ossl '
+pkeyutl -sign -inkey "${GOODPINURI}"
+    -in ${TMPPDIR}/sha256.bin
+    -out ${TMPPDIR}/pinlock-sig.bin' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Operation should have failed, pin lock prevention not working"
+    exit 1
+fi
+
+
+# Now reset the token counter with a good try
+ptool -l -T -p "${PINVALUE}"
+
+title LINE "Again with bad pin and fail to exercise the code path of wrong pin"
+ossl '
+pkeyutl -sign -inkey "${BADPINURI}"
+    -in ${TMPPDIR}/sha256.bin
+    -out ${TMPPDIR}/pinlock-sig.bin' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Operation should have failed, pin lock prevention not working"
+    exit 1
+fi
+
+# Now we test one operation with a good pin.
+# It should succeed
+title LINE "Try op with good pin and succeed"
+ossl '
+pkeyutl -sign -inkey "${GOODPINURI}"
+    -in ${TMPPDIR}/sha256.bin
+    -out ${TMPPDIR}/pinlock-sig.bin'
+
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}

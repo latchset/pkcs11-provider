@@ -1,0 +1,244 @@
+#!/bin/bash -e
+# Copyright (C) 2023 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+if [[ "$NSS_FIPS" = "1" ]] && [[ "$TOKENTYPE" = "softokn" ]]; then
+    title "ECDH tests are not supported in FIPS for softokn token -- skipping"
+    exit 77;
+fi
+
+if command -v timeout >/dev/null 2>&1; then
+    TIMEOUT=timeout
+elif command -v gtimeout >/dev/null 2>&1; then
+    TIMEOUT=gtimeout
+else
+    title "timeout or gtimeout not available"
+    exit 77;
+fi
+
+TEST_ML_DSA=0
+if [ "${SUPPORT_ML_DSA}" -eq 1 ]; then
+    if [[ "$TOKENTYPE" = "kryoptic" ]]; then
+        OSSLMAJ=$(get_openssl_major)
+        OSSLMIN=$(get_openssl_minor)
+        if [[ $OSSLMAJ -gt 3 || ( $OSSLMAJ -eq 3 && $OSSLMIN -gt 5 ) ]]; then
+            TEST_ML_DSA=1
+        fi
+    else
+        TEST_ML_DSA=1
+    fi
+fi
+
+title PARA "Test SSL_CTX creation"
+$CHECKER "${TESTBLDDIR}/tlsctx"
+
+title PARA "Test setting cert/keys on TLS Context"
+$CHECKER "${TESTBLDDIR}/tlssetkey" "${ECCRTURI}" "${ECPRIURI}"
+
+if [ -n "$ECBASE2URI" ]; then
+    title PARA "Test setting cert/keys on TLS Context w/o pub key"
+    $CHECKER "${TESTBLDDIR}/tlssetkey" "${ECCRT2URI}" "${ECPRI2URI}"
+fi
+
+title PARA "Test an actual TLS connection"
+
+rm -f "${TMPPDIR}/s_server_output"
+rm -f "${TMPPDIR}/s_server_ready"
+mkfifo "${TMPPDIR}/s_server_ready"
+
+SERVER_PID=-1
+# Make sure we terminate programs if test fails in the middle
+# shellcheck disable=SC2317  # Shellcheck for some reason does not follow trap
+wait_for_server_at_exit() {
+    wait "$1" || :
+    echo "Server output:"
+    cat "${TMPPDIR}/s_server_output"
+}
+trap 'wait_for_server_at_exit $SERVER_PID;' EXIT
+
+OSSL_GROUPS='secp256r1:secp521r1:secp384r1:ffdhe2048:ffdhe3072:ffdhe4096:ffdhe6144:ffdhe8192'
+if [ "${NO_ECX_IN_TLS:-0}" -ne 1 ]; then
+    if [ "${SUPPORT_X448:-0}" -eq 1 ]; then
+        OSSL_GROUPS='?x448_mlkem1024:?x448:'${OSSL_GROUPS}
+    fi
+    if [ "${SUPPORT_X25519:-0}" -eq 1 ]; then
+        OSSL_GROUPS='?x25519_mlkem768:?x25519:'${OSSL_GROUPS}
+    fi
+fi
+PORT=23456
+
+run_test() {
+    KEY="$1"
+    CERT="$2"
+    SRV_ARGS=$3
+    CLNT_ARGS=$4
+
+    export PKCS11_PROVIDER_DEBUG="file:${TMPPDIR}/p11prov-debug-tls-server.log"
+    # Limit the server run time so a stuck start does not block the whole test
+    $TIMEOUT 15 expect -c "spawn $CHECKER $OPENSSL s_server $PROPQ -accept \"${PORT}\" -groups \"${OSSL_GROUPS}\" -naccept 1 -key \"${KEY}\" -cert \"${CERT}\" $SRV_ARGS;
+        set timeout 10;
+        expect {
+            \"ACCEPT\" {};
+            eof { exit 2; }
+            timeout { exit 5; }
+            default {
+                send \" NO ACCEPT \n\";
+                exit 1;
+            };
+        }
+        set server_ready [open \"${TMPPDIR}/s_server_ready\" w+];
+        puts \$server_ready \"READY\n\";
+        close \$server_ready;
+        expect {
+            \"END SSL SESSION PARAMETERS\" {};
+            eof { exit 2; }
+            timeout { exit 5; }
+            default {
+                send \" NO SESSION PARAMETERS \n\";
+                exit 1;
+            };
+        }
+        send \" TLS SUCCESSFUL \n\"
+        send \"Q\n\"
+        expect {
+            eof {exit 0;};
+            timeout { exit 5; }
+            default {
+                send \" NO EOF \n\";
+                exit 1;
+            };
+        }" &> "${TMPPDIR}/s_server_output" &
+    SERVER_PID=$!
+
+    # Wait for the server with a timeout, otherwise we block here forever if
+    # the server exits before writing to the fifo
+    if ! $TIMEOUT 15 cat "${TMPPDIR}/s_server_ready" >/dev/null 2>&1; then
+        echo "Server failed to start"
+        wait_for_server_at_exit "$SERVER_PID"
+        exit 1
+    fi
+
+    export PKCS11_PROVIDER_DEBUG="file:${TMPPDIR}/p11prov-debug-tls-client.log"
+    expect -c "spawn $CHECKER $OPENSSL s_client $PROPQ -groups \"${OSSL_GROUPS}\" -connect \"localhost:${PORT}\" -CAfile \"${CACRT}\" $CLNT_ARGS;
+        set timeout 10;
+        expect {
+            \" TLS SUCCESSFUL \" {};
+            eof { exit 2; }
+            timeout { exit 5; }
+            default {
+                send \" NO TLS SUCCESSFUL MESSAGE \n\";
+                exit 1;
+            };
+        }
+        expect {
+            eof {exit 0;};
+            timeout { exit 5; }
+            default {
+                send \" NO EOF \n\";
+                exit 1;
+            };
+        }" || (wait_for_server_at_exit $SERVER_PID; exit 1; )
+
+    wait_for_server_at_exit $SERVER_PID
+}
+
+run_tests() {
+
+    title PARA "Run sanity test with default values (RSA)"
+    run_test "$PRIURI" "$CRTURI"
+
+    if [[ -n "$RSAPSSBASEURI" ]]; then
+        title PARA "Run sanity test with default values (RSA-PSS)"
+        run_test "$RSAPSSPRIURI" "$RSAPSSCRTURI"
+
+        title PARA "Run sanity test with RSA-PSS and SHA256"
+        run_test "$RSAPSS2PRIURI" "$RSAPSS2CRTURI"
+    fi
+
+    title PARA "Run sanity test with default values (ECDSA)"
+    run_test "$ECPRIURI" "$ECCRTURI"
+
+    if [[ -n "$EDBASEURI" ]]; then
+        title PARA "Run sanity test with default values (Ed25519)"
+        run_test "$EDPRIURI" "$EDCRTURI"
+    fi
+
+    if [[ -n "$ED2BASEURI" ]]; then
+        title PARA "Run sanity test with default values (Ed448)"
+        run_test "$ED2PRIURI" "$ED2CRTURI"
+    fi
+
+    if [ "$TEST_ML_DSA" -eq 1 ]; then
+        title PARA "Run sanity test with default values (ML-DSA)"
+        run_test "$MLDSAPRIURI" "$MLDSACRTURI"
+    fi
+
+    title PARA "Run test with TLS 1.2"
+    run_test "$PRIURI" "$CRTURI" "" "-tls1_2"
+
+    title PARA "Run test with explicit TLS 1.3"
+    run_test "$PRIURI" "$CRTURI" "" "-tls1_3"
+
+    title PARA "Run test with TLS 1.2 (ECDSA)"
+    run_test "$ECPRIURI" "$ECCRTURI" "-tls1_2" "-tls1_2"
+
+    TLS12_CIPHERS=(
+        ECDHE-ECDSA-AES128-SHA256
+        ECDHE-ECDSA-AES256-SHA384
+        ECDHE-ECDSA-AES128-GCM-SHA256
+        ECDHE-ECDSA-AES256-GCM-SHA384
+        ECDHE-ECDSA-CHACHA20-POLY1305
+    )
+    for cipher in "${TLS12_CIPHERS[@]}"; do
+        if $OPENSSL ciphers -s -v -tls1_2 2>/dev/null | grep -q "$cipher"; then
+            title PARA "Run test with TLS 1.2 and $cipher"
+            run_test "$ECPRIURI" "$ECCRTURI" "" "-tls1_2 -cipher ${cipher} -groups secp256r1"
+        else
+            title PARA "Skipping test with TLS 1.2 and $cipher"
+        fi
+    done
+
+    TLS13_CIPHERS=(
+        TLS_AES_128_GCM_SHA256
+        TLS_AES_256_GCM_SHA384
+        TLS_CHACHA20_POLY1305_SHA256
+    )
+    for cipher in "${TLS13_CIPHERS[@]}"; do
+        if $OPENSSL ciphers -s -v -tls1_3 2>/dev/null | grep -q "$cipher"; then
+            title PARA "Run test with TLS 1.3 and $cipher"
+            run_test "$ECPRIURI" "$ECCRTURI" "" "-tls1_3 -ciphersuites ${cipher} -groups secp256r1"
+        else
+            title PARA "Skipping test with TLS 1.3 and $cipher"
+        fi
+    done
+}
+
+title SECTION "TLS with key in provider"
+PROPQ=""
+run_tests
+title ENDSECTION
+
+title SECTION "Forcing the provider for all server operations"
+# We can not put this into the openssl.cnf directly, as it would be picked up by softhsm
+# causing infinite recursion when doing EdDSA key operations.
+PROPQ="-propquery \"?provider=pkcs11\""
+# Try again forcing all operations on the token
+# We need to disable digest operations as OpenSSL depends on context duplication working
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+BLOCKED_OPERATIONS="digest"
+if [[ "${SUPPORT_SYMMETRIC}" = "0" ]]; then
+    # For tokens that do not support symmetric key operations, disable these too
+    BLOCKED_OPERATIONS="${BLOCKED_OPERATIONS} cipher skeymgmt"
+fi
+sed -e "s/^#pkcs11-module-block-operations/pkcs11-module-block-operations = ${BLOCKED_OPERATIONS}/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.blockops"
+OPENSSL_CONF=${OPENSSL_CONF}.blockops
+
+run_tests
+
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+title ENDSECTION
+
+exit 0;

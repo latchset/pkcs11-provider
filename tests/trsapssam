@@ -1,0 +1,75 @@
+#!/bin/bash -e
+# Copyright (C) 2022 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+if [[ "${SUPPORT_ALLOWED_MECHANISMS}" = "0" ]]; then
+    exit 77;
+fi
+
+title PARA "DigestSign and DigestVerify with RSA PSS (SHA256 restriction)"
+ossl '
+pkeyutl -sign -inkey "${RSAPSS2PRIURI}"
+              -digest sha256
+              -pkeyopt pad-mode:pss
+              -pkeyopt mgf1-digest:sha256
+              -pkeyopt saltlen:digest
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha256-rsapps-genpkey-dgstsig.bin'
+ossl '
+pkeyutl -verify -inkey "${RSAPSS2PUBURI}" -pubin
+                -digest sha256
+                -pkeyopt pad-mode:pss
+                -pkeyopt mgf1-digest:sha256
+                -pkeyopt saltlen:digest
+                -in ${RAND64FILE}
+                -rawin
+                -sigfile ${TMPPDIR}/sha256-rsapps-genpkey-dgstsig.bin'
+
+FAIL=0
+title PARA "Fail DigestSign with RSA PSS because of restricted Digest"
+ossl '
+pkeyutl -sign -inkey "${RSAPSS2PRIURI}"
+              -digest sha384
+              -pkeyopt pad-mode:pss
+              -pkeyopt mgf1-digest:sha384
+              -pkeyopt saltlen:digest
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha384-rsapps-genpkey-dgstsig.bin 2>&1' "$helper_emit" || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Signature should have failed due to Digest restrictions"
+    exit 1
+fi
+output="$helper_output"
+FAIL=0
+echo "$output" | grep "Public Key operation error" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo "Signature seem to have failed for unrelated reasons"
+    echo "$output";
+    exit 1
+fi
+
+FAIL=0
+title PARA "Fail Signing with RSA PKCS1 mech and RSA-PSS key"
+ossl '
+pkeyutl -sign -inkey "${RSAPSSPRIURI}"
+              -digest sha256
+              -pkeyopt rsa_padding_mode:pkcs1
+              -in ${RAND64FILE}
+              -rawin
+              -out ${TMPPDIR}/sha384-rsa-not-rsapss-sig.bin 2>&1' "$helper_emit" || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Signature should have failed due to PSS restrictions"
+    exit 1
+fi
+output="$helper_output"
+FAIL=0
+echo "$output" | grep "Public Key operation error" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo "Signature seem to have failed for unrelated reasons"
+    echo "$output";
+    exit 1
+fi

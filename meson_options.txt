@@ -1,0 +1,19 @@
+option('preload_libasan',
+       type: 'string',
+       value: 'no',
+       description: 'Path to libasan.so to preload')
+
+option('enable_explicit_EC_test',
+       type: 'boolean',
+       value: false,
+       description: 'Enable explicit EC tests')
+
+option('default_pkcs11_module',
+    type : 'string',
+    value : '',
+    description : 'Path to the default PKCS11 module')
+
+option('build_info',
+    type : 'string',
+    value : '',
+    description : 'Optional string with build information, like a build id')

@@ -1,0 +1,117 @@
+---
+name: Integration tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test-libssh-httpd:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        test: [libssh, httpd]
+    name: ${{ matrix.test }}
+    container: quay.io/fedora/fedora:latest
+    env:
+      PKCS11_MODULE: /usr/lib64/ossl-modules/pkcs11.so
+    steps:
+      - name: Get Date for DNF cache entry
+        id: get-date
+        run: |
+          echo "date=$(/bin/date -u "+%Y%V")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: DNF cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            /var/cache/libdnf5
+          key: ${{ runner.os }}-dnf-${{ steps.get-date.outputs.date }}
+
+      - name: Install Build Requirements
+        run: dnf -y install gcc git meson openssl-devel
+
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Setup, Build and Install pkcs11-provider
+        run: |
+          meson setup -Dlibdir=/usr/lib64 builddir
+          meson compile -C builddir
+          meson install -C builddir
+
+      - name: Test ${{ matrix.test }} with softhsm
+        run: |
+          pushd tests/integration && bash -e ${{ matrix.test }}.sh
+
+  test-bind:
+    name: bind
+    runs-on: ubuntu-22.04
+    container: quay.io/fedora/fedora:latest
+    steps:
+      - name: Get Date for DNF cache entry
+        id: get-date
+        run: |
+          echo "date=$(/bin/date -u "+%Y%V")" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: DNF cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            /var/cache/libdnf5
+          key: ${{ runner.os }}-dnf-${{ steps.get-date.outputs.date }}
+
+      - name: Install Dependencies
+        run: |
+            dnf -y install clang git meson cargo expect pkgconf-pkg-config \
+              openssl-devel openssl opensc p11-kit-devel \
+              gcc g++ sqlite-devel httpd bind9-next softhsm
+
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Get Kryoptic
+        id: kryoptic_setup
+        run: |
+          git clone https://github.com/latchset/kryoptic.git
+          cd kryoptic
+          echo "KRYOPTIC=${PWD}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate lock file
+        run: |
+          cd kryoptic
+          cargo generate-lockfile
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            kryoptic/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('kryoptic/**/Cargo.lock') }}
+
+      - name: Build Kryoptic
+        run: |
+          cd kryoptic
+          cargo build --features dynamic,standard
+
+      - name: Setup, Build and Install pkcs11-provider
+        run: |
+          meson setup -Dlibdir=/usr/lib64 builddir
+          meson compile -C builddir
+          meson install -C builddir
+
+      - name: Test bind with kryoptic
+        env:
+          PKCS11_MODULE: /usr/lib64/ossl-modules/pkcs11.so
+          KRYOPTIC: ${{ steps.kryoptic_setup.outputs.KRYOPTIC }}
+        run: |
+          pushd tests/integration && bash -e bind.sh kryoptic ; popd

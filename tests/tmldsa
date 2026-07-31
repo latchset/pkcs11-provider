@@ -1,0 +1,144 @@
+#!/bin/bash -e
+# Copyright (C) 2025 Simo Sorce <simo@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+if [[ "${SUPPORT_ML_DSA}" != "1" ]]; then
+    exit 77;
+fi
+
+title PARA "Export ML-DSA Public key to a file"
+ossl 'pkey -in $MLDSAPUBURI -pubin -pubout -out ${TMPPDIR}/mldsaout.pub'
+
+title LINE "Print ML-DSA Public key from private"
+ossl 'pkey -in $MLDSAPRIURI -pubout -text' $helper_emit
+output="$helper_output"
+FAIL=0
+echo "$output" | grep "ML-DSA-44 Public Key" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -eq 1 ]; then
+    echo "Could not extract public key from private"
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
+title PARA "Test CSR generation from private ML-DSA keys"
+ossl '
+req -new -batch -key "${MLDSAPRIURI}" -out ${TMPPDIR}/mldsa_csr.pem'
+ossl '
+req -in ${TMPPDIR}/mldsa_csr.pem -verify -noout'
+
+title PARA "Create a signed cert"
+ossl '
+x509 -req -in ${TMPPDIR}/mldsa_csr.pem
+          -extfile ${OPENSSL_CONF}
+          -extensions usr_cert
+          -CA ${CACRT} -CAkey ${CAPRIURI}
+          -out ${TMPPDIR}/mldsa_signed.crt'
+
+title PARA "Test EVP_PKEY_eq on public ML-DSA key both on token"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$MLDSAPUBURI" "$MLDSAPUBURI"
+
+title PARA "Test EVP_PKEY_eq on public ML-DSA key via import"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$MLDSAPUBURI" "${TMPPDIR}"/mldsaout.pub
+title PARA "Match private ML-DSA key against public key"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "$MLDSAPRIURI" "${TMPPDIR}"/mldsaout.pub
+title PARA "Match private ML-DSA key against public key (commutativity)"
+$CHECKER "${TESTBLDDIR}/tcmpkeys" "${TMPPDIR}"/mldsaout.pub "$MLDSAPRIURI"
+
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+# We need to configure pkcs11 to allow emitting PEM URIs so that the
+# genpkey command does not fail on trying to emit the private key PEM file.
+sed -e "s/#pkcs11-module-encode-provider-uri-to-pem/pkcs11-module-encode-provider-uri-to-pem = true/" \
+    "${OPENSSL_CONF}" > "${OPENSSL_CONF}.mldsa_pem_uri"
+OPENSSL_CONF=${OPENSSL_CONF}.mldsa_pem_uri
+
+title PARA "Generate keys and test signatures"
+
+title LINE "Generate ML-DSA-65 key"
+ossl '
+genpkey -propquery "provider=pkcs11"
+        -algorithm ML-DSA-65 -pkeyopt "pkcs11_uri:pkcs11:object=Test-ML-DSA-65"
+        -out ${TMPPDIR}/mldsa-65-genpkey.pem'
+
+title LINE "Generate ML-DSA-87 key"
+ossl '
+genpkey -propquery "provider=pkcs11"
+        -algorithm ML-DSA-87 -pkeyopt "pkcs11_uri:pkcs11:object=Test-ML-DSA-87"
+        -out ${TMPPDIR}/mldsa-87-genpkey.pem'
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
+title LINE "Sign random data with ML-DSA-65"
+ossl '
+pkeyutl -sign
+        -inkey "pkcs11:type=private;object=Test-ML-DSA-65"
+        -in ${RAND64FILE} -rawin
+        -out ${TMPPDIR}/ml-dsa-65.sig'
+
+title LINE "Verify signature with ML-DSA-65"
+ossl '
+pkeyutl -verify
+        -inkey "pkcs11:type=public;object=Test-ML-DSA-65" -pubin
+        -in ${RAND64FILE} -rawin
+        -sigfile ${TMPPDIR}/ml-dsa-65.sig'
+
+title LINE "Sign random data with ML-DSA-87 using deterministic signature"
+ossl '
+pkeyutl -sign
+        -inkey "pkcs11:type=private;object=Test-ML-DSA-87"
+        -in ${RAND64FILE} -rawin
+        -pkeyopt deterministic:1
+        -out ${TMPPDIR}/ml-dsa-87.sig'
+
+title LINE "Verify signature with ML-DSA-87"
+ossl '
+pkeyutl -verify
+        -inkey "pkcs11:type=public;object=Test-ML-DSA-87" -pubin
+        -in ${RAND64FILE} -rawin
+        -sigfile ${TMPPDIR}/ml-dsa-87.sig'
+
+title PARA "Test Key generation from C API"
+output=$($CHECKER "${TESTBLDDIR}"/tgenkey "ML-DSA-44" 2>&1 || true)
+FAIL=0
+echo "$output" | grep "Performed tests: 1" || FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed "s/^pkcs11-module-token-pin.*$/##nopin/" "${OPENSSL_CONF}" > "${OPENSSL_CONF}.nopin"
+OPENSSL_CONF=${OPENSSL_CONF}.nopin
+
+title PARA "Test interactive Login on key without ALWAYS AUTHENTICATE"
+# shellcheck disable=SC2153 # It is correctly defined in the testvars
+output=$(expect -c "spawn -noecho $CHECKER ${TESTBLDDIR}/tsession \"$MLDSABASEURI\";
+                expect \"Enter PIN for PKCS#11 Token (Slot *:\" {
+                    send \"${PINVALUE}\r\"; exp_continue; }
+                expect \"ALL A-OK\";")
+FAIL=0
+echo "$output" | grep "Enter PIN for PKCS#11 Token (Slot .*):" > /dev/null 2>&1 || FAIL=1
+prompts=$(echo "$output" | grep -c "Enter PIN for PKCS#11 Token (Slot .*):" 2>&1)
+# 1 login to read key only
+if [ "$prompts" -ne "1" ]; then
+    echo "Failed receive expected amount of prompts (got $prompts, expected 1)"
+    FAIL=2
+fi
+if [ $FAIL -eq 1 ]; then
+    echo "Failed to obtain expected prompt"
+fi
+if [ $FAIL -ne 0 ]; then
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+exit 0

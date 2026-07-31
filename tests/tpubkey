@@ -1,0 +1,73 @@
+#!/bin/bash -e
+# Copyright (C) 2022 Jakub Jelen <jjelen@redhat.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+title PARA "Export RSA Public key to a file"
+ossl 'pkey -in $BASEURI -pubin -pubout -out ${TMPPDIR}/baseout.pub'
+title LINE "Export Public key to a file (pub-uri)"
+ossl 'pkey -in $PUBURI -pubin -pubout -out ${TMPPDIR}/pubout.pub'
+title LINE "Print Public key from private"
+ossl 'pkey -in $PRIURI -pubout -text' "$helper_emit"
+output="$helper_output"
+FAIL=0
+echo "$output" | grep "PKCS11 RSA Public Key (2048 bits)" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -eq 1 ]; then
+    echo "Pkcs11 encoder function failed"
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
+title PARA "Export Public check error"
+FAIL=0
+ossl 'pkey -in pkcs11:id=%de%ad -pubin
+           -pubout -out ${TMPPDIR}/pubout-invlid.pub' || FAIL=1
+if [ $FAIL -eq 0 ]; then
+    echo "Invalid pkcs11 uri resulted in no error exporting key"
+    exit 1
+fi
+
+title PARA "Export EC Public key to a file"
+ossl 'pkey -in $ECBASEURI -pubin -pubout -out ${TMPPDIR}/baseecout.pub'
+title LINE "Export EC Public key to a file (pub-uri)"
+ossl 'pkey -in $ECPUBURI -pubin -pubout -out ${TMPPDIR}/pubecout.pub'
+title LINE "Print EC Public key from private"
+ossl 'pkey -in $ECPRIURI -pubout -text' "$helper_emit"
+output="$helper_output"
+FAIL=0
+echo "$output" | grep "PKCS11 EC Public Key (256 bits)" > /dev/null 2>&1 || FAIL=1
+if [ $FAIL -eq 1 ]; then
+    echo "Pkcs11 encoder function failed"
+    echo
+    echo "Original command output:"
+    echo "$output"
+    echo
+    exit 1
+fi
+
+# The softokn does not support removing only public key from the key pair
+if [ -n "$BASE2URI" ]; then
+    title PARA "Check we can get RSA public keys from certificate objects"
+
+    title LINE "Export Public key to a file (priv-uri)"
+    ossl 'pkey -in $PRI2URI -pubout -out ${TMPPDIR}/priv-cert.pub'
+    title LINE "Export Public key to a file (base-uri)"
+    ossl 'pkey -in $BASE2URI -pubout -out ${TMPPDIR}/base-cert.pub'
+    diff "${TMPPDIR}/base-cert.pub" "${TMPPDIR}/priv-cert.pub"
+fi
+
+if [ -n "$ECBASE2URI" ]; then
+    title PARA "Check we can get EC public keys from certificate objects"
+
+    title LINE "Export Public EC key to a file (priv-uri)"
+    ossl 'pkey -in $ECPRI2URI -pubout -out ${TMPPDIR}/ec-priv-cert.pub'
+    title LINE "Export Public key to a file (base-uri)"
+    ossl 'pkey -in $ECBASE2URI -pubout -out ${TMPPDIR}/ec-base-cert.pub'
+    diff "${TMPPDIR}/ec-base-cert.pub" "${TMPPDIR}/ec-priv-cert.pub"
+fi
+
+exit 0

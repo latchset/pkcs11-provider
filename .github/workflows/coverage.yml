@@ -1,0 +1,54 @@
+---
+name: coverage
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  scan:
+    name: Coverage report
+    runs-on: ubuntu-22.04
+    container: quay.io/fedora/fedora:latest
+    steps:
+      - name: Install Dependencies
+        run: |
+          dnf -y install git clang gcc meson which pkgconf-pkg-config \
+            openssl-devel openssl diffutils expect opensc python3-six \
+            nss-softokn nss-tools nss-softokn-devel  nss-devel softhsm \
+            p11-kit-devel kryoptic gcovr lcov xxd
+
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Setup
+        run: |
+          git config --global --add safe.directory \
+              /__w/pkcs11-provider/pkcs11-provider
+          git submodule update --init
+          meson setup builddir -Db_coverage=true
+
+      - name: Build, test and generate coverage reports
+        run: |
+          meson compile -C builddir
+          meson test -C builddir
+          ninja -C builddir coverage
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: Coverage test logs
+          path: |
+            builddir/meson-logs/
+            builddir/tests/*.log
+            builddir/tests/softokn/
+            builddir/tests/softhsm/
+            builddir/tests/kryoptic/
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Test coverage reports
+          path: |
+            builddir/meson-logs/coveragereport/
