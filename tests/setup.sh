@@ -642,6 +642,42 @@ if [ "$SUPPORT_ML_KEM" -eq 1 ]; then
     echo ""
 fi
 
+if [ "$SUPPORT_SLH_DSA" -eq 1 ]; then
+    title PARA "generate SLH-DSA Key pair"
+    get_next_keyid
+    TSTCRTN="slhDsa"
+
+    # not supported by the pkcs11-tool yet. Do it for now with OpenSSL CLI
+    # ptool --keypairgen --key-type="SLH-DSA-SHAKE-128S" --id="$KEYID" \
+    #       --label="${TSTCRTN}" 2>&1
+    ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+    # We need to configure pkcs11 to allow emitting PEM URIs so that the
+    # genpkey command does not fail on trying to emit the private key PEM file.
+    sed -e "s/#pkcs11-module-encode-provider-uri-to-pem/pkcs11-module-encode-provider-uri-to-pem = true/" \
+        "${OPENSSL_CONF}" > "${OPENSSL_CONF}.slhdsa_pem_uri"
+    OPENSSL_CONF=${OPENSSL_CONF}.slhdsa_pem_uri
+    ossl '
+    genpkey -propquery "provider=pkcs11"
+            -algorithm SLH-DSA-SHAKE-128s
+            -pkeyopt "pkcs11_uri:pkcs11:object=${TSTCRTN};id=${URIKEYID}"'
+    OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+    ca_sign $TSTCRTN "My SLH-DSA Cert" "$KEYID"
+
+    SLHDSABASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+    SLHDSABASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
+    SLHDSABASEURI="pkcs11:id=${URIKEYID}"
+    SLHDSAPUBURI="pkcs11:type=public;id=${URIKEYID}"
+    SLHDSAPRIURI="pkcs11:type=private;id=${URIKEYID}"
+    SLHDSACRTURI="pkcs11:type=cert;object=${TSTCRTN}"
+
+    title LINE "SLH-DSA PKCS11 URIS"
+    echo "${SLHDSABASEURI}"
+    echo "${SLHDSAPUBURI}"
+    echo "${SLHDSAPRIURI}"
+    echo "${SLHDSACRTURI}"
+    echo ""
+fi
+
 title PARA "Show contents of ${TOKENTYPE} token"
 echo " ----------------------------------------------------------------------------------------------------"
 ptool -O
@@ -667,6 +703,7 @@ export SUPPORT_X448="${SUPPORT_X448}"
 export SUPPORT_EDDSA_PARAMS="${SUPPORT_EDDSA_PARAMS}"
 export SUPPORT_ML_DSA="${SUPPORT_ML_DSA}"
 export SUPPORT_ML_KEM="${SUPPORT_ML_KEM}"
+export SUPPORT_SLH_DSA="${SUPPORT_SLH_DSA}"
 export SUPPORT_RSA_PKCS1_ENCRYPTION="${SUPPORT_RSA_PKCS1_ENCRYPTION}"
 export SUPPORT_RSA_KEYGEN_PUBLIC_EXPONENT="${SUPPORT_RSA_KEYGEN_PUBLIC_EXPONENT}"
 export SUPPORT_TLSFUZZER="${SUPPORT_TLSFUZZER}"
@@ -845,6 +882,18 @@ export MLKEMBASEURIWITHPINSOURCE="${MLKEMBASEURIWITHPINSOURCE}"
 export MLKEMBASEURI="${MLKEMBASEURI}"
 export MLKEMPUBURI="${MLKEMPUBURI}"
 export MLKEMPRIURI="${MLKEMPRIURI}"
+DBGSCRIPT
+fi
+
+if [ -n "${SLHDSABASEURI}" ]; then
+    cat >> "${TMPPDIR}/testvars" <<DBGSCRIPT
+
+export SLHDSABASEURIWITHPINVALUE="${SLHDSABASEURIWITHPINVALUE}"
+export SLHDSABASEURIWITHPINSOURCE="${SLHDSABASEURIWITHPINSOURCE}"
+export SLHDSABASEURI="${SLHDSABASEURI}"
+export SLHDSAPUBURI="${SLHDSAPUBURI}"
+export SLHDSAPRIURI="${SLHDSAPRIURI}"
+export SLHDSACRTURI="${SLHDSACRTURI}"
 DBGSCRIPT
 fi
 
