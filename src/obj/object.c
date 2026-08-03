@@ -486,6 +486,42 @@ CK_ATTRIBUTE *p11prov_obj_get_attr(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type)
     return NULL;
 }
 
+CK_ATTRIBUTE *p11prov_obj_get_public_attr(P11PROV_OBJ *obj,
+                                          CK_ATTRIBUTE_TYPE type)
+{
+    if (!obj) {
+        return NULL;
+    }
+
+    for (int i = 0; i < obj->numattrs; i++) {
+        if (obj->attrs[i].type == type) {
+            return &obj->attrs[i];
+        }
+    }
+
+    /* search public key if the private key does not have it */
+    if (obj->class == CKO_PRIVATE_KEY) {
+        P11PROV_OBJ *pubobj = p11prov_obj_find_associated(obj, CKO_PUBLIC_KEY);
+        if (pubobj == NULL) {
+            return NULL;
+        }
+
+        /* p11prov_obj_find_associated, associates the object with obj,
+         * so it is ok to return a pointer into its array as the following
+         * p11prov_obj_free() will just dereference our pointer, but the
+         * object is still held alive by obj itself */
+        for (int i = 0; i < pubobj->numattrs; i++) {
+            if (pubobj->attrs[i].type == type) {
+                return &pubobj->attrs[i];
+            }
+        }
+
+        p11prov_obj_free(pubobj);
+    }
+
+    return NULL;
+}
+
 bool p11prov_obj_get_bool(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type, bool def)
 {
     CK_ATTRIBUTE *attr = NULL;
