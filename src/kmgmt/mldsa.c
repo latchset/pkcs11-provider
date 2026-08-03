@@ -272,7 +272,8 @@ static int p11prov_mldsa_get_params(void *keydata, OSSL_PARAM params[])
         if (p->data_type != OSSL_PARAM_OCTET_STRING) {
             return RET_OSSL_ERR;
         }
-        pub = p11prov_obj_get_attr(key, CKA_VALUE);
+
+        pub = p11prov_obj_get_public_attr(key, CKA_VALUE);
         if (!pub) {
             return RET_OSSL_ERR;
         }
