@@ -680,7 +680,7 @@ done:
     return ret;
 }
 
-static int p11prov_obj_export_public_ml_key(P11PROV_OBJ *obj,
+static int p11prov_obj_export_public_pq_key(P11PROV_OBJ *obj,
                                             OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
     CK_ATTRIBUTE attrs[1] = { { 0 } };
@@ -718,7 +718,8 @@ int p11prov_obj_export_public_key(P11PROV_OBJ *obj, OSSL_CALLBACK *cb_fn,
         return p11prov_obj_export_public_ec_key(obj, cb_fn, cb_arg);
     case CKK_ML_DSA:
     case CKK_ML_KEM:
-        return p11prov_obj_export_public_ml_key(obj, cb_fn, cb_arg);
+    case CKK_SLH_DSA:
+        return p11prov_obj_export_public_pq_key(obj, cb_fn, cb_arg);
     default:
         P11PROV_raise(obj->ctx, CKR_GENERAL_ERROR,
                       "Unsupported object or key type");

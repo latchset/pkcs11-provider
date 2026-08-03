@@ -29,5 +29,17 @@ extern const OSSL_DISPATCH p11prov_mldsa87_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_mlkem512_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_mlkem768_keymgmt_functions[];
 extern const OSSL_DISPATCH p11prov_mlkem1024_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_128s_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_128f_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_192s_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_192f_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_256s_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_256f_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_128s_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_128f_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_192s_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_192f_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_256s_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_256f_keymgmt_functions[];
 
 #endif /* _KEYMGMT_H */
