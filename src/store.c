@@ -509,6 +509,48 @@ static int p11prov_store_load(void *pctx, OSSL_CALLBACK *object_cb,
                 return RET_OSSL_ERR;
             }
             break;
+        case CKK_SLH_DSA:
+            switch (p11prov_obj_get_key_param_set(obj)) {
+            case CKP_SLH_DSA_SHA2_128S:
+                data_type = (char *)SLHDSA_SHA2_128S;
+                break;
+            case CKP_SLH_DSA_SHA2_128F:
+                data_type = (char *)SLHDSA_SHA2_128F;
+                break;
+            case CKP_SLH_DSA_SHA2_192S:
+                data_type = (char *)SLHDSA_SHA2_192S;
+                break;
+            case CKP_SLH_DSA_SHA2_192F:
+                data_type = (char *)SLHDSA_SHA2_192F;
+                break;
+            case CKP_SLH_DSA_SHA2_256S:
+                data_type = (char *)SLHDSA_SHA2_256S;
+                break;
+            case CKP_SLH_DSA_SHA2_256F:
+                data_type = (char *)SLHDSA_SHA2_256F;
+                break;
+            case CKP_SLH_DSA_SHAKE_128S:
+                data_type = (char *)SLHDSA_SHAKE_128S;
+                break;
+            case CKP_SLH_DSA_SHAKE_128F:
+                data_type = (char *)SLHDSA_SHAKE_128F;
+                break;
+            case CKP_SLH_DSA_SHAKE_192S:
+                data_type = (char *)SLHDSA_SHAKE_192S;
+                break;
+            case CKP_SLH_DSA_SHAKE_192F:
+                data_type = (char *)SLHDSA_SHAKE_192F;
+                break;
+            case CKP_SLH_DSA_SHAKE_256S:
+                data_type = (char *)SLHDSA_SHAKE_256S;
+                break;
+            case CKP_SLH_DSA_SHAKE_256F:
+                data_type = (char *)SLHDSA_SHAKE_256F;
+                break;
+            default:
+                return RET_OSSL_ERR;
+            }
+            break;
         default:
             return RET_OSSL_ERR;
         }

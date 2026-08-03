@@ -30,6 +30,9 @@ struct key_generator {
         struct {
             CK_ML_KEM_PARAMETER_SET_TYPE param_set;
         } mlkem;
+        struct {
+            CK_SLH_DSA_PARAMETER_SET_TYPE param_set;
+        } slhdsa;
     } data;
 
     OSSL_CALLBACK *cb_fn;
