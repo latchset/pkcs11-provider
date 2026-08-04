@@ -52,13 +52,29 @@ static int obj_desc_verify(P11PROV_PK11_URI *obj)
 
 static char *obj_uri_get1(P11PROV_PK11_URI *obj)
 {
-    const unsigned char *uri = ASN1_STRING_get0_data(obj->uri);
-    int uri_len = ASN1_STRING_length(obj->uri);
-    if (!uri || uri_len <= 0) {
-        P11PROV_debug("Failed to get URI");
+    unsigned char *uri = NULL;
+    char *ret = NULL;
+
+    if (obj->uri == NULL) {
         return NULL;
     }
-    return p11prov_alloc_sprintf(uri_len, "%*s", uri_len, uri);
+    int uri_len = ASN1_STRING_length(obj->uri);
+    if (uri_len <= 0) {
+        goto done;
+    }
+    uri = OPENSSL_malloc(uri_len + 1);
+    if (uri == NULL) {
+        goto done;
+    }
+    memcpy(uri, ASN1_STRING_get0_data(obj->uri), uri_len);
+    uri[uri_len] = '\0';
+    ret = p11prov_alloc_sprintf(uri_len, "%s", uri);
+done:
+    if (ret == NULL) {
+        P11PROV_debug("Failed to extract URI");
+    }
+    OPENSSL_free(uri);
+    return ret;
 }
 
 struct desired_data_type_cbdata {
