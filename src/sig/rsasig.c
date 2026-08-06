@@ -385,6 +385,9 @@ static int p11prov_rsasig_set_pss_saltlen_max(void *ctx, bool max_to_digest)
     return RET_OSSL_OK;
 }
 
+#define DISPATCH_RSASIG_FN(name) \
+    DECL_DISPATCH_FUNC(signature, p11prov_rsasig, name)
+
 DISPATCH_RSASIG_FN(newctx);
 DISPATCH_RSASIG_FN(sign_init);
 DISPATCH_RSASIG_FN(sign);
@@ -1258,7 +1261,7 @@ static const OSSL_PARAM *p11prov_rsasig_settable_ctx_params(void *ctx,
     return params;
 }
 
-const OSSL_DISPATCH p11prov_rsa_signature_functions[] = {
+const OSSL_DISPATCH p11prov_rsa_functions[] = {
     DISPATCH_SIG_ELEM(rsasig, NEWCTX, newctx),
     DISPATCH_SIG_ELEM(sig, FREECTX, freectx),
     DISPATCH_SIG_ELEM(sig, DUPCTX, dupctx),
@@ -1292,7 +1295,7 @@ const OSSL_DISPATCH p11prov_rsa_signature_functions[] = {
         return p11prov_rsasig_digest_verify_init(ctx, digest, provkey, \
                                                  params); \
     } \
-    const OSSL_DISPATCH p11prov_rsa_##alg##_signature_functions[] = { \
+    const OSSL_DISPATCH p11prov_rsa_##alg##_functions[] = { \
         DISPATCH_SIG_ELEM(rsasig, NEWCTX, newctx), \
         DISPATCH_SIG_ELEM(sig, FREECTX, freectx), \
         DISPATCH_SIG_ELEM(sig, DUPCTX, dupctx), \

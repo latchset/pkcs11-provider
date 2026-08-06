@@ -4,6 +4,7 @@
 #include "provider.h"
 #include "platform/endian.h"
 #include "kmgmt/internal.h"
+#include "sig/signature.h"
 
 DISPATCH_KEYMGMT_FN(rsa, new);
 DISPATCH_KEYMGMT_FN(rsa, gen_cleanup);

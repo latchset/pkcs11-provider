@@ -18,6 +18,8 @@ struct p11prov_kem_ctx {
 };
 typedef struct p11prov_kem_ctx P11PROV_KEM_CTX;
 
+#define DISPATCH_MLKEM_FN(name) DECL_DISPATCH_FUNC(kem, p11prov_mlkem, name)
+
 DISPATCH_MLKEM_FN(newctx);
 DISPATCH_MLKEM_FN(freectx);
 DISPATCH_MLKEM_FN(encapsulate_init);
@@ -379,7 +381,10 @@ p11prov_mlkem_settable_ctx_params(ossl_unused void *vctx,
     return settable;
 }
 
-const OSSL_DISPATCH p11prov_mlkem_kem_functions[] = {
+#define DISPATCH_MLKEM_ELEM(prefix, NAME, name) \
+    { OSSL_FUNC_KEM_##NAME, (void (*)(void))p11prov_##prefix##_##name }
+
+const OSSL_DISPATCH p11prov_mlkem_functions[] = {
     DISPATCH_MLKEM_ELEM(mlkem, NEWCTX, newctx),
     DISPATCH_MLKEM_ELEM(mlkem, FREECTX, freectx),
     DISPATCH_MLKEM_ELEM(mlkem, ENCAPSULATE_INIT, encapsulate_init),
@@ -390,3 +395,52 @@ const OSSL_DISPATCH p11prov_mlkem_kem_functions[] = {
     DISPATCH_MLKEM_ELEM(mlkem, SETTABLE_CTX_PARAMS, settable_ctx_params),
     { 0, NULL },
 };
+
+enum p11prov_kem_algorithms {
+    P11PROV_KEM_ML_KEM_512,
+    P11PROV_KEM_ML_KEM_768,
+    P11PROV_KEM_ML_KEM_1024,
+    P11PROV_KEM_NUM_ALGS
+};
+
+const OSSL_ALGORITHM kem_algorithms[P11PROV_KEM_NUM_ALGS] = {
+    [P11PROV_KEM_ML_KEM_512] =
+        DEFAULT_ALGORITHM(ML_KEM_512, p11prov_mlkem_functions),
+    [P11PROV_KEM_ML_KEM_768] =
+        DEFAULT_ALGORITHM(ML_KEM_768, p11prov_mlkem_functions),
+    [P11PROV_KEM_ML_KEM_1024] =
+        DEFAULT_ALGORITHM(ML_KEM_1024, p11prov_mlkem_functions),
+};
+
+CK_RV p11prov_register_kems(P11PROV_CTX *ctx, bool mechs[TBID_SIZE],
+                            bool fips_property)
+{
+    const char *property = NULL;
+    OSSL_ALGORITHM *algs =
+        OPENSSL_zalloc(sizeof(OSSL_ALGORITHM) * (P11PROV_KEM_NUM_ALGS + 1));
+    int i = 0;
+
+    if (algs == NULL) {
+        return CKR_HOST_MEMORY;
+    }
+
+    if (fips_property) {
+        property = P11PROV_FIPS_PROPERTIES;
+    }
+
+    if (mechs[TBID_ML_KEM]) {
+        p11prov_assign_alg(&algs[i++], kem_algorithms, P11PROV_KEM_ML_KEM_512,
+                           property);
+        p11prov_assign_alg(&algs[i++], kem_algorithms, P11PROV_KEM_ML_KEM_768,
+                           property);
+        p11prov_assign_alg(&algs[i++], kem_algorithms, P11PROV_KEM_ML_KEM_1024,
+                           property);
+    }
+
+    if (i == 0) {
+        OPENSSL_free(algs);
+        algs = NULL;
+    }
+
+    return p11prov_ctx_add_algs(ctx, OSSL_OP_KEM, algs);
+}

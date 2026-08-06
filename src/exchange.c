@@ -2,9 +2,10 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
+#include "exchange.h"
+#include "kdf.h"
 #include <string.h>
 #include <openssl/kdf.h>
-#include "kdf.h"
 
 struct p11prov_exch_ctx {
     P11PROV_CTX *provctx;
@@ -58,6 +59,9 @@ static CK_ULONG p11prov_ecdh_digest_to_kdf(CK_MECHANISM_TYPE digest)
     }
     return CK_UNAVAILABLE_INFORMATION;
 }
+
+#define DISPATCH_KEYEXCH_FN(prefix, name) \
+    DECL_DISPATCH_FUNC(keyexch, p11prov_##prefix, name)
 
 DISPATCH_KEYEXCH_FN(ecdh, newctx);
 DISPATCH_KEYEXCH_FN(ecdh, dupctx);
@@ -573,7 +577,10 @@ static const OSSL_PARAM *p11prov_ecdh_gettable_ctx_params(void *ctx, void *prov)
     return params;
 }
 
-const OSSL_DISPATCH p11prov_ecdh_exchange_functions[] = {
+#define DISPATCH_KEYEXCH_ELEM(prefix, NAME, name) \
+    { OSSL_FUNC_KEYEXCH_##NAME, (void (*)(void))p11prov_##prefix##_##name }
+
+const OSSL_DISPATCH p11prov_ecdh_functions[] = {
     DISPATCH_KEYEXCH_ELEM(ecdh, NEWCTX, newctx),
     DISPATCH_KEYEXCH_ELEM(ecdh, DUPCTX, dupctx),
     DISPATCH_KEYEXCH_ELEM(ecdh, FREECTX, freectx),
@@ -590,7 +597,7 @@ const OSSL_DISPATCH p11prov_ecdh_exchange_functions[] = {
     { 0, NULL },
 };
 
-const OSSL_DISPATCH p11prov_x25519_exchange_functions[] = {
+const OSSL_DISPATCH p11prov_x25519_functions[] = {
     DISPATCH_KEYEXCH_ELEM(ecdh, NEWCTX, newctx),
     DISPATCH_KEYEXCH_ELEM(ecdh, DUPCTX, dupctx),
     DISPATCH_KEYEXCH_ELEM(ecdh, FREECTX, freectx),
@@ -603,7 +610,7 @@ const OSSL_DISPATCH p11prov_x25519_exchange_functions[] = {
     { 0, NULL },
 };
 
-const OSSL_DISPATCH p11prov_x448_exchange_functions[] = {
+const OSSL_DISPATCH p11prov_x448_functions[] = {
     DISPATCH_KEYEXCH_ELEM(ecdh, NEWCTX, newctx),
     DISPATCH_KEYEXCH_ELEM(ecdh, DUPCTX, dupctx),
     DISPATCH_KEYEXCH_ELEM(ecdh, FREECTX, freectx),
@@ -621,6 +628,9 @@ const OSSL_DISPATCH p11prov_x448_exchange_functions[] = {
  * because for some reason they want the command line -derive command
  * to be able to handle both key exchanges like ECDH and symmetric key
  * derivation done by KDFs via the -kdf <type> selector */
+#define DISPATCH_EXCHHKDF_FN(name) \
+    DECL_DISPATCH_FUNC(keyexch, p11prov_exch_hkdf, name)
+
 DISPATCH_EXCHHKDF_FN(newctx);
 DISPATCH_EXCHHKDF_FN(freectx);
 DISPATCH_EXCHHKDF_FN(init);
@@ -633,9 +643,9 @@ DISPATCH_EXCHHKDF_FN(settable_ctx_params);
 
 static void *fetch_hkdf_function(int func_id)
 {
-    for (int i = 0; p11prov_hkdf_kdf_functions[i].function_id != 0; i++) {
-        if (p11prov_hkdf_kdf_functions[i].function_id == func_id) {
-            return p11prov_hkdf_kdf_functions[i].function;
+    for (int i = 0; p11prov_hkdf_functions[i].function_id != 0; i++) {
+        if (p11prov_hkdf_functions[i].function_id == func_id) {
+            return p11prov_hkdf_functions[i].function;
         }
     }
     return NULL;
@@ -802,7 +812,10 @@ static const OSSL_PARAM *p11prov_exch_hkdf_settable_ctx_params(void *ctx,
     return hkdf_settable_ctx_params(NULL, provctx);
 }
 
-const OSSL_DISPATCH p11prov_hkdf_exchange_functions[] = {
+#define DISPATCH_EXCHHKDF_ELEM(prefix, NAME, name) \
+    { OSSL_FUNC_KEYEXCH_##NAME, (void (*)(void))p11prov_##prefix##_##name }
+
+const OSSL_DISPATCH p11prov_exch_hkdf_functions[] = {
     DISPATCH_EXCHHKDF_ELEM(exch_hkdf, NEWCTX, newctx),
     DISPATCH_EXCHHKDF_ELEM(exch_hkdf, FREECTX, freectx),
     DISPATCH_EXCHHKDF_ELEM(exch_hkdf, INIT, init),
@@ -814,3 +827,59 @@ const OSSL_DISPATCH p11prov_hkdf_exchange_functions[] = {
     DISPATCH_EXCHHKDF_ELEM(exch_hkdf, SETTABLE_CTX_PARAMS, settable_ctx_params),
     { 0, NULL },
 };
+
+enum p11prov_keyexch_algorithms {
+    P11PROV_KEYEXCH_ECDH = 0,
+    P11PROV_KEYEXCH_X25519,
+    P11PROV_KEYEXCH_X448,
+    P11PROV_KEYEXCH_HKDF,
+    P11PROV_KEYEXCH_NUM_ALGS
+};
+
+const OSSL_ALGORITHM keyexch_algorithms[P11PROV_KEYEXCH_NUM_ALGS] = {
+    [P11PROV_KEYEXCH_ECDH] = DEFAULT_ALGORITHM(ECDH, p11prov_ecdh_functions),
+    [P11PROV_KEYEXCH_X25519] =
+        DEFAULT_ALGORITHM(X25519, p11prov_x25519_functions),
+    [P11PROV_KEYEXCH_X448] = DEFAULT_ALGORITHM(X448, p11prov_x448_functions),
+    [P11PROV_KEYEXCH_HKDF] =
+        DEFAULT_ALGORITHM(HKDF, p11prov_exch_hkdf_functions),
+};
+
+CK_RV p11prov_register_keyexch(P11PROV_CTX *ctx, bool mechs[TBID_SIZE],
+                               bool fips_property)
+{
+    const char *property = NULL;
+    OSSL_ALGORITHM *algs =
+        OPENSSL_zalloc(sizeof(OSSL_ALGORITHM) * (P11PROV_KEYEXCH_NUM_ALGS + 1));
+    int i = 0;
+
+    if (algs == NULL) {
+        return CKR_HOST_MEMORY;
+    }
+
+    if (fips_property) {
+        property = P11PROV_FIPS_PROPERTIES;
+    }
+
+    if (mechs[TBID_ECDH1_DERIVE] || mechs[TBID_ECDH1_COFACTOR_DERIVE]) {
+        p11prov_assign_alg(&algs[i++], keyexch_algorithms, P11PROV_KEYEXCH_ECDH,
+                           property);
+    }
+    if (mechs[TBID_EC_MONTGOMERY_KEY_PAIR_GEN]) {
+        p11prov_assign_alg(&algs[i++], keyexch_algorithms,
+                           P11PROV_KEYEXCH_X25519, property);
+        p11prov_assign_alg(&algs[i++], keyexch_algorithms, P11PROV_KEYEXCH_X448,
+                           property);
+    }
+    if (mechs[TBID_HKDF_DERIVE]) {
+        p11prov_assign_alg(&algs[i++], keyexch_algorithms, P11PROV_KEYEXCH_HKDF,
+                           property);
+    }
+
+    if (i == 0) {
+        OPENSSL_free(algs);
+        algs = NULL;
+    }
+
+    return p11prov_ctx_add_algs(ctx, OSSL_OP_KEYEXCH, algs);
+}

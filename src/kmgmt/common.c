@@ -504,3 +504,157 @@ int p11prov_kmgmt_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
     /* nothing to export, just return OK */
     return RET_OSSL_OK;
 }
+
+enum p11prov_kmgmt_algorithms {
+    P11PROV_KMGMT_RSA = 0,
+    P11PROV_KMGMT_RSAPSS,
+    P11PROV_KMGMT_EC,
+    P11PROV_KMGMT_HKDF,
+    P11PROV_KMGMT_ED25519,
+    P11PROV_KMGMT_ED448,
+    P11PROV_KMGMT_X25519,
+    P11PROV_KMGMT_X448,
+    P11PROV_KMGMT_MLDSA_44,
+    P11PROV_KMGMT_MLDSA_65,
+    P11PROV_KMGMT_MLDSA_87,
+    P11PROV_KMGMT_ML_KEM_512,
+    P11PROV_KMGMT_ML_KEM_768,
+    P11PROV_KMGMT_ML_KEM_1024,
+    P11PROV_KMGMT_SLHDSA_SHA2_128S,
+    P11PROV_KMGMT_SLHDSA_SHA2_128F,
+    P11PROV_KMGMT_SLHDSA_SHA2_192S,
+    P11PROV_KMGMT_SLHDSA_SHA2_192F,
+    P11PROV_KMGMT_SLHDSA_SHA2_256S,
+    P11PROV_KMGMT_SLHDSA_SHA2_256F,
+    P11PROV_KMGMT_SLHDSA_SHAKE_128S,
+    P11PROV_KMGMT_SLHDSA_SHAKE_128F,
+    P11PROV_KMGMT_SLHDSA_SHAKE_192S,
+    P11PROV_KMGMT_SLHDSA_SHAKE_192F,
+    P11PROV_KMGMT_SLHDSA_SHAKE_256S,
+    P11PROV_KMGMT_SLHDSA_SHAKE_256F,
+    P11PROV_KMGMT_NUM_ALGS
+};
+
+const OSSL_ALGORITHM kmgmt_algorithms[P11PROV_KMGMT_NUM_ALGS] = {
+    [P11PROV_KMGMT_RSA] = DEFAULT_ALGORITHM(RSA, p11prov_rsa_keymgmt_functions),
+    [P11PROV_KMGMT_RSAPSS] =
+        DEFAULT_ALGORITHM(RSAPSS, p11prov_rsapss_keymgmt_functions),
+    [P11PROV_KMGMT_EC] = DEFAULT_ALGORITHM(EC, p11prov_ec_keymgmt_functions),
+    [P11PROV_KMGMT_HKDF] =
+        DEFAULT_ALGORITHM(HKDF, p11prov_hkdf_keymgmt_functions),
+    [P11PROV_KMGMT_ED25519] =
+        DEFAULT_ALGORITHM(ED25519, p11prov_ed25519_keymgmt_functions),
+    [P11PROV_KMGMT_ED448] =
+        DEFAULT_ALGORITHM(ED448, p11prov_ed448_keymgmt_functions),
+    [P11PROV_KMGMT_X25519] =
+        DEFAULT_ALGORITHM(X25519, p11prov_x25519_keymgmt_functions),
+    [P11PROV_KMGMT_X448] =
+        DEFAULT_ALGORITHM(X448, p11prov_x448_keymgmt_functions),
+    [P11PROV_KMGMT_MLDSA_44] =
+        DEFAULT_ALGORITHM(MLDSA_44, p11prov_mldsa44_keymgmt_functions),
+    [P11PROV_KMGMT_MLDSA_65] =
+        DEFAULT_ALGORITHM(MLDSA_65, p11prov_mldsa65_keymgmt_functions),
+    [P11PROV_KMGMT_MLDSA_87] =
+        DEFAULT_ALGORITHM(MLDSA_87, p11prov_mldsa87_keymgmt_functions),
+    [P11PROV_KMGMT_ML_KEM_512] =
+        DEFAULT_ALGORITHM(ML_KEM_512, p11prov_mlkem512_keymgmt_functions),
+    [P11PROV_KMGMT_ML_KEM_768] =
+        DEFAULT_ALGORITHM(ML_KEM_768, p11prov_mlkem768_keymgmt_functions),
+    [P11PROV_KMGMT_ML_KEM_1024] =
+        DEFAULT_ALGORITHM(ML_KEM_1024, p11prov_mlkem1024_keymgmt_functions),
+    [P11PROV_KMGMT_SLHDSA_SHA2_128S] = DEFAULT_ALGORITHM(
+        SLHDSA_SHA2_128S, p11prov_slhdsa_sha2_128s_keymgmt_functions),
+    [P11PROV_KMGMT_SLHDSA_SHA2_128F] = DEFAULT_ALGORITHM(
+        SLHDSA_SHA2_128F, p11prov_slhdsa_sha2_128f_keymgmt_functions),
+    [P11PROV_KMGMT_SLHDSA_SHA2_192S] = DEFAULT_ALGORITHM(
+        SLHDSA_SHA2_192S, p11prov_slhdsa_sha2_192s_keymgmt_functions),
+    [P11PROV_KMGMT_SLHDSA_SHA2_192F] = DEFAULT_ALGORITHM(
+        SLHDSA_SHA2_192F, p11prov_slhdsa_sha2_192f_keymgmt_functions),
+    [P11PROV_KMGMT_SLHDSA_SHA2_256S] = DEFAULT_ALGORITHM(
+        SLHDSA_SHA2_256S, p11prov_slhdsa_sha2_256s_keymgmt_functions),
+    [P11PROV_KMGMT_SLHDSA_SHA2_256F] = DEFAULT_ALGORITHM(
+        SLHDSA_SHA2_256F, p11prov_slhdsa_sha2_256f_keymgmt_functions),
+    [P11PROV_KMGMT_SLHDSA_SHAKE_128S] = DEFAULT_ALGORITHM(
+        SLHDSA_SHAKE_128S, p11prov_slhdsa_shake_128s_keymgmt_functions),
+    [P11PROV_KMGMT_SLHDSA_SHAKE_128F] = DEFAULT_ALGORITHM(
+        SLHDSA_SHAKE_128F, p11prov_slhdsa_shake_128f_keymgmt_functions),
+    [P11PROV_KMGMT_SLHDSA_SHAKE_192S] = DEFAULT_ALGORITHM(
+        SLHDSA_SHAKE_192S, p11prov_slhdsa_shake_192s_keymgmt_functions),
+    [P11PROV_KMGMT_SLHDSA_SHAKE_192F] = DEFAULT_ALGORITHM(
+        SLHDSA_SHAKE_192F, p11prov_slhdsa_shake_192f_keymgmt_functions),
+    [P11PROV_KMGMT_SLHDSA_SHAKE_256S] = DEFAULT_ALGORITHM(
+        SLHDSA_SHAKE_256S, p11prov_slhdsa_shake_256s_keymgmt_functions),
+    [P11PROV_KMGMT_SLHDSA_SHAKE_256F] = DEFAULT_ALGORITHM(
+        SLHDSA_SHAKE_256F, p11prov_slhdsa_shake_256f_keymgmt_functions),
+};
+
+CK_RV p11prov_register_kmgmt(P11PROV_CTX *ctx, bool fips_property)
+{
+    const char *property = NULL;
+    OSSL_ALGORITHM *algs =
+        OPENSSL_zalloc(sizeof(OSSL_ALGORITHM) * (P11PROV_KMGMT_NUM_ALGS + 1));
+    int i = 0;
+
+    if (algs == NULL) {
+        return CKR_HOST_MEMORY;
+    }
+
+    if (fips_property) {
+        property = P11PROV_FIPS_PROPERTIES;
+    }
+
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_RSA,
+                       property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_RSAPSS,
+                       property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_EC,
+                       property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_HKDF,
+                       property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_ED25519,
+                       property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_ED448,
+                       property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_X25519,
+                       property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_X448,
+                       property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_MLDSA_44,
+                       property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_MLDSA_65,
+                       property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_MLDSA_87,
+                       property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_ML_KEM_512,
+                       property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_ML_KEM_768,
+                       property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_ML_KEM_1024,
+                       property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
+                       P11PROV_KMGMT_SLHDSA_SHA2_128S, property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
+                       P11PROV_KMGMT_SLHDSA_SHA2_128F, property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
+                       P11PROV_KMGMT_SLHDSA_SHA2_192S, property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
+                       P11PROV_KMGMT_SLHDSA_SHA2_192F, property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
+                       P11PROV_KMGMT_SLHDSA_SHA2_256S, property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
+                       P11PROV_KMGMT_SLHDSA_SHA2_256F, property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
+                       P11PROV_KMGMT_SLHDSA_SHAKE_128S, property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
+                       P11PROV_KMGMT_SLHDSA_SHAKE_128F, property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
+                       P11PROV_KMGMT_SLHDSA_SHAKE_192S, property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
+                       P11PROV_KMGMT_SLHDSA_SHAKE_192F, property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
+                       P11PROV_KMGMT_SLHDSA_SHAKE_256S, property);
+    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
+                       P11PROV_KMGMT_SLHDSA_SHAKE_256F, property);
+
+    return p11prov_ctx_add_algs(ctx, OSSL_OP_KEYMGMT, algs);
+}

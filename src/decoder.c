@@ -9,6 +9,9 @@
 #include "pk11_uri.h"
 #include <openssl/asn1t.h>
 #include <openssl/bio.h>
+#include <openssl/core.h>
+
+#define RET_OSSL_CARRY_ON_DECODING 1
 
 typedef struct p11prov_decoder_ctx {
     P11PROV_CTX *provctx;
@@ -206,12 +209,38 @@ static int p11prov_pem_decoder_p11prov_der_decode(
     return ret;
 }
 
+#define P11PROV_DER_COMMON_DECODE_FN(FORMAT_NAME, format) \
+    static int p11prov_der_decoder_p11prov_##format##_decode( \
+        void *inctx, OSSL_CORE_BIO *cin, int selection, \
+        OSSL_CALLBACK *object_cb, void *object_cbarg, \
+        OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg) \
+    { \
+        return p11prov_der_decoder_p11prov_obj_decode( \
+            FORMAT_NAME, inctx, cin, selection, object_cb, object_cbarg, \
+            pw_cb, pw_cbarg); \
+    }
+
 P11PROV_DER_COMMON_DECODE_FN(P11PROV_NAME_RSA, rsa)
 P11PROV_DER_COMMON_DECODE_FN(P11PROV_NAME_EC, ec)
 P11PROV_DER_COMMON_DECODE_FN(P11PROV_NAME_ED25519, ed25519)
 P11PROV_DER_COMMON_DECODE_FN(P11PROV_NAME_ED448, ed448)
 P11PROV_DER_COMMON_DECODE_FN(P11PROV_NAME_X25519, x25519)
 P11PROV_DER_COMMON_DECODE_FN(P11PROV_NAME_X448, x448)
+
+#define DISPATCH_BASE_DECODER_ELEM(NAME, name) \
+    { OSSL_FUNC_DECODER_##NAME, (void (*)(void))p11prov_decoder_##name }
+#define DISPATCH_DECODER_ELEM(NAME, type, structure, format, name) \
+    { OSSL_FUNC_DECODER_##NAME, \
+      (void (*)( \
+          void))p11prov_##type##_decoder_##structure##_##format##_##name }
+#define DISPATCH_DECODER_FN_LIST(type, structure, format) \
+    const OSSL_DISPATCH \
+        p11prov_##type##_decoder_##structure##_##format##_functions[] = { \
+            DISPATCH_BASE_DECODER_ELEM(NEWCTX, newctx), \
+            DISPATCH_BASE_DECODER_ELEM(FREECTX, freectx), \
+            DISPATCH_DECODER_ELEM(DECODE, type, structure, format, decode), \
+            { 0, NULL } \
+        };
 
 DISPATCH_DECODER_FN_LIST(pem, p11prov, der);
 DISPATCH_DECODER_FN_LIST(der, p11prov, rsa);
@@ -220,3 +249,115 @@ DISPATCH_DECODER_FN_LIST(der, p11prov, ed25519);
 DISPATCH_DECODER_FN_LIST(der, p11prov, ed448);
 DISPATCH_DECODER_FN_LIST(der, p11prov, x25519);
 DISPATCH_DECODER_FN_LIST(der, p11prov, x448);
+
+enum p11prov_decoder_algorithms {
+    P11PROV_DECODER_DER,
+    P11PROV_DECODER_RSA,
+    P11PROV_DECODER_RSAPSS,
+    P11PROV_DECODER_EC,
+    P11PROV_DECODER_ED25519,
+    P11PROV_DECODER_ED448,
+    P11PROV_DECODER_X25519,
+    P11PROV_DECODER_X448,
+    P11PROV_DECODER_NUM_ALGS
+};
+
+#define P11PROV_NAMES_DER "DER"
+#define P11PROV_DESCS_DER "DER decoder implementation in PKCS11 provider"
+
+#define PEM_DECODER_PROP P11PROV_DEFAULT_PROPERTIES ",input=pem"
+#define DER_DECODER_PROP \
+    P11PROV_DEFAULT_PROPERTIES ",input=der,structure=" P11PROV_DER_STRUCTURE
+
+#define PEM_DECODER_FIPS P11PROV_FIPS_PROPERTIES ",input=pem"
+#define DER_DECODER_FIPS \
+    P11PROV_FIPS_PROPERTIES ",input=der,structure=" P11PROV_DER_STRUCTURE
+
+const OSSL_ALGORITHM decoder_algorithms[P11PROV_DECODER_NUM_ALGS] = {
+    [P11PROV_DECODER_DER] = {
+        P11PROV_NAMES_DER,
+        PEM_DECODER_PROP,
+        p11prov_pem_decoder_p11prov_der_functions,
+        P11PROV_DESCS_DER,
+    },
+    [P11PROV_DECODER_RSA] = {
+        P11PROV_NAME_RSA,
+        DER_DECODER_PROP,
+        p11prov_der_decoder_p11prov_rsa_functions,
+        "RSA decoder implementation in PKCS11 provider",
+    },
+    [P11PROV_DECODER_RSAPSS] = {
+        P11PROV_NAME_RSAPSS,
+        DER_DECODER_PROP,
+        p11prov_der_decoder_p11prov_rsa_functions,
+        "RSA-PSS decoder implementation in PKCS11 provider",
+    },
+    [P11PROV_DECODER_EC] = {
+        P11PROV_NAME_EC,
+        DER_DECODER_PROP,
+        p11prov_der_decoder_p11prov_ec_functions,
+        "EC decoder implementation in PKCS11 provider",
+    },
+    [P11PROV_DECODER_ED25519] = {
+        P11PROV_NAME_ED25519,
+        DER_DECODER_PROP,
+        p11prov_der_decoder_p11prov_ed25519_functions,
+        "ED25519 decoder implementation in PKCS11 provider",
+    },
+    [P11PROV_DECODER_ED448] = {
+        P11PROV_NAME_ED448,
+        DER_DECODER_PROP,
+        p11prov_der_decoder_p11prov_ed448_functions,
+        "ED448 decoder implementation in PKCS11 provider",
+    },
+    [P11PROV_DECODER_X25519] = {
+        P11PROV_NAME_X25519,
+        DER_DECODER_PROP,
+        p11prov_der_decoder_p11prov_x25519_functions,
+        "X25519 decoder implementation in PKCS11 provider",
+    },
+    [P11PROV_DECODER_X448] = {
+        P11PROV_NAME_X448,
+        DER_DECODER_PROP,
+        p11prov_der_decoder_p11prov_x448_functions,
+        "X448 decoder implementation in PKCS11 provider",
+    },
+};
+
+CK_RV p11prov_register_decoders(P11PROV_CTX *ctx, bool fips_property)
+{
+    const char *property = NULL;
+    OSSL_ALGORITHM *algs =
+        OPENSSL_zalloc(sizeof(OSSL_ALGORITHM) * (P11PROV_DECODER_NUM_ALGS + 1));
+    int i = 0;
+
+    if (algs == NULL) {
+        return CKR_HOST_MEMORY;
+    }
+
+    if (fips_property) {
+        property = PEM_DECODER_FIPS;
+    }
+    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_DER,
+                       property);
+
+    if (fips_property) {
+        property = DER_DECODER_FIPS;
+    }
+    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_RSA,
+                       property);
+    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_RSAPSS,
+                       property);
+    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_EC,
+                       property);
+    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_ED25519,
+                       property);
+    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_ED448,
+                       property);
+    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_X25519,
+                       property);
+    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_X448,
+                       property);
+
+    return p11prov_ctx_add_algs(ctx, OSSL_OP_DECODER, algs);
+}

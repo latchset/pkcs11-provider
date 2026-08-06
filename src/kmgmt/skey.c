@@ -2,11 +2,15 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
+#include "kmgmt/skey.h"
 
 #if SKEY_SUPPORT == 1
 
 #include "platform/endian.h"
 #include <string.h>
+
+#define DISPATCH_SKEYMGMT_FN(type, name) \
+    DECL_DISPATCH_FUNC(skeymgmt, p11prov_##type, name)
 
 DISPATCH_SKEYMGMT_FN(aes, free);
 DISPATCH_SKEYMGMT_FN(aes, import);
@@ -291,7 +295,10 @@ static const OSSL_PARAM *p11prov_aes_gen_settable_params(void *provctx)
     return aes_generate_params;
 }
 
-const OSSL_DISPATCH p11prov_aes_skeymgmt_functions[] = {
+#define DISPATCH_SKEYMGMT_ELEM(type, NAME, name) \
+    { OSSL_FUNC_SKEYMGMT_##NAME, (void (*)(void))p11prov_##type##_##name }
+
+const OSSL_DISPATCH p11prov_aes_functions[] = {
     DISPATCH_SKEYMGMT_ELEM(aes, FREE, free),
     DISPATCH_SKEYMGMT_ELEM(aes, IMPORT, import),
     DISPATCH_SKEYMGMT_ELEM(aes, EXPORT, export),
@@ -651,7 +658,7 @@ p11prov_generic_secret_gen_settable_params(void *provctx)
     return generic_secret_generate_params;
 }
 
-const OSSL_DISPATCH p11prov_generic_secret_skeymgmt_functions[] = {
+const OSSL_DISPATCH p11prov_generic_secret_functions[] = {
     DISPATCH_SKEYMGMT_ELEM(generic_secret, FREE, free),
     DISPATCH_SKEYMGMT_ELEM(generic_secret, IMPORT, import),
     DISPATCH_SKEYMGMT_ELEM(generic_secret, EXPORT, export),
@@ -663,5 +670,40 @@ const OSSL_DISPATCH p11prov_generic_secret_skeymgmt_functions[] = {
                            gen_settable_params),
     { 0, NULL },
 };
+
+enum p11prov_skmgmt_algorithms {
+    P11PROV_SKMGMT_AES = 0,
+    P11PROV_SKMGMT_GENERIC_SECRET,
+    P11PROV_SKMGMT_NUM_ALGS
+};
+
+const OSSL_ALGORITHM skmgmt_algorithms[P11PROV_SKMGMT_NUM_ALGS] = {
+    [P11PROV_SKMGMT_AES] = DEFAULT_ALGORITHM(AES, p11prov_aes_functions),
+    [P11PROV_SKMGMT_GENERIC_SECRET] =
+        DEFAULT_ALGORITHM(GENERIC_SECRET, p11prov_generic_secret_functions),
+};
+
+CK_RV p11prov_register_skmgmt(P11PROV_CTX *ctx, bool fips_property)
+{
+    const char *property = NULL;
+    OSSL_ALGORITHM *algs =
+        OPENSSL_zalloc(sizeof(OSSL_ALGORITHM) * (P11PROV_SKMGMT_NUM_ALGS + 1));
+    int i = 0;
+
+    if (algs == NULL) {
+        return CKR_HOST_MEMORY;
+    }
+
+    if (fips_property) {
+        property = P11PROV_FIPS_PROPERTIES;
+    }
+
+    p11prov_assign_alg(&algs[i++], skmgmt_algorithms, P11PROV_SKMGMT_AES,
+                       property);
+    p11prov_assign_alg(&algs[i++], skmgmt_algorithms,
+                       P11PROV_SKMGMT_GENERIC_SECRET, property);
+
+    return p11prov_ctx_add_algs(ctx, OSSL_OP_SKEYMGMT, algs);
+}
 
 #endif

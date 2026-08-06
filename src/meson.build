@@ -17,6 +17,7 @@ pkcs11_provider_sources = [
   'kmgmt/slhdsa.c',
   'pk11_uri.c',
   'interface.c',
+  'registration.c',
   'obj/create.c',
   'obj/export.c',
   'obj/keymgmt.c',

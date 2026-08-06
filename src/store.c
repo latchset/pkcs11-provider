@@ -2,6 +2,7 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
+#include <openssl/core.h>
 #include <openssl/store.h>
 #include "store.h"
 
@@ -257,6 +258,8 @@ again:
 
     p11prov_uri_free(search_uri);
 }
+
+#define DISPATCH_STORE_FN(name) DECL_DISPATCH_FUNC(store, p11prov_store, name)
 
 DISPATCH_STORE_FN(open);
 DISPATCH_STORE_FN(attach);
@@ -819,6 +822,9 @@ done:
     return ret;
 }
 
+#define DISPATCH_STORE_ELEM(NAME, name) \
+    { OSSL_FUNC_STORE_##NAME, (void (*)(void))p11prov_store_##name }
+
 const OSSL_DISPATCH p11prov_store_functions[] = {
     DISPATCH_STORE_ELEM(OPEN, open),
     DISPATCH_STORE_ELEM(ATTACH, attach),
@@ -830,3 +836,20 @@ const OSSL_DISPATCH p11prov_store_functions[] = {
     DISPATCH_STORE_ELEM(EXPORT_OBJECT, export_object),
     { 0, NULL },
 };
+
+OSSL_ALGORITHM store_algorithms[] = {
+    DEFAULT_ALGORITHM(URI, p11prov_store_functions),
+};
+
+CK_RV p11prov_register_store(P11PROV_CTX *ctx, bool fips_property)
+{
+    OSSL_ALGORITHM *algs = OPENSSL_zalloc(sizeof(OSSL_ALGORITHM) * 2);
+    if (algs == NULL) {
+        return CKR_HOST_MEMORY;
+    }
+
+    p11prov_assign_alg(&algs[0], store_algorithms, 0,
+                       fips_property ? P11PROV_FIPS_PROPERTIES : NULL);
+
+    return p11prov_ctx_add_algs(ctx, OSSL_OP_STORE, algs);
+}

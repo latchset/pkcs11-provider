@@ -2,10 +2,14 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
+#include "asymmetric_cipher.h"
 #include <string.h>
 #include "openssl/prov_ssl.h"
 #include "openssl/rsa.h"
 #include "openssl/rand.h"
+
+#define DISPATCH_RSAENC_FN(name) \
+    DECL_DISPATCH_FUNC(asym_cipher, p11prov_rsaenc, name)
 
 DISPATCH_RSAENC_FN(newctx);
 DISPATCH_RSAENC_FN(freectx);
@@ -751,6 +755,9 @@ static const OSSL_PARAM *p11prov_rsaenc_settable_ctx_params(void *ctx,
     return params;
 }
 
+#define DISPATCH_RSAENC_ELEM(NAME, name) \
+    { OSSL_FUNC_ASYM_CIPHER_##NAME, (void (*)(void))p11prov_rsaenc_##name }
+
 const OSSL_DISPATCH p11prov_rsa_asym_cipher_functions[] = {
     DISPATCH_RSAENC_ELEM(NEWCTX, newctx),
     DISPATCH_RSAENC_ELEM(FREECTX, freectx),
@@ -764,3 +771,25 @@ const OSSL_DISPATCH p11prov_rsa_asym_cipher_functions[] = {
     DISPATCH_RSAENC_ELEM(SET_CTX_PARAMS, set_ctx_params),
     DISPATCH_RSAENC_ELEM(SETTABLE_CTX_PARAMS, settable_ctx_params),
 };
+
+const OSSL_ALGORITHM asym_cipher_algorithms[1] = {
+    DEFAULT_ALGORITHM(RSA, p11prov_rsa_asym_cipher_functions),
+};
+
+CK_RV p11prov_register_asym_ciphers(P11PROV_CTX *ctx, bool mechs[TBID_SIZE],
+                                    bool fips_property)
+{
+    OSSL_ALGORITHM *algs = NULL;
+
+    if (mechs[TBID_RSA_PKCS] || mechs[TBID_RSA_PKCS_OAEP]
+        || mechs[TBID_RSA_X_509] || mechs[TBID_RSA_X9_31]) {
+        algs = OPENSSL_zalloc(sizeof(OSSL_ALGORITHM) * 2);
+        if (algs == NULL) {
+            return CKR_HOST_MEMORY;
+        }
+        p11prov_assign_alg(&algs[0], asym_cipher_algorithms, 0,
+                           fips_property ? P11PROV_FIPS_PROPERTIES : NULL);
+    }
+
+    return p11prov_ctx_add_algs(ctx, OSSL_OP_ASYM_CIPHER, algs);
+}

@@ -8,6 +8,9 @@
 #include "openssl/ec.h"
 #include "openssl/err.h"
 
+#define DISPATCH_EDDSA_FN(name) \
+    DECL_DISPATCH_FUNC(signature, p11prov_eddsa, name)
+
 DISPATCH_EDDSA_FN(newctx);
 DISPATCH_EDDSA_FN(digest_sign_init);
 DISPATCH_EDDSA_FN(sign);
@@ -492,7 +495,7 @@ static const char **p11prov_ed448_query_key_types(void)
 }
 #endif /* OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT */
 
-const OSSL_DISPATCH p11prov_ed25519_signature_functions[] = {
+const OSSL_DISPATCH p11prov_ed25519_functions[] = {
     DISPATCH_SIG_ELEM(eddsa, NEWCTX, newctx),
     DISPATCH_SIG_ELEM(sig, FREECTX, freectx),
     DISPATCH_SIG_ELEM(sig, DUPCTX, dupctx),
@@ -514,7 +517,7 @@ const OSSL_DISPATCH p11prov_ed25519_signature_functions[] = {
     { 0, NULL },
 };
 
-const OSSL_DISPATCH p11prov_ed448_signature_functions[] = {
+const OSSL_DISPATCH p11prov_ed448_functions[] = {
     DISPATCH_SIG_ELEM(eddsa, NEWCTX, newctx),
     DISPATCH_SIG_ELEM(sig, FREECTX, freectx),
     DISPATCH_SIG_ELEM(sig, DUPCTX, dupctx),
@@ -537,7 +540,7 @@ const OSSL_DISPATCH p11prov_ed448_signature_functions[] = {
 };
 
 #if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
-const OSSL_DISPATCH p11prov_ed25519ph_signature_functions[] = {
+const OSSL_DISPATCH p11prov_ed25519ph_functions[] = {
     DISPATCH_SIG_ELEM(eddsa, NEWCTX, newctx),
     DISPATCH_SIG_ELEM(sig, FREECTX, freectx),
     DISPATCH_SIG_ELEM(sig, DUPCTX, dupctx),
@@ -549,7 +552,7 @@ const OSSL_DISPATCH p11prov_ed25519ph_signature_functions[] = {
     { 0, NULL },
 };
 
-const OSSL_DISPATCH p11prov_ed25519ctx_signature_functions[] = {
+const OSSL_DISPATCH p11prov_ed25519ctx_functions[] = {
     DISPATCH_SIG_ELEM(eddsa, NEWCTX, newctx),
     DISPATCH_SIG_ELEM(sig, FREECTX, freectx),
     DISPATCH_SIG_ELEM(sig, DUPCTX, dupctx),
@@ -561,7 +564,7 @@ const OSSL_DISPATCH p11prov_ed25519ctx_signature_functions[] = {
     { 0, NULL },
 };
 
-const OSSL_DISPATCH p11prov_ed448ph_signature_functions[] = {
+const OSSL_DISPATCH p11prov_ed448ph_functions[] = {
     DISPATCH_SIG_ELEM(eddsa, NEWCTX, newctx),
     DISPATCH_SIG_ELEM(sig, FREECTX, freectx),
     DISPATCH_SIG_ELEM(sig, DUPCTX, dupctx),

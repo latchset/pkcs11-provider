@@ -28,6 +28,29 @@
 #define IVSIZE_ofb AESBLOCK
 #define IVSIZE_poly1305 12
 
+#define MODE_modes_mask 0x00FF
+#define MODE_flags_mask 0xFF00
+
+#define MODE_flag_aead 0x0100
+#define MODE_flag_custom_iv 0x0200
+#define MODE_flag_cts 0x0400
+#define MODE_flag_tls1_mb 0x0800
+#define MODE_flag_rand_key 0x1000
+
+#define MODE_ecb 0x01
+#define MODE_cbc 0x02
+#define MODE_ofb 0x04
+#define MODE_cfb 0x08
+#define MODE_cfb1 MODE_cfb
+#define MODE_cfb8 MODE_cfb
+#define MODE_ctr 0x10
+#define MODE_cts MODE_flag_cts | MODE_cbc
+#define MODE_gcm 0x20
+#define MODE_poly1305 0x21
+
+#define DISPATCH_CIPHER_FN(alg, name) \
+    DECL_DISPATCH_FUNC(cipher, p11prov_##alg, name)
+
 DISPATCH_CIPHER_FN(cipher, freectx);
 DISPATCH_CIPHER_FN(common, dupctx);
 DISPATCH_CIPHER_FN(cipher, encrypt_init);
@@ -190,9 +213,6 @@ static int p11prov_cipher_get_params(OSSL_PARAM params[], unsigned int mode,
     return RET_OSSL_OK;
 }
 
-#define p11prov_aes_get_params p11prov_common_get_params
-#define p11prov_chacha20_get_params p11prov_common_get_params
-
 static int p11prov_common_get_params(OSSL_PARAM params[], int size,
                                      size_t ivsize, int mode,
                                      CK_ULONG mechanism)
@@ -238,6 +258,9 @@ static int p11prov_common_get_params(OSSL_PARAM params[], int size,
     return p11prov_cipher_get_params(params, ciph_mode, flags, keysize, ivsize,
                                      blocksize);
 };
+
+#define p11prov_aes_get_params p11prov_common_get_params
+#define p11prov_chacha20_get_params p11prov_common_get_params
 
 static void p11prov_cipher_free_mech(CK_MECHANISM_PTR mech)
 {
@@ -832,7 +855,7 @@ static CK_RV tls_aead_get_data(CK_MECHANISM_PTR mech, data_buffer *explicitiv,
 {
     /* In TLS 1.2, OpenSSL provides a buffer with this layout:
      * [explicit IV] [plaintext] [authentication tag]
-     *
+     * 
      * In the encryption case, it expects the provider to fill in
      * the explicit IV and tag, and to overwrite the plaintext with
      * ciphertext. Explicit IV can be either:
@@ -1672,6 +1695,49 @@ static const OSSL_PARAM *p11prov_common_settable_ctx_params(void *vctx,
     return NULL;
 }
 
+#define DISPATCH_TABLE_CIPHER_FN(cipher, size, mode, mechanism) \
+    static void *p11prov_##cipher##size##mode##_newctx(void *provctx) \
+    { \
+        return p11prov_cipher_newctx(provctx, size, IVSIZE_##mode, mechanism); \
+    } \
+    static int p11prov_##cipher##size##mode##_get_params(OSSL_PARAM params[]) \
+    { \
+        return p11prov_##cipher##_get_params(params, size, IVSIZE_##mode, \
+                                             MODE_##mode, mechanism); \
+    } \
+    const OSSL_DISPATCH p11prov_##cipher##size##mode##_functions[] = { \
+        { OSSL_FUNC_CIPHER_NEWCTX, \
+          (void (*)(void))p11prov_##cipher##size##mode##_newctx }, \
+        { OSSL_FUNC_CIPHER_FREECTX, (void (*)(void))p11prov_cipher_freectx }, \
+        { OSSL_FUNC_CIPHER_DUPCTX, \
+          (void (*)(void))p11prov_##cipher##_dupctx }, \
+        { OSSL_FUNC_CIPHER_ENCRYPT_INIT, \
+          (void (*)(void))p11prov_cipher_encrypt_init }, \
+        { OSSL_FUNC_CIPHER_DECRYPT_INIT, \
+          (void (*)(void))p11prov_cipher_decrypt_init }, \
+        { OSSL_FUNC_CIPHER_UPDATE, (void (*)(void))p11prov_cipher_update }, \
+        { OSSL_FUNC_CIPHER_FINAL, (void (*)(void))p11prov_cipher_final }, \
+        { OSSL_FUNC_CIPHER_CIPHER, \
+          (void (*)(void))p11prov_##cipher##_cipher }, \
+        { OSSL_FUNC_CIPHER_GET_PARAMS, \
+          (void (*)(void))p11prov_##cipher##size##mode##_get_params }, \
+        { OSSL_FUNC_CIPHER_GET_CTX_PARAMS, \
+          (void (*)(void))p11prov_##cipher##_get_ctx_params }, \
+        { OSSL_FUNC_CIPHER_SET_CTX_PARAMS, \
+          (void (*)(void))p11prov_##cipher##_set_ctx_params }, \
+        { OSSL_FUNC_CIPHER_GETTABLE_PARAMS, \
+          (void (*)(void))p11prov_cipher_gettable_params }, \
+        { OSSL_FUNC_CIPHER_GETTABLE_CTX_PARAMS, \
+          (void (*)(void))p11prov_##cipher##_gettable_ctx_params }, \
+        { OSSL_FUNC_CIPHER_SETTABLE_CTX_PARAMS, \
+          (void (*)(void))p11prov_##cipher##_settable_ctx_params }, \
+        { OSSL_FUNC_CIPHER_ENCRYPT_SKEY_INIT, \
+          (void (*)(void))p11prov_cipher_encrypt_skey_init }, \
+        { OSSL_FUNC_CIPHER_DECRYPT_SKEY_INIT, \
+          (void (*)(void))p11prov_cipher_decrypt_skey_init }, \
+        OSSL_DISPATCH_END \
+    };
+
 DISPATCH_TABLE_CIPHER_FN(aes, 128, ecb, CKM_AES_ECB);
 DISPATCH_TABLE_CIPHER_FN(aes, 192, ecb, CKM_AES_ECB);
 DISPATCH_TABLE_CIPHER_FN(aes, 256, ecb, CKM_AES_ECB);
@@ -1700,5 +1766,197 @@ DISPATCH_TABLE_CIPHER_FN(aes, 128, gcm, CKM_AES_GCM);
 DISPATCH_TABLE_CIPHER_FN(aes, 192, gcm, CKM_AES_GCM);
 DISPATCH_TABLE_CIPHER_FN(aes, 256, gcm, CKM_AES_GCM);
 DISPATCH_TABLE_CIPHER_FN(chacha20, 256, poly1305, CKM_CHACHA20_POLY1305);
+
+enum p11prov_cipher_algorithms {
+    P11PROV_CIPHER_AES_128_ECB = 0,
+    P11PROV_CIPHER_AES_192_ECB,
+    P11PROV_CIPHER_AES_256_ECB,
+    P11PROV_CIPHER_AES_128_CBC,
+    P11PROV_CIPHER_AES_192_CBC,
+    P11PROV_CIPHER_AES_256_CBC,
+    P11PROV_CIPHER_AES_128_OFB,
+    P11PROV_CIPHER_AES_192_OFB,
+    P11PROV_CIPHER_AES_256_OFB,
+    P11PROV_CIPHER_AES_128_CFB,
+    P11PROV_CIPHER_AES_192_CFB,
+    P11PROV_CIPHER_AES_256_CFB,
+    P11PROV_CIPHER_AES_128_CFB1,
+    P11PROV_CIPHER_AES_192_CFB1,
+    P11PROV_CIPHER_AES_256_CFB1,
+    P11PROV_CIPHER_AES_128_CFB8,
+    P11PROV_CIPHER_AES_192_CFB8,
+    P11PROV_CIPHER_AES_256_CFB8,
+    P11PROV_CIPHER_AES_128_CTR,
+    P11PROV_CIPHER_AES_192_CTR,
+    P11PROV_CIPHER_AES_256_CTR,
+    P11PROV_CIPHER_AES_128_CTS,
+    P11PROV_CIPHER_AES_192_CTS,
+    P11PROV_CIPHER_AES_256_CTS,
+    P11PROV_CIPHER_AES_128_GCM,
+    P11PROV_CIPHER_AES_192_GCM,
+    P11PROV_CIPHER_AES_256_GCM,
+    P11PROV_CIPHER_CHACHA20_256_POLY1305,
+    P11PROV_CIPHER_NUM_ALGS
+};
+
+const OSSL_ALGORITHM cipher_algorithms[P11PROV_CIPHER_NUM_ALGS] = {
+    [P11PROV_CIPHER_AES_128_ECB] =
+        DEFAULT_ALGORITHM(AES_128_ECB, p11prov_aes128ecb_functions),
+    [P11PROV_CIPHER_AES_192_ECB] =
+        DEFAULT_ALGORITHM(AES_192_ECB, p11prov_aes192ecb_functions),
+    [P11PROV_CIPHER_AES_256_ECB] =
+        DEFAULT_ALGORITHM(AES_256_ECB, p11prov_aes256ecb_functions),
+    [P11PROV_CIPHER_AES_128_CBC] =
+        DEFAULT_ALGORITHM(AES_128_CBC, p11prov_aes128cbc_functions),
+    [P11PROV_CIPHER_AES_192_CBC] =
+        DEFAULT_ALGORITHM(AES_192_CBC, p11prov_aes192cbc_functions),
+    [P11PROV_CIPHER_AES_256_CBC] =
+        DEFAULT_ALGORITHM(AES_256_CBC, p11prov_aes256cbc_functions),
+    [P11PROV_CIPHER_AES_128_OFB] =
+        DEFAULT_ALGORITHM(AES_128_OFB, p11prov_aes128ofb_functions),
+    [P11PROV_CIPHER_AES_192_OFB] =
+        DEFAULT_ALGORITHM(AES_192_OFB, p11prov_aes192ofb_functions),
+    [P11PROV_CIPHER_AES_256_OFB] =
+        DEFAULT_ALGORITHM(AES_256_OFB, p11prov_aes256ofb_functions),
+    [P11PROV_CIPHER_AES_128_CFB] =
+        DEFAULT_ALGORITHM(AES_128_CFB, p11prov_aes128cfb_functions),
+    [P11PROV_CIPHER_AES_192_CFB] =
+        DEFAULT_ALGORITHM(AES_192_CFB, p11prov_aes192cfb_functions),
+    [P11PROV_CIPHER_AES_256_CFB] =
+        DEFAULT_ALGORITHM(AES_256_CFB, p11prov_aes256cfb_functions),
+    [P11PROV_CIPHER_AES_128_CFB1] =
+        DEFAULT_ALGORITHM(AES_128_CFB1, p11prov_aes128cfb1_functions),
+    [P11PROV_CIPHER_AES_192_CFB1] =
+        DEFAULT_ALGORITHM(AES_192_CFB1, p11prov_aes192cfb1_functions),
+    [P11PROV_CIPHER_AES_256_CFB1] =
+        DEFAULT_ALGORITHM(AES_256_CFB1, p11prov_aes256cfb1_functions),
+    [P11PROV_CIPHER_AES_128_CFB8] =
+        DEFAULT_ALGORITHM(AES_128_CFB8, p11prov_aes128cfb8_functions),
+    [P11PROV_CIPHER_AES_192_CFB8] =
+        DEFAULT_ALGORITHM(AES_192_CFB8, p11prov_aes192cfb8_functions),
+    [P11PROV_CIPHER_AES_256_CFB8] =
+        DEFAULT_ALGORITHM(AES_256_CFB8, p11prov_aes256cfb8_functions),
+    [P11PROV_CIPHER_AES_128_CTR] =
+        DEFAULT_ALGORITHM(AES_128_CTR, p11prov_aes128ctr_functions),
+    [P11PROV_CIPHER_AES_192_CTR] =
+        DEFAULT_ALGORITHM(AES_192_CTR, p11prov_aes192ctr_functions),
+    [P11PROV_CIPHER_AES_256_CTR] =
+        DEFAULT_ALGORITHM(AES_256_CTR, p11prov_aes256ctr_functions),
+    [P11PROV_CIPHER_AES_128_CTS] =
+        DEFAULT_ALGORITHM(AES_128_CTS, p11prov_aes128cts_functions),
+    [P11PROV_CIPHER_AES_192_CTS] =
+        DEFAULT_ALGORITHM(AES_192_CTS, p11prov_aes192cts_functions),
+    [P11PROV_CIPHER_AES_256_CTS] =
+        DEFAULT_ALGORITHM(AES_256_CTS, p11prov_aes256cts_functions),
+    [P11PROV_CIPHER_AES_128_GCM] =
+        DEFAULT_ALGORITHM(AES_128_GCM, p11prov_aes128gcm_functions),
+    [P11PROV_CIPHER_AES_192_GCM] =
+        DEFAULT_ALGORITHM(AES_192_GCM, p11prov_aes192gcm_functions),
+    [P11PROV_CIPHER_AES_256_GCM] =
+        DEFAULT_ALGORITHM(AES_256_GCM, p11prov_aes256gcm_functions),
+    [P11PROV_CIPHER_CHACHA20_256_POLY1305] = DEFAULT_ALGORITHM(
+        CHACHA20_256_POLY1305, p11prov_chacha20256poly1305_functions),
+};
+
+CK_RV p11prov_register_ciphers(P11PROV_CTX *ctx, bool mechs[TBID_SIZE],
+                               bool fips_property)
+{
+    const char *property = NULL;
+    OSSL_ALGORITHM *algs =
+        OPENSSL_zalloc(sizeof(OSSL_ALGORITHM) * (P11PROV_CIPHER_NUM_ALGS + 1));
+    int i = 0;
+
+    if (algs == NULL) {
+        return CKR_HOST_MEMORY;
+    }
+
+    if (fips_property) {
+        property = P11PROV_FIPS_PROPERTIES;
+    }
+
+    if (mechs[TBID_AES_ECB]) {
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_256_ECB, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_192_ECB, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_128_ECB, property);
+    }
+    if (mechs[TBID_AES_CBC] || mechs[TBID_AES_CBC_PAD]) {
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_256_CBC, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_192_CBC, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_128_CBC, property);
+    }
+    if (mechs[TBID_AES_OFB]) {
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_256_OFB, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_192_OFB, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_128_OFB, property);
+    }
+    if (mechs[TBID_AES_CFB128]) {
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_256_CFB, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_192_CFB, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_128_CFB, property);
+    }
+    if (mechs[TBID_AES_CFB1]) {
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_256_CFB1, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_192_CFB1, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_128_CFB1, property);
+    }
+    if (mechs[TBID_AES_CFB8]) {
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_256_CFB8, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_192_CFB8, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_128_CFB8, property);
+    }
+    if (mechs[TBID_AES_CTR]) {
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_256_CTR, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_192_CTR, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_128_CTR, property);
+    }
+    if (mechs[TBID_AES_CTS]) {
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_256_CTS, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_192_CTS, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_128_CTS, property);
+    }
+    if (mechs[TBID_AES_GCM]) {
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_256_GCM, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_192_GCM, property);
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_AES_128_GCM, property);
+    }
+    if (mechs[TBID_CHACHA20_POLY1305]) {
+        p11prov_assign_alg(&algs[i++], cipher_algorithms,
+                           P11PROV_CIPHER_CHACHA20_256_POLY1305, property);
+    }
+
+    if (i == 0) {
+        OPENSSL_free(algs);
+        algs = NULL;
+    }
+
+    return p11prov_ctx_add_algs(ctx, OSSL_OP_CIPHER, algs);
+}
 
 #endif

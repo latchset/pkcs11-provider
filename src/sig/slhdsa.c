@@ -7,6 +7,9 @@
 #include "openssl/evp.h"
 #include "openssl/err.h"
 
+#define DISPATCH_SLHDSA_FN(name) \
+    DECL_DISPATCH_FUNC(signature, p11prov_slhdsa, name)
+
 DISPATCH_SLHDSA_FN(sign_init);
 DISPATCH_SLHDSA_FN(sign);
 DISPATCH_SLHDSA_FN(verify_init);
@@ -667,7 +670,7 @@ static const OSSL_PARAM *p11prov_slhdsa_settable_ctx_params(void *ctx,
 #endif
 
 #define SLHDSA_SIGNATURE_FUNCTIONS(variant) \
-    const OSSL_DISPATCH p11prov_slhdsa_##variant##_signature_functions[] = { \
+    const OSSL_DISPATCH p11prov_slhdsa_##variant##_functions[] = { \
         DISPATCH_SIG_ELEM(slhdsa_##variant, NEWCTX, newctx), \
         DISPATCH_SIG_ELEM(sig, FREECTX, freectx), \
         DISPATCH_SIG_ELEM(sig, DUPCTX, dupctx), \

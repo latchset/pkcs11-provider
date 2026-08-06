@@ -2,6 +2,8 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
+#include "exchange.h"
+#include "kmgmt/internal.h"
 
 DISPATCH_KEYMGMT_FN(hkdf, new);
 DISPATCH_KEYMGMT_FN(hkdf, free);
