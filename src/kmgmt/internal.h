@@ -1,6 +1,8 @@
 /* Copyright (C) 2022-2025 Simo Sorce <simo@redhat.com>
    SPDX-License-Identifier: Apache-2.0 */
 
+#include "kmgmt/keymgmt.h"
+
 struct key_generator {
     P11PROV_CTX *provctx;
 
@@ -72,3 +74,35 @@ int p11prov_kmgmt_import(CK_KEY_TYPE type, CK_ULONG param_set,
                          int selection, const OSSL_PARAM params[]);
 int p11prov_kmgmt_export(void *keydata, int selection, OSSL_CALLBACK *cb_fn,
                          void *cb_arg);
+
+#define DISPATCH_KEYMGMT_FN(type, name) \
+    DECL_DISPATCH_FUNC(keymgmt, p11prov_##type, name)
+#define DISPATCH_KEYMGMT_ELEM(type, NAME, name) \
+    { OSSL_FUNC_KEYMGMT_##NAME, (void (*)(void))p11prov_##type##_##name }
+
+extern const OSSL_DISPATCH p11prov_rsa_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_rsapss_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_ec_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_hkdf_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_ed25519_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_ed448_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_x25519_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_x448_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_mldsa44_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_mldsa65_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_mldsa87_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_mlkem512_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_mlkem768_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_mlkem1024_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_128s_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_128f_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_192s_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_192f_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_256s_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_sha2_256f_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_128s_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_128f_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_192s_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_192f_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_256s_keymgmt_functions[];
+extern const OSSL_DISPATCH p11prov_slhdsa_shake_256f_keymgmt_functions[];

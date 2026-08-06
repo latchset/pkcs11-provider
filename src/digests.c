@@ -130,6 +130,8 @@ typedef struct p11prov_digest_ctx P11PROV_DIGEST_CTX;
         dctx->session = CK_INVALID_HANDLE; \
         return dctx; \
     }
+#define DISPATCH_DIGEST_COMMON_FN(name) \
+    DECL_DISPATCH_FUNC(digest, p11prov_digest, name)
 
 DISPATCH_DIGEST_NEWCTX_FN(CKM_SHA_1, sha1);
 DISPATCH_DIGEST_NEWCTX_FN(CKM_SHA224, sha224);
@@ -469,8 +471,12 @@ static const OSSL_PARAM *p11prov_digest_gettable_params(void *provctx)
     return digest_params;
 }
 
-#define DISPATCH_FUNCTION_TABLE(digest) \
-    const OSSL_DISPATCH p11prov_##digest##_digest_functions[] = { \
+#define DISPATCH_DIGEST_ELEM(digest, NAME, name) \
+    { OSSL_FUNC_DIGEST_##NAME, (void (*)(void))p11prov_##digest##_##name }
+#define DISPATCH_DIGEST_COMMON(NAME, name) \
+    { OSSL_FUNC_DIGEST_##NAME, (void (*)(void))p11prov_digest_##name }
+#define DISPATCH_FUNCTIONS(digest) \
+    const OSSL_DISPATCH p11prov_##digest##_functions[] = { \
         DISPATCH_DIGEST_ELEM(digest, NEWCTX, newctx), \
         DISPATCH_DIGEST_COMMON(DUPCTX, dupctx), \
         DISPATCH_DIGEST_COMMON(FREECTX, freectx), \
@@ -482,14 +488,122 @@ static const OSSL_PARAM *p11prov_digest_gettable_params(void *provctx)
         { 0, NULL }, \
     }
 
-DISPATCH_FUNCTION_TABLE(sha1);
-DISPATCH_FUNCTION_TABLE(sha224);
-DISPATCH_FUNCTION_TABLE(sha256);
-DISPATCH_FUNCTION_TABLE(sha384);
-DISPATCH_FUNCTION_TABLE(sha512);
-DISPATCH_FUNCTION_TABLE(sha512_224);
-DISPATCH_FUNCTION_TABLE(sha512_256);
-DISPATCH_FUNCTION_TABLE(sha3_224);
-DISPATCH_FUNCTION_TABLE(sha3_256);
-DISPATCH_FUNCTION_TABLE(sha3_384);
-DISPATCH_FUNCTION_TABLE(sha3_512);
+DISPATCH_FUNCTIONS(sha1);
+DISPATCH_FUNCTIONS(sha224);
+DISPATCH_FUNCTIONS(sha256);
+DISPATCH_FUNCTIONS(sha384);
+DISPATCH_FUNCTIONS(sha512);
+DISPATCH_FUNCTIONS(sha512_224);
+DISPATCH_FUNCTIONS(sha512_256);
+DISPATCH_FUNCTIONS(sha3_224);
+DISPATCH_FUNCTIONS(sha3_256);
+DISPATCH_FUNCTIONS(sha3_384);
+DISPATCH_FUNCTIONS(sha3_512);
+
+enum p11prov_digest_algorithms {
+    P11PROV_DIGEST_SHA1 = 0,
+    P11PROV_DIGEST_SHA224,
+    P11PROV_DIGEST_SHA256,
+    P11PROV_DIGEST_SHA384,
+    P11PROV_DIGEST_SHA512,
+    P11PROV_DIGEST_SHA512_224,
+    P11PROV_DIGEST_SHA512_256,
+    P11PROV_DIGEST_SHA3_224,
+    P11PROV_DIGEST_SHA3_256,
+    P11PROV_DIGEST_SHA3_384,
+    P11PROV_DIGEST_SHA3_512,
+    P11PROV_DIGEST_NUM_ALGS
+};
+
+const OSSL_ALGORITHM digest_algorithms[P11PROV_DIGEST_NUM_ALGS] = {
+    [P11PROV_DIGEST_SHA1] = DEFAULT_ALGORITHM(SHA1, p11prov_sha1_functions),
+    [P11PROV_DIGEST_SHA224] =
+        DEFAULT_ALGORITHM(SHA224, p11prov_sha224_functions),
+    [P11PROV_DIGEST_SHA256] =
+        DEFAULT_ALGORITHM(SHA256, p11prov_sha256_functions),
+    [P11PROV_DIGEST_SHA384] =
+        DEFAULT_ALGORITHM(SHA384, p11prov_sha384_functions),
+    [P11PROV_DIGEST_SHA512] =
+        DEFAULT_ALGORITHM(SHA512, p11prov_sha512_functions),
+    [P11PROV_DIGEST_SHA512_224] =
+        DEFAULT_ALGORITHM(SHA512_224, p11prov_sha512_224_functions),
+    [P11PROV_DIGEST_SHA512_256] =
+        DEFAULT_ALGORITHM(SHA512_256, p11prov_sha512_256_functions),
+    [P11PROV_DIGEST_SHA3_224] =
+        DEFAULT_ALGORITHM(SHA3_224, p11prov_sha3_224_functions),
+    [P11PROV_DIGEST_SHA3_256] =
+        DEFAULT_ALGORITHM(SHA3_256, p11prov_sha3_256_functions),
+    [P11PROV_DIGEST_SHA3_384] =
+        DEFAULT_ALGORITHM(SHA3_384, p11prov_sha3_384_functions),
+    [P11PROV_DIGEST_SHA3_512] =
+        DEFAULT_ALGORITHM(SHA3_512, p11prov_sha3_512_functions),
+};
+
+CK_RV p11prov_register_digests(P11PROV_CTX *ctx, bool mechs[TBID_SIZE],
+                               bool fips_property)
+{
+    const char *property = NULL;
+    OSSL_ALGORITHM *algs =
+        OPENSSL_zalloc(sizeof(OSSL_ALGORITHM) * (P11PROV_DIGEST_NUM_ALGS + 1));
+    int i = 0;
+
+    if (algs == NULL) {
+        return CKR_HOST_MEMORY;
+    }
+
+    if (fips_property) {
+        property = P11PROV_FIPS_PROPERTIES;
+    }
+
+    if (mechs[TBID_SHA_1]) {
+        p11prov_assign_alg(&algs[i++], digest_algorithms, P11PROV_DIGEST_SHA1,
+                           property);
+    }
+    if (mechs[TBID_SHA224]) {
+        p11prov_assign_alg(&algs[i++], digest_algorithms, P11PROV_DIGEST_SHA224,
+                           property);
+    }
+    if (mechs[TBID_SHA256]) {
+        p11prov_assign_alg(&algs[i++], digest_algorithms, P11PROV_DIGEST_SHA256,
+                           property);
+    }
+    if (mechs[TBID_SHA384]) {
+        p11prov_assign_alg(&algs[i++], digest_algorithms, P11PROV_DIGEST_SHA384,
+                           property);
+    }
+    if (mechs[TBID_SHA512]) {
+        p11prov_assign_alg(&algs[i++], digest_algorithms, P11PROV_DIGEST_SHA512,
+                           property);
+    }
+    if (mechs[TBID_SHA512_224]) {
+        p11prov_assign_alg(&algs[i++], digest_algorithms,
+                           P11PROV_DIGEST_SHA512_224, property);
+    }
+    if (mechs[TBID_SHA512_256]) {
+        p11prov_assign_alg(&algs[i++], digest_algorithms,
+                           P11PROV_DIGEST_SHA512_256, property);
+    }
+    if (mechs[TBID_SHA3_224]) {
+        p11prov_assign_alg(&algs[i++], digest_algorithms,
+                           P11PROV_DIGEST_SHA3_224, property);
+    }
+    if (mechs[TBID_SHA3_256]) {
+        p11prov_assign_alg(&algs[i++], digest_algorithms,
+                           P11PROV_DIGEST_SHA3_256, property);
+    }
+    if (mechs[TBID_SHA3_384]) {
+        p11prov_assign_alg(&algs[i++], digest_algorithms,
+                           P11PROV_DIGEST_SHA3_384, property);
+    }
+    if (mechs[TBID_SHA3_512]) {
+        p11prov_assign_alg(&algs[i++], digest_algorithms,
+                           P11PROV_DIGEST_SHA3_512, property);
+    }
+
+    if (i == 0) {
+        OPENSSL_free(algs);
+        algs = NULL;
+    }
+
+    return p11prov_ctx_add_algs(ctx, OSSL_OP_DIGEST, algs);
+}

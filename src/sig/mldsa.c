@@ -7,6 +7,9 @@
 #include "openssl/evp.h"
 #include "openssl/err.h"
 
+#define DISPATCH_MLDSA_FN(name) \
+    DECL_DISPATCH_FUNC(signature, p11prov_mldsa, name)
+
 DISPATCH_MLDSA_FN(sign_init);
 DISPATCH_MLDSA_FN(sign);
 DISPATCH_MLDSA_FN(verify_init);
@@ -555,7 +558,7 @@ static const OSSL_PARAM *p11prov_mldsa_settable_ctx_params(void *ctx,
     return params;
 }
 
-const OSSL_DISPATCH p11prov_mldsa_44_signature_functions[] = {
+const OSSL_DISPATCH p11prov_mldsa_44_functions[] = {
     DISPATCH_SIG_ELEM(mldsa_44, NEWCTX, newctx),
     DISPATCH_SIG_ELEM(sig, FREECTX, freectx),
     DISPATCH_SIG_ELEM(sig, DUPCTX, dupctx),
@@ -586,7 +589,7 @@ const OSSL_DISPATCH p11prov_mldsa_44_signature_functions[] = {
     { 0, NULL },
 };
 
-const OSSL_DISPATCH p11prov_mldsa_65_signature_functions[] = {
+const OSSL_DISPATCH p11prov_mldsa_65_functions[] = {
     DISPATCH_SIG_ELEM(mldsa_65, NEWCTX, newctx),
     DISPATCH_SIG_ELEM(sig, FREECTX, freectx),
     DISPATCH_SIG_ELEM(sig, DUPCTX, dupctx),
@@ -617,7 +620,7 @@ const OSSL_DISPATCH p11prov_mldsa_65_signature_functions[] = {
     { 0, NULL },
 };
 
-const OSSL_DISPATCH p11prov_mldsa_87_signature_functions[] = {
+const OSSL_DISPATCH p11prov_mldsa_87_functions[] = {
     DISPATCH_SIG_ELEM(mldsa_87, NEWCTX, newctx),
     DISPATCH_SIG_ELEM(sig, FREECTX, freectx),
     DISPATCH_SIG_ELEM(sig, DUPCTX, dupctx),

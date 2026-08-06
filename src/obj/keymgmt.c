@@ -2,6 +2,7 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "obj/internal.h"
+#include "kmgmt/keymgmt.h"
 
 bool p11prov_obj_is_rsa_pss(P11PROV_OBJ *obj)
 {

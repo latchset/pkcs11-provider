@@ -2,6 +2,7 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
+#include "kdf.h"
 #include "platform/endian.h"
 #include <string.h>
 #include <openssl/kdf.h>
@@ -30,6 +31,8 @@ struct p11prov_kdf_ctx {
     bool is_tls13_kdf;
 };
 typedef struct p11prov_kdf_ctx P11PROV_KDF_CTX;
+
+#define DISPATCH_HKDF_FN(name) DECL_DISPATCH_FUNC(kdf, p11prov_hkdf, name)
 
 DISPATCH_HKDF_FN(newctx);
 DISPATCH_HKDF_FN(freectx);
@@ -939,7 +942,10 @@ static const OSSL_PARAM *p11prov_hkdf_gettable_ctx_params(void *ctx, void *prov)
     return params;
 }
 
-const OSSL_DISPATCH p11prov_hkdf_kdf_functions[] = {
+#define DISPATCH_HKDF_ELEM(prefix, NAME, name) \
+    { OSSL_FUNC_KDF_##NAME, (void (*)(void))p11prov_##prefix##_##name }
+
+const OSSL_DISPATCH p11prov_hkdf_functions[] = {
     DISPATCH_HKDF_ELEM(hkdf, NEWCTX, newctx),
     DISPATCH_HKDF_ELEM(hkdf, FREECTX, freectx),
     DISPATCH_HKDF_ELEM(hkdf, RESET, reset),
@@ -995,3 +1001,47 @@ const OSSL_DISPATCH p11prov_tls13_kdf_functions[] = {
 #endif
     { 0, NULL },
 };
+
+enum p11prov_kdf_algorithms {
+    P11PROV_KDF_HKDF = 0,
+    P11PROV_KDF_TLS13_KDF,
+    P11PROV_KDF_NUM_ALGS
+};
+
+const OSSL_ALGORITHM kdf_algorithms[P11PROV_KDF_NUM_ALGS] = {
+    [P11PROV_KDF_HKDF] = DEFAULT_ALGORITHM(HKDF, p11prov_hkdf_functions),
+    [P11PROV_KDF_TLS13_KDF] =
+        DEFAULT_ALGORITHM(TLS13_KDF, p11prov_tls13_kdf_functions),
+};
+
+CK_RV p11prov_register_kdfs(P11PROV_CTX *ctx, bool mechs[TBID_SIZE],
+                            bool fips_property)
+{
+    const char *property = NULL;
+
+    OSSL_ALGORITHM *algs =
+        OPENSSL_zalloc(sizeof(OSSL_ALGORITHM) * (P11PROV_KDF_NUM_ALGS + 1));
+    int i = 0;
+
+    if (algs == NULL) {
+        return CKR_HOST_MEMORY;
+    }
+
+    if (fips_property) {
+        property = P11PROV_FIPS_PROPERTIES;
+    }
+
+    if (mechs[TBID_HKDF_DERIVE]) {
+        p11prov_assign_alg(&algs[i++], kdf_algorithms, P11PROV_KDF_HKDF,
+                           property);
+        p11prov_assign_alg(&algs[i++], kdf_algorithms, P11PROV_KDF_TLS13_KDF,
+                           property);
+    }
+
+    if (i == 0) {
+        OPENSSL_free(algs);
+        algs = NULL;
+    }
+
+    return p11prov_ctx_add_algs(ctx, OSSL_OP_KDF, algs);
+}

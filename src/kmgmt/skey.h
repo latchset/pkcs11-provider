@@ -4,12 +4,6 @@
 #ifndef _SKEYMGMT_H
 #define _SKEYMGMT_H
 
-/* keymgmt */
-#define DISPATCH_SKEYMGMT_FN(type, name) \
-    DECL_DISPATCH_FUNC(skeymgmt, p11prov_##type, name)
-#define DISPATCH_SKEYMGMT_ELEM(type, NAME, name) \
-    { OSSL_FUNC_SKEYMGMT_##NAME, (void (*)(void))p11prov_##type##_##name }
-extern const OSSL_DISPATCH p11prov_aes_skeymgmt_functions[];
-extern const OSSL_DISPATCH p11prov_generic_secret_skeymgmt_functions[];
+CK_RV p11prov_register_skmgmt(P11PROV_CTX *ctx, bool fips_property);
 
 #endif /* _SKEYMGMT_H */

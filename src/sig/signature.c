@@ -670,3 +670,315 @@ done:
     sigctx->session = NULL;
     return result;
 }
+
+enum p11prov_signature_algorithms {
+    P11PROV_SIG_RSA = 0,
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+    P11PROV_SIG_RSA_SHA1,
+    P11PROV_SIG_RSA_SHA224,
+    P11PROV_SIG_RSA_SHA256,
+    P11PROV_SIG_RSA_SHA384,
+    P11PROV_SIG_RSA_SHA512,
+    P11PROV_SIG_RSA_SHA3_224,
+    P11PROV_SIG_RSA_SHA3_256,
+    P11PROV_SIG_RSA_SHA3_384,
+    P11PROV_SIG_RSA_SHA3_512,
+#endif
+    P11PROV_SIG_ECDSA,
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+    P11PROV_SIG_ECDSA_SHA1,
+    P11PROV_SIG_ECDSA_SHA224,
+    P11PROV_SIG_ECDSA_SHA256,
+    P11PROV_SIG_ECDSA_SHA384,
+    P11PROV_SIG_ECDSA_SHA512,
+    P11PROV_SIG_ECDSA_SHA3_224,
+    P11PROV_SIG_ECDSA_SHA3_256,
+    P11PROV_SIG_ECDSA_SHA3_384,
+    P11PROV_SIG_ECDSA_SHA3_512,
+#endif
+    P11PROV_SIG_ED25519,
+    P11PROV_SIG_ED448,
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+    P11PROV_SIG_ED25519PH,
+    P11PROV_SIG_ED25519CTX,
+    P11PROV_SIG_ED448PH,
+#endif
+    P11PROV_SIG_MLDSA_44,
+    P11PROV_SIG_MLDSA_65,
+    P11PROV_SIG_MLDSA_87,
+    P11PROV_SIG_SLHDSA_SHA2_128S,
+    P11PROV_SIG_SLHDSA_SHAKE_128S,
+    P11PROV_SIG_SLHDSA_SHA2_128F,
+    P11PROV_SIG_SLHDSA_SHAKE_128F,
+    P11PROV_SIG_SLHDSA_SHA2_192S,
+    P11PROV_SIG_SLHDSA_SHAKE_192S,
+    P11PROV_SIG_SLHDSA_SHA2_192F,
+    P11PROV_SIG_SLHDSA_SHAKE_192F,
+    P11PROV_SIG_SLHDSA_SHA2_256S,
+    P11PROV_SIG_SLHDSA_SHAKE_256S,
+    P11PROV_SIG_SLHDSA_SHA2_256F,
+    P11PROV_SIG_SLHDSA_SHAKE_256F,
+    P11PROV_SIG_NUM_ALGS
+};
+
+const OSSL_ALGORITHM signature_algorithms[P11PROV_SIG_NUM_ALGS] = {
+    [P11PROV_SIG_RSA] = DEFAULT_ALGORITHM(RSA, p11prov_rsa_functions),
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+    [P11PROV_SIG_RSA_SHA1] =
+        DEFAULT_ALGORITHM(RSA_SHA1, p11prov_rsa_sha1_functions),
+    [P11PROV_SIG_RSA_SHA224] =
+        DEFAULT_ALGORITHM(RSA_SHA224, p11prov_rsa_sha224_functions),
+    [P11PROV_SIG_RSA_SHA256] =
+        DEFAULT_ALGORITHM(RSA_SHA256, p11prov_rsa_sha256_functions),
+    [P11PROV_SIG_RSA_SHA384] =
+        DEFAULT_ALGORITHM(RSA_SHA384, p11prov_rsa_sha384_functions),
+    [P11PROV_SIG_RSA_SHA512] =
+        DEFAULT_ALGORITHM(RSA_SHA512, p11prov_rsa_sha512_functions),
+    [P11PROV_SIG_RSA_SHA3_224] =
+        DEFAULT_ALGORITHM(RSA_SHA3_224, p11prov_rsa_sha3_224_functions),
+    [P11PROV_SIG_RSA_SHA3_256] =
+        DEFAULT_ALGORITHM(RSA_SHA3_256, p11prov_rsa_sha3_256_functions),
+    [P11PROV_SIG_RSA_SHA3_384] =
+        DEFAULT_ALGORITHM(RSA_SHA3_384, p11prov_rsa_sha3_384_functions),
+    [P11PROV_SIG_RSA_SHA3_512] =
+        DEFAULT_ALGORITHM(RSA_SHA3_512, p11prov_rsa_sha3_512_functions),
+#endif
+    [P11PROV_SIG_ECDSA] = DEFAULT_ALGORITHM(ECDSA, p11prov_ecdsa_functions),
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+    [P11PROV_SIG_ECDSA_SHA1] =
+        DEFAULT_ALGORITHM(ECDSA_SHA1, p11prov_ecdsa_sha1_functions),
+    [P11PROV_SIG_ECDSA_SHA224] =
+        DEFAULT_ALGORITHM(ECDSA_SHA224, p11prov_ecdsa_sha224_functions),
+    [P11PROV_SIG_ECDSA_SHA256] =
+        DEFAULT_ALGORITHM(ECDSA_SHA256, p11prov_ecdsa_sha256_functions),
+    [P11PROV_SIG_ECDSA_SHA384] =
+        DEFAULT_ALGORITHM(ECDSA_SHA384, p11prov_ecdsa_sha384_functions),
+    [P11PROV_SIG_ECDSA_SHA512] =
+        DEFAULT_ALGORITHM(ECDSA_SHA512, p11prov_ecdsa_sha512_functions),
+    [P11PROV_SIG_ECDSA_SHA3_224] =
+        DEFAULT_ALGORITHM(ECDSA_SHA3_224, p11prov_ecdsa_sha3_224_functions),
+    [P11PROV_SIG_ECDSA_SHA3_256] =
+        DEFAULT_ALGORITHM(ECDSA_SHA3_256, p11prov_ecdsa_sha3_256_functions),
+    [P11PROV_SIG_ECDSA_SHA3_384] =
+        DEFAULT_ALGORITHM(ECDSA_SHA3_384, p11prov_ecdsa_sha3_384_functions),
+    [P11PROV_SIG_ECDSA_SHA3_512] =
+        DEFAULT_ALGORITHM(ECDSA_SHA3_512, p11prov_ecdsa_sha3_512_functions),
+#endif
+    [P11PROV_SIG_ED25519] =
+        DEFAULT_ALGORITHM(ED25519, p11prov_ed25519_functions),
+    [P11PROV_SIG_ED448] = DEFAULT_ALGORITHM(ED448, p11prov_ed448_functions),
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+    [P11PROV_SIG_ED25519PH] =
+        DEFAULT_ALGORITHM(ED25519PH, p11prov_ed25519ph_functions),
+    [P11PROV_SIG_ED25519CTX] =
+        DEFAULT_ALGORITHM(ED25519CTX, p11prov_ed25519ctx_functions),
+    [P11PROV_SIG_ED448PH] =
+        DEFAULT_ALGORITHM(ED448PH, p11prov_ed448ph_functions),
+#endif
+    [P11PROV_SIG_MLDSA_44] =
+        DEFAULT_ALGORITHM(MLDSA_44, p11prov_mldsa_44_functions),
+    [P11PROV_SIG_MLDSA_65] =
+        DEFAULT_ALGORITHM(MLDSA_65, p11prov_mldsa_65_functions),
+    [P11PROV_SIG_MLDSA_87] =
+        DEFAULT_ALGORITHM(MLDSA_87, p11prov_mldsa_87_functions),
+    [P11PROV_SIG_SLHDSA_SHA2_128S] =
+        DEFAULT_ALGORITHM(SLHDSA_SHA2_128S, p11prov_slhdsa_sha2_128s_functions),
+    [P11PROV_SIG_SLHDSA_SHAKE_128S] = DEFAULT_ALGORITHM(
+        SLHDSA_SHAKE_128S, p11prov_slhdsa_shake_128s_functions),
+    [P11PROV_SIG_SLHDSA_SHA2_128F] =
+        DEFAULT_ALGORITHM(SLHDSA_SHA2_128F, p11prov_slhdsa_sha2_128f_functions),
+    [P11PROV_SIG_SLHDSA_SHAKE_128F] = DEFAULT_ALGORITHM(
+        SLHDSA_SHAKE_128F, p11prov_slhdsa_shake_128f_functions),
+    [P11PROV_SIG_SLHDSA_SHA2_192S] =
+        DEFAULT_ALGORITHM(SLHDSA_SHA2_192S, p11prov_slhdsa_sha2_192s_functions),
+    [P11PROV_SIG_SLHDSA_SHAKE_192S] = DEFAULT_ALGORITHM(
+        SLHDSA_SHAKE_192S, p11prov_slhdsa_shake_192s_functions),
+    [P11PROV_SIG_SLHDSA_SHA2_192F] =
+        DEFAULT_ALGORITHM(SLHDSA_SHA2_192F, p11prov_slhdsa_sha2_192f_functions),
+    [P11PROV_SIG_SLHDSA_SHAKE_192F] = DEFAULT_ALGORITHM(
+        SLHDSA_SHAKE_192F, p11prov_slhdsa_shake_192f_functions),
+    [P11PROV_SIG_SLHDSA_SHA2_256S] =
+        DEFAULT_ALGORITHM(SLHDSA_SHA2_256S, p11prov_slhdsa_sha2_256s_functions),
+    [P11PROV_SIG_SLHDSA_SHAKE_256S] = DEFAULT_ALGORITHM(
+        SLHDSA_SHAKE_256S, p11prov_slhdsa_shake_256s_functions),
+    [P11PROV_SIG_SLHDSA_SHA2_256F] =
+        DEFAULT_ALGORITHM(SLHDSA_SHA2_256F, p11prov_slhdsa_sha2_256f_functions),
+    [P11PROV_SIG_SLHDSA_SHAKE_256F] = DEFAULT_ALGORITHM(
+        SLHDSA_SHAKE_256F, p11prov_slhdsa_shake_256f_functions),
+};
+
+CK_RV p11prov_register_signatures(P11PROV_CTX *ctx, bool mechs[TBID_SIZE],
+                                  bool fips_property)
+{
+    const char *property = NULL;
+    OSSL_ALGORITHM *algs =
+        OPENSSL_zalloc(sizeof(OSSL_ALGORITHM) * (P11PROV_SIG_NUM_ALGS + 1));
+    int i = 0;
+
+    if (algs == NULL) {
+        return CKR_HOST_MEMORY;
+    }
+
+    if (fips_property) {
+        property = P11PROV_FIPS_PROPERTIES;
+    }
+
+    if (mechs[TBID_RSA_PKCS] || mechs[TBID_RSA_PKCS_PSS]
+        || mechs[TBID_SHA1_RSA_PKCS] || mechs[TBID_SHA224_RSA_PKCS]
+        || mechs[TBID_SHA256_RSA_PKCS] || mechs[TBID_SHA384_RSA_PKCS]
+        || mechs[TBID_SHA512_RSA_PKCS] || mechs[TBID_SHA3_224_RSA_PKCS]
+        || mechs[TBID_SHA3_256_RSA_PKCS] || mechs[TBID_SHA3_384_RSA_PKCS]
+        || mechs[TBID_SHA3_512_RSA_PKCS] || mechs[TBID_SHA1_RSA_PKCS_PSS]
+        || mechs[TBID_SHA224_RSA_PKCS_PSS] || mechs[TBID_SHA256_RSA_PKCS_PSS]
+        || mechs[TBID_SHA384_RSA_PKCS_PSS] || mechs[TBID_SHA512_RSA_PKCS_PSS]
+        || mechs[TBID_SHA3_224_RSA_PKCS_PSS]
+        || mechs[TBID_SHA3_256_RSA_PKCS_PSS]
+        || mechs[TBID_SHA3_384_RSA_PKCS_PSS]
+        || mechs[TBID_SHA3_512_RSA_PKCS_PSS]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms, P11PROV_SIG_RSA,
+                           property);
+    }
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+    if (mechs[TBID_SHA1_RSA_PKCS]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_RSA_SHA1, property);
+    }
+    if (mechs[TBID_SHA224_RSA_PKCS]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_RSA_SHA224, property);
+    }
+    if (mechs[TBID_SHA256_RSA_PKCS]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_RSA_SHA256, property);
+    }
+    if (mechs[TBID_SHA384_RSA_PKCS]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_RSA_SHA384, property);
+    }
+    if (mechs[TBID_SHA512_RSA_PKCS]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_RSA_SHA512, property);
+    }
+    if (mechs[TBID_SHA3_224_RSA_PKCS]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_RSA_SHA3_224, property);
+    }
+    if (mechs[TBID_SHA3_256_RSA_PKCS]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_RSA_SHA3_256, property);
+    }
+    if (mechs[TBID_SHA3_384_RSA_PKCS]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_RSA_SHA3_384, property);
+    }
+    if (mechs[TBID_SHA3_512_RSA_PKCS]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_RSA_SHA3_512, property);
+    }
+#endif
+
+    if (mechs[TBID_ECDSA] || mechs[TBID_ECDSA_SHA1] || mechs[TBID_ECDSA_SHA224]
+        || mechs[TBID_ECDSA_SHA256] || mechs[TBID_ECDSA_SHA384]
+        || mechs[TBID_ECDSA_SHA512] || mechs[TBID_ECDSA_SHA3_224]
+        || mechs[TBID_ECDSA_SHA3_256] || mechs[TBID_ECDSA_SHA3_384]
+        || mechs[TBID_ECDSA_SHA3_512]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms, P11PROV_SIG_ECDSA,
+                           property);
+    }
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+    if (mechs[TBID_ECDSA_SHA1]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_ECDSA_SHA1, property);
+    }
+    if (mechs[TBID_ECDSA_SHA224]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_ECDSA_SHA224, property);
+    }
+    if (mechs[TBID_ECDSA_SHA256]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_ECDSA_SHA256, property);
+    }
+    if (mechs[TBID_ECDSA_SHA384]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_ECDSA_SHA384, property);
+    }
+    if (mechs[TBID_ECDSA_SHA512]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_ECDSA_SHA512, property);
+    }
+    if (mechs[TBID_ECDSA_SHA3_224]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_ECDSA_SHA3_224, property);
+    }
+    if (mechs[TBID_ECDSA_SHA3_256]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_ECDSA_SHA3_256, property);
+    }
+    if (mechs[TBID_ECDSA_SHA3_384]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_ECDSA_SHA3_384, property);
+    }
+    if (mechs[TBID_ECDSA_SHA3_512]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_ECDSA_SHA3_512, property);
+    }
+#endif
+
+    if (mechs[TBID_EDDSA] || mechs[TBID_EC_EDWARDS_KEY_PAIR_GEN]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_ED25519, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms, P11PROV_SIG_ED448,
+                           property);
+#if defined(OSSL_FUNC_SIGNATURE_SIGN_MESSAGE_INIT)
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_ED25519PH, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_ED25519CTX, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_ED448PH, property);
+#endif
+    }
+
+    if (mechs[TBID_ML_DSA] || mechs[TBID_ML_DSA_KEY_PAIR_GEN]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_MLDSA_44, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_MLDSA_65, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_MLDSA_87, property);
+    }
+
+    if (mechs[TBID_SLH_DSA] || mechs[TBID_SLH_DSA_KEY_PAIR_GEN]) {
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_SLHDSA_SHA2_128S, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_SLHDSA_SHAKE_128S, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_SLHDSA_SHA2_128F, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_SLHDSA_SHAKE_128F, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_SLHDSA_SHA2_192S, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_SLHDSA_SHAKE_192S, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_SLHDSA_SHA2_192F, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_SLHDSA_SHAKE_192F, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_SLHDSA_SHA2_256S, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_SLHDSA_SHAKE_256S, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_SLHDSA_SHA2_256F, property);
+        p11prov_assign_alg(&algs[i++], signature_algorithms,
+                           P11PROV_SIG_SLHDSA_SHAKE_256F, property);
+    }
+
+    if (i == 0) {
+        OPENSSL_free(algs);
+        algs = NULL;
+    }
+
+    return p11prov_ctx_add_algs(ctx, OSSL_OP_SIGNATURE, algs);
+}

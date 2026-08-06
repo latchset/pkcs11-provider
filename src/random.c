@@ -2,6 +2,9 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
+#include "random.h"
+
+#define DISPATCH_RAND_FN(name) DECL_DISPATCH_FUNC(rand, p11prov_rand, name)
 
 DISPATCH_RAND_FN(newctx); /* required */
 DISPATCH_RAND_FN(freectx); /* required */
@@ -177,6 +180,9 @@ static void p11prov_rand_unlock(void *pctx)
     /* nothing to do */
 }
 
+#define DISPATCH_RAND_ELEM(prefix, NAME, name) \
+    { OSSL_FUNC_RAND_##NAME, (void (*)(void))p11prov_##prefix##_##name }
+
 const OSSL_DISPATCH p11prov_rand_functions[] = {
     DISPATCH_RAND_ELEM(rand, NEWCTX, newctx),
     DISPATCH_RAND_ELEM(rand, FREECTX, freectx),
@@ -191,7 +197,7 @@ const OSSL_DISPATCH p11prov_rand_functions[] = {
     { 0, NULL },
 };
 
-CK_RV p11prov_check_random(P11PROV_CTX *ctx)
+static CK_RV p11prov_check_random(P11PROV_CTX *ctx)
 {
     struct p11prov_rand_ctx rctx = {
         .provctx = ctx,
@@ -206,4 +212,31 @@ CK_RV p11prov_check_random(P11PROV_CTX *ctx)
     }
 
     return CKR_OK;
+}
+
+OSSL_ALGORITHM rand_algorithms[] = {
+    DEFAULT_ALGORITHM(RAND, p11prov_rand_functions),
+};
+
+CK_RV p11prov_register_random(P11PROV_CTX *ctx, bool fips_property)
+{
+    OSSL_ALGORITHM *algs;
+    CK_RV ret;
+
+    ret = p11prov_check_random(ctx);
+    if (ret == CKR_FUNCTION_NOT_SUPPORTED) {
+        /* not supported */
+        return p11prov_ctx_add_algs(ctx, OSSL_OP_RAND, NULL);
+    }
+
+    algs = OPENSSL_zalloc(sizeof(OSSL_ALGORITHM) * 2);
+    if (algs == NULL) {
+        (void)p11prov_ctx_add_algs(ctx, OSSL_OP_RAND, NULL);
+        return CKR_HOST_MEMORY;
+    }
+
+    p11prov_assign_alg(&algs[0], rand_algorithms, 0,
+                       fips_property ? P11PROV_FIPS_PROPERTIES : NULL);
+
+    return p11prov_ctx_add_algs(ctx, OSSL_OP_RAND, algs);
 }

@@ -5,6 +5,7 @@
 #define _OBJ_INTERNAL_H_
 
 #include "provider.h"
+#include "encoder.h"
 
 struct p11prov_key {
     CK_KEY_TYPE type;
