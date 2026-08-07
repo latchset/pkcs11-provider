@@ -26,14 +26,8 @@ struct p11prov_interface;
 struct quirk;
 
 struct p11prov_ctx {
-
-    enum {
-        P11PROV_UNINITIALIZED = 0,
-        P11PROV_INITIALIZED,
-        P11PROV_NEEDS_REINIT,
-        P11PROV_NO_DEINIT,
-        P11PROV_IN_ERROR,
-    } status;
+    pthread_mutex_t init_lock;
+    enum p11prov_ctx_status status;
 
     /* Provider handles */
     const OSSL_CORE_HANDLE *handle;
@@ -85,6 +79,19 @@ struct p11prov_ctx {
     struct quirk *quirks;
     int nquirks;
 };
+
+#define INIT_LOCK_INIT(ctx) \
+    p11prov_mutex_init(ctx, &ctx->init_lock, "init_lock", OPENSSL_FILE, \
+                       OPENSSL_LINE, OPENSSL_FUNC)
+#define INIT_LOCK_LOCK(obj) \
+    p11prov_mutex_lock(ctx, &ctx->init_lock, "init_lock", OPENSSL_FILE, \
+                       OPENSSL_LINE, OPENSSL_FUNC)
+#define INIT_LOCK_UNLOCK(obj) \
+    p11prov_mutex_unlock(ctx, &ctx->init_lock, "init_lock", OPENSSL_FILE, \
+                         OPENSSL_LINE, OPENSSL_FUNC)
+#define INIT_LOCK_DESTROY(ctx) \
+    p11prov_mutex_destroy(ctx, &ctx->init_lock, "init_lock", OPENSSL_FILE, \
+                          OPENSSL_LINE, OPENSSL_FUNC)
 
 static struct p11prov_context_pool {
     struct p11prov_ctx **contexts;
@@ -479,6 +486,16 @@ P11PROV_INTERFACE *p11prov_ctx_get_interface(P11PROV_CTX *ctx)
     return p11prov_module_get_interface(ctx->module);
 }
 
+P11PROV_MODULE *p11prov_ctx_get_module(P11PROV_CTX *ctx)
+{
+    return ctx->module;
+}
+
+void p11prov_ctx_set_status(P11PROV_CTX *ctx, enum p11prov_ctx_status status)
+{
+    ctx->status = status;
+}
+
 CK_SLOT_ID p11prov_ctx_get_default_slotid(P11PROV_CTX *ctx)
 {
     return ctx->default_slotid;
@@ -510,32 +527,54 @@ CK_RV p11prov_ctx_status(P11PROV_CTX *ctx)
 
     switch (ctx->status) {
     case P11PROV_UNINITIALIZED:
-        ret = p11prov_module_init(ctx->module);
+        ret = INIT_LOCK_LOCK(ctx);
+        if (ret != CKR_OK) {
+            return ret;
+        }
+        /* LOCKED SECTION ------------- */
+        ret = p11prov_module_init(ctx);
+        /* optimize lock use and also init operations */
+        if (ret == CKR_OK) {
+            ret = operations_init(ctx);
+        }
+        (void)INIT_LOCK_UNLOCK(ctx);
+        /* ------------- LOCKED SECTION */
         if (ret != CKR_OK) {
             P11PROV_raise(ctx, ret, "Module initialization failed!");
-            ctx->status = P11PROV_IN_ERROR;
-            break;
+            return ret;
         }
+        break;
+    case P11PROV_OPS_NEEDS_INIT:
+        ret = INIT_LOCK_LOCK(ctx);
+        if (ret != CKR_OK) {
+            return ret;
+        }
+        /* LOCKED SECTION ------------- */
         ret = operations_init(ctx);
+        (void)INIT_LOCK_UNLOCK(ctx);
+        /* ------------- LOCKED SECTION */
         if (ret != CKR_OK) {
             P11PROV_raise(ctx, ret, "Operations initialization failed!");
-            ctx->status = P11PROV_IN_ERROR;
-            break;
+            return ret;
         }
-        ctx->status = P11PROV_INITIALIZED;
         break;
     case P11PROV_INITIALIZED:
     case P11PROV_NO_DEINIT:
         ret = CKR_OK;
         break;
     case P11PROV_NEEDS_REINIT:
-        ret = p11prov_module_reinit(ctx->module);
+        ret = INIT_LOCK_LOCK(ctx);
+        if (ret != CKR_OK) {
+            return ret;
+        }
+        /* LOCKED SECTION ------------- */
+        ret = p11prov_module_reinit(ctx);
+        (void)INIT_LOCK_UNLOCK(ctx);
+        /* ------------- LOCKED SECTION */
         if (ret != CKR_OK) {
             P11PROV_raise(ctx, ret, "Module re-initialization failed!");
-            ctx->status = P11PROV_IN_ERROR;
-            break;
+            return ret;
         }
-        ctx->status = P11PROV_INITIALIZED;
         break;
     case P11PROV_IN_ERROR:
         P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Module in error state!");
@@ -629,6 +668,8 @@ static void p11prov_ctx_free(P11PROV_CTX *ctx)
 
     /* remove from pool */
     context_rm_pool(ctx);
+
+    INIT_LOCK_DESTROY(ctx);
 
     OPENSSL_clear_free(ctx, sizeof(P11PROV_CTX));
 }
@@ -888,20 +929,26 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
     bool available_mechs[TBID_SIZE] = { 0 };
     CK_RV ret;
 
+    if (ctx->status != P11PROV_OPS_NEEDS_INIT) {
+        /* another thread did this first */
+        ret = CKR_OK;
+        goto done;
+    }
+
     ret = p11prov_get_mech_state_table(ctx, available_mechs);
     if (ret != CKR_OK) {
-        return ret;
+        goto done;
     }
 
     ret = p11prov_register_digests(ctx, available_mechs, ctx->assume_fips);
     if (ret != CKR_OK) {
-        return ret;
+        goto done;
     }
 
 #if SKEY_SUPPORT == 1
     ret = p11prov_register_ciphers(ctx, available_mechs, ctx->assume_fips);
     if (ret != CKR_OK) {
-        return ret;
+        goto done;
     }
 #endif
 
@@ -909,34 +956,34 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
 
     ret = p11prov_register_kdfs(ctx, available_mechs, ctx->assume_fips);
     if (ret != CKR_OK) {
-        return ret;
+        goto done;
     }
 
     ret = p11prov_register_random(ctx, ctx->assume_fips);
     if (ret != CKR_OK) {
-        return ret;
+        goto done;
     }
 
     /* keymgmt -> static */
 
     ret = p11prov_register_keyexch(ctx, available_mechs, ctx->assume_fips);
     if (ret != CKR_OK) {
-        return ret;
+        goto done;
     }
 
     ret = p11prov_register_signatures(ctx, available_mechs, ctx->assume_fips);
     if (ret != CKR_OK) {
-        return ret;
+        goto done;
     }
 
     ret = p11prov_register_asym_ciphers(ctx, available_mechs, ctx->assume_fips);
     if (ret != CKR_OK) {
-        return ret;
+        goto done;
     }
 
     ret = p11prov_register_kems(ctx, available_mechs, ctx->assume_fips);
     if (ret != CKR_OK) {
-        return ret;
+        goto done;
     }
 
     /* skeymgmt -> static */
@@ -947,7 +994,14 @@ static CK_RV operations_init(P11PROV_CTX *ctx)
 
     /* store -> static */
 
-    return CKR_OK;
+    ctx->status = P11PROV_INITIALIZED;
+    ret = CKR_OK;
+
+done:
+    if (ret != CKR_OK) {
+        ctx->status = P11PROV_IN_ERROR;
+    }
+    return ret;
 }
 
 static CK_RV static_operations_init(P11PROV_CTX *ctx)
@@ -1276,17 +1330,23 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
     P11PROV_debug("Starting provider %s %d.%d", PACKAGE_NAME, PACKAGE_MAJOR,
                   PACKAGE_MINOR);
 
+    ret = INIT_LOCK_INIT(ctx);
+    if (ret != 0) {
+        OPENSSL_free(ctx);
+        return RET_OSSL_ERR;
+    }
+
     ret = pthread_rwlock_init(&ctx->quirk_lock, NULL);
     if (ret != 0) {
         ret = errno;
         P11PROV_debug("rwlock init failed (%d)", ret);
-        OPENSSL_free(ctx);
+        p11prov_ctx_free(ctx);
         return RET_OSSL_ERR;
     }
 
     ctx->libctx = OSSL_LIB_CTX_new_from_dispatch(handle, in);
     if (ctx->libctx == NULL) {
-        OPENSSL_free(ctx);
+        p11prov_ctx_free(ctx);
         return RET_OSSL_ERR;
     }
 

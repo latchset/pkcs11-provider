@@ -67,7 +67,18 @@ typedef struct p11prov_obj_pool P11PROV_OBJ_POOL;
 #endif
 
 /* Provider ctx */
+enum p11prov_ctx_status {
+    P11PROV_UNINITIALIZED = 0,
+    P11PROV_OPS_NEEDS_INIT,
+    P11PROV_INITIALIZED,
+    P11PROV_NEEDS_REINIT,
+    P11PROV_NO_DEINIT,
+    P11PROV_IN_ERROR,
+};
+
 P11PROV_INTERFACE *p11prov_ctx_get_interface(P11PROV_CTX *ctx);
+P11PROV_MODULE *p11prov_ctx_get_module(P11PROV_CTX *ctx);
+void p11prov_ctx_set_status(P11PROV_CTX *ctx, enum p11prov_ctx_status status);
 CK_UTF8CHAR_PTR p11prov_ctx_pin(P11PROV_CTX *ctx);
 OSSL_LIB_CTX *p11prov_ctx_get_libctx(P11PROV_CTX *ctx);
 CK_RV p11prov_ctx_status(P11PROV_CTX *ctx);
