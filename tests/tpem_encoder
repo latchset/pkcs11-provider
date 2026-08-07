@@ -7,6 +7,9 @@ source "${TESTSSRCDIR}/helpers.sh"
 # Forward declaration to avoid shellcheck's SC2153 did you mean ...
 : "${PRIURI:?}" "${ECPRIURI:?}" "${EDPRIURI:=}"
 : "${PUBURI:?}" "${ECPUBURI:?}" "${EDPUBURI:=}"
+: "${MLDSAPRIURI:=}" "${MLDSAPUBURI:=}"
+: "${MLKEMPRIURI:=}" "${MLKEMPUBURI:=}"
+: "${SLHDSAPRIURI:=}" "${SLHDSAPUBURI:=}"
 
 # We need to configure early loading otherwise no digests are loaded,
 # and all checks are skipped
@@ -140,6 +143,73 @@ if [[ -n "${EDPRIURI}" ]]; then
                 "${TMPPDIR}/64krandom.bin" "no-digest"
 else
     title PARA "Skipping Test PEM Encoding ED support"
+fi;
+
+# Only run ML-DSA test if setup created ML-DSA key
+if [[ -n "${MLDSAPRIURI}" ]]; then
+    title PARA "Test PEM Encoding ML-DSA support"
+
+    make-uri-pem "${MLDSAPRIURI}" "${TMPPDIR}/mldsapriuri-pkey.pem"
+    sign-verify "${TMPPDIR}/mldsapriuri-pkey.pem" "${MLDSAPUBURI}" "${TMPPDIR}/64krandom.bin" "no-digest"
+
+    export ALGORITHM=ML-DSA-44
+    ossl '
+    genpkey -propquery "provider=pkcs11"
+            -algorithm "${ALGORITHM}"
+            -pkeyopt "pkcs11_uri:pkcs11:object=Test-PEM-Encode-ML-DSA-${LABEL_SUFFIX_URI}"
+            -out "${TMPPDIR}/mldsa-pkey-uri.pem"'
+
+    grep -e "-----BEGIN PKCS#11 PROVIDER URI-----" "${TMPPDIR}/mldsa-pkey-uri.pem"
+
+    sign-verify "${TMPPDIR}/mldsa-pkey-uri.pem" \
+                "pkcs11:object=Test-PEM-Encode-ML-DSA-${LABEL_SUFFIX_URI}" \
+                "${TMPPDIR}/64krandom.bin" "no-digest"
+else
+    title PARA "Skipping Test PEM Encoding ML-DSA support"
+fi;
+
+# Only run ML-KEM test if setup created ML-KEM key
+if [[ -n "${MLKEMPRIURI}" ]]; then
+    title PARA "Test PEM Encoding ML-KEM support"
+
+    make-uri-pem "${MLKEMPRIURI}" "${TMPPDIR}/mlkempriuri-pkey.pem"
+    ossl 'pkey -in "${TMPPDIR}/mlkempriuri-pkey.pem" -noout'
+
+    export ALGORITHM=ML-KEM-512
+    ossl '
+    genpkey -propquery "provider=pkcs11"
+            -algorithm "${ALGORITHM}"
+            -pkeyopt "pkcs11_uri:pkcs11:object=Test-PEM-Encode-ML-KEM-${LABEL_SUFFIX_URI}"
+            -out "${TMPPDIR}/mlkem-pkey-uri.pem"'
+
+    grep -e "-----BEGIN PKCS#11 PROVIDER URI-----" "${TMPPDIR}/mlkem-pkey-uri.pem"
+
+    ossl 'pkey -in "${TMPPDIR}/mlkem-pkey-uri.pem" -noout'
+else
+    title PARA "Skipping Test PEM Encoding ML-KEM support"
+fi;
+
+# Only run SLH-DSA test if setup created SLH-DSA key
+if [[ -n "${SLHDSAPRIURI}" ]]; then
+    title PARA "Test PEM Encoding SLH-DSA support"
+
+    make-uri-pem "${SLHDSAPRIURI}" "${TMPPDIR}/slhdsapriuri-pkey.pem"
+    sign-verify "${TMPPDIR}/slhdsapriuri-pkey.pem" "${SLHDSAPUBURI}" "${TMPPDIR}/64krandom.bin" "no-digest"
+
+    export ALGORITHM=SLH-DSA-SHAKE-128s
+    ossl '
+    genpkey -propquery "provider=pkcs11"
+            -algorithm "${ALGORITHM}"
+            -pkeyopt "pkcs11_uri:pkcs11:object=Test-PEM-Encode-SLH-DSA-${LABEL_SUFFIX_URI}"
+            -out "${TMPPDIR}/slhdsa-pkey-uri.pem"'
+
+    grep -e "-----BEGIN PKCS#11 PROVIDER URI-----" "${TMPPDIR}/slhdsa-pkey-uri.pem"
+
+    sign-verify "${TMPPDIR}/slhdsa-pkey-uri.pem" \
+                "pkcs11:object=Test-PEM-Encode-SLH-DSA-${LABEL_SUFFIX_URI}" \
+                "${TMPPDIR}/64krandom.bin" "no-digest"
+else
+    title PARA "Skipping Test PEM Encoding SLH-DSA support"
 fi;
 
 title PARA "Test visible string has to match"
