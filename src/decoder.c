@@ -489,74 +489,24 @@ const OSSL_ALGORITHM decoder_algorithms[P11PROV_DECODER_NUM_ALGS] = {
 
 CK_RV p11prov_register_decoders(P11PROV_CTX *ctx, bool fips_property)
 {
-    const char *property = NULL;
     OSSL_ALGORITHM *algs =
         OPENSSL_zalloc(sizeof(OSSL_ALGORITHM) * (P11PROV_DECODER_NUM_ALGS + 1));
-    int i = 0;
 
     if (algs == NULL) {
         return CKR_HOST_MEMORY;
     }
 
-    if (fips_property) {
-        property = PEM_DECODER_FIPS;
+    for (int i = 0; i < P11PROV_DECODER_NUM_ALGS; i++) {
+        const char *property = NULL;
+        if (fips_property) {
+            if (i == P11PROV_DECODER_DER) {
+                property = PEM_DECODER_FIPS;
+            } else {
+                property = DER_DECODER_FIPS;
+            }
+        }
+        p11prov_assign_alg(&algs[i], decoder_algorithms, i, property);
     }
-    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_DER,
-                       property);
-
-    if (fips_property) {
-        property = DER_DECODER_FIPS;
-    }
-    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_RSA,
-                       property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_RSAPSS,
-                       property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_EC,
-                       property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_ED25519,
-                       property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_ED448,
-                       property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_X25519,
-                       property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms, P11PROV_DECODER_X448,
-                       property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_ML_DSA_44, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_ML_DSA_65, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_ML_DSA_87, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_ML_KEM_512, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_ML_KEM_768, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_ML_KEM_1024, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_SLH_DSA_SHA2_128S, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_SLH_DSA_SHA2_128F, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_SLH_DSA_SHA2_192S, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_SLH_DSA_SHA2_192F, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_SLH_DSA_SHA2_256S, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_SLH_DSA_SHA2_256F, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_SLH_DSA_SHAKE_128S, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_SLH_DSA_SHAKE_128F, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_SLH_DSA_SHAKE_192S, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_SLH_DSA_SHAKE_192F, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_SLH_DSA_SHAKE_256S, property);
-    p11prov_assign_alg(&algs[i++], decoder_algorithms,
-                       P11PROV_DECODER_SLH_DSA_SHAKE_256F, property);
 
     return p11prov_ctx_add_algs(ctx, OSSL_OP_DECODER, algs);
 }

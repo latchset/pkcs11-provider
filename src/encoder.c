@@ -1838,50 +1838,80 @@ enum p11prov_encoder_algorithms {
     P11PROV_ENCODER_NUM_ALGS
 };
 
+struct encoder_algorithms {
+    OSSL_ALGORITHM a;
+    const char *fipsprop;
+    bool is_privk;
+};
+
 #define TEXT_ALGORITHM(name, func) \
-    { \
-        P11PROV_NAMES_##name, \
-        TEXT_PROP, \
-        func, \
-        P11PROV_DESCS_##name, \
+    { .a = \
+        { \
+            P11PROV_NAMES_##name, \
+            TEXT_PROP, \
+            func, \
+            P11PROV_DESCS_##name, \
+        }, \
+        .fipsprop = TEXT_FIPS, \
+        .is_privk = false, \
     }
 #define DER_PKCS1_ALGORITHM(name, func) \
-    { \
-        P11PROV_NAMES_##name, \
-        DER_PKCS1_PROP, \
-        func, \
-        P11PROV_DESCS_##name, \
+    { .a = \
+        { \
+            P11PROV_NAMES_##name, \
+            DER_PKCS1_PROP, \
+            func, \
+            P11PROV_DESCS_##name, \
+        }, \
+        .fipsprop = DER_PKCS1_FIPS, \
+        .is_privk = false, \
     }
 #define PEM_PKCS1_ALGORITHM(name, func) \
-    { \
-        P11PROV_NAMES_##name, \
-        PEM_PKCS1_PROP, \
-        func, \
-        P11PROV_DESCS_##name, \
+    { .a = \
+        { \
+            P11PROV_NAMES_##name, \
+            PEM_PKCS1_PROP, \
+            func, \
+            P11PROV_DESCS_##name, \
+        }, \
+        .fipsprop = PEM_PKCS1_FIPS, \
+        .is_privk = false, \
     }
 #define DER_SPKI_ALGORITHM(name, func) \
-    { \
-        P11PROV_NAMES_##name, \
-        DER_SPKI_PROP, \
-        func, \
-        P11PROV_DESCS_##name, \
+    { .a = \
+        { \
+            P11PROV_NAMES_##name, \
+            DER_SPKI_PROP, \
+            func, \
+            P11PROV_DESCS_##name, \
+        }, \
+        .fipsprop = DER_SPKI_FIPS, \
+        .is_privk = false, \
     }
 #define PEM_SPKI_ALGORITHM(name, func) \
-    { \
-        P11PROV_NAMES_##name, \
-        PEM_SPKI_PROP, \
-        func, \
-        P11PROV_DESCS_##name, \
+    { .a = \
+        { \
+            P11PROV_NAMES_##name, \
+            PEM_SPKI_PROP, \
+            func, \
+            P11PROV_DESCS_##name, \
+        }, \
+        .fipsprop = PEM_SPKI_FIPS, \
+        .is_privk = false, \
     }
 #define PEM_PRIVK_ALGORITHM(name, func) \
-    { \
-        P11PROV_NAMES_##name, \
-        PEM_PRIVK_PROP, \
-        func, \
-        P11PROV_DESCS_##name, \
+    { .a = \
+        { \
+            P11PROV_NAMES_##name, \
+            PEM_PRIVK_PROP, \
+            func, \
+            P11PROV_DESCS_##name, \
+        }, \
+        .fipsprop = PEM_PRIVK_FIPS, \
+        .is_privk = true, \
     }
 
-const OSSL_ALGORITHM encoder_algorithms[P11PROV_ENCODER_NUM_ALGS] = {
+const struct encoder_algorithms encoder_algorithms[P11PROV_ENCODER_NUM_ALGS] = {
     [P11PROV_ENCODER_RSA_TEXT] =
         TEXT_ALGORITHM(RSA, p11prov_rsa_encoder_text_functions),
     [P11PROV_ENCODER_RSA_DER_PKCS1] =
@@ -2077,243 +2107,15 @@ CK_RV p11prov_register_encoders(P11PROV_CTX *ctx, bool fips_property,
         return CKR_HOST_MEMORY;
     }
 
-    p11prov_assign_alg(&algs[i++], encoder_algorithms, P11PROV_ENCODER_RSA_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_RSA_DER_PKCS1,
-                       fips_property ? DER_PKCS1_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_RSA_PEM_PKCS1,
-                       fips_property ? PEM_PKCS1_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_RSA_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_RSA_PEM_SPKI,
-                       fips_property ? PEM_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_RSAPSS_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_RSAPSS_DER_PKCS1,
-                       fips_property ? DER_PKCS1_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_RSAPSS_PEM_PKCS1,
-                       fips_property ? PEM_PKCS1_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_RSAPSS_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_RSAPSS_PEM_SPKI,
-                       fips_property ? PEM_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms, P11PROV_ENCODER_EC_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_EC_DER_PKCS1,
-                       fips_property ? DER_PKCS1_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_EC_PEM_PKCS1,
-                       fips_property ? PEM_PKCS1_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_EC_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_ED25519_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_ED448_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_X25519_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_X448_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_ML_DSA_44_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_ML_DSA_44_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_ML_DSA_65_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_ML_DSA_65_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_ML_DSA_87_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_ML_DSA_87_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_ML_KEM_512_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_ML_KEM_512_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_ML_KEM_768_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_ML_KEM_768_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_ML_KEM_1024_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_ML_KEM_1024_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHA2_128S_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHA2_128S_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHA2_128F_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHA2_128F_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHA2_192S_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHA2_192S_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHA2_192F_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHA2_192F_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHA2_256S_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHA2_256S_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHA2_256F_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHA2_256F_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHAKE_128S_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHAKE_128S_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHAKE_128F_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHAKE_128F_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHAKE_192S_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHAKE_192S_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHAKE_192F_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHAKE_192F_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHAKE_256S_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHAKE_256S_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHAKE_256F_TEXT,
-                       fips_property ? TEXT_FIPS : NULL);
-    p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                       P11PROV_ENCODER_SLH_DSA_SHAKE_256F_DER_SPKI,
-                       fips_property ? DER_SPKI_FIPS : NULL);
-
-    if (encode_pkey_as_pk11_uri) {
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_RSA_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_RSAPSS_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_EC_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_ED25519_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_ED448_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_X25519_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_X448_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_ML_DSA_44_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_ML_DSA_65_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_ML_DSA_87_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_ML_KEM_512_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_ML_KEM_768_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_ML_KEM_1024_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_SLH_DSA_SHA2_128S_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_SLH_DSA_SHA2_128F_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_SLH_DSA_SHA2_192S_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_SLH_DSA_SHA2_192F_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_SLH_DSA_SHA2_256S_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_SLH_DSA_SHA2_256F_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_SLH_DSA_SHAKE_128S_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_SLH_DSA_SHAKE_128F_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_SLH_DSA_SHAKE_192S_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_SLH_DSA_SHAKE_192F_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_SLH_DSA_SHAKE_256S_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
-        p11prov_assign_alg(&algs[i++], encoder_algorithms,
-                           P11PROV_ENCODER_SLH_DSA_SHAKE_256F_PEM_PRIVK,
-                           fips_property ? PEM_PRIVK_FIPS : NULL);
+    for (int e = 0; e < P11PROV_ENCODER_NUM_ALGS; e++) {
+        if (!encode_pkey_as_pk11_uri && encoder_algorithms[e].is_privk) {
+            continue;
+        }
+        algs[i] = encoder_algorithms[e].a;
+        if (fips_property) {
+            algs[i].property_definition = encoder_algorithms[e].fipsprop;
+        }
+        i++;
     }
 
     return p11prov_ctx_add_algs(ctx, OSSL_OP_ENCODER, algs);

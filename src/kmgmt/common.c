@@ -593,7 +593,6 @@ CK_RV p11prov_register_kmgmt(P11PROV_CTX *ctx, bool fips_property)
     const char *property = NULL;
     OSSL_ALGORITHM *algs =
         OPENSSL_zalloc(sizeof(OSSL_ALGORITHM) * (P11PROV_KMGMT_NUM_ALGS + 1));
-    int i = 0;
 
     if (algs == NULL) {
         return CKR_HOST_MEMORY;
@@ -603,58 +602,9 @@ CK_RV p11prov_register_kmgmt(P11PROV_CTX *ctx, bool fips_property)
         property = P11PROV_FIPS_PROPERTIES;
     }
 
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_RSA,
-                       property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_RSAPSS,
-                       property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_EC,
-                       property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_HKDF,
-                       property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_ED25519,
-                       property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_ED448,
-                       property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_X25519,
-                       property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_X448,
-                       property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_MLDSA_44,
-                       property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_MLDSA_65,
-                       property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_MLDSA_87,
-                       property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_ML_KEM_512,
-                       property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_ML_KEM_768,
-                       property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms, P11PROV_KMGMT_ML_KEM_1024,
-                       property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
-                       P11PROV_KMGMT_SLHDSA_SHA2_128S, property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
-                       P11PROV_KMGMT_SLHDSA_SHA2_128F, property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
-                       P11PROV_KMGMT_SLHDSA_SHA2_192S, property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
-                       P11PROV_KMGMT_SLHDSA_SHA2_192F, property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
-                       P11PROV_KMGMT_SLHDSA_SHA2_256S, property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
-                       P11PROV_KMGMT_SLHDSA_SHA2_256F, property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
-                       P11PROV_KMGMT_SLHDSA_SHAKE_128S, property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
-                       P11PROV_KMGMT_SLHDSA_SHAKE_128F, property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
-                       P11PROV_KMGMT_SLHDSA_SHAKE_192S, property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
-                       P11PROV_KMGMT_SLHDSA_SHAKE_192F, property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
-                       P11PROV_KMGMT_SLHDSA_SHAKE_256S, property);
-    p11prov_assign_alg(&algs[i++], kmgmt_algorithms,
-                       P11PROV_KMGMT_SLHDSA_SHAKE_256F, property);
+    for (int i = 0; i < P11PROV_KMGMT_NUM_ALGS; i++) {
+        p11prov_assign_alg(&algs[i], kmgmt_algorithms, i, property);
+    }
 
     return p11prov_ctx_add_algs(ctx, OSSL_OP_KEYMGMT, algs);
 }
