@@ -855,7 +855,7 @@ static CK_RV tls_aead_get_data(CK_MECHANISM_PTR mech, data_buffer *explicitiv,
 {
     /* In TLS 1.2, OpenSSL provides a buffer with this layout:
      * [explicit IV] [plaintext] [authentication tag]
-     * 
+     *
      * In the encryption case, it expects the provider to fill in
      * the explicit IV and tag, and to overwrite the plaintext with
      * ciphertext. Explicit IV can be either:
