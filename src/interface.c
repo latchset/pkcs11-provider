@@ -373,6 +373,7 @@ CK_RV p11prov_module_init(P11PROV_CTX *ctx)
     p11prov_ctx_set_slots(mctx->provctx, slots);
 
     p11prov_ctx_set_status(ctx, P11PROV_OPS_NEEDS_INIT);
+    mctx->initialized = true;
     ret = CKR_OK;
 
 done:
