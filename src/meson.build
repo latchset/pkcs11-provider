@@ -19,6 +19,7 @@ pkcs11_provider_sources = [
   'interface.c',
   'registration.c',
   'obj/create.c',
+  'obj/ec_point.c',
   'obj/export.c',
   'obj/keymgmt.c',
   'obj/fetch.c',

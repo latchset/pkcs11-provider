@@ -123,8 +123,21 @@ foreach t, sources : test_programs
   test_executables += [t]
 endforeach
 
+ec_point_test = executable(
+  'tecpoint',
+  ['tecpoint.c', '../src/obj/ec_point.c'],
+  build_by_default: false,
+  include_directories: [configinc, include_directories('../src')],
+  dependencies: [libcrypto],
+)
+
 setup_script=find_program('setup.sh')
 all_suites=['softokn', 'softhsm', 'kryoptic', 'kryoptic.nss']
+test(
+  'ec-point-decode',
+  ec_point_test,
+  suite: ['unittests'] + all_suites,
+)
 foreach suite : all_suites + ['kryoptic.multislot']
   test(
     'setup',
