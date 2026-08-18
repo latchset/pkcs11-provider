@@ -175,7 +175,7 @@ if [[ -n "${MLKEMPRIURI}" ]]; then
     make-uri-pem "${MLKEMPRIURI}" "${TMPPDIR}/mlkempriuri-pkey.pem"
     ossl 'pkey -in "${TMPPDIR}/mlkempriuri-pkey.pem" -noout'
 
-    export ALGORITHM=ML-KEM-512
+    export ALGORITHM=ML-KEM-768
     ossl '
     genpkey -propquery "provider=pkcs11"
             -algorithm "${ALGORITHM}"

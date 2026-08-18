@@ -665,7 +665,7 @@ if [ "$SUPPORT_ML_KEM_KEY_GEN" -ne 0 ]; then
     get_next_keyid
     TSTCRTN="mlKem"
 
-    gen_keypair "$SUPPORT_ML_KEM_KEY_GEN" "ML-KEM-512" "ML-KEM-512" \
+    gen_keypair "$SUPPORT_ML_KEM_KEY_GEN" "ML-KEM-768" "ML-KEM-768" \
                 "${TSTCRTN}" "${KEYID}" "${URIKEYID}"
 
     MLKEMBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"

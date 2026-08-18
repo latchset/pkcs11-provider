@@ -323,7 +323,8 @@ static void run_ml_kem_tests(void)
     };
 
     const struct kem_test_data kem_tests[] = {
-        { "ML-KEM-512", "ML-KEM-512 Pkey KEM Test" },
+        /* Temporarily disable ML-KEM-512 as NSS does not support it */
+        /* { "ML-KEM-512", "ML-KEM-512 Pkey KEM Test" }, */
         { "ML-KEM-768", "ML-KEM-768 Pkey KEM Test" },
         { "ML-KEM-1024", "ML-KEM-1024 Pkey KEM Test" },
     };
