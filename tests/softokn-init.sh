@@ -29,17 +29,15 @@ export TOKENCONFIGVARS="export NSS_LIB_PARAMS=configDir=${TOKDIR}"
 
 export TESTPORT="30000"
 
-# Edward curves are not supported in NSS yet
-export SUPPORT_ED25519=0
-export SUPPORT_ED448=0
+# Edward curves are not well supported in NSS, Ed25519 requires a special OID
+# for generation in ECParams, while Ed448 is not supported at all
+export SUPPRESS_ED25519=1
+export SUPPRESS_ED448=1
 
-# Montgomery curves are not supported in NSS yet
-export SUPPORT_X25519=0
-export SUPPORT_X448=0
-
-export SUPPORT_ML_DSA=0
-export SUPPORT_ML_KEM=0
-export SUPPORT_SLH_DSA=0
+# Montgomery curves are not supported in NSS yet, but there is no way to
+# autodetect it
+export SUPPRESS_X25519=1
+export SUPPRESS_X448=1
 
 export SUPPORT_BLOCK_MODES="CBC CTR ECB"
 export SUPPORT_OPERATION_STATE=1

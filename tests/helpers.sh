@@ -132,3 +132,11 @@ ptool() {
     export OPENSSL_CONF=${ORIG_OPENSSL_CONF}
     export LD_PRELOAD=${ORIG_LD_PRELOAD}
 }
+
+check_mechanism() {
+    local mech="$1"
+    if [ -z "${P11MECHS}" ]; then
+        P11MECHS=$(ptool -M 2>/dev/null || true)
+    fi
+    echo "${P11MECHS}" | grep -q -E "^\s*${mech}(,|\s|$)"
+}
