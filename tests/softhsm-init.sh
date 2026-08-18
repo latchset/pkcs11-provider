@@ -76,10 +76,6 @@ export SUPPORT_ALLOWED_MECHANISMS=1
 # softhsm loops into itself badly on symmetric operation
 export SUPPORT_SYMMETRIC=0
 
-export SUPPORT_ML_DSA=0
-export SUPPORT_ML_KEM=0
-export SUPPORT_SLH_DSA=0
-
 # Montgomery curves are not supported in softhsm
 export SUPPORT_X25519=0
 export SUPPORT_X448=0
