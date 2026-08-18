@@ -3,6 +3,7 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 #include <stdio.h>
+#include <openssl/err.h>
 
 #define PRINTERR(...) \
     do { \

@@ -30,6 +30,7 @@ endif
 test_env = environment({
   'TEST_PATH': meson.current_source_dir(),
   'TESTBLDDIR': meson.current_build_dir(),
+  'LIBSPATH': meson.project_build_root() / 'src',
 })
 
 if get_option('enable_explicit_EC_test')
@@ -112,6 +113,7 @@ test_programs = {
   'tecx': ['tecx.c', 'util.c'],
   'tskey-kdf': ['tskey_kdf.c', 'util.c'],
   'taead': ['taead.c', 'util.c'],
+  'loadprov': ['loadprov.c', 'util.c'],
 }
 
 test_executables = []
