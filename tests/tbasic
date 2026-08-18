@@ -236,4 +236,11 @@ if [ $FAIL -ne 0 ]; then
     exit 1
 fi
 
+title PARA "Test Loading Provider with config"
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed "/pkcs11/d" "${OPENSSL_CONF}" > "${OPENSSL_CONF}.nopkcs11"
+OPENSSL_CONF=${OPENSSL_CONF}.nopkcs11
+$CHECKER "${TESTBLDDIR}/loadprov"
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
 exit 0
