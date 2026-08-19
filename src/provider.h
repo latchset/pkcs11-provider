@@ -105,6 +105,8 @@ int p11prov_ctx_allow_export(P11PROV_CTX *ctx);
 #define PUBKEY_LOGIN_ALWAYS 1
 #define PUBKEY_LOGIN_NEVER 2
 int p11prov_ctx_login_behavior(P11PROV_CTX *ctx);
+CK_ULONG p11prov_ctx_max_pin_length(P11PROV_CTX *ctx);
+void p11prov_ctx_set_max_pin_length(P11PROV_CTX *ctx, CK_ULONG max_pin_length);
 bool p11prov_ctx_cache_pins(P11PROV_CTX *ctx);
 
 enum p11prov_cache_keys {
