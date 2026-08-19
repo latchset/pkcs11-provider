@@ -140,3 +140,28 @@ check_mechanism() {
     fi
     echo "${P11MECHS}" | grep -q -E "^\s*${mech}(,|\s|$)"
 }
+
+check_algorithm_support() {
+    local alg="$1"
+    local op_mech1="$2"
+    local op_mech2="$3"
+    local kg_mech1="$4"
+    local kg_mech2="$5"
+
+    local suppress_var="SUPPRESS_${alg}"
+    local support_var="SUPPORT_${alg}"
+    local support_kg_var="SUPPORT_${alg}_KEY_GEN"
+
+    if [ "${!suppress_var}" -ne 1 ]; then
+        if check_mechanism "${op_mech1}" || check_mechanism "${op_mech2}"; then
+            eval "${support_var}=1"
+            if check_mechanism "${kg_mech1}"; then
+                eval "${support_kg_var}=1"
+            elif check_mechanism "${kg_mech2}"; then
+                eval "${support_kg_var}=2"
+            else
+                eval "${support_var}=0"
+            fi
+        fi
+    fi
+}
