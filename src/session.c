@@ -942,10 +942,24 @@ done:
     return ret;
 }
 
-static bool check_skip_login(P11PROV_CTX *ctx, P11PROV_SLOT *slot)
+static bool needs_login(P11PROV_CTX *ctx, P11PROV_SLOT *slot, bool reqlogin)
 {
-    return p11prov_ctx_login_behavior(ctx) != PUBKEY_LOGIN_ALWAYS
-           && !p11prov_slot_check_req_login(slot);
+    /* Check if provider configuration forces login for all public key operations */
+    if (p11prov_ctx_login_behavior(ctx) == PUBKEY_LOGIN_ALWAYS) {
+        return true;
+    }
+
+    /* Check if login was requested by the caller for this operation */
+    if (!reqlogin) {
+        return false;
+    }
+
+    /* Check if the token/slot requires login (e.g. CKF_LOGIN_REQUIRED flag) */
+    if (p11prov_slot_check_req_login(slot)) {
+        return true;
+    }
+
+    return false;
 }
 
 /* There are three possible ways to call this function.
@@ -1004,8 +1018,7 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
         if (ret != CKR_OK) {
             goto done;
         }
-        if ((reqlogin && !check_skip_login(provctx, slot))
-            || p11prov_ctx_login_behavior(provctx) == PUBKEY_LOGIN_ALWAYS) {
+        if (needs_login(provctx, slot, reqlogin)) {
             ret = slot_login(slot, uri, pw_cb, pw_cbarg, reqlogin, NULL);
             if (ret != CKR_OK) {
                 goto done;
@@ -1039,8 +1052,7 @@ CK_RV p11prov_get_session(P11PROV_CTX *provctx, CK_SLOT_ID *slotid,
                 /* keep going */
                 continue;
             }
-            if ((reqlogin && !check_skip_login(provctx, slot))
-                || p11prov_ctx_login_behavior(provctx) == PUBKEY_LOGIN_ALWAYS) {
+            if (needs_login(provctx, slot, reqlogin)) {
                 ret = slot_login(slot, uri, pw_cb, pw_cbarg, reqlogin, NULL);
                 if (ret != CKR_OK) {
                     /* keep going */
