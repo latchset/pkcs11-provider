@@ -99,6 +99,30 @@ expect -c "spawn -noecho $CHECKER $OPENSSL pkey -in \"${PUBURI}\" -pubin -pubout
 
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
+title PARA "Test fetching public key with PIN source exceeding max length"
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed -e "s/#pkcs11-max-pin-length/pkcs11-max-pin-length = 768/" -e "s/^pkcs11-module-token-pin.*$/##nopin/" "${OPENSSL_CONF}" > "${OPENSSL_CONF}.maxpin"
+OPENSSL_CONF=${OPENSSL_CONF}.maxpin
+
+LARGE_PIN_FILE="${TMPPDIR}/large_pin.txt"
+printf '%1024s\n' '' | tr ' ' 'A' > "${LARGE_PIN_FILE}"
+
+FAIL=0
+output=$($CHECKER "${OPENSSL}" pkey -in "${PRIURI};pin-source=file:${LARGE_PIN_FILE}" 2>&1) && FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo "Expected failure when PIN exceeds maximum length, but command succeeded"
+    exit 1
+fi
+echo "$output" | grep -iE "error|failed|cannot|unable|could not" > /dev/null 2>&1 || FAIL=2
+if [ $FAIL -eq 2 ]; then
+    echo "Command failed as expected, but did not produce an appropriate error message"
+    echo "Output was:"
+    echo "$output"
+    exit 1
+fi
+
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
 title PARA "Test EVP_PKEY_eq on public RSA key both on token"
 # shellcheck disable=SC2153 # PUBURIs is assigned
 $CHECKER "${TESTBLDDIR}/tcmpkeys" "$PUBURI" "$PUBURI"
