@@ -72,6 +72,7 @@ static void cache_key(P11PROV_OBJ *obj)
           sizeof("Internal Session Only Copy") - 1 },
     };
     CK_SESSION_HANDLE sess;
+    CK_OBJECT_HANDLE handle;
     CK_BBOOL can_cache = CK_TRUE;
     CK_RV ret;
     int cache_keys;
@@ -98,6 +99,12 @@ static void cache_key(P11PROV_OBJ *obj)
         return;
     }
 
+    handle = p11prov_obj_get_handle(obj);
+    if (handle == CK_INVALID_HANDLE) {
+        /* no point in proceeding here, nothing to "cache" */
+        return;
+    }
+
     ret = p11prov_take_login_session(obj->ctx, obj->slotid, &session);
     if (ret != CKR_OK || session == NULL) {
         P11PROV_debug("Failed to get login session. Error %lx", ret);
@@ -108,8 +115,8 @@ static void cache_key(P11PROV_OBJ *obj)
     destroy_key_cache(obj, session);
 
     sess = p11prov_session_handle(session);
-    ret = p11prov_CopyObject(obj->ctx, sess, p11prov_obj_get_handle(obj),
-                             template, sizeof(template) / sizeof(template[0]),
+    ret = p11prov_CopyObject(obj->ctx, sess, handle, template,
+                             sizeof(template) / sizeof(template[0]),
                              &obj->cached);
     if (ret != CKR_OK) {
         P11PROV_raise(obj->ctx, ret, "Failed to cache key");
