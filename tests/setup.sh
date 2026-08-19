@@ -125,90 +125,13 @@ else
     exit 1
 fi
 
-if [ "${SUPPRESS_ED25519}" -ne 1 ]; then
-    if check_mechanism "EDDSA" || check_mechanism "mechtype-0x1057"; then
-        SUPPORT_ED25519=1
-        if check_mechanism "EC-EDWARDS-KEY-PAIR-GEN"; then
-            SUPPORT_ED25519_KEY_GEN=1
-        elif check_mechanism "mechtype-0x1055"; then
-            SUPPORT_ED25519_KEY_GEN=2
-        else
-            SUPPORT_ED25519=0
-        fi
-    fi
-fi
-if [ "${SUPPRESS_ED448}" -ne 1 ]; then
-    if check_mechanism "EDDSA" || check_mechanism "mechtype-0x1057"; then
-        SUPPORT_ED448=1
-        if check_mechanism "EC-EDWARDS-KEY-PAIR-GEN"; then
-            SUPPORT_ED448_KEY_GEN=1
-        elif check_mechanism "mechtype-0x1055"; then
-            SUPPORT_ED448_KEY_GEN=2
-        else
-            SUPPORT_ED448=0
-        fi
-    fi
-fi
-if [ "${SUPPRESS_X25519}" -ne 1 ]; then
-    if check_mechanism "ECDH1-DERIVE" || check_mechanism "mechtype-0x1050"; then
-        SUPPORT_X25519=1
-        if check_mechanism "EC-MONTGOMERY-KEY-PAIR-GEN"; then
-            SUPPORT_X25519_KEY_GEN=1
-        elif check_mechanism "mechtype-0x1050"; then
-            SUPPORT_X25519_KEY_GEN=2
-        else
-            SUPPORT_X25519=0
-        fi
-    fi
-fi
-if [ "${SUPPRESS_X448}" -ne 1 ]; then
-    if check_mechanism "ECDH1-DERIVE" || check_mechanism "mechtype-0x1050"; then
-        SUPPORT_X448=1
-        if check_mechanism "EC-MONTGOMERY-KEY-PAIR-GEN"; then
-            SUPPORT_X448_KEY_GEN=1
-        elif check_mechanism "mechtype-0x1050"; then
-            SUPPORT_X448_KEY_GEN=2
-        else
-            SUPPORT_X448=0
-        fi
-    fi
-fi
-if [ "${SUPPRESS_ML_DSA}" -ne 1 ]; then
-    if check_mechanism "ML-DSA" || check_mechanism "mechtype-0x1D"; then
-        SUPPORT_ML_DSA=1
-        if check_mechanism "ML-DSA-KEY-PAIR-GEN"; then
-            SUPPORT_ML_DSA_KEY_GEN=1
-        elif check_mechanism "mechtype-0x1C"; then
-            SUPPORT_ML_DSA_KEY_GEN=2
-        else
-            SUPPORT_ML_DSA=0
-        fi
-    fi
-fi
-if [ "${SUPPRESS_ML_KEM}" -ne 1 ]; then
-    if check_mechanism "ML-KEM" || check_mechanism "mechtype-0x17"; then
-        SUPPORT_ML_KEM=1
-        if check_mechanism "ML-KEM-KEY-PAIR-GEN"; then
-            SUPPORT_ML_KEM_KEY_GEN=1
-        elif check_mechanism "mechtype-0xF"; then
-            SUPPORT_ML_KEM_KEY_GEN=2
-        else
-            SUPPORT_ML_KEM=0
-        fi
-    fi
-fi
-if [ "${SUPPRESS_SLH_DSA}" -ne 1 ]; then
-    if ! check_mechanism "SLH-DSA" || check_mechanism "mechtype-0x2E"; then
-        SUPPORT_SLH_DSA=1
-        if check_mechanism "SLH-DSA-KEY-PAIR-GEN"; then
-            SUPPORT_SLH_DSA_KEY_GEN=1
-        elif check_mechanism "mechtype-0x2D"; then
-            SUPPORT_SLH_DSA_KEY_GEN=2
-        else
-            SUPPORT_SLH_DSA=0
-        fi
-    fi
-fi
+check_algorithm_support "ED25519" "EDDSA" "mechtype-0x1057" "EC-EDWARDS-KEY-PAIR-GEN" "mechtype-0x1055"
+check_algorithm_support "ED448" "EDDSA" "mechtype-0x1057" "EC-EDWARDS-KEY-PAIR-GEN" "mechtype-0x1055"
+check_algorithm_support "X25519" "ECDH1-DERIVE" "mechtype-0x1050" "EC-MONTGOMERY-KEY-PAIR-GEN" "mechtype-0x1050"
+check_algorithm_support "X448" "ECDH1-DERIVE" "mechtype-0x1050" "EC-MONTGOMERY-KEY-PAIR-GEN" "mechtype-0x1050"
+check_algorithm_support "ML_DSA" "ML-DSA" "mechtype-0x1D" "ML-DSA-KEY-PAIR-GEN" "mechtype-0x1C"
+check_algorithm_support "ML_KEM" "ML-KEM" "mechtype-0x17" "ML-KEM-KEY-PAIR-GEN" "mechtype-0xF"
+check_algorithm_support "SLH_DSA" "SLH-DSA" "mechtype-0x2E" "SLH-DSA-KEY-PAIR-GEN" "mechtype-0x2D"
 
 if [[ "${PKCS11_PROVIDER_FORCE_FIPS_MODE}" = "1" ]]; then
     # temporarily suppress symmetric tests in FIPS mode as no FIPS provider
