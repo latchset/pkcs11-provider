@@ -263,6 +263,22 @@ Default: none
 
 ```pkcs11-module-default-slot-id = 12345```
 
+## pkcs11-max-pin-length
+
+Set the maximum length (in bytes) allowed for token PINs when reading PINs from
+files or pin sources.
+
+If not explicitly set, it defaults to 256. During provider slot initialization,
+if any token reports a larger maximum PIN length (`ulMaxPinLen`), the limit is
+automatically adjusted to match the maximum value reported across available
+tokens.
+
+Default: 256
+
+Example:
+
+```pkcs11-max-pin-length = 512```
+
 
 ENVIRONMENT VARIABLES
 =====================

@@ -228,10 +228,12 @@ done:
 static int get_pin_file(P11PROV_CTX *ctx, const char *str, size_t len,
                         void **output)
 {
-    char pin[MAX_PIN_LENGTH + 1] = { 0 };
-    char *pinfile;
+    CK_ULONG max_pin_len = p11prov_ctx_max_pin_length(ctx);
+    char *pin = NULL;
+    char *pinfile = NULL;
     char *filename;
     BIO *fp;
+    char extra;
     int ret;
 
     ret = parse_attr(str, len, (uint8_t **)&pinfile, NULL);
@@ -249,15 +251,29 @@ static int get_pin_file(P11PROV_CTX *ctx, const char *str, size_t len,
         filename = pinfile;
     }
 
+    pin = OPENSSL_zalloc(max_pin_len + 1);
+    if (pin == NULL) {
+        ret = ENOMEM;
+        goto done;
+    }
+
     fp = BIO_new_file(filename, "r");
     if (fp == NULL) {
         P11PROV_debug("Failed to get pin from %s", filename);
         ret = ENOENT;
         goto done;
     }
-    ret = BIO_gets(fp, pin, sizeof(pin));
+    ret = BIO_read(fp, pin, max_pin_len + 1);
     if (ret <= 0) {
         P11PROV_debug("Failed to get pin from %s (%d)", filename, ret);
+        ret = EINVAL;
+        BIO_free(fp);
+        goto done;
+    }
+    if ((CK_ULONG)ret == max_pin_len + 1 && BIO_read(fp, &extra, 1) > 0) {
+        P11PROV_debug(
+            "Failed to get pin from %s, file is bigger than max allowed (%lu)",
+            filename, max_pin_len + 1);
         ret = EINVAL;
         BIO_free(fp);
         goto done;
@@ -273,14 +289,22 @@ static int get_pin_file(P11PROV_CTX *ctx, const char *str, size_t len,
         }
     }
 
-    *output = OPENSSL_strdup(pin);
-    if (*output == NULL) {
-        ret = ENOMEM;
+    if (pin[max_pin_len] != '\0') {
+        P11PROV_debug(
+            "Failed to get pin from %s, pin is longer than max length (%lu)",
+            filename, max_pin_len);
+        ret = EINVAL;
         goto done;
     }
 
+    *output = pin;
+    pin = NULL;
     ret = 0;
+
 done:
+    if (pin != NULL) {
+        OPENSSL_clear_free(pin, max_pin_len + 1);
+    }
     OPENSSL_free(pinfile);
     return ret;
 }

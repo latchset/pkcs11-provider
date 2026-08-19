@@ -127,6 +127,7 @@ CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
     struct p11prov_slots_ctx *sctx;
     CK_RV ret;
     int err;
+    CK_ULONG max_pin_len = p11prov_ctx_max_pin_length(ctx);
 
     ck_info = p11prov_ctx_get_ck_info(ctx);
 
@@ -200,6 +201,11 @@ CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
             continue;
         }
 
+        if (slot->token.ulMaxPinLen != CK_UNAVAILABLE_INFORMATION
+            && slot->token.ulMaxPinLen > max_pin_len) {
+            max_pin_len = slot->token.ulMaxPinLen;
+        }
+
         sctx->slots[sctx->num] = slot;
         sctx->num++;
 
@@ -251,6 +257,10 @@ CK_RV p11prov_init_slots(P11PROV_CTX *ctx, P11PROV_SLOTS_CTX **slots)
 
         P11PROV_debug_slot(ctx, slot->id, &slot->slot, &slot->token,
                            slot->mechs, slot->nmechs, slot->profiles);
+    }
+
+    if (max_pin_len > 0) {
+        p11prov_ctx_set_max_pin_length(ctx, max_pin_len);
     }
 
 done:

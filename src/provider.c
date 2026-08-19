@@ -35,6 +35,7 @@ struct p11prov_ctx {
 
     /* Configuration */
     char *pin;
+    CK_ULONG max_pin_length;
     int allow_export;
     int login_behavior;
     bool cache_pins;
@@ -686,6 +687,18 @@ int p11prov_ctx_login_behavior(P11PROV_CTX *ctx)
     return ctx->login_behavior;
 }
 
+CK_ULONG p11prov_ctx_max_pin_length(P11PROV_CTX *ctx)
+{
+    P11PROV_debug("max_pin_length = %lu", ctx->max_pin_length);
+    return ctx->max_pin_length;
+}
+
+void p11prov_ctx_set_max_pin_length(P11PROV_CTX *ctx, CK_ULONG max_pin_length)
+{
+    ctx->max_pin_length = max_pin_length;
+    P11PROV_debug("max_pin_length = %lu", ctx->max_pin_length);
+}
+
 bool p11prov_ctx_cache_pins(P11PROV_CTX *ctx)
 {
     P11PROV_debug("cache_pins = %s", ctx->cache_pins ? "true" : "false");
@@ -1285,6 +1298,7 @@ enum p11prov_cfg_enum {
     P11PROV_CFG_BLOCK_OPS,
     P11PROV_CFG_ASSUME_FIPS,
     P11PROV_CFG_DEFAULT_SLOT_ID,
+    P11PROV_CFG_MAX_PIN_LENGTH,
     P11PROV_CFG_SIZE,
 };
 
@@ -1305,6 +1319,7 @@ static struct p11prov_cfg_names {
     { "pkcs11-module-block-operations" },
     { "pkcs11-module-assume-fips" },
     { "pkcs11-module-default-slot-id" },
+    { "pkcs11-max-pin-length" },
 };
 
 int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
@@ -1383,6 +1398,25 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *handle, const OSSL_DISPATCH *in,
         p11prov_ctx_free(ctx);
         return RET_OSSL_ERR;
     }
+
+    if (cfg[P11PROV_CFG_MAX_PIN_LENGTH] != NULL) {
+        CK_ULONG val = 0;
+        ret =
+            parse_ulong(ctx, cfg[P11PROV_CFG_MAX_PIN_LENGTH],
+                        strlen(cfg[P11PROV_CFG_MAX_PIN_LENGTH]), (void **)&val);
+        if (ret != 0) {
+            P11PROV_raise(ctx, CKR_GENERAL_ERROR, "Invalid value for %s: (%s)",
+                          p11prov_cfg_names[P11PROV_CFG_MAX_PIN_LENGTH].name,
+                          cfg[P11PROV_CFG_MAX_PIN_LENGTH]);
+            p11prov_ctx_free(ctx);
+            return RET_OSSL_ERR;
+        }
+        ctx->max_pin_length = val;
+    } else {
+        /* arbitrarily cap at 256 if not set, generally more than enough */
+        ctx->max_pin_length = 256;
+    }
+    P11PROV_debug("Max PIN length: %lu", ctx->max_pin_length);
 
     if (cfg[P11PROV_CFG_TOKEN_PIN] != NULL) {
         ret = p11prov_get_pin(ctx, cfg[P11PROV_CFG_TOKEN_PIN], &ctx->pin);
