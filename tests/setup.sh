@@ -208,6 +208,30 @@ crt_selfsign() {
           --label="$LABEL" 2>&1
 }
 
+gen_keypair() {
+    local mode="$1"
+    local ptool_type="$2"
+    local ossl_alg="$3"
+    local label="$4"
+    local id="$5"
+    local uri_id="$6"
+
+    if [ "$mode" -eq 1 ]; then
+        ptool --keypairgen --key-type="${ptool_type}" --id="${id}" \
+            --label="${label}" 2>&1
+    elif [ "$mode" -eq 2 ]; then
+        OPENSSL_CONF=${URIPEM_OPENSSL_CONF}
+        ossl "
+        genpkey -propquery \"provider=pkcs11\"
+                -algorithm ${ossl_alg}
+                -pkeyopt \"pkcs11_uri:pkcs11:object=${label};id=${uri_id}\""
+        OPENSSL_CONF=${BASE_OPENSSL_CONF}
+    else
+        echo "Bad value for key gen mode: $mode"
+        exit 1
+    fi
+}
+
 title LINE "Creating new Self Sign CA"
 get_next_keyid
 CACRTN="caCert"
@@ -343,20 +367,8 @@ if [ "$SUPPORT_ED25519_KEY_GEN" -ne 0 ]; then
     get_next_keyid
     EDCRTN="edCert"
 
-    if [ "$SUPPORT_ED25519_KEY_GEN" -eq 1 ]; then
-        ptool --keypairgen --key-type="EC:edwards25519" --id="$KEYID" \
-            --label="${EDCRTN}" 2>&1
-    elif [ "$SUPPORT_ED25519_KEY_GEN" -eq 2 ]; then
-        OPENSSL_CONF=${URIPEM_OPENSSL_CONF}
-        ossl '
-        genpkey -propquery "provider=pkcs11"
-                -algorithm ED25519
-                -pkeyopt "pkcs11_uri:pkcs11:object=${EDCRTN};id=${URIKEYID}"'
-        OPENSSL_CONF=${BASE_OPENSSL_CONF}
-    else
-        echo "Bad value for SUPPORT_ED25519_KEY_GEN: $SUPPORT_ED25519_KEY_GEN"
-        exit 1
-    fi
+    gen_keypair "$SUPPORT_ED25519_KEY_GEN" "EC:edwards25519" "ED25519" \
+                "${EDCRTN}" "${KEYID}" "${URIKEYID}"
     ca_sign $EDCRTN "My ED25519 Cert" "$KEYID"
 
     EDBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
@@ -380,20 +392,8 @@ if [ "$SUPPORT_ED448_KEY_GEN" -ne 0 ]; then
     get_next_keyid
     ED2CRTN="ed2Cert"
 
-    if [ "$SUPPORT_ED448_KEY_GEN" -eq 1 ]; then
-        ptool --keypairgen --key-type="EC:Ed448" --id="$KEYID" \
-            --label="${ED2CRTN}" 2>&1
-    elif [ "$SUPPORT_ED448_KEY_GEN" -eq 2 ]; then
-        OPENSSL_CONF=${URIPEM_OPENSSL_CONF}
-        ossl '
-        genpkey -propquery "provider=pkcs11"
-                -algorithm ED448
-                -pkeyopt "pkcs11_uri:pkcs11:object=${ED2CRTN};id=${URIKEYID}"'
-        OPENSSL_CONF=${BASE_OPENSSL_CONF}
-    else
-        echo "Bad value for SUPPORT_ED448_KEY_GEN: $SUPPORT_ED448_KEY_GEN"
-        exit 1
-    fi
+    gen_keypair "$SUPPORT_ED448_KEY_GEN" "EC:Ed448" "ED448" \
+                "${ED2CRTN}" "${KEYID}" "${URIKEYID}"
     ca_sign $ED2CRTN "My ED448 Cert" "$KEYID"
 
     ED2BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
@@ -417,20 +417,8 @@ if [ "$SUPPORT_X25519_KEY_GEN" -ne 0 ]; then
     get_next_keyid
     TSTCRTN="x25519 key"
 
-    if [ "$SUPPORT_X25519_KEY_GEN" -eq 1 ]; then
-        ptool --keypairgen --key-type="EC:X25519" --id="$KEYID" \
-            --label="${TSTCRTN}" 2>&1
-    elif [ "$SUPPORT_X25519_KEY_GEN" -eq 2 ]; then
-        OPENSSL_CONF=${URIPEM_OPENSSL_CONF}
-        ossl '
-        genpkey -propquery "provider=pkcs11"
-                -algorithm X25519
-                -pkeyopt "pkcs11_uri:pkcs11:object=${TSTCRTN};id=${URIKEYID}"'
-        OPENSSL_CONF=${BASE_OPENSSL_CONF}
-    else
-        echo "Bad value for SUPPORT_X25519_KEY_GEN: $SUPPORT_X25519_KEY_GEN"
-        exit 1
-    fi
+    gen_keypair "$SUPPORT_X25519_KEY_GEN" "EC:X25519" "X25519" \
+                "${TSTCRTN}" "${KEYID}" "${URIKEYID}"
 
     X25519BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
     X25519BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
@@ -449,17 +437,8 @@ if [ "$SUPPORT_X25519_KEY_GEN" -ne 0 ]; then
     get_next_keyid
     TSTCRTN="x25519 key"
 
-    if [ "$SUPPORT_X25519_KEY_GEN" -eq 1 ]; then
-        ptool --keypairgen --key-type="EC:X25519" --id="$KEYID" \
-            --label="${TSTCRTN}" 2>&1
-    elif [ "$SUPPORT_X25519_KEY_GEN" -eq 2 ]; then
-        OPENSSL_CONF=${URIPEM_OPENSSL_CONF}
-        ossl '
-        genpkey -propquery "provider=pkcs11"
-                -algorithm X25519
-                -pkeyopt "pkcs11_uri:pkcs11:object=${TSTCRTN};id=${URIKEYID}"'
-        OPENSSL_CONF=${BASE_OPENSSL_CONF}
-    fi
+    gen_keypair "$SUPPORT_X25519_KEY_GEN" "EC:X25519" "X25519" \
+                "${TSTCRTN}" "${KEYID}" "${URIKEYID}"
 
     X25519PEERPUBURI="pkcs11:type=public;id=${URIKEYID}"
     X25519PEERPRIURI="pkcs11:type=private;id=${URIKEYID}"
@@ -474,20 +453,8 @@ if [ "$SUPPORT_X448_KEY_GEN" -ne 0 ]; then
     get_next_keyid
     TSTCRTN="x448 key"
 
-    if [ "$SUPPORT_X448_KEY_GEN" -eq 1 ]; then
-        ptool --keypairgen --key-type="EC:X448" --id="$KEYID" \
-            --label="${TSTCRTN}" 2>&1
-    elif [ "$SUPPORT_X448_KEY_GEN" -eq 2 ]; then
-        OPENSSL_CONF=${URIPEM_OPENSSL_CONF}
-        ossl '
-        genpkey -propquery "provider=pkcs11"
-                -algorithm X448
-                -pkeyopt "pkcs11_uri:pkcs11:object=${TSTCRTN};id=${URIKEYID}"'
-        OPENSSL_CONF=${BASE_OPENSSL_CONF}
-    else
-        echo "Bad value for SUPPORT_X448_KEY_GEN: $SUPPORT_X448_KEY_GEN"
-        exit 1
-    fi
+    gen_keypair "$SUPPORT_X448_KEY_GEN" "EC:X448" "X448" \
+                "${TSTCRTN}" "${KEYID}" "${URIKEYID}"
 
     X448BASEURIWITHPINVALUE="pkcs11:id=${URIKEYID};pin-value=${PINVALUE}"
     X448BASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID};pin-source=file:${PINFILE}"
@@ -506,17 +473,8 @@ if [ "$SUPPORT_X448_KEY_GEN" -ne 0 ]; then
     get_next_keyid
     TSTCRTN="x448 key"
 
-    if [ "$SUPPORT_X448_KEY_GEN" -eq 1 ]; then
-        ptool --keypairgen --key-type="EC:X448" --id="$KEYID" \
-            --label="${TSTCRTN}" 2>&1
-    elif [ "$SUPPORT_X448_KEY_GEN" -eq 2 ]; then
-        OPENSSL_CONF=${URIPEM_OPENSSL_CONF}
-        ossl '
-        genpkey -propquery "provider=pkcs11"
-                -algorithm X448
-                -pkeyopt "pkcs11_uri:pkcs11:object=${TSTCRTN};id=${URIKEYID}"'
-        OPENSSL_CONF=${BASE_OPENSSL_CONF}
-    fi
+    gen_keypair "$SUPPORT_X448_KEY_GEN" "EC:X448" "X448" \
+                "${TSTCRTN}" "${KEYID}" "${URIKEYID}"
 
     X448PEERPUBURI="pkcs11:type=public;id=${URIKEYID}"
     X448PEERPRIURI="pkcs11:type=private;id=${URIKEYID}"
@@ -683,20 +641,8 @@ if [ "$SUPPORT_ML_DSA_KEY_GEN" -ne 0 ]; then
     get_next_keyid
     TSTCRTN="mlDsa"
 
-    if [ "$SUPPORT_ML_DSA_KEY_GEN" -eq 1 ]; then
-        ptool --keypairgen --key-type="ML-DSA-44" --id="$KEYID" \
-            --label="${TSTCRTN}" 2>&1
-    elif [ "$SUPPORT_ML_DSA_KEY_GEN" -eq 2 ]; then
-        OPENSSL_CONF=${URIPEM_OPENSSL_CONF}
-        ossl '
-        genpkey -propquery "provider=pkcs11"
-                -algorithm ML-DSA-44
-                -pkeyopt "pkcs11_uri:pkcs11:object=${TSTCRTN};id=${URIKEYID}"'
-        OPENSSL_CONF=${BASE_OPENSSL_CONF}
-    else
-        echo "Bad value for SUPPORT_ML_DSA_KEY_GEN: $SUPPORT_ML_DSA_KEY_GEN"
-        exit 1
-    fi
+    gen_keypair "$SUPPORT_ML_DSA_KEY_GEN" "ML-DSA-44" "ML-DSA-44" \
+                "${TSTCRTN}" "${KEYID}" "${URIKEYID}"
     ca_sign $TSTCRTN "My ML-DSA Cert" "$KEYID"
 
     MLDSABASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
@@ -719,21 +665,8 @@ if [ "$SUPPORT_ML_KEM_KEY_GEN" -ne 0 ]; then
     get_next_keyid
     TSTCRTN="mlKem"
 
-    if [ "$SUPPORT_ML_KEM_KEY_GEN" -eq 1 ]; then
-        ptool --keypairgen --key-type="ML-KEM-512" --id="$KEYID" \
-            --label="${TSTCRTN}" 2>&1
-
-    elif [ "$SUPPORT_ML_KEM_KEY_GEN" -eq 2 ]; then
-        OPENSSL_CONF=${URIPEM_OPENSSL_CONF}
-        ossl '
-        genpkey -propquery "provider=pkcs11"
-                -algorithm ML-KEM-512
-                -pkeyopt "pkcs11_uri:pkcs11:object=${TSTCRTN};id=${URIKEYID}"'
-        OPENSSL_CONF=${BASE_OPENSSL_CONF}
-    else
-        echo "Bad value for SUPPORT_ML_KEM_KEY_GEN: $SUPPORT_ML_KEM_KEY_GEN"
-        exit 1
-    fi
+    gen_keypair "$SUPPORT_ML_KEM_KEY_GEN" "ML-KEM-512" "ML-KEM-512" \
+                "${TSTCRTN}" "${KEYID}" "${URIKEYID}"
 
     MLKEMBASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
     MLKEMBASEURIWITHPINSOURCE="pkcs11:id=${URIKEYID}?pin-source=file:${PINFILE}"
@@ -753,20 +686,8 @@ if [ "$SUPPORT_SLH_DSA_KEY_GEN" -ne 0 ]; then
     get_next_keyid
     TSTCRTN="slhDsa"
 
-    if [ "$SUPPORT_SLH_DSA_KEY_GEN" -eq 1 ]; then
-        ptool --keypairgen --key-type="SLH-DSA-SHAKE-128S" --id="$KEYID" \
-            --label="${TSTCRTN}" 2>&1
-    elif [ "$SUPPORT_SLH_DSA_KEY_GEN" -eq 2 ]; then
-        OPENSSL_CONF=${URIPEM_OPENSSL_CONF}
-        ossl '
-        genpkey -propquery "provider=pkcs11"
-                -algorithm SLH-DSA-SHAKE-128s
-                -pkeyopt "pkcs11_uri:pkcs11:object=${TSTCRTN};id=${URIKEYID}"'
-        OPENSSL_CONF=${BASE_OPENSSL_CONF}
-    else
-        echo "Bad value for SUPPORT_SLH_DSA_KEY_GEN: $SUPPORT_SLH_DSA_KEY_GEN"
-        exit 1
-    fi
+    gen_keypair "$SUPPORT_SLH_DSA_KEY_GEN" "SLH-DSA-SHAKE-128S" "SLH-DSA-SHAKE-128s" \
+                "${TSTCRTN}" "${KEYID}" "${URIKEYID}"
     ca_sign $TSTCRTN "My SLH-DSA Cert" "$KEYID"
 
     SLHDSABASEURIWITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
