@@ -267,4 +267,20 @@ OPENSSL_CONF=${OPENSSL_CONF}.nopkcs11
 $CHECKER "${TESTBLDDIR}/loadprov"
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
+title PARA "Test PUBKEY_LOGIN_ALWAYS login behavior"
+ORIG_OPENSSL_CONF=${OPENSSL_CONF}
+sed -e "s/^pkcs11-module-token-pin.*$/##nopin/" -e "s/#pkcs11-module-login-behavior/pkcs11-module-login-behavior = always/" "${OPENSSL_CONF}" > "${OPENSSL_CONF}.loginalways"
+OPENSSL_CONF=${OPENSSL_CONF}.loginalways
+
+FAIL=0
+$CHECKER "${OPENSSL}" pkey -in "${PUBURI}" -pubin -pubout -out /dev/null 2>/dev/null && FAIL=1
+if [ $FAIL -ne 0 ]; then
+    echo "Expected failure when PIN is missing, but command succeeded"
+    exit 1
+fi
+
+ossl 'pkey -in "${PUBURI};pin-value=${PINVALUE}" -pubin -pubout -out /dev/null'
+
+OPENSSL_CONF=${ORIG_OPENSSL_CONF}
+
 exit 0
