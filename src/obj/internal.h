@@ -37,6 +37,7 @@ struct p11prov_obj {
     CK_OBJECT_HANDLE cached;
     CK_BBOOL cka_copyable;
     CK_BBOOL cka_token;
+    CK_FLAGS usage;
 
     P11PROV_URI *refresh_uri;
     char *public_uri;
@@ -59,6 +60,7 @@ struct p11prov_obj {
 };
 
 CK_RV p11prov_obj_store_public_key(P11PROV_OBJ *key);
+CK_RV p11prov_obj_re_store_key(P11PROV_OBJ *key);
 CK_RV obj_add_to_pool(P11PROV_OBJ *obj);
 void obj_rm_from_pool(P11PROV_OBJ *obj);
 P11PROV_OBJ *p11prov_obj_pool_find(P11PROV_OBJ_POOL *pool,
@@ -73,6 +75,11 @@ CK_RV p11prov_match_curve(CK_KEY_TYPE type, CK_ATTRIBUTE *attr,
                           const char **curve_name, int *curve_nid,
                           CK_ULONG *key_bit_size, CK_ULONG *key_size);
 CK_OBJECT_HANDLE p11prov_obj_get_handle_no_cache(P11PROV_OBJ *obj);
+CK_RV p11prov_store_symmetric_key(P11PROV_CTX *provctx,
+                                  P11PROV_SESSION *session,
+                                  CK_KEY_TYPE key_type, bool session_key,
+                                  const unsigned char *secret, size_t secretlen,
+                                  CK_FLAGS usage, P11PROV_OBJ **ret);
 
 #define CKA_P11PROV_CURVE_NAME CKA_P11PROV_BASE + 1
 #define CKA_P11PROV_CURVE_NID CKA_P11PROV_BASE + 2

@@ -904,32 +904,61 @@ done:
     return rv;
 }
 
-static CK_RV store_key(P11PROV_OBJ *key, CK_ATTRIBUTE *tmpl, int tmpl_cnt)
+static CK_RV store_key(P11PROV_OBJ *key, P11PROV_SESSION *in_session,
+                       CK_ATTRIBUTE *tmpl, int tmpl_cnt)
 {
     P11PROV_SLOTS_CTX *slots = NULL;
     CK_SLOT_ID slot = CK_UNAVAILABLE_INFORMATION;
-    P11PROV_SESSION *session = NULL;
+    P11PROV_SESSION *session = in_session;
+    CK_SESSION_HANDLE sess = CK_INVALID_HANDLE;
     CK_RV rv;
 
-    slots = p11prov_ctx_get_slots(key->ctx);
-    if (!slots) {
-        return CKR_GENERAL_ERROR;
+    if (!in_session) {
+        slots = p11prov_ctx_get_slots(key->ctx);
+        if (!slots) {
+            return CKR_GENERAL_ERROR;
+        }
+
+        slot = p11prov_get_default_slot(slots);
+        if (slot == CK_UNAVAILABLE_INFORMATION) {
+            return CKR_GENERAL_ERROR;
+        }
+
+        rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
+                                 CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
+                                 true, &session);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        sess = p11prov_session_handle(session);
+    } else {
+        CK_SESSION_INFO session_info;
+        CK_BBOOL val_token = CK_FALSE;
+
+        sess = p11prov_session_handle(session);
+        rv = p11prov_GetSessionInfo(key->ctx, sess, &session_info);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        slot = session_info.slotID;
+
+        for (int i = 0; i < tmpl_cnt; i++) {
+            if (tmpl[i].type == CKA_TOKEN) {
+                val_token = *(CK_BBOOL *)tmpl[i].pValue;
+                break;
+            }
+        }
+
+        if (((session_info.flags & CKF_RW_SESSION) == 0)
+            && val_token == CK_TRUE) {
+            P11PROV_debug("Invalid read only session for token key request");
+            rv = CKR_SESSION_HANDLE_INVALID;
+            goto done;
+        }
     }
 
-    slot = p11prov_get_default_slot(slots);
-    if (slot == CK_UNAVAILABLE_INFORMATION) {
-        return CKR_GENERAL_ERROR;
-    }
-
-    rv = p11prov_get_session(key->ctx, &slot, NULL, key->refresh_uri,
-                             CK_UNAVAILABLE_INFORMATION, NULL, NULL, false,
-                             true, &session);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    rv = p11prov_CreateObject(key->ctx, p11prov_session_handle(session), tmpl,
-                              tmpl_cnt, &key->handle);
+    P11PROV_debug("Creating key on session %lu", sess);
+    rv = p11prov_CreateObject(key->ctx, sess, tmpl, tmpl_cnt, &key->handle);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -940,11 +969,17 @@ static CK_RV store_key(P11PROV_OBJ *key, CK_ATTRIBUTE *tmpl, int tmpl_cnt)
 
 done:
     if (rv == CKR_OK) {
+        /* this is a real object now, add it to the pool, but do not
+         * fail if the operation goes haywire for some reason */
+        (void)obj_add_to_pool(key);
+
         /* we just created an ephemeral key on this session, ensure the
          * session is not closed until the key goes away */
         p11prov_obj_set_session_ref(key, session);
     }
-    p11prov_return_session(session);
+    if (in_session != session) {
+        p11prov_return_session(session);
+    }
     return rv;
 }
 
@@ -983,7 +1018,7 @@ static CK_RV p11prov_store_rsa_public_key(P11PROV_OBJ *key)
     template[6].pValue = a->pValue;
     template[6].ulValueLen = a->ulValueLen;
 
-    return store_key(key, template, tmpl_cnt);
+    return store_key(key, NULL, template, tmpl_cnt);
 }
 
 static CK_RV p11prov_store_ec_public_key(P11PROV_OBJ *key)
@@ -1038,7 +1073,7 @@ static CK_RV p11prov_store_ec_public_key(P11PROV_OBJ *key)
         break;
     }
 
-    return store_key(key, template, tmpl_cnt);
+    return store_key(key, NULL, template, tmpl_cnt);
 }
 
 static CK_RV p11prov_store_mldsa_public_key(P11PROV_OBJ *key)
@@ -1071,7 +1106,7 @@ static CK_RV p11prov_store_mldsa_public_key(P11PROV_OBJ *key)
     template[4].pValue = a->pValue;
     template[4].ulValueLen = a->ulValueLen;
 
-    return store_key(key, template, tmpl_cnt);
+    return store_key(key, NULL, template, tmpl_cnt);
 }
 
 static CK_RV p11prov_store_mlkem_public_key(P11PROV_OBJ *key)
@@ -1104,7 +1139,7 @@ static CK_RV p11prov_store_mlkem_public_key(P11PROV_OBJ *key)
     template[4].pValue = a->pValue;
     template[4].ulValueLen = a->ulValueLen;
 
-    return store_key(key, template, tmpl_cnt);
+    return store_key(key, NULL, template, tmpl_cnt);
 }
 
 CK_RV p11prov_pkeyinfo_to_pubkey(CK_ATTRIBUTE *pkeyinfo, CK_ATTRIBUTE *attr)
@@ -1277,12 +1312,37 @@ CK_RV p11prov_obj_store_public_key(P11PROV_OBJ *key)
     if (rv == CKR_OK) {
         /* destroy the session object when key is freed */
         key->owns_key = true;
-        /* this is a real object now, add it to the pool, but do not
-         * fail if the operation goes haywire for some reason */
-        (void)obj_add_to_pool(key);
     }
 
     return rv;
+}
+
+CK_RV p11prov_obj_re_store_key(P11PROV_OBJ *key)
+{
+    if (key->class == CKO_SECRET_KEY) {
+        P11PROV_OBJ *stored_key = NULL;
+        CK_RV rv;
+
+        CK_ATTRIBUTE *value = p11prov_obj_get_attr(key, CKA_VALUE);
+        if (!value || !value->pValue) {
+            P11PROV_debug("Missing value");
+            return CKR_GENERAL_ERROR;
+        }
+
+        rv = p11prov_store_symmetric_key(
+            key->ctx, key->ref_session, key->data.key.type, true, value->pValue,
+            value->ulValueLen, key->usage, &stored_key);
+        if (rv == CKR_OK) {
+            key->handle = stored_key->handle;
+            key->slotid = stored_key->slotid;
+            p11prov_obj_set_session_ref(key, stored_key->ref_session);
+            p11prov_obj_free(stored_key);
+        }
+
+        return rv;
+    } else {
+        return p11prov_obj_store_public_key(key);
+    }
 }
 
 static CK_RV get_bn(const OSSL_PARAM *p, CK_ATTRIBUTE *attr)
@@ -1403,7 +1463,7 @@ static CK_RV p11prov_store_rsa_private_key(P11PROV_OBJ *key,
         }
     }
 
-    rv = store_key(key, template, tmpl_cnt);
+    rv = store_key(key, NULL, template, tmpl_cnt);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -1498,7 +1558,7 @@ static CK_RV p11prov_store_ec_private_key(P11PROV_OBJ *key,
         break;
     }
 
-    rv = store_key(key, template, tmpl_cnt);
+    rv = store_key(key, NULL, template, tmpl_cnt);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -1573,7 +1633,7 @@ static CK_RV p11prov_store_mldsa_private_key(P11PROV_OBJ *key,
         tmpl_cnt++;
     }
 
-    rv = store_key(key, template, tmpl_cnt);
+    rv = store_key(key, NULL, template, tmpl_cnt);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -1631,7 +1691,7 @@ static CK_RV p11prov_store_mlkem_private_key(P11PROV_OBJ *key,
     template[tmpl_cnt - 1].pValue = p->data;
     template[tmpl_cnt - 1].ulValueLen = p->data_size;
 
-    rv = store_key(key, template, tmpl_cnt);
+    rv = store_key(key, NULL, template, tmpl_cnt);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -1949,14 +2009,14 @@ CK_RV p11prov_obj_import_key(P11PROV_OBJ *key, const OSSL_PARAM params[])
     }
 }
 
-#if SKEY_SUPPORT
-
-static CK_RV store_symmetric_key(P11PROV_CTX *provctx, CK_KEY_TYPE key_type,
-                                 const unsigned char *secret, size_t secretlen,
-                                 char *label, CK_FLAGS usage, P11PROV_OBJ **ret)
+CK_RV p11prov_store_symmetric_key(P11PROV_CTX *provctx,
+                                  P11PROV_SESSION *session,
+                                  CK_KEY_TYPE key_type, bool session_key,
+                                  const unsigned char *secret, size_t secretlen,
+                                  CK_FLAGS usage, P11PROV_OBJ **ret)
 {
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
-    CK_BBOOL tokenobj = CK_FALSE;
+    CK_BBOOL tokenobj = session_key ? CK_FALSE : CK_TRUE;
     P11PROV_OBJ *key = NULL;
     CK_RV rv;
     CK_ATTRIBUTE template[12] = {
@@ -1994,7 +2054,7 @@ static CK_RV store_symmetric_key(P11PROV_CTX *provctx, CK_KEY_TYPE key_type,
     key->data.key.bit_size = secretlen * 8;
     key->data.key.size = secretlen;
 
-    rv = store_key(key, template, tsize);
+    rv = store_key(key, session, template, tsize);
     if (rv != CKR_OK) {
         goto done;
     }
@@ -2009,6 +2069,8 @@ done:
     return rv;
 }
 
+#if SKEY_SUPPORT
+
 P11PROV_OBJ *p11prov_obj_import_secret_key(P11PROV_CTX *ctx, CK_KEY_TYPE type,
                                            const unsigned char *keydata,
                                            size_t keylen)
@@ -2020,7 +2082,8 @@ P11PROV_OBJ *p11prov_obj_import_secret_key(P11PROV_CTX *ctx, CK_KEY_TYPE type,
 
     /* TODO: cache find, see other key types */
 
-    rv = store_symmetric_key(ctx, type, keydata, keylen, NULL, usage, &key);
+    rv = p11prov_store_symmetric_key(ctx, NULL, type, true, keydata, keylen,
+                                     usage, &key);
     if (rv != CKR_OK) {
         P11PROV_raise(ctx, rv, "Failed to import");
         return NULL;

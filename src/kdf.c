@@ -130,7 +130,7 @@ static CK_RV inner_pkcs11_key(P11PROV_KDF_CTX *hkdfctx,
     }
 
     *keyobj = p11prov_create_secret_key(hkdfctx->provctx, hkdfctx->session,
-                                        true, (void *)key, keylen);
+                                        CKF_DERIVE, true, (void *)key, keylen);
     if (*keyobj == NULL) {
         return CKR_KEY_HANDLE_INVALID;
     }

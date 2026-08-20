@@ -198,7 +198,7 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
         /* the key is not on the token anymore, as refresh happens on fork
          * where we fully reset the token sessions.
          * This means it needs to be stored again */
-        ret = p11prov_obj_store_public_key(obj);
+        ret = p11prov_obj_re_store_key(obj);
         if (ret != CKR_OK) {
             P11PROV_raise(obj->ctx, ret, "Failed to refresh stored object %p",
                           obj);
@@ -365,7 +365,7 @@ void p11prov_obj_free(P11PROV_OBJ *obj)
     destroy_key_cache(obj, NULL);
 
     for (int i = 0; i < obj->numattrs; i++) {
-        OPENSSL_free(obj->attrs[i].pValue);
+        OPENSSL_clear_free(obj->attrs[i].pValue, obj->attrs[i].ulValueLen);
     }
     OPENSSL_free(obj->attrs);
 
