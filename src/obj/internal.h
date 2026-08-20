@@ -72,6 +72,7 @@ CK_RV get_attrs_from_cert(P11PROV_OBJ *crt, CK_ATTRIBUTE *attrs, int num);
 CK_RV p11prov_match_curve(CK_KEY_TYPE type, CK_ATTRIBUTE *attr,
                           const char **curve_name, int *curve_nid,
                           CK_ULONG *key_bit_size, CK_ULONG *key_size);
+CK_OBJECT_HANDLE p11prov_obj_get_handle_no_cache(P11PROV_OBJ *obj);
 
 #define CKA_P11PROV_CURVE_NAME CKA_P11PROV_BASE + 1
 #define CKA_P11PROV_CURVE_NID CKA_P11PROV_BASE + 2
