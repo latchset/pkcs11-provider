@@ -660,11 +660,9 @@ CK_RV p11prov_obj_copy_key_data(P11PROV_OBJ *dst, P11PROV_OBJ *src)
 
     dst->slotid = src->slotid;
     /* ensure the source handle is valid (this may refresh the object or
-     * store a mock one), but then borrow the real handle directly, as
-     * get_handle() may return the volatile cache copy which is destroyed
-     * independently of dst */
-    (void)p11prov_obj_get_handle(src);
-    dst->handle = src->handle;
+     * store a mock one), but use the no_cache variant as we want a handle
+     * to the real object here, not the ephemeral cache copy */
+    dst->handle = p11prov_obj_get_handle_no_cache(src);
     if (src->ref_obj) {
         /* borrow the handle from the same owner as the source */
         dst->ref_obj = p11prov_obj_ref_no_cache(src->ref_obj);
