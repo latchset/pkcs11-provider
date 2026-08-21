@@ -34,6 +34,7 @@ Files: .github/*
        tests/cert.json.ecdsa.in
        tests/cert.json.ed25519.in
        tests/cert.json.ed448.in
+       tests/fork-data.*
        scripts/clean-dist.sh
        scripts/coverage_report.sh
        .lcovrc

@@ -274,3 +274,54 @@ EVP_PKEY *util_gen_key(const char *type, const char *label)
     free(uri);
     return key;
 }
+
+unsigned char *util_read_file(const char *path, size_t *size)
+{
+    FILE *f;
+    unsigned char *buf;
+    size_t len;
+
+    f = fopen(path, "rb");
+    if (!f) {
+        PRINTERR("Failed to open %s\n", path);
+        exit(EXIT_FAILURE);
+    }
+    fseek(f, 0, SEEK_END);
+    len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    buf = malloc(len);
+    if (!buf) {
+        PRINTERR("Failed to allocate memory for %s\n", path);
+        fclose(f);
+        exit(EXIT_FAILURE);
+    }
+
+    if (fread(buf, 1, len, f) != len) {
+        PRINTERR("Failed to read %s\n", path);
+        free(buf);
+        fclose(f);
+        exit(EXIT_FAILURE);
+    }
+    fclose(f);
+
+    if (size) {
+        *size = len;
+    }
+
+    return buf;
+}
+
+unsigned char *util_read_test_file(const char *filename, size_t *size)
+{
+    const char *test_path;
+    char path[1024];
+
+    test_path = getenv("TEST_PATH");
+    if (!test_path) {
+        test_path = "tests";
+    }
+
+    snprintf(path, sizeof(path), "%s/%s", test_path, filename);
+    return util_read_file(path, size);
+}

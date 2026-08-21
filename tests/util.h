@@ -25,3 +25,5 @@ X509 *load_cert(const char *uri, const UI_METHOD *ui_method, void *ui_data);
 void hexify(char *out, unsigned char *byte, size_t len);
 void unhexify(unsigned char *out, size_t *outlen, const char *in);
 EVP_PKEY *util_gen_key(const char *type, const char *label);
+unsigned char *util_read_file(const char *path, size_t *size);
+unsigned char *util_read_test_file(const char *filename, size_t *size);

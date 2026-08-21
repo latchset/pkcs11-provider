@@ -515,8 +515,7 @@ CK_OBJECT_HANDLE p11prov_obj_get_handle_no_cache(P11PROV_OBJ *obj)
          * so it means we need to actually add the key to the
          * session in order to be able to perform operations
          * with the token */
-
-        rv = p11prov_obj_store_public_key(obj);
+        rv = p11prov_obj_re_store_key(obj);
         if (rv != CKR_OK) {
             return CK_INVALID_HANDLE;
         }
