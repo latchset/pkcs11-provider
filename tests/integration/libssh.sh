@@ -49,7 +49,7 @@ libssh_setup()
 {
     title PARA "Clone, setup and build libssh"
 
-    git clone https://gitlab.com/libssh/libssh-mirror.git \
+    git clone https://github.com/libssh/libssh-mirror.git \
       "${WORKDIR}"/libssh-mirror
 
     mkdir "${WORKDIR}"/libssh-mirror/build
