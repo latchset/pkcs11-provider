@@ -117,6 +117,14 @@ CK_RV obj_add_to_pool(P11PROV_OBJ *obj)
         return ret;
     }
 
+    /* Recheck if obj->poolid has already been set to keep Coverity
+     * happy. */
+    if (obj->poolid != -1) {
+        /* already in the pool */
+        ret = CKR_OK;
+        goto done;
+    }
+
     /* LOCKED SECTION ------------- */
     if (pool->num >= pool->size) {
         P11PROV_OBJ **tmp;
