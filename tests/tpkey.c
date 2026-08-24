@@ -404,6 +404,7 @@ int main(int argc, char *argv[])
     const char *driver = NULL;
     const char *support_ml_dsa = NULL;
     const char *support_ml_kem = NULL;
+    const char *support_slh_dsa = NULL;
     const unsigned char *data = (const unsigned char *)"Sign Me!";
     unsigned char *sig;
     size_t siglen;
@@ -426,6 +427,8 @@ int main(int argc, char *argv[])
         { "ML-DSA-44", "ML-DSA-44 Pkey sigver Test", NULL, "ML-DSA-44", true },
         { "ML-DSA-65", "ML-DSA-65 Pkey sigver Test", NULL, "ML-DSA-65", true },
         { "ML-DSA-87", "ML-DSA-87 Pkey sigver Test", NULL, "ML-DSA-87", true },
+        { "SLH-DSA-SHA2-128s", "SLH-DSA-SHA2-128s Pkey sigver Test", NULL,
+          "SLH-DSA-SHA2-128s", true },
     };
 
     driver = getenv("TOKEN_DRIVER");
@@ -437,6 +440,7 @@ int main(int argc, char *argv[])
     }
     support_ml_dsa = getenv("SUPPORT_ML_DSA");
     support_ml_kem = getenv("SUPPORT_ML_KEM");
+    support_slh_dsa = getenv("SUPPORT_SLH_DSA");
 
     for (i = 0; i < (sizeof(tests) / sizeof(tests[0])); i++) {
         /* Softokn does not handle Edwards keys yet */
@@ -452,6 +456,17 @@ int main(int argc, char *argv[])
             }
             /* ML-DSA tests can be disabled on demand */
             if (support_ml_dsa != NULL && strcmp(support_ml_dsa, "0") == 0) {
+                continue;
+            }
+        }
+
+        if (strncmp(tests[i].key_type, "SLH-DSA", 7) == 0) {
+            /* SLH-DSA is handled only in kryoptic so far */
+            if (strcmp(driver, "kryoptic") != 0) {
+                continue;
+            }
+            /* SLH-DSA tests can be disabled on demand */
+            if (support_slh_dsa != NULL && strcmp(support_slh_dsa, "0") == 0) {
                 continue;
             }
         }

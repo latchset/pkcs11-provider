@@ -643,6 +643,105 @@ static CK_RV prep_mlkem_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
     return CKR_OK;
 }
 
+static CK_RV prep_slhdsa_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
+                              struct pool_find_ctx *findctx)
+{
+    const OSSL_PARAM *p;
+    CK_RV rv;
+
+    switch (findctx->param_set) {
+    case CKP_SLH_DSA_SHA2_128S:
+        findctx->key_size = SLH_DSA_SHA2_128S_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHA2_128F:
+        findctx->key_size = SLH_DSA_SHA2_128F_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHA2_192S:
+        findctx->key_size = SLH_DSA_SHA2_192S_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHA2_192F:
+        findctx->key_size = SLH_DSA_SHA2_192F_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHA2_256S:
+        findctx->key_size = SLH_DSA_SHA2_256S_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHA2_256F:
+        findctx->key_size = SLH_DSA_SHA2_256F_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHAKE_128S:
+        findctx->key_size = SLH_DSA_SHAKE_128S_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHAKE_128F:
+        findctx->key_size = SLH_DSA_SHAKE_128F_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHAKE_192S:
+        findctx->key_size = SLH_DSA_SHAKE_192S_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHAKE_192F:
+        findctx->key_size = SLH_DSA_SHAKE_192F_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHAKE_256S:
+        findctx->key_size = SLH_DSA_SHAKE_256S_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHAKE_256F:
+        findctx->key_size = SLH_DSA_SHAKE_256F_PK_SIZE;
+        break;
+    default:
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    switch (findctx->class) {
+    case CKO_PUBLIC_KEY:
+        rv = params_to_attr(ctx, findctx, params, OSSL_PKEY_PARAM_PUB_KEY,
+                            CKA_VALUE, false);
+        if (rv != CKR_OK) {
+            return rv;
+        }
+        if (findctx->key_size
+            != findctx->attrs[findctx->numattrs - 1].ulValueLen) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE,
+                          "Unexpected public key size %lu (expected %lu)",
+                          findctx->attrs[0].ulValueLen, findctx->key_size);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+        break;
+    case CKO_PRIVATE_KEY:
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+        if (!p) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_PRIV_KEY);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        rv = private_key_to_id(ctx, findctx, (const uint8_t *)"SLH-DSA", 7,
+                               (const uint8_t *)&findctx->param_set,
+                               sizeof(findctx->param_set), p->data,
+                               p->data_size);
+        if (rv != CKR_OK) {
+            return rv;
+        }
+        break;
+    default:
+        return CKR_GENERAL_ERROR;
+    }
+
+    /* common params */
+    findctx->attrs[findctx->numattrs].type = CKA_PARAMETER_SET;
+    findctx->attrs[findctx->numattrs].pValue =
+        OPENSSL_malloc(sizeof(findctx->param_set));
+    if (!findctx->attrs[findctx->numattrs].pValue) {
+        return CKR_HOST_MEMORY;
+    }
+    memcpy(findctx->attrs[findctx->numattrs].pValue, &findctx->param_set,
+           sizeof(findctx->param_set));
+    findctx->attrs[findctx->numattrs].ulValueLen = sizeof(findctx->param_set);
+    findctx->numattrs++;
+
+    findctx->bit_size = findctx->key_size * 8;
+
+    return CKR_OK;
+}
+
 CK_RV p11prov_obj_copy_key_data(P11PROV_OBJ *dst, P11PROV_OBJ *src)
 {
     CK_RV rv;
@@ -823,6 +922,14 @@ static CK_RV p11prov_obj_import_public_key(P11PROV_OBJ *key,
     case CKK_ML_KEM:
         P11PROV_debug("obj import of ML-KEM public key %p", key);
         rv = prep_mlkem_find(ctx, params, &findctx);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        break;
+
+    case CKK_SLH_DSA:
+        P11PROV_debug("obj import of SLH-DSA public key %p", key);
+        rv = prep_slhdsa_find(ctx, params, &findctx);
         if (rv != CKR_OK) {
             goto done;
         }
@@ -1142,6 +1249,39 @@ static CK_RV p11prov_store_mlkem_public_key(P11PROV_OBJ *key)
     return store_key(key, NULL, template, tmpl_cnt);
 }
 
+static CK_RV p11prov_store_slhdsa_public_key(P11PROV_OBJ *key)
+{
+    CK_BBOOL val_true = CK_TRUE;
+    CK_BBOOL val_false = CK_FALSE;
+    CK_ATTRIBUTE template[] = {
+        { CKA_CLASS, &key->class, sizeof(CK_OBJECT_CLASS) },
+        { CKA_KEY_TYPE, &key->data.key.type, sizeof(CK_KEY_TYPE) },
+        { CKA_VERIFY, &val_true, sizeof(val_true) },
+        /* public key part */
+        { CKA_PARAMETER_SET, NULL, 0 },
+        { CKA_VALUE, NULL, 0 },
+        { CKA_TOKEN, &val_false, sizeof(val_false) },
+    };
+    int tmpl_cnt = sizeof(template) / sizeof(CK_ATTRIBUTE);
+    CK_ATTRIBUTE *a;
+
+    a = p11prov_obj_get_attr(key, CKA_PARAMETER_SET);
+    if (!a) {
+        return CKR_GENERAL_ERROR;
+    }
+    template[3].pValue = a->pValue;
+    template[3].ulValueLen = a->ulValueLen;
+
+    a = p11prov_obj_get_attr(key, CKA_VALUE);
+    if (!a) {
+        return CKR_GENERAL_ERROR;
+    }
+    template[4].pValue = a->pValue;
+    template[4].ulValueLen = a->ulValueLen;
+
+    return store_key(key, NULL, template, tmpl_cnt);
+}
+
 CK_RV p11prov_pkeyinfo_to_pubkey(CK_ATTRIBUTE *pkeyinfo, CK_ATTRIBUTE *attr)
 {
     X509_PUBKEY *pubkey = NULL;
@@ -1239,6 +1379,7 @@ static CK_RV pub_from_priv_attrs(P11PROV_OBJ *key)
         break;
     case CKK_ML_DSA:
     case CKK_ML_KEM:
+    case CKK_SLH_DSA:
         /* param set */
         params = p11prov_obj_get_attr(key->assoc_obj, CKA_PARAMETER_SET);
         if (params) {
@@ -1300,6 +1441,9 @@ CK_RV p11prov_obj_store_public_key(P11PROV_OBJ *key)
         break;
     case CKK_ML_KEM:
         rv = p11prov_store_mlkem_public_key(key);
+        break;
+    case CKK_SLH_DSA:
+        rv = p11prov_store_slhdsa_public_key(key);
         break;
 
     default:
@@ -1719,6 +1863,77 @@ done:
     return rv;
 }
 
+#ifndef OSSL_PKEY_PARAM_SLH_DSA_SEED
+#define OSSL_PKEY_PARAM_SLH_DSA_SEED "seed"
+#endif
+
+static CK_RV p11prov_store_slhdsa_private_key(P11PROV_OBJ *key,
+                                              struct pool_find_ctx *findctx,
+                                              const OSSL_PARAM params[])
+{
+    CK_BBOOL val_true = CK_TRUE;
+    CK_BBOOL val_false = CK_FALSE;
+    const OSSL_PARAM *p;
+    CK_ATTRIBUTE template[] = {
+        { CKA_CLASS, &findctx->class, sizeof(CK_OBJECT_CLASS) },
+        { CKA_KEY_TYPE, &findctx->type, sizeof(CK_KEY_TYPE) },
+        { CKA_ID, findctx->attrs[0].pValue, findctx->attrs[0].ulValueLen },
+        { CKA_PARAMETER_SET, findctx->attrs[1].pValue,
+          findctx->attrs[1].ulValueLen },
+        { CKA_SENSITIVE, &val_true, sizeof(val_true) },
+        { CKA_EXTRACTABLE, &val_false, sizeof(val_false) },
+        { CKA_TOKEN, &val_false, sizeof(val_false) },
+        { CKA_SIGN, &val_true, sizeof(val_true) },
+        /* private key part */
+        { CKA_VALUE, NULL, 0 },
+        { CKA_SEED, NULL, 0 },
+    };
+    int tmpl_cnt = (sizeof(template) / sizeof(CK_ATTRIBUTE)) - 2;
+    CK_RV rv = CKR_GENERAL_ERROR;
+
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+    if (!p) {
+        return CKR_KEY_INDIGESTIBLE;
+    }
+    template[tmpl_cnt].pValue = p->data;
+    template[tmpl_cnt].ulValueLen = p->data_size;
+    tmpl_cnt++;
+
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_SLH_DSA_SEED);
+    if (p) {
+        template[tmpl_cnt].pValue = p->data;
+        template[tmpl_cnt].ulValueLen = p->data_size;
+        tmpl_cnt++;
+    }
+
+    rv = store_key(key, NULL, template, tmpl_cnt);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    key->data.key.size = findctx->key_size;
+    key->data.key.bit_size = findctx->bit_size;
+    key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * findctx->numattrs);
+    if (!key->attrs) {
+        rv = CKR_HOST_MEMORY;
+        goto done;
+    }
+    key->numattrs = 0;
+    for (int i = 0; i < findctx->numattrs; i++) {
+        rv = p11prov_copy_attr(&key->attrs[i], &findctx->attrs[i]);
+        if (rv != CKR_OK) {
+            rv = CKR_HOST_MEMORY;
+            P11PROV_raise(key->ctx, rv, "Failed attr copy");
+            goto done;
+        }
+        key->numattrs++;
+    }
+    rv = CKR_OK;
+
+done:
+    return rv;
+}
+
 static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key,
                                             const OSSL_PARAM params[])
 {
@@ -1777,6 +1992,12 @@ static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key,
             goto done;
         }
         break;
+    case CKK_SLH_DSA:
+        rv = prep_slhdsa_find(ctx, params, &findctx);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        break;
 
     default:
         P11PROV_raise(key->ctx, CKR_KEY_INDIGESTIBLE,
@@ -1827,6 +2048,9 @@ static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key,
         break;
     case CKK_ML_KEM:
         rv = p11prov_store_mlkem_private_key(key, &findctx, params);
+        break;
+    case CKK_SLH_DSA:
+        rv = p11prov_store_slhdsa_private_key(key, &findctx, params);
         break;
 
     default:
