@@ -4,7 +4,9 @@
 #include "provider.h"
 #include "kmgmt/internal.h"
 
-DISPATCH_KEYMGMT_FN(mldsa, new);
+DISPATCH_KEYMGMT_FN(mldsa_44, new);
+DISPATCH_KEYMGMT_FN(mldsa_65, new);
+DISPATCH_KEYMGMT_FN(mldsa_87, new);
 DISPATCH_KEYMGMT_FN(mldsa_44, gen_init);
 DISPATCH_KEYMGMT_FN(mldsa_65, gen_init);
 DISPATCH_KEYMGMT_FN(mldsa_87, gen_init);
@@ -17,10 +19,88 @@ DISPATCH_KEYMGMT_FN(mldsa, export_types);
 DISPATCH_KEYMGMT_FN(mldsa, get_params);
 DISPATCH_KEYMGMT_FN(mldsa, gettable_params);
 
-static void *p11prov_mldsa_new(void *provctx)
+extern const CK_BBOOL val_true;
+extern const CK_BBOOL val_false;
+
+static int p11prov_mldsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
+                                      CK_ATTRIBUTE *template)
 {
+    static const CK_OBJECT_CLASS pub_class = CKO_PUBLIC_KEY;
+    static const CK_KEY_TYPE mldsa_type = CKK_ML_DSA;
+    CK_ATTRIBUTE *a;
+
+    switch (class) {
+    case CKO_PUBLIC_KEY:
+        if (!template) {
+            return 6;
+        }
+
+        template[0].type = CKA_CLASS;
+        template[0].pValue = DISCARD_CONST(&pub_class);
+        template[0].ulValueLen = sizeof(CK_OBJECT_CLASS);
+
+        template[1].type = CKA_KEY_TYPE;
+        template[1].pValue = DISCARD_CONST(&mldsa_type);
+        template[1].ulValueLen = sizeof(CK_KEY_TYPE);
+
+        template[2].type = CKA_VERIFY;
+        template[2].pValue = DISCARD_CONST(&val_true);
+        template[2].ulValueLen = sizeof(CK_BBOOL);
+
+        a = p11prov_obj_get_attr(obj, CKA_PARAMETER_SET);
+        if (!a) {
+            return -1;
+        }
+        template[3] = *a;
+
+        a = p11prov_obj_get_attr(obj, CKA_VALUE);
+        if (!a) {
+            return -1;
+        }
+        template[4] = *a;
+
+        template[5].type = CKA_TOKEN;
+        template[5].pValue = DISCARD_CONST(&val_false);
+        template[5].ulValueLen = sizeof(CK_BBOOL);
+
+        return 6;
+
+    case CKO_PRIVATE_KEY:
+        /* TODO: Stub for private key template */
+        return -1;
+
+    default:
+        return -1;
+    }
+}
+
+static void *p11prov_mldsa_new_int(void *provctx,
+                                   CK_ML_DSA_PARAMETER_SET_TYPE param_set)
+{
+    P11PROV_OBJ *key;
+
     P11PROV_debug("mldsa new");
-    return p11prov_kmgmt_new(provctx, CKK_ML_DSA);
+    key = p11prov_kmgmt_new(provctx, CKK_ML_DSA);
+    if (key) {
+        p11prov_obj_set_key_params(key, param_set);
+        p11prov_obj_set_get_template(key, p11prov_mldsa_get_template);
+    }
+    return key;
+}
+
+static void *p11prov_mldsa_44_new(void *provctx)
+{
+    return p11prov_mldsa_new_int(provctx, CKP_ML_DSA_44);
+}
+
+static void *p11prov_mldsa_65_new(void *provctx)
+{
+    return p11prov_mldsa_new_int(provctx, CKP_ML_DSA_65);
+}
+
+static void *p11prov_mldsa_87_new(void *provctx)
+{
+    return p11prov_mldsa_new_int(provctx, CKP_ML_DSA_87);
 }
 
 static void *p11prov_mldsa_gen_init_int(void *provctx, int selection,
@@ -310,7 +390,7 @@ static const OSSL_PARAM *p11prov_mldsa_gettable_params(void *provctx)
 #define p11prov_mldsa_export p11prov_kmgmt_export
 
 const OSSL_DISPATCH p11prov_mldsa44_keymgmt_functions[] = {
-    DISPATCH_KEYMGMT_ELEM(mldsa, NEW, new),
+    DISPATCH_KEYMGMT_ELEM(mldsa_44, NEW, new),
     DISPATCH_KEYMGMT_ELEM(mldsa_44, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(mldsa, GEN, gen),
     DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),
@@ -330,7 +410,7 @@ const OSSL_DISPATCH p11prov_mldsa44_keymgmt_functions[] = {
 };
 
 const OSSL_DISPATCH p11prov_mldsa65_keymgmt_functions[] = {
-    DISPATCH_KEYMGMT_ELEM(mldsa, NEW, new),
+    DISPATCH_KEYMGMT_ELEM(mldsa_65, NEW, new),
     DISPATCH_KEYMGMT_ELEM(mldsa_65, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(mldsa, GEN, gen),
     DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),
@@ -350,7 +430,7 @@ const OSSL_DISPATCH p11prov_mldsa65_keymgmt_functions[] = {
 };
 
 const OSSL_DISPATCH p11prov_mldsa87_keymgmt_functions[] = {
-    DISPATCH_KEYMGMT_ELEM(mldsa, NEW, new),
+    DISPATCH_KEYMGMT_ELEM(mldsa_87, NEW, new),
     DISPATCH_KEYMGMT_ELEM(mldsa_87, GEN_INIT, gen_init),
     DISPATCH_KEYMGMT_ELEM(mldsa, GEN, gen),
     DISPATCH_KEYMGMT_ELEM(kmgmt, GEN_CLEANUP, gen_cleanup),

@@ -30,6 +30,13 @@ CK_OBJECT_CLASS p11prov_obj_get_class(P11PROV_OBJ *obj);
 CK_ATTRIBUTE *p11prov_obj_get_attr(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type);
 CK_ATTRIBUTE *p11prov_obj_get_public_attr(P11PROV_OBJ *obj,
                                           CK_ATTRIBUTE_TYPE type);
+typedef int (*p11prov_obj_get_template_fn)(P11PROV_OBJ *obj,
+                                           CK_OBJECT_CLASS class,
+                                           CK_ATTRIBUTE *template);
+int p11prov_obj_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
+                             CK_ATTRIBUTE *template);
+void p11prov_obj_set_get_template(P11PROV_OBJ *obj,
+                                  p11prov_obj_get_template_fn get_template);
 CK_RV p11prov_obj_add_attr(P11PROV_OBJ *obj, CK_ATTRIBUTE *attr);
 bool p11prov_obj_get_bool(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type, bool def);
 CK_KEY_TYPE p11prov_obj_get_key_type(P11PROV_OBJ *obj);

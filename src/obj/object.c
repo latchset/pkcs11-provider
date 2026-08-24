@@ -276,6 +276,7 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
     obj->cached = tmp->cached;
     obj->cka_copyable = tmp->cka_copyable;
     obj->cka_token = tmp->cka_token;
+    obj->get_template = tmp->get_template;
     switch (obj->class) {
     case CKO_CERTIFICATE:
         obj->data.crt = tmp->data.crt;
@@ -283,6 +284,7 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
     case CKO_PUBLIC_KEY:
     case CKO_PRIVATE_KEY:
     case CKO_SECRET_KEY:
+        obj->get_template = tmp->get_template;
         obj->data.key = tmp->data.key;
         break;
     default:
@@ -593,6 +595,15 @@ CK_ATTRIBUTE *p11prov_obj_get_public_attr(P11PROV_OBJ *obj,
     return NULL;
 }
 
+int p11prov_obj_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
+                             CK_ATTRIBUTE *template)
+{
+    if (!obj || !obj->get_template) {
+        return -1;
+    }
+    return obj->get_template(obj, class, template);
+}
+
 bool p11prov_obj_get_bool(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type, bool def)
 {
     CK_ATTRIBUTE *attr = NULL;
@@ -763,6 +774,14 @@ void p11prov_obj_set_key_type(P11PROV_OBJ *obj, CK_KEY_TYPE type)
     /* allow this only for mock objects */
     if (obj->handle == CK_P11PROV_IMPORTED_HANDLE) {
         obj->data.key.type = type;
+    }
+}
+
+void p11prov_obj_set_get_template(P11PROV_OBJ *obj,
+                                  p11prov_obj_get_template_fn get_template)
+{
+    if (obj->handle == CK_P11PROV_IMPORTED_HANDLE) {
+        obj->get_template = get_template;
     }
 }
 

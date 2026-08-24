@@ -773,6 +773,7 @@ CK_RV p11prov_obj_copy_key_data(P11PROV_OBJ *dst, P11PROV_OBJ *src)
     dst->cka_copyable = src->cka_copyable;
     dst->cka_token = src->cka_token;
     dst->data.key = src->data.key;
+    dst->get_template = src->get_template;
 
     /* Free existing attributes if any */
     for (int i = 0; i < dst->numattrs; i++) {
@@ -1185,33 +1186,13 @@ static CK_RV p11prov_store_ec_public_key(P11PROV_OBJ *key)
 
 static CK_RV p11prov_store_mldsa_public_key(P11PROV_OBJ *key)
 {
-    CK_BBOOL val_true = CK_TRUE;
-    CK_BBOOL val_false = CK_FALSE;
-    CK_ATTRIBUTE template[] = {
-        { CKA_CLASS, &key->class, sizeof(CK_OBJECT_CLASS) },
-        { CKA_KEY_TYPE, &key->data.key.type, sizeof(CK_KEY_TYPE) },
-        { CKA_VERIFY, &val_true, sizeof(val_true) },
-        /* public key part */
-        { CKA_PARAMETER_SET, NULL, 0 },
-        { CKA_VALUE, NULL, 0 },
-        { CKA_TOKEN, &val_false, sizeof(val_false) },
-    };
-    int tmpl_cnt = sizeof(template) / sizeof(CK_ATTRIBUTE);
-    CK_ATTRIBUTE *a;
+    CK_ATTRIBUTE template[6];
+    int tmpl_cnt;
 
-    a = p11prov_obj_get_attr(key, CKA_PARAMETER_SET);
-    if (!a) {
+    tmpl_cnt = p11prov_obj_get_template(key, key->class, template);
+    if (tmpl_cnt <= 0) {
         return CKR_GENERAL_ERROR;
     }
-    template[3].pValue = a->pValue;
-    template[3].ulValueLen = a->ulValueLen;
-
-    a = p11prov_obj_get_attr(key, CKA_VALUE);
-    if (!a) {
-        return CKR_GENERAL_ERROR;
-    }
-    template[4].pValue = a->pValue;
-    template[4].ulValueLen = a->ulValueLen;
 
     return store_key(key, NULL, template, tmpl_cnt);
 }
