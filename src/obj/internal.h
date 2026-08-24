@@ -47,6 +47,8 @@ struct p11prov_obj {
         struct p11prov_crt crt;
     } data;
 
+    p11prov_obj_get_template_fn get_template;
+
     CK_ATTRIBUTE *attrs;
     int numattrs;
 
