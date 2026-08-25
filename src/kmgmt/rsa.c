@@ -21,10 +21,119 @@ DISPATCH_KEYMGMT_FN(rsa, query_operation_name);
 DISPATCH_KEYMGMT_FN(rsa, get_params);
 DISPATCH_KEYMGMT_FN(rsa, gettable_params);
 
+extern const CK_BBOOL val_true;
+extern const CK_BBOOL val_false;
+
+static int p11prov_rsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
+                                    CK_ATTRIBUTE *template)
+{
+    static const CK_OBJECT_CLASS pub_class = CKO_PUBLIC_KEY;
+    static const CK_OBJECT_CLASS priv_class = CKO_PRIVATE_KEY;
+    static const CK_KEY_TYPE rsa_type = CKK_RSA;
+    CK_ATTRIBUTE *a;
+
+    if (!obj || p11prov_obj_get_key_type(obj) != CKK_RSA
+        || p11prov_obj_get_class(obj) != class) {
+        return -1;
+    }
+
+    if (!template) {
+        switch (class) {
+        case CKO_PUBLIC_KEY:
+            return 8;
+        case CKO_PRIVATE_KEY:
+            return 17;
+        default:
+            return -1;
+        }
+    }
+
+    template[0].type = CKA_KEY_TYPE;
+    template[0].pValue = DISCARD_CONST(&rsa_type);
+    template[0].ulValueLen = sizeof(CK_KEY_TYPE);
+
+    template[1].type = CKA_TOKEN;
+    template[1].pValue = DISCARD_CONST(&val_false);
+    template[1].ulValueLen = sizeof(CK_BBOOL);
+
+    switch (class) {
+    case CKO_PUBLIC_KEY:
+        template[2].type = CKA_CLASS;
+        template[2].pValue = DISCARD_CONST(&pub_class);
+        template[2].ulValueLen = sizeof(CK_OBJECT_CLASS);
+
+        template[3].type = CKA_ENCRYPT;
+        template[3].pValue = DISCARD_CONST(&val_true);
+        template[3].ulValueLen = sizeof(CK_BBOOL);
+
+        template[4].type = CKA_VERIFY;
+        template[4].pValue = DISCARD_CONST(&val_true);
+        template[4].ulValueLen = sizeof(CK_BBOOL);
+
+        template[5].type = CKA_WRAP;
+        template[5].pValue = DISCARD_CONST(&val_true);
+        template[5].ulValueLen = sizeof(CK_BBOOL);
+
+        a = p11prov_obj_get_attr(obj, CKA_MODULUS);
+        if (!a) {
+            return -1;
+        }
+        template[6] = *a;
+
+        a = p11prov_obj_get_attr(obj, CKA_PUBLIC_EXPONENT);
+        if (!a) {
+            return -1;
+        }
+        template[7] = *a;
+
+        return 8;
+
+    case CKO_PRIVATE_KEY:
+        template[2].type = CKA_CLASS;
+        template[2].pValue = DISCARD_CONST(&priv_class);
+        template[2].ulValueLen = sizeof(CK_OBJECT_CLASS);
+
+        template[3].type = CKA_ID;
+        template[3].pValue = NULL;
+        template[3].ulValueLen = 0;
+
+        template[4].type = CKA_SENSITIVE;
+        template[4].pValue = DISCARD_CONST(&val_true);
+        template[4].ulValueLen = sizeof(CK_BBOOL);
+
+        template[5].type = CKA_EXTRACTABLE;
+        template[5].pValue = DISCARD_CONST(&val_false);
+        template[5].ulValueLen = sizeof(CK_BBOOL);
+
+        template[6].type = CKA_DECRYPT;
+        template[6].pValue = DISCARD_CONST(&val_true);
+        template[6].ulValueLen = sizeof(CK_BBOOL);
+
+        template[7].type = CKA_SIGN;
+        template[7].pValue = DISCARD_CONST(&val_true);
+        template[7].ulValueLen = sizeof(CK_BBOOL);
+
+        template[8].type = CKA_UNWRAP;
+        template[8].pValue = DISCARD_CONST(&val_true);
+        template[8].ulValueLen = sizeof(CK_BBOOL);
+
+        return 9;
+
+    default:
+        return -1;
+    }
+}
+
 static void *p11prov_rsa_new(void *provctx)
 {
+    P11PROV_OBJ *key;
+
     P11PROV_debug("rsa new");
-    return p11prov_kmgmt_new(provctx, CKK_RSA);
+    key = p11prov_kmgmt_new(provctx, CKK_RSA);
+    if (key) {
+        p11prov_obj_set_get_template(key, p11prov_rsa_get_template);
+    }
+    return key;
 }
 
 static void p11prov_rsa_gen_cleanup(void *genctx)
@@ -156,9 +265,6 @@ static int p11prov_rsa_gen_set_params(void *genctx, const OSSL_PARAM params[])
 
     return p11prov_kmgmt_gen_set_params(ctx, params);
 }
-
-extern const CK_BBOOL val_true;
-extern const CK_BBOOL val_false;
 
 static int p11prov_rsa_gen_internal(void *genctx, OSSL_CALLBACK *cb_fn,
                                     void *cb_arg, void **key,
