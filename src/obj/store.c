@@ -1723,45 +1723,10 @@ static CK_RV p11prov_store_mldsa_private_key(P11PROV_OBJ *key,
                                              struct pool_find_ctx *findctx,
                                              const OSSL_PARAM params[])
 {
-    CK_BBOOL val_true = CK_TRUE;
-    CK_BBOOL val_false = CK_FALSE;
     const OSSL_PARAM *p;
-    CK_ATTRIBUTE template[] = {
-        { CKA_CLASS, &findctx->class, sizeof(CK_OBJECT_CLASS) },
-        { CKA_KEY_TYPE, &findctx->type, sizeof(CK_KEY_TYPE) },
-        { CKA_ID, findctx->attrs[0].pValue, findctx->attrs[0].ulValueLen },
-        { CKA_PARAMETER_SET, findctx->attrs[1].pValue,
-          findctx->attrs[1].ulValueLen },
-        { CKA_SENSITIVE, &val_true, sizeof(val_true) },
-        { CKA_EXTRACTABLE, &val_false, sizeof(val_false) },
-        { CKA_TOKEN, &val_false, sizeof(val_false) },
-        { CKA_SIGN, &val_true, sizeof(val_true) },
-        /* private key part */
-        { CKA_VALUE, NULL, 0 },
-        { CKA_SEED, NULL, 0 },
-    };
-    int tmpl_cnt = (sizeof(template) / sizeof(CK_ATTRIBUTE)) - 2;
+    CK_ATTRIBUTE template[10];
+    int tmpl_cnt;
     CK_RV rv = CKR_GENERAL_ERROR;
-
-    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
-    if (!p) {
-        return CKR_KEY_INDIGESTIBLE;
-    }
-    template[tmpl_cnt].pValue = p->data;
-    template[tmpl_cnt].ulValueLen = p->data_size;
-    tmpl_cnt++;
-
-    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_ML_DSA_SEED);
-    if (p) {
-        template[tmpl_cnt].pValue = p->data;
-        template[tmpl_cnt].ulValueLen = p->data_size;
-        tmpl_cnt++;
-    }
-
-    rv = store_key(key, NULL, template, tmpl_cnt);
-    if (rv != CKR_OK) {
-        goto done;
-    }
 
     key->data.key.size = findctx->key_size;
     key->data.key.bit_size = findctx->bit_size;
@@ -1780,7 +1745,38 @@ static CK_RV p11prov_store_mldsa_private_key(P11PROV_OBJ *key,
         }
         key->numattrs++;
     }
-    rv = CKR_OK;
+
+    tmpl_cnt = p11prov_obj_get_template(key, findctx->class, template);
+    if (tmpl_cnt <= 0) {
+        return CKR_GENERAL_ERROR;
+    }
+
+    for (int i = 0; i < tmpl_cnt; i++) {
+        if (template[i].type == CKA_ID) {
+            template[i].pValue = findctx->attrs[0].pValue;
+            template[i].ulValueLen = findctx->attrs[0].ulValueLen;
+            break;
+        }
+    }
+
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+    if (!p) {
+        return CKR_KEY_INDIGESTIBLE;
+    }
+    template[tmpl_cnt].type = CKA_VALUE;
+    template[tmpl_cnt].pValue = p->data;
+    template[tmpl_cnt].ulValueLen = p->data_size;
+    tmpl_cnt++;
+
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_ML_DSA_SEED);
+    if (p) {
+        template[tmpl_cnt].type = CKA_SEED;
+        template[tmpl_cnt].pValue = p->data;
+        template[tmpl_cnt].ulValueLen = p->data_size;
+        tmpl_cnt++;
+    }
+
+    rv = store_key(key, NULL, template, tmpl_cnt);
 
 done:
     return rv;

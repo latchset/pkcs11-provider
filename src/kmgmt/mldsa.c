@@ -26,48 +26,80 @@ static int p11prov_mldsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
                                       CK_ATTRIBUTE *template)
 {
     static const CK_OBJECT_CLASS pub_class = CKO_PUBLIC_KEY;
+    static const CK_OBJECT_CLASS priv_class = CKO_PRIVATE_KEY;
     static const CK_KEY_TYPE mldsa_type = CKK_ML_DSA;
     CK_ATTRIBUTE *a;
 
-    switch (class) {
-    case CKO_PUBLIC_KEY:
-        if (!template) {
+    if (!obj || p11prov_obj_get_key_type(obj) != CKK_ML_DSA
+        || p11prov_obj_get_class(obj) != class) {
+        return -1;
+    }
+
+    if (!template) {
+        switch (class) {
+        case CKO_PUBLIC_KEY:
             return 6;
-        }
-
-        template[0].type = CKA_CLASS;
-        template[0].pValue = DISCARD_CONST(&pub_class);
-        template[0].ulValueLen = sizeof(CK_OBJECT_CLASS);
-
-        template[1].type = CKA_KEY_TYPE;
-        template[1].pValue = DISCARD_CONST(&mldsa_type);
-        template[1].ulValueLen = sizeof(CK_KEY_TYPE);
-
-        template[2].type = CKA_VERIFY;
-        template[2].pValue = DISCARD_CONST(&val_true);
-        template[2].ulValueLen = sizeof(CK_BBOOL);
-
-        a = p11prov_obj_get_attr(obj, CKA_PARAMETER_SET);
-        if (!a) {
+        case CKO_PRIVATE_KEY:
+            return 10;
+        default:
             return -1;
         }
-        template[3] = *a;
+    }
+
+    template[0].type = CKA_KEY_TYPE;
+    template[0].pValue = DISCARD_CONST(&mldsa_type);
+    template[0].ulValueLen = sizeof(CK_KEY_TYPE);
+
+    template[1].type = CKA_TOKEN;
+    template[1].pValue = DISCARD_CONST(&val_false);
+    template[1].ulValueLen = sizeof(CK_BBOOL);
+
+    a = p11prov_obj_get_attr(obj, CKA_PARAMETER_SET);
+    if (!a) {
+        return -1;
+    }
+    template[2] = *a;
+
+    switch (class) {
+    case CKO_PUBLIC_KEY:
+        template[3].type = CKA_CLASS;
+        template[3].pValue = DISCARD_CONST(&pub_class);
+        template[3].ulValueLen = sizeof(CK_OBJECT_CLASS);
+
+        template[4].type = CKA_VERIFY;
+        template[4].pValue = DISCARD_CONST(&val_true);
+        template[4].ulValueLen = sizeof(CK_BBOOL);
 
         a = p11prov_obj_get_attr(obj, CKA_VALUE);
         if (!a) {
             return -1;
         }
-        template[4] = *a;
-
-        template[5].type = CKA_TOKEN;
-        template[5].pValue = DISCARD_CONST(&val_false);
-        template[5].ulValueLen = sizeof(CK_BBOOL);
+        template[5] = *a;
 
         return 6;
 
     case CKO_PRIVATE_KEY:
-        /* TODO: Stub for private key template */
-        return -1;
+        template[3].type = CKA_CLASS;
+        template[3].pValue = DISCARD_CONST(&priv_class);
+        template[3].ulValueLen = sizeof(CK_OBJECT_CLASS);
+
+        template[4].type = CKA_ID;
+        template[4].pValue = NULL;
+        template[4].ulValueLen = 0;
+
+        template[5].type = CKA_SENSITIVE;
+        template[5].pValue = DISCARD_CONST(&val_true);
+        template[5].ulValueLen = sizeof(CK_BBOOL);
+
+        template[6].type = CKA_EXTRACTABLE;
+        template[6].pValue = DISCARD_CONST(&val_false);
+        template[6].ulValueLen = sizeof(CK_BBOOL);
+
+        template[7].type = CKA_SIGN;
+        template[7].pValue = DISCARD_CONST(&val_true);
+        template[7].ulValueLen = sizeof(CK_BBOOL);
+
+        return 8;
 
     default:
         return -1;
@@ -214,26 +246,10 @@ static int p11prov_mldsa_match(const void *keydata1, const void *keydata2,
     return p11prov_kmgmt_match(keydata1, keydata2, CKK_ML_DSA, selection);
 }
 
-static int p11prov_mldsa_44_import(void *keydata, int selection,
-                                   const OSSL_PARAM params[])
+static int p11prov_mldsa_import(void *keydata, int selection,
+                                const OSSL_PARAM params[])
 {
-    return p11prov_kmgmt_import(CKK_ML_DSA, CKP_ML_DSA_44,
-                                OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
-                                params);
-}
-
-static int p11prov_mldsa_65_import(void *keydata, int selection,
-                                   const OSSL_PARAM params[])
-{
-    return p11prov_kmgmt_import(CKK_ML_DSA, CKP_ML_DSA_65,
-                                OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
-                                params);
-}
-
-static int p11prov_mldsa_87_import(void *keydata, int selection,
-                                   const OSSL_PARAM params[])
-{
-    return p11prov_kmgmt_import(CKK_ML_DSA, CKP_ML_DSA_87,
+    return p11prov_kmgmt_import(CKK_ML_DSA, CK_UNAVAILABLE_INFORMATION,
                                 OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
                                 params);
 }
@@ -400,7 +416,7 @@ const OSSL_DISPATCH p11prov_mldsa44_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
     DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
     DISPATCH_KEYMGMT_ELEM(mldsa, MATCH, match),
-    DISPATCH_KEYMGMT_ELEM(mldsa_44, IMPORT, import),
+    DISPATCH_KEYMGMT_ELEM(mldsa, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(mldsa, IMPORT_TYPES, import_types),
     DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(mldsa, EXPORT_TYPES, export_types),
@@ -420,7 +436,7 @@ const OSSL_DISPATCH p11prov_mldsa65_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
     DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
     DISPATCH_KEYMGMT_ELEM(mldsa, MATCH, match),
-    DISPATCH_KEYMGMT_ELEM(mldsa_65, IMPORT, import),
+    DISPATCH_KEYMGMT_ELEM(mldsa, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(mldsa, IMPORT_TYPES, import_types),
     DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(mldsa, EXPORT_TYPES, export_types),
@@ -440,7 +456,7 @@ const OSSL_DISPATCH p11prov_mldsa87_keymgmt_functions[] = {
     DISPATCH_KEYMGMT_ELEM(kmgmt, FREE, free),
     DISPATCH_KEYMGMT_ELEM(kmgmt, HAS, has),
     DISPATCH_KEYMGMT_ELEM(mldsa, MATCH, match),
-    DISPATCH_KEYMGMT_ELEM(mldsa_87, IMPORT, import),
+    DISPATCH_KEYMGMT_ELEM(mldsa, IMPORT, import),
     DISPATCH_KEYMGMT_ELEM(mldsa, IMPORT_TYPES, import_types),
     DISPATCH_KEYMGMT_ELEM(kmgmt, EXPORT, export),
     DISPATCH_KEYMGMT_ELEM(mldsa, EXPORT_TYPES, export_types),
