@@ -104,7 +104,24 @@ _Static_assert(EC_PUBKEY_TEMPLATE_SIZE <= P11PROV_PUBKEY_MAX_TEMPLATE_SIZE,
 _Static_assert(EC_PRIVKEY_TEMPLATE_SIZE <= P11PROV_PRIVKEY_MAX_TEMPLATE_SIZE,
                "EC private key template size exceeds maximum");
 
+static void p11prov_ec_free_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
+                                     CK_ATTRIBUTE *template, int tmpl_cnt)
+{
+    if (class != CKO_PRIVATE_KEY || !template
+        || p11prov_obj_get_key_type(obj) != CKK_EC) {
+        return;
+    }
+    for (int i = 0; i < tmpl_cnt; i++) {
+        if (template[i].type == CKA_VALUE) {
+            OPENSSL_clear_free(template[i].pValue, template[i].ulValueLen);
+            template[i].pValue = NULL;
+            break;
+        }
+    }
+}
+
 static int p11prov_ec_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
+                                   const OSSL_PARAM *params,
                                    CK_ATTRIBUTE *template)
 {
     static const CK_OBJECT_CLASS pub_class = CKO_PUBLIC_KEY;
@@ -114,7 +131,10 @@ static int p11prov_ec_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
     static const CK_KEY_TYPE ecx_type = CKK_EC_MONTGOMERY;
     const CK_KEY_TYPE *ktype;
     CK_KEY_TYPE type;
+    const OSSL_PARAM *p;
     CK_ATTRIBUTE *a;
+    int cnt;
+    CK_RV rv;
 
     if (!obj || p11prov_obj_get_class(obj) != class) {
         return -1;
@@ -200,6 +220,10 @@ static int p11prov_ec_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
         }
 
     case CKO_PRIVATE_KEY:
+        if (!params) {
+            return -1;
+        }
+
         template[3].type = CKA_CLASS;
         template[3].pValue = DISCARD_CONST(&priv_class);
         template[3].ulValueLen = sizeof(CK_OBJECT_CLASS);
@@ -225,23 +249,51 @@ static int p11prov_ec_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
             template[8].type = CKA_SIGN;
             template[8].pValue = DISCARD_CONST(&val_true);
             template[8].ulValueLen = sizeof(CK_BBOOL);
-            return 9;
+            cnt = 9;
+            break;
 
         case CKK_EC_EDWARDS:
             template[7].type = CKA_SIGN;
             template[7].pValue = DISCARD_CONST(&val_true);
             template[7].ulValueLen = sizeof(CK_BBOOL);
-            return 8;
+            cnt = 8;
+            break;
 
         case CKK_EC_MONTGOMERY:
             template[7].type = CKA_DERIVE;
             template[7].pValue = DISCARD_CONST(&val_true);
             template[7].ulValueLen = sizeof(CK_BBOOL);
-            return 8;
+            cnt = 8;
+            break;
 
         default:
             return -1;
         }
+
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+        if (!p) {
+            return -1;
+        }
+
+        switch (type) {
+        case CKK_EC:
+            rv = p11prov_bn_param_to_attr(p, &template[cnt]);
+            if (rv != CKR_OK) {
+                return -1;
+            }
+            template[cnt].type = CKA_VALUE;
+            cnt++;
+            break;
+        case CKK_EC_EDWARDS:
+        case CKK_EC_MONTGOMERY:
+            template[cnt].type = CKA_VALUE;
+            template[cnt].pValue = p->data;
+            template[cnt].ulValueLen = p->data_size;
+            cnt++;
+            break;
+        }
+
+        return cnt;
 
     default:
         return -1;
@@ -256,6 +308,7 @@ static void *p11prov_ec_new(void *provctx)
     key = p11prov_kmgmt_new(provctx, CKK_EC);
     if (key) {
         p11prov_obj_set_get_template(key, p11prov_ec_get_template);
+        p11prov_obj_set_free_template(key, p11prov_ec_free_template);
     }
     return key;
 }
@@ -796,6 +849,7 @@ static void *p11prov_ed_new(void *provctx)
     key = p11prov_kmgmt_new(provctx, CKK_EC_EDWARDS);
     if (key) {
         p11prov_obj_set_get_template(key, p11prov_ec_get_template);
+        p11prov_obj_set_free_template(key, p11prov_ec_free_template);
     }
     return key;
 }
@@ -1155,6 +1209,7 @@ static void *p11prov_x25519_new(void *provctx)
      * it later before openssl tris to query these values */
     p11prov_obj_set_key_bits(key, X25519_BIT_SIZE, X25519_BYTE_SIZE);
     p11prov_obj_set_get_template(key, p11prov_ec_get_template);
+    p11prov_obj_set_free_template(key, p11prov_ec_free_template);
 
     return key;
 }
@@ -1174,6 +1229,7 @@ static void *p11prov_x448_new(void *provctx)
      * it later before openssl tris to query these values */
     p11prov_obj_set_key_bits(key, X448_BIT_SIZE, X448_BYTE_SIZE);
     p11prov_obj_set_get_template(key, p11prov_ec_get_template);
+    p11prov_obj_set_free_template(key, p11prov_ec_free_template);
 
     return key;
 }

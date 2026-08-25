@@ -34,11 +34,20 @@ CK_ATTRIBUTE *p11prov_obj_get_public_attr(P11PROV_OBJ *obj,
 #define P11PROV_PRIVKEY_MAX_TEMPLATE_SIZE 17
 typedef int (*p11prov_obj_get_template_fn)(P11PROV_OBJ *obj,
                                            CK_OBJECT_CLASS class,
+                                           const OSSL_PARAM *params,
                                            CK_ATTRIBUTE *template);
 int p11prov_obj_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
-                             CK_ATTRIBUTE *template);
+                             const OSSL_PARAM *params, CK_ATTRIBUTE *template);
 void p11prov_obj_set_get_template(P11PROV_OBJ *obj,
                                   p11prov_obj_get_template_fn get_template);
+typedef void (*p11prov_obj_free_template_fn)(P11PROV_OBJ *obj,
+                                             CK_OBJECT_CLASS class,
+                                             CK_ATTRIBUTE *template,
+                                             int tmpl_cnt);
+void p11prov_obj_free_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
+                               CK_ATTRIBUTE *template, int tmpl_cnt);
+void p11prov_obj_set_free_template(P11PROV_OBJ *obj,
+                                   p11prov_obj_free_template_fn free_template);
 CK_RV p11prov_obj_add_attr(P11PROV_OBJ *obj, CK_ATTRIBUTE *attr);
 bool p11prov_obj_get_bool(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type, bool def);
 CK_KEY_TYPE p11prov_obj_get_key_type(P11PROV_OBJ *obj);

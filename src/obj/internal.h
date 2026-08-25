@@ -48,6 +48,7 @@ struct p11prov_obj {
     } data;
 
     p11prov_obj_get_template_fn get_template;
+    p11prov_obj_free_template_fn free_template;
 
     CK_ATTRIBUTE *attrs;
     int numattrs;
