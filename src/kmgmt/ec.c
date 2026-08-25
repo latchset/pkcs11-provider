@@ -94,10 +94,163 @@ DISPATCH_KEYMGMT_FN(ec, gettable_params);
 DISPATCH_KEYMGMT_FN(ec, set_params);
 DISPATCH_KEYMGMT_FN(ec, settable_params);
 
+extern const CK_BBOOL val_true;
+extern const CK_BBOOL val_false;
+
+static int p11prov_ec_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
+                                   CK_ATTRIBUTE *template)
+{
+    static const CK_OBJECT_CLASS pub_class = CKO_PUBLIC_KEY;
+    static const CK_OBJECT_CLASS priv_class = CKO_PRIVATE_KEY;
+    static const CK_KEY_TYPE ec_type = CKK_EC;
+    static const CK_KEY_TYPE ed_type = CKK_EC_EDWARDS;
+    static const CK_KEY_TYPE ecx_type = CKK_EC_MONTGOMERY;
+    const CK_KEY_TYPE *ktype;
+    CK_KEY_TYPE type;
+    CK_ATTRIBUTE *a;
+
+    if (!obj || p11prov_obj_get_class(obj) != class) {
+        return -1;
+    }
+
+    type = p11prov_obj_get_key_type(obj);
+    switch (type) {
+    case CKK_EC:
+        ktype = &ec_type;
+        break;
+    case CKK_EC_EDWARDS:
+        ktype = &ed_type;
+        break;
+    case CKK_EC_MONTGOMERY:
+        ktype = &ecx_type;
+        break;
+    default:
+        return -1;
+    }
+
+    if (!template) {
+        switch (class) {
+        case CKO_PUBLIC_KEY:
+            return 7;
+        case CKO_PRIVATE_KEY:
+            return 10;
+        default:
+            return -1;
+        }
+    }
+
+    template[0].type = CKA_KEY_TYPE;
+    template[0].pValue = DISCARD_CONST(ktype);
+    template[0].ulValueLen = sizeof(CK_KEY_TYPE);
+
+    template[1].type = CKA_TOKEN;
+    template[1].pValue = DISCARD_CONST(&val_false);
+    template[1].ulValueLen = sizeof(CK_BBOOL);
+
+    a = p11prov_obj_get_attr(obj, CKA_EC_PARAMS);
+    if (!a) {
+        return -1;
+    }
+    template[2] = *a;
+
+    switch (class) {
+    case CKO_PUBLIC_KEY:
+        template[3].type = CKA_CLASS;
+        template[3].pValue = DISCARD_CONST(&pub_class);
+        template[3].ulValueLen = sizeof(CK_OBJECT_CLASS);
+
+        a = p11prov_obj_get_attr(obj, CKA_EC_POINT);
+        if (!a) {
+            return -1;
+        }
+        template[4] = *a;
+
+        switch (type) {
+        case CKK_EC:
+            template[5].type = CKA_DERIVE;
+            template[5].pValue = DISCARD_CONST(&val_true);
+            template[5].ulValueLen = sizeof(CK_BBOOL);
+
+            template[6].type = CKA_VERIFY;
+            template[6].pValue = DISCARD_CONST(&val_true);
+            template[6].ulValueLen = sizeof(CK_BBOOL);
+            return 7;
+
+        case CKK_EC_EDWARDS:
+            template[5].type = CKA_VERIFY;
+            template[5].pValue = DISCARD_CONST(&val_true);
+            template[5].ulValueLen = sizeof(CK_BBOOL);
+            return 6;
+
+        case CKK_EC_MONTGOMERY:
+            template[5].type = CKA_DERIVE;
+            template[5].pValue = DISCARD_CONST(&val_true);
+            template[5].ulValueLen = sizeof(CK_BBOOL);
+            return 6;
+
+        default:
+            return -1;
+        }
+
+    case CKO_PRIVATE_KEY:
+        template[3].type = CKA_CLASS;
+        template[3].pValue = DISCARD_CONST(&priv_class);
+        template[3].ulValueLen = sizeof(CK_OBJECT_CLASS);
+
+        template[4].type = CKA_ID;
+        template[4].pValue = NULL;
+        template[4].ulValueLen = 0;
+
+        template[5].type = CKA_SENSITIVE;
+        template[5].pValue = DISCARD_CONST(&val_true);
+        template[5].ulValueLen = sizeof(CK_BBOOL);
+
+        template[6].type = CKA_EXTRACTABLE;
+        template[6].pValue = DISCARD_CONST(&val_false);
+        template[6].ulValueLen = sizeof(CK_BBOOL);
+
+        switch (type) {
+        case CKK_EC:
+            template[7].type = CKA_DERIVE;
+            template[7].pValue = DISCARD_CONST(&val_true);
+            template[7].ulValueLen = sizeof(CK_BBOOL);
+
+            template[8].type = CKA_SIGN;
+            template[8].pValue = DISCARD_CONST(&val_true);
+            template[8].ulValueLen = sizeof(CK_BBOOL);
+            return 9;
+
+        case CKK_EC_EDWARDS:
+            template[7].type = CKA_SIGN;
+            template[7].pValue = DISCARD_CONST(&val_true);
+            template[7].ulValueLen = sizeof(CK_BBOOL);
+            return 8;
+
+        case CKK_EC_MONTGOMERY:
+            template[7].type = CKA_DERIVE;
+            template[7].pValue = DISCARD_CONST(&val_true);
+            template[7].ulValueLen = sizeof(CK_BBOOL);
+            return 8;
+
+        default:
+            return -1;
+        }
+
+    default:
+        return -1;
+    }
+}
+
 static void *p11prov_ec_new(void *provctx)
 {
+    P11PROV_OBJ *key;
+
     P11PROV_debug("ec new");
-    return p11prov_kmgmt_new(provctx, CKK_EC);
+    key = p11prov_kmgmt_new(provctx, CKK_EC);
+    if (key) {
+        p11prov_obj_set_get_template(key, p11prov_ec_get_template);
+    }
+    return key;
 }
 
 static void *p11prov_ec_gen_init(void *provctx, int selection,
@@ -237,9 +390,6 @@ static int p11prov_ec_gen_set_params(void *genctx, const OSSL_PARAM params[])
 
     return p11prov_kmgmt_gen_set_params(ctx, params);
 }
-
-extern const CK_BBOOL val_true;
-extern const CK_BBOOL val_false;
 
 static void *p11prov_ec_gen(void *genctx, OSSL_CALLBACK *cb_fn, void *cb_arg)
 {
@@ -633,8 +783,14 @@ DISPATCH_KEYMGMT_FN(ed, settable_params);
 
 static void *p11prov_ed_new(void *provctx)
 {
+    P11PROV_OBJ *key;
+
     P11PROV_debug("ed new");
-    return p11prov_kmgmt_new(provctx, CKK_EC_EDWARDS);
+    key = p11prov_kmgmt_new(provctx, CKK_EC_EDWARDS);
+    if (key) {
+        p11prov_obj_set_get_template(key, p11prov_ec_get_template);
+    }
+    return key;
 }
 
 static void *p11prov_ed25519_gen_init(void *provctx, int selection,
@@ -991,6 +1147,7 @@ static void *p11prov_x25519_new(void *provctx)
     /* must do this now because there isn't a good way to set
      * it later before openssl tris to query these values */
     p11prov_obj_set_key_bits(key, X25519_BIT_SIZE, X25519_BYTE_SIZE);
+    p11prov_obj_set_get_template(key, p11prov_ec_get_template);
 
     return key;
 }
@@ -1009,6 +1166,7 @@ static void *p11prov_x448_new(void *provctx)
     /* must do this now because there isn't a good way to set
      * it later before openssl tris to query these values */
     p11prov_obj_set_key_bits(key, X448_BIT_SIZE, X448_BYTE_SIZE);
+    p11prov_obj_set_get_template(key, p11prov_ec_get_template);
 
     return key;
 }
