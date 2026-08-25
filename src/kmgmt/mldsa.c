@@ -22,6 +22,13 @@ DISPATCH_KEYMGMT_FN(mldsa, gettable_params);
 extern const CK_BBOOL val_true;
 extern const CK_BBOOL val_false;
 
+#define MLDSA_PUBKEY_TEMPLATE_SIZE 6
+#define MLDSA_PRIVKEY_TEMPLATE_SIZE 10
+_Static_assert(MLDSA_PUBKEY_TEMPLATE_SIZE <= P11PROV_PUBKEY_MAX_TEMPLATE_SIZE,
+               "ML-DSA public key template size exceeds maximum");
+_Static_assert(MLDSA_PRIVKEY_TEMPLATE_SIZE <= P11PROV_PRIVKEY_MAX_TEMPLATE_SIZE,
+               "ML-DSA private key template size exceeds maximum");
+
 static int p11prov_mldsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
                                       CK_ATTRIBUTE *template)
 {
@@ -38,9 +45,9 @@ static int p11prov_mldsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
     if (!template) {
         switch (class) {
         case CKO_PUBLIC_KEY:
-            return 6;
+            return MLDSA_PUBKEY_TEMPLATE_SIZE;
         case CKO_PRIVATE_KEY:
-            return 10;
+            return MLDSA_PRIVKEY_TEMPLATE_SIZE;
         default:
             return -1;
         }

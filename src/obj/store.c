@@ -1091,71 +1091,6 @@ done:
     return rv;
 }
 
-static CK_RV p11prov_store_rsa_public_key(P11PROV_OBJ *key)
-{
-    CK_ATTRIBUTE template[8];
-    int tmpl_cnt;
-
-    tmpl_cnt = p11prov_obj_get_template(key, key->class, template);
-    if (tmpl_cnt <= 0) {
-        return CKR_GENERAL_ERROR;
-    }
-
-    return store_key(key, NULL, template, tmpl_cnt);
-}
-
-static CK_RV p11prov_store_ec_public_key(P11PROV_OBJ *key)
-{
-    CK_ATTRIBUTE template[7];
-    int tmpl_cnt;
-
-    tmpl_cnt = p11prov_obj_get_template(key, key->class, template);
-    if (tmpl_cnt <= 0) {
-        return CKR_GENERAL_ERROR;
-    }
-
-    return store_key(key, NULL, template, tmpl_cnt);
-}
-
-static CK_RV p11prov_store_mldsa_public_key(P11PROV_OBJ *key)
-{
-    CK_ATTRIBUTE template[6];
-    int tmpl_cnt;
-
-    tmpl_cnt = p11prov_obj_get_template(key, key->class, template);
-    if (tmpl_cnt <= 0) {
-        return CKR_GENERAL_ERROR;
-    }
-
-    return store_key(key, NULL, template, tmpl_cnt);
-}
-
-static CK_RV p11prov_store_mlkem_public_key(P11PROV_OBJ *key)
-{
-    CK_ATTRIBUTE template[6];
-    int tmpl_cnt;
-
-    tmpl_cnt = p11prov_obj_get_template(key, key->class, template);
-    if (tmpl_cnt <= 0) {
-        return CKR_GENERAL_ERROR;
-    }
-
-    return store_key(key, NULL, template, tmpl_cnt);
-}
-
-static CK_RV p11prov_store_slhdsa_public_key(P11PROV_OBJ *key)
-{
-    CK_ATTRIBUTE template[6];
-    int tmpl_cnt;
-
-    tmpl_cnt = p11prov_obj_get_template(key, key->class, template);
-    if (tmpl_cnt <= 0) {
-        return CKR_GENERAL_ERROR;
-    }
-
-    return store_key(key, NULL, template, tmpl_cnt);
-}
-
 CK_RV p11prov_pkeyinfo_to_pubkey(CK_ATTRIBUTE *pkeyinfo, CK_ATTRIBUTE *attr)
 {
     X509_PUBKEY *pubkey = NULL;
@@ -1283,6 +1218,8 @@ static CK_RV pub_from_priv_attrs(P11PROV_OBJ *key)
 
 CK_RV p11prov_obj_store_public_key(P11PROV_OBJ *key)
 {
+    CK_ATTRIBUTE template[P11PROV_PUBKEY_MAX_TEMPLATE_SIZE];
+    int tmpl_cnt;
     int rv;
 
     P11PROV_debug("Store imported public key=%p", key);
@@ -1301,31 +1238,15 @@ CK_RV p11prov_obj_store_public_key(P11PROV_OBJ *key)
         return rv;
     }
 
-    switch (key->data.key.type) {
-    case CKK_RSA:
-        rv = p11prov_store_rsa_public_key(key);
-        break;
-    case CKK_EC:
-    case CKK_EC_EDWARDS:
-    case CKK_EC_MONTGOMERY:
-        rv = p11prov_store_ec_public_key(key);
-        break;
-    case CKK_ML_DSA:
-        rv = p11prov_store_mldsa_public_key(key);
-        break;
-    case CKK_ML_KEM:
-        rv = p11prov_store_mlkem_public_key(key);
-        break;
-    case CKK_SLH_DSA:
-        rv = p11prov_store_slhdsa_public_key(key);
-        break;
-
-    default:
+    tmpl_cnt = p11prov_obj_get_template(key, key->class, template);
+    if (tmpl_cnt <= 0) {
         P11PROV_raise(key->ctx, CKR_GENERAL_ERROR,
                       "Unsupported key type: %08lx, should NOT happen",
                       key->data.key.type);
-        rv = CKR_GENERAL_ERROR;
+        return CKR_GENERAL_ERROR;
     }
+
+    rv = store_key(key, NULL, template, tmpl_cnt);
 
     if (rv == CKR_OK) {
         /* destroy the session object when key is freed */
@@ -1407,7 +1328,8 @@ done:
 }
 
 static CK_RV p11prov_store_rsa_private_key(P11PROV_OBJ *key,
-                                           struct pool_find_ctx *findctx,
+                                           CK_ATTRIBUTE *template,
+                                           int *tmpl_cnt,
                                            const OSSL_PARAM params[])
 {
     const char *required[] = {
@@ -1429,136 +1351,56 @@ static CK_RV p11prov_store_rsa_private_key(P11PROV_OBJ *key,
         CKA_PRIME_1,    CKA_PRIME_2,     CKA_EXPONENT_1,
         CKA_EXPONENT_2, CKA_COEFFICIENT,
     };
-    CK_ATTRIBUTE template[17];
-    int tmpl_cnt;
-    int base_cnt;
     const OSSL_PARAM *p;
+    int cnt = *tmpl_cnt;
     CK_RV rv = CKR_GENERAL_ERROR;
-
-    key->data.key.size = findctx->key_size;
-    key->data.key.bit_size = findctx->bit_size;
-    key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * 3);
-    if (!key->attrs) {
-        rv = CKR_HOST_MEMORY;
-        goto done;
-    }
-
-    tmpl_cnt = p11prov_obj_get_template(key, findctx->class, template);
-    if (tmpl_cnt <= 0) {
-        return CKR_GENERAL_ERROR;
-    }
-    base_cnt = tmpl_cnt;
-
-    for (int i = 0; i < tmpl_cnt; i++) {
-        if (template[i].type == CKA_ID) {
-            template[i].pValue = findctx->attrs[0].pValue;
-            template[i].ulValueLen = findctx->attrs[0].ulValueLen;
-            break;
-        }
-    }
 
     /* required params */
     for (int i = 0; i < 3; i++) {
         p = OSSL_PARAM_locate_const(params, required[i]);
-        template[tmpl_cnt].type = req_types[i];
-        rv = get_bn(p, &template[tmpl_cnt]);
+        template[cnt].type = req_types[i];
+        rv = get_bn(p, &template[cnt]);
         if (rv != CKR_OK) {
             goto done;
         }
-        tmpl_cnt++;
+        cnt++;
     }
 
     /* optional */
     for (int i = 0; i < 5; i++) {
         p = OSSL_PARAM_locate_const(params, optional[i]);
         if (p) {
-            template[tmpl_cnt].type = opt_types[i];
-            rv = get_bn(p, &template[tmpl_cnt]);
+            template[cnt].type = opt_types[i];
+            rv = get_bn(p, &template[cnt]);
             if (rv == CKR_OK) {
-                tmpl_cnt++;
+                cnt++;
             }
         } else {
             /* we must have all or none of the optional,
              * if any is missing we pretend none of them were given */
             for (; i >= 0; i--) {
-                tmpl_cnt--;
-                OPENSSL_clear_free(template[tmpl_cnt].pValue,
-                                   template[tmpl_cnt].ulValueLen);
+                cnt--;
+                OPENSSL_clear_free(template[cnt].pValue,
+                                   template[cnt].ulValueLen);
             }
             break;
         }
     }
 
-    rv = store_key(key, NULL, template, tmpl_cnt);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-
-    key->numattrs = 0;
-    /* cka_id */
-    rv = p11prov_copy_attr(&key->attrs[key->numattrs], &findctx->attrs[0]);
-    if (rv != CKR_OK) {
-        goto done;
-    }
-    key->numattrs += 1;
-    /* steal modulus (at base_cnt) */
-    key->attrs[key->numattrs] = template[base_cnt];
-    template[base_cnt].pValue = NULL;
-    key->numattrs += 1;
-    /* steal public exponent (at base_cnt + 1) */
-    key->attrs[key->numattrs] = template[base_cnt + 1];
-    template[base_cnt + 1].pValue = NULL;
-    key->numattrs += 1;
-
+    *tmpl_cnt = cnt;
     rv = CKR_OK;
 
 done:
-    for (int i = base_cnt; i < tmpl_cnt; i++) {
-        OPENSSL_clear_free(template[i].pValue, template[i].ulValueLen);
-    }
     return rv;
 }
 
 static CK_RV p11prov_store_ec_private_key(P11PROV_OBJ *key,
-                                          struct pool_find_ctx *findctx,
+                                          CK_ATTRIBUTE *template, int *tmpl_cnt,
                                           const OSSL_PARAM params[])
 {
     const OSSL_PARAM *p;
-    CK_ATTRIBUTE template[10];
-    int tmpl_cnt;
-    int val_idx = -1;
+    int cnt = *tmpl_cnt;
     CK_RV rv = CKR_GENERAL_ERROR;
-
-    key->data.key.size = findctx->key_size;
-    key->data.key.bit_size = findctx->bit_size;
-    key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * findctx->numattrs);
-    if (!key->attrs) {
-        rv = CKR_HOST_MEMORY;
-        goto done;
-    }
-    key->numattrs = 0;
-    for (int i = 0; i < findctx->numattrs; i++) {
-        rv = p11prov_copy_attr(&key->attrs[i], &findctx->attrs[i]);
-        if (rv != CKR_OK) {
-            rv = CKR_HOST_MEMORY;
-            P11PROV_raise(key->ctx, rv, "Failed attr copy");
-            goto done;
-        }
-        key->numattrs++;
-    }
-
-    tmpl_cnt = p11prov_obj_get_template(key, findctx->class, template);
-    if (tmpl_cnt <= 0) {
-        return CKR_GENERAL_ERROR;
-    }
-
-    for (int i = 0; i < tmpl_cnt; i++) {
-        if (template[i].type == CKA_ID) {
-            template[i].pValue = findctx->attrs[0].pValue;
-            template[i].ulValueLen = findctx->attrs[0].ulValueLen;
-            break;
-        }
-    }
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
     if (!p) {
@@ -1567,31 +1409,24 @@ static CK_RV p11prov_store_ec_private_key(P11PROV_OBJ *key,
 
     switch (key->data.key.type) {
     case CKK_EC:
-        val_idx = tmpl_cnt;
-        rv = get_bn(p, &template[tmpl_cnt]);
+        rv = get_bn(p, &template[cnt]);
         if (rv != CKR_OK) {
-            goto done;
+            return rv;
         }
-        template[tmpl_cnt].type = CKA_VALUE;
-        tmpl_cnt++;
+        template[cnt].type = CKA_VALUE;
+        cnt++;
         break;
     case CKK_EC_EDWARDS:
     case CKK_EC_MONTGOMERY:
-        template[tmpl_cnt].type = CKA_VALUE;
-        template[tmpl_cnt].pValue = p->data;
-        template[tmpl_cnt].ulValueLen = p->data_size;
-        tmpl_cnt++;
+        template[cnt].type = CKA_VALUE;
+        template[cnt].pValue = p->data;
+        template[cnt].ulValueLen = p->data_size;
+        cnt++;
         break;
     }
 
-    rv = store_key(key, NULL, template, tmpl_cnt);
-
-done:
-    if (key->data.key.type == CKK_EC && val_idx >= 0) {
-        OPENSSL_clear_free(template[val_idx].pValue,
-                           template[val_idx].ulValueLen);
-    }
-    return rv;
+    *tmpl_cnt = cnt;
+    return CKR_OK;
 }
 
 #ifndef OSSL_PKEY_PARAM_ML_DSA_SEED
@@ -1599,129 +1434,61 @@ done:
 #endif
 
 static CK_RV p11prov_store_mldsa_private_key(P11PROV_OBJ *key,
-                                             struct pool_find_ctx *findctx,
+                                             CK_ATTRIBUTE *template,
+                                             int *tmpl_cnt,
                                              const OSSL_PARAM params[])
 {
     const OSSL_PARAM *p;
-    CK_ATTRIBUTE template[10];
-    int tmpl_cnt;
-    CK_RV rv = CKR_GENERAL_ERROR;
-
-    key->data.key.size = findctx->key_size;
-    key->data.key.bit_size = findctx->bit_size;
-    key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * findctx->numattrs);
-    if (!key->attrs) {
-        rv = CKR_HOST_MEMORY;
-        goto done;
-    }
-    key->numattrs = 0;
-    for (int i = 0; i < findctx->numattrs; i++) {
-        rv = p11prov_copy_attr(&key->attrs[i], &findctx->attrs[i]);
-        if (rv != CKR_OK) {
-            rv = CKR_HOST_MEMORY;
-            P11PROV_raise(key->ctx, rv, "Failed attr copy");
-            goto done;
-        }
-        key->numattrs++;
-    }
-
-    tmpl_cnt = p11prov_obj_get_template(key, findctx->class, template);
-    if (tmpl_cnt <= 0) {
-        return CKR_GENERAL_ERROR;
-    }
-
-    for (int i = 0; i < tmpl_cnt; i++) {
-        if (template[i].type == CKA_ID) {
-            template[i].pValue = findctx->attrs[0].pValue;
-            template[i].ulValueLen = findctx->attrs[0].ulValueLen;
-            break;
-        }
-    }
+    int cnt = *tmpl_cnt;
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
     if (!p) {
         return CKR_KEY_INDIGESTIBLE;
     }
-    template[tmpl_cnt].type = CKA_VALUE;
-    template[tmpl_cnt].pValue = p->data;
-    template[tmpl_cnt].ulValueLen = p->data_size;
-    tmpl_cnt++;
+    template[cnt].type = CKA_VALUE;
+    template[cnt].pValue = p->data;
+    template[cnt].ulValueLen = p->data_size;
+    cnt++;
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_ML_DSA_SEED);
     if (p) {
-        template[tmpl_cnt].type = CKA_SEED;
-        template[tmpl_cnt].pValue = p->data;
-        template[tmpl_cnt].ulValueLen = p->data_size;
-        tmpl_cnt++;
+        template[cnt].type = CKA_SEED;
+        template[cnt].pValue = p->data;
+        template[cnt].ulValueLen = p->data_size;
+        cnt++;
     }
 
-    rv = store_key(key, NULL, template, tmpl_cnt);
-
-done:
-    return rv;
+    *tmpl_cnt = cnt;
+    return CKR_OK;
 }
 
 static CK_RV p11prov_store_mlkem_private_key(P11PROV_OBJ *key,
-                                             struct pool_find_ctx *findctx,
+                                             CK_ATTRIBUTE *template,
+                                             int *tmpl_cnt,
                                              const OSSL_PARAM params[])
 {
     const OSSL_PARAM *p;
-    CK_ATTRIBUTE template[10];
-    int tmpl_cnt;
-    CK_RV rv = CKR_GENERAL_ERROR;
-
-    key->data.key.size = findctx->key_size;
-    key->data.key.bit_size = findctx->bit_size;
-    key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * findctx->numattrs);
-    if (!key->attrs) {
-        rv = CKR_HOST_MEMORY;
-        goto done;
-    }
-    key->numattrs = 0;
-    for (int i = 0; i < findctx->numattrs; i++) {
-        rv = p11prov_copy_attr(&key->attrs[i], &findctx->attrs[i]);
-        if (rv != CKR_OK) {
-            rv = CKR_HOST_MEMORY;
-            P11PROV_raise(key->ctx, rv, "Failed attr copy");
-            goto done;
-        }
-        key->numattrs++;
-    }
-
-    tmpl_cnt = p11prov_obj_get_template(key, findctx->class, template);
-    if (tmpl_cnt <= 0) {
-        return CKR_GENERAL_ERROR;
-    }
-
-    for (int i = 0; i < tmpl_cnt; i++) {
-        if (template[i].type == CKA_ID) {
-            template[i].pValue = findctx->attrs[0].pValue;
-            template[i].ulValueLen = findctx->attrs[0].ulValueLen;
-            break;
-        }
-    }
+    int cnt = *tmpl_cnt;
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
     if (!p) {
         return CKR_KEY_INDIGESTIBLE;
     }
-    template[tmpl_cnt].type = CKA_VALUE;
-    template[tmpl_cnt].pValue = p->data;
-    template[tmpl_cnt].ulValueLen = p->data_size;
-    tmpl_cnt++;
+    template[cnt].type = CKA_VALUE;
+    template[cnt].pValue = p->data;
+    template[cnt].ulValueLen = p->data_size;
+    cnt++;
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_ML_KEM_SEED);
     if (p) {
-        template[tmpl_cnt].type = CKA_SEED;
-        template[tmpl_cnt].pValue = p->data;
-        template[tmpl_cnt].ulValueLen = p->data_size;
-        tmpl_cnt++;
+        template[cnt].type = CKA_SEED;
+        template[cnt].pValue = p->data;
+        template[cnt].ulValueLen = p->data_size;
+        cnt++;
     }
 
-    rv = store_key(key, NULL, template, tmpl_cnt);
-
-done:
-    return rv;
+    *tmpl_cnt = cnt;
+    return CKR_OK;
 }
 
 #ifndef OSSL_PKEY_PARAM_SLH_DSA_SEED
@@ -1729,64 +1496,32 @@ done:
 #endif
 
 static CK_RV p11prov_store_slhdsa_private_key(P11PROV_OBJ *key,
-                                              struct pool_find_ctx *findctx,
+                                              CK_ATTRIBUTE *template,
+                                              int *tmpl_cnt,
                                               const OSSL_PARAM params[])
 {
     const OSSL_PARAM *p;
-    CK_ATTRIBUTE template[10];
-    int tmpl_cnt;
-    CK_RV rv = CKR_GENERAL_ERROR;
-
-    key->data.key.size = findctx->key_size;
-    key->data.key.bit_size = findctx->bit_size;
-    key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * findctx->numattrs);
-    if (!key->attrs) {
-        rv = CKR_HOST_MEMORY;
-        goto done;
-    }
-    key->numattrs = 0;
-    for (int i = 0; i < findctx->numattrs; i++) {
-        rv = p11prov_copy_attr(&key->attrs[i], &findctx->attrs[i]);
-        if (rv != CKR_OK) {
-            rv = CKR_HOST_MEMORY;
-            P11PROV_raise(key->ctx, rv, "Failed attr copy");
-            goto done;
-        }
-        key->numattrs++;
-    }
-
-    tmpl_cnt = p11prov_obj_get_template(key, findctx->class, template);
-    if (tmpl_cnt <= 0) {
-        return CKR_GENERAL_ERROR;
-    }
-
-    for (int i = 0; i < tmpl_cnt; i++) {
-        if (template[i].type == CKA_ID) {
-            template[i].pValue = findctx->attrs[0].pValue;
-            template[i].ulValueLen = findctx->attrs[0].ulValueLen;
-            break;
-        }
-    }
+    int cnt = *tmpl_cnt;
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
     if (!p) {
         return CKR_KEY_INDIGESTIBLE;
     }
-    template[tmpl_cnt].pValue = p->data;
-    template[tmpl_cnt].ulValueLen = p->data_size;
-    tmpl_cnt++;
+    template[cnt].type = CKA_VALUE;
+    template[cnt].pValue = p->data;
+    template[cnt].ulValueLen = p->data_size;
+    cnt++;
 
     p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_SLH_DSA_SEED);
     if (p) {
-        template[tmpl_cnt].pValue = p->data;
-        template[tmpl_cnt].ulValueLen = p->data_size;
-        tmpl_cnt++;
+        template[cnt].type = CKA_SEED;
+        template[cnt].pValue = p->data;
+        template[cnt].ulValueLen = p->data_size;
+        cnt++;
     }
 
-    rv = store_key(key, NULL, template, tmpl_cnt);
-
-done:
-    return rv;
+    *tmpl_cnt = cnt;
+    return CKR_OK;
 }
 
 static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key,
@@ -1801,6 +1536,10 @@ static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key,
         .numattrs = 0,
         .found = NULL,
     };
+    CK_ATTRIBUTE template[P11PROV_PRIVKEY_MAX_TEMPLATE_SIZE];
+    int tmpl_cnt;
+    int base_cnt = 0;
+    int allocattrs;
     CK_RV rv;
 
     ctx = p11prov_obj_get_prov_ctx(key);
@@ -1889,33 +1628,98 @@ static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key,
      * that its handle will live long enough for multiple operations.
      */
 
+    key->data.key.size = findctx.key_size;
+    key->data.key.bit_size = findctx.bit_size;
+    allocattrs = findctx.numattrs;
+    if (findctx.type == CKK_RSA) {
+        allocattrs = 3;
+    }
+    key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * allocattrs);
+    if (!key->attrs) {
+        rv = CKR_HOST_MEMORY;
+        goto done;
+    }
+    key->numattrs = 0;
+    for (int i = 0; i < findctx.numattrs; i++) {
+        rv = p11prov_copy_attr(&key->attrs[i], &findctx.attrs[i]);
+        if (rv != CKR_OK) {
+            rv = CKR_HOST_MEMORY;
+            P11PROV_raise(key->ctx, rv, "Failed attr copy");
+            goto done;
+        }
+        key->numattrs++;
+    }
+
+    tmpl_cnt = p11prov_obj_get_template(key, findctx.class, template);
+    if (tmpl_cnt <= 0) {
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+    base_cnt = tmpl_cnt;
+
+    for (int i = 0; i < tmpl_cnt; i++) {
+        if (template[i].type == CKA_ID) {
+            template[i].pValue = findctx.attrs[0].pValue;
+            template[i].ulValueLen = findctx.attrs[0].ulValueLen;
+            break;
+        }
+    }
+
     switch (findctx.type) {
     case CKK_RSA:
-        rv = p11prov_store_rsa_private_key(key, &findctx, params);
+        rv = p11prov_store_rsa_private_key(key, template, &tmpl_cnt, params);
         break;
     case CKK_EC:
     case CKK_EC_EDWARDS:
     case CKK_EC_MONTGOMERY:
-        rv = p11prov_store_ec_private_key(key, &findctx, params);
+        rv = p11prov_store_ec_private_key(key, template, &tmpl_cnt, params);
         break;
     case CKK_ML_DSA:
-        rv = p11prov_store_mldsa_private_key(key, &findctx, params);
+        rv = p11prov_store_mldsa_private_key(key, template, &tmpl_cnt, params);
         break;
     case CKK_ML_KEM:
-        rv = p11prov_store_mlkem_private_key(key, &findctx, params);
+        rv = p11prov_store_mlkem_private_key(key, template, &tmpl_cnt, params);
         break;
     case CKK_SLH_DSA:
-        rv = p11prov_store_slhdsa_private_key(key, &findctx, params);
+        rv = p11prov_store_slhdsa_private_key(key, template, &tmpl_cnt, params);
         break;
-
     default:
         P11PROV_raise(key->ctx, CKR_GENERAL_ERROR,
                       "Unsupported key type: %08lx, should NOT happen",
                       findctx.type);
         rv = CKR_GENERAL_ERROR;
     }
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    rv = store_key(key, NULL, template, tmpl_cnt);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    if (findctx.type == CKK_RSA) {
+        /* steal modulus (at base_cnt) */
+        key->attrs[key->numattrs] = template[base_cnt];
+        template[base_cnt].pValue = NULL;
+        key->numattrs += 1;
+        /* steal public exponent (at base_cnt + 1) */
+        key->attrs[key->numattrs] = template[base_cnt + 1];
+        template[base_cnt + 1].pValue = NULL;
+        key->numattrs += 1;
+    }
 
 done:
+    if (findctx.type == CKK_RSA) {
+        for (int i = base_cnt; i < tmpl_cnt; i++) {
+            OPENSSL_clear_free(template[i].pValue, template[i].ulValueLen);
+        }
+    } else if (findctx.type == CKK_EC) {
+        if (base_cnt < tmpl_cnt) {
+            OPENSSL_clear_free(template[base_cnt].pValue,
+                               template[base_cnt].ulValueLen);
+        }
+    }
     for (int i = 0; i < findctx.numattrs; i++) {
         OPENSSL_free(findctx.attrs[i].pValue);
     }
