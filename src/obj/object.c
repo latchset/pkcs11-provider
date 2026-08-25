@@ -278,6 +278,7 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
     obj->cka_token = tmp->cka_token;
     obj->get_template = tmp->get_template;
     obj->free_template = tmp->free_template;
+    obj->get_find_attrs = tmp->get_find_attrs;
     switch (obj->class) {
     case CKO_CERTIFICATE:
         obj->data.crt = tmp->data.crt;
@@ -287,6 +288,7 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
     case CKO_SECRET_KEY:
         obj->get_template = tmp->get_template;
         obj->free_template = tmp->free_template;
+        obj->get_find_attrs = tmp->get_find_attrs;
         obj->data.key = tmp->data.key;
         break;
     default:
@@ -611,6 +613,25 @@ void p11prov_obj_free_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
 {
     if (obj && obj->free_template) {
         obj->free_template(obj, class, template, tmpl_cnt);
+    }
+}
+
+CK_RV p11prov_obj_get_find_attrs(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
+                                 const OSSL_PARAM *params,
+                                 CK_ATTRIBUTE attrs[static MAX_FIND_ATTRS_SIZE],
+                                 int *numattrs)
+{
+    if (!obj || !obj->get_find_attrs) {
+        return CKR_ARGUMENTS_BAD;
+    }
+    return obj->get_find_attrs(obj, class, params, attrs, numattrs);
+}
+
+void p11prov_obj_set_get_find_attrs(
+    P11PROV_OBJ *obj, p11prov_obj_get_find_attrs_fn get_find_attrs)
+{
+    if (obj->handle == CK_P11PROV_IMPORTED_HANDLE) {
+        obj->get_find_attrs = get_find_attrs;
     }
 }
 

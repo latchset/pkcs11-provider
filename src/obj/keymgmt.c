@@ -1016,6 +1016,7 @@ P11PROV_OBJ *p11prov_obj_pub_from_priv(P11PROV_OBJ *priv)
     key->data.key = priv->data.key;
     key->get_template = priv->get_template;
     key->free_template = priv->free_template;
+    key->get_find_attrs = priv->get_find_attrs;
 
     /* make sure key is associated to the private one */
     p11prov_obj_set_associated(priv, key);

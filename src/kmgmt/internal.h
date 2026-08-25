@@ -61,6 +61,17 @@ int p11prov_kmgmt_gen(struct key_generator *ctx, CK_ATTRIBUTE *pubkey_template,
 int p11prov_kmgmt_match(const void *keydata1, const void *keydata2,
                         CK_KEY_TYPE type, int selection);
 int p11prov_kmgmt_get_params(void *keydata, OSSL_PARAM params[]);
+CK_RV p11prov_kmgmt_param_data_to_attr(
+    CK_ATTRIBUTE attrs[static MAX_FIND_ATTRS_SIZE], int *numattrs,
+    CK_ATTRIBUTE_TYPE type, const uint8_t *data, size_t size, bool byteswap);
+CK_RV p11prov_kmgmt_params_to_attr(
+    P11PROV_CTX *ctx, CK_ATTRIBUTE attrs[static MAX_FIND_ATTRS_SIZE],
+    int *numattrs, const OSSL_PARAM params[], const char *name,
+    CK_ATTRIBUTE_TYPE type, bool byteswap);
+CK_RV p11prov_kmgmt_privkey_to_id(
+    P11PROV_CTX *ctx, CK_ATTRIBUTE attrs[static MAX_FIND_ATTRS_SIZE],
+    int *numattrs, const uint8_t *data0, size_t len0, const uint8_t *data1,
+    size_t len1, const uint8_t *data2, size_t len2);
 
 void p11prov_kmgmt_gen_cleanup(struct key_generator *ctx);
 

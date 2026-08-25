@@ -49,6 +49,7 @@ struct p11prov_obj {
 
     p11prov_obj_get_template_fn get_template;
     p11prov_obj_free_template_fn free_template;
+    p11prov_obj_get_find_attrs_fn get_find_attrs;
 
     CK_ATTRIBUTE *attrs;
     int numattrs;
@@ -83,11 +84,5 @@ CK_RV p11prov_store_symmetric_key(P11PROV_CTX *provctx,
                                   CK_KEY_TYPE key_type, bool session_key,
                                   const unsigned char *secret, size_t secretlen,
                                   CK_FLAGS usage, P11PROV_OBJ **ret);
-
-#define CKA_P11PROV_CURVE_NAME CKA_P11PROV_BASE + 1
-#define CKA_P11PROV_CURVE_NID CKA_P11PROV_BASE + 2
-#define CKA_P11PROV_PUB_KEY CKA_P11PROV_BASE + 3
-#define CKA_P11PROV_PUB_KEY_X CKA_P11PROV_BASE + 4
-#define CKA_P11PROV_PUB_KEY_Y CKA_P11PROV_BASE + 5
 
 #endif

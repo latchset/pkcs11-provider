@@ -139,6 +139,97 @@ static int p11prov_mlkem_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
     }
 }
 
+static CK_RV p11prov_mlkem_get_find_attrs(
+    P11PROV_OBJ *obj, CK_OBJECT_CLASS class, const OSSL_PARAM *params,
+    CK_ATTRIBUTE attrs[static MAX_FIND_ATTRS_SIZE], int *out_numattrs)
+{
+    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(obj);
+    CK_ULONG param_set = p11prov_obj_get_key_param_set(obj);
+    const OSSL_PARAM *p;
+    int numattrs = 0;
+    CK_ULONG key_size;
+    CK_RV rv;
+
+    if (!obj || !params || !out_numattrs
+        || p11prov_obj_get_key_type(obj) != CKK_ML_KEM) {
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    switch (param_set) {
+    case CKP_ML_KEM_512:
+        key_size = ML_KEM_512_PK_SIZE;
+        break;
+    case CKP_ML_KEM_768:
+        key_size = ML_KEM_768_PK_SIZE;
+        break;
+    case CKP_ML_KEM_1024:
+        key_size = ML_KEM_1024_PK_SIZE;
+        break;
+    default:
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    switch (class) {
+    case CKO_PUBLIC_KEY:
+        rv = p11prov_kmgmt_params_to_attr(ctx, attrs, &numattrs, params,
+                                          OSSL_PKEY_PARAM_PUB_KEY, CKA_VALUE,
+                                          false);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        if (key_size != attrs[numattrs - 1].ulValueLen) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE,
+                          "Unexpected public key size %lu (expected %lu)",
+                          attrs[0].ulValueLen, key_size);
+            rv = CKR_KEY_INDIGESTIBLE;
+            goto done;
+        }
+        break;
+
+    case CKO_PRIVATE_KEY:
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+        if (!p) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_PRIV_KEY);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        rv = p11prov_kmgmt_privkey_to_id(
+            ctx, attrs, &numattrs, (const uint8_t *)"ML-KEM", 6,
+            (const uint8_t *)&param_set, sizeof(param_set), p->data,
+            p->data_size);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        break;
+
+    default:
+        return CKR_GENERAL_ERROR;
+    }
+
+    /* common params */
+    rv = p11prov_kmgmt_param_data_to_attr(attrs, &numattrs, CKA_PARAMETER_SET,
+                                          (uint8_t *)&param_set,
+                                          sizeof(param_set), false);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    p11prov_obj_set_key_bits(obj, key_size * 8, key_size);
+    *out_numattrs = numattrs;
+    rv = CKR_OK;
+
+done:
+    if (rv != CKR_OK) {
+        for (int i = 0; i < numattrs; i++) {
+            OPENSSL_free(attrs[i].pValue);
+            attrs[i].pValue = NULL;
+        }
+        *out_numattrs = 0;
+    }
+    return rv;
+}
+
 static void *p11prov_mlkem_new_int(void *provctx,
                                    CK_ML_KEM_PARAMETER_SET_TYPE param_set)
 {
@@ -149,6 +240,7 @@ static void *p11prov_mlkem_new_int(void *provctx,
     if (key) {
         p11prov_obj_set_key_params(key, param_set);
         p11prov_obj_set_get_template(key, p11prov_mlkem_get_template);
+        p11prov_obj_set_get_find_attrs(key, p11prov_mlkem_get_find_attrs);
     }
     return key;
 }
@@ -279,6 +371,8 @@ static int p11prov_mlkem_match(const void *keydata1, const void *keydata2,
 static int p11prov_mlkem_import(void *keydata, int selection,
                                 const OSSL_PARAM params[])
 {
+    p11prov_obj_set_get_find_attrs((P11PROV_OBJ *)keydata,
+                                   p11prov_mlkem_get_find_attrs);
     return p11prov_kmgmt_import(CKK_ML_KEM, CK_UNAVAILABLE_INFORMATION,
                                 OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
                                 params);
