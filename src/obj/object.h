@@ -30,6 +30,8 @@ CK_OBJECT_CLASS p11prov_obj_get_class(P11PROV_OBJ *obj);
 CK_ATTRIBUTE *p11prov_obj_get_attr(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type);
 CK_ATTRIBUTE *p11prov_obj_get_public_attr(P11PROV_OBJ *obj,
                                           CK_ATTRIBUTE_TYPE type);
+#define P11PROV_PUBKEY_MAX_TEMPLATE_SIZE 8
+#define P11PROV_PRIVKEY_MAX_TEMPLATE_SIZE 17
 typedef int (*p11prov_obj_get_template_fn)(P11PROV_OBJ *obj,
                                            CK_OBJECT_CLASS class,
                                            CK_ATTRIBUTE *template);

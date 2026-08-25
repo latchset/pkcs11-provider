@@ -24,6 +24,13 @@ DISPATCH_KEYMGMT_FN(rsa, gettable_params);
 extern const CK_BBOOL val_true;
 extern const CK_BBOOL val_false;
 
+#define RSA_PUBKEY_TEMPLATE_SIZE 8
+#define RSA_PRIVKEY_TEMPLATE_SIZE 17
+_Static_assert(RSA_PUBKEY_TEMPLATE_SIZE <= P11PROV_PUBKEY_MAX_TEMPLATE_SIZE,
+               "RSA public key template size exceeds maximum");
+_Static_assert(RSA_PRIVKEY_TEMPLATE_SIZE <= P11PROV_PRIVKEY_MAX_TEMPLATE_SIZE,
+               "RSA private key template size exceeds maximum");
+
 static int p11prov_rsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
                                     CK_ATTRIBUTE *template)
 {
@@ -40,9 +47,9 @@ static int p11prov_rsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
     if (!template) {
         switch (class) {
         case CKO_PUBLIC_KEY:
-            return 8;
+            return RSA_PUBKEY_TEMPLATE_SIZE;
         case CKO_PRIVATE_KEY:
-            return 17;
+            return RSA_PRIVKEY_TEMPLATE_SIZE;
         default:
             return -1;
         }
