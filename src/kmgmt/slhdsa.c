@@ -50,12 +50,15 @@ _Static_assert(SLHDSA_PRIVKEY_TEMPLATE_SIZE
                "SLH-DSA private key template size exceeds maximum");
 
 static int p11prov_slhdsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
+                                       const OSSL_PARAM *params,
                                        CK_ATTRIBUTE *template)
 {
     static const CK_OBJECT_CLASS pub_class = CKO_PUBLIC_KEY;
     static const CK_OBJECT_CLASS priv_class = CKO_PRIVATE_KEY;
     static const CK_KEY_TYPE slhdsa_type = CKK_SLH_DSA;
+    const OSSL_PARAM *p;
     CK_ATTRIBUTE *a;
+    int cnt;
 
     if (!obj || p11prov_obj_get_key_type(obj) != CKK_SLH_DSA
         || p11prov_obj_get_class(obj) != class) {
@@ -106,6 +109,10 @@ static int p11prov_slhdsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
         return 6;
 
     case CKO_PRIVATE_KEY:
+        if (!params) {
+            return -1;
+        }
+
         template[3].type = CKA_CLASS;
         template[3].pValue = DISCARD_CONST(&priv_class);
         template[3].ulValueLen = sizeof(CK_OBJECT_CLASS);
@@ -126,7 +133,25 @@ static int p11prov_slhdsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
         template[7].pValue = DISCARD_CONST(&val_true);
         template[7].ulValueLen = sizeof(CK_BBOOL);
 
-        return 8;
+        cnt = 8;
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+        if (!p) {
+            return -1;
+        }
+        template[cnt].type = CKA_VALUE;
+        template[cnt].pValue = p->data;
+        template[cnt].ulValueLen = p->data_size;
+        cnt++;
+
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_SLH_DSA_SEED);
+        if (p) {
+            template[cnt].type = CKA_SEED;
+            template[cnt].pValue = p->data;
+            template[cnt].ulValueLen = p->data_size;
+            cnt++;
+        }
+
+        return cnt;
 
     default:
         return -1;

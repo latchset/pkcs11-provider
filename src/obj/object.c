@@ -277,6 +277,7 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
     obj->cka_copyable = tmp->cka_copyable;
     obj->cka_token = tmp->cka_token;
     obj->get_template = tmp->get_template;
+    obj->free_template = tmp->free_template;
     switch (obj->class) {
     case CKO_CERTIFICATE:
         obj->data.crt = tmp->data.crt;
@@ -285,6 +286,7 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
     case CKO_PRIVATE_KEY:
     case CKO_SECRET_KEY:
         obj->get_template = tmp->get_template;
+        obj->free_template = tmp->free_template;
         obj->data.key = tmp->data.key;
         break;
     default:
@@ -596,12 +598,20 @@ CK_ATTRIBUTE *p11prov_obj_get_public_attr(P11PROV_OBJ *obj,
 }
 
 int p11prov_obj_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
-                             CK_ATTRIBUTE *template)
+                             const OSSL_PARAM *params, CK_ATTRIBUTE *template)
 {
     if (!obj || !obj->get_template) {
         return -1;
     }
-    return obj->get_template(obj, class, template);
+    return obj->get_template(obj, class, params, template);
+}
+
+void p11prov_obj_free_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
+                               CK_ATTRIBUTE *template, int tmpl_cnt)
+{
+    if (obj && obj->free_template) {
+        obj->free_template(obj, class, template, tmpl_cnt);
+    }
 }
 
 bool p11prov_obj_get_bool(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type, bool def)
@@ -782,6 +792,14 @@ void p11prov_obj_set_get_template(P11PROV_OBJ *obj,
 {
     if (obj->handle == CK_P11PROV_IMPORTED_HANDLE) {
         obj->get_template = get_template;
+    }
+}
+
+void p11prov_obj_set_free_template(P11PROV_OBJ *obj,
+                                   p11prov_obj_free_template_fn free_template)
+{
+    if (obj->handle == CK_P11PROV_IMPORTED_HANDLE) {
+        obj->free_template = free_template;
     }
 }
 

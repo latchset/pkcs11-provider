@@ -1015,6 +1015,49 @@ CK_RV p11prov_copy_attr(CK_ATTRIBUTE *dst, CK_ATTRIBUTE *src)
     return CKR_OK;
 }
 
+CK_RV p11prov_bn_param_to_attr(const OSSL_PARAM *p, CK_ATTRIBUTE *attr)
+{
+    BIGNUM *bn = NULL;
+    int bnlen;
+    int err = 0;
+    CK_RV ret;
+
+    if (p == NULL) {
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    /* FIXME: investigate if this needs to be done in constant time
+     * See BN_FLG_CONSTTIME */
+
+    err = OSSL_PARAM_get_BN(p, &bn);
+    if (err != RET_OSSL_OK) {
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    bnlen = BN_num_bytes(bn);
+    attr->pValue = OPENSSL_malloc(bnlen);
+    if (!attr->pValue) {
+        ret = CKR_HOST_MEMORY;
+        goto done;
+    }
+    attr->ulValueLen = BN_bn2bin(bn, attr->pValue);
+    if (attr->ulValueLen == 0 || attr->ulValueLen > (CK_ULONG)bnlen) {
+        attr->ulValueLen = bnlen;
+        ret = CKR_KEY_INDIGESTIBLE;
+        goto done;
+    }
+
+    ret = CKR_OK;
+
+done:
+    if (ret != CKR_OK) {
+        OPENSSL_clear_free(attr->pValue, bnlen);
+        attr->pValue = NULL;
+    }
+    BN_free(bn);
+    return ret;
+}
+
 CK_RV p11prov_bn_to_attr(CK_ATTRIBUTE *dst, BIGNUM *bn)
 {
     int bn_len = BN_num_bytes(bn);

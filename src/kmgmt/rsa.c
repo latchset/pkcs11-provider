@@ -31,13 +31,57 @@ _Static_assert(RSA_PUBKEY_TEMPLATE_SIZE <= P11PROV_PUBKEY_MAX_TEMPLATE_SIZE,
 _Static_assert(RSA_PRIVKEY_TEMPLATE_SIZE <= P11PROV_PRIVKEY_MAX_TEMPLATE_SIZE,
                "RSA private key template size exceeds maximum");
 
+static void p11prov_rsa_free_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
+                                      CK_ATTRIBUTE *template, int tmpl_cnt)
+{
+    if (class != CKO_PRIVATE_KEY || !template) {
+        return;
+    }
+    for (int i = 0; i < tmpl_cnt; i++) {
+        if (template[i].type == CKA_MODULUS
+            || template[i].type == CKA_PUBLIC_EXPONENT
+            || template[i].type == CKA_PRIVATE_EXPONENT
+            || template[i].type == CKA_PRIME_1
+            || template[i].type == CKA_PRIME_2
+            || template[i].type == CKA_EXPONENT_1
+            || template[i].type == CKA_EXPONENT_2
+            || template[i].type == CKA_COEFFICIENT) {
+            OPENSSL_clear_free(template[i].pValue, template[i].ulValueLen);
+            template[i].pValue = NULL;
+        }
+    }
+}
+
 static int p11prov_rsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
+                                    const OSSL_PARAM *params,
                                     CK_ATTRIBUTE *template)
 {
     static const CK_OBJECT_CLASS pub_class = CKO_PUBLIC_KEY;
     static const CK_OBJECT_CLASS priv_class = CKO_PRIVATE_KEY;
     static const CK_KEY_TYPE rsa_type = CKK_RSA;
+    static const char *required[] = {
+        OSSL_PKEY_PARAM_RSA_N,
+        OSSL_PKEY_PARAM_RSA_E,
+        OSSL_PKEY_PARAM_RSA_D,
+    };
+    static const char *optional[] = {
+        OSSL_PKEY_PARAM_RSA_FACTOR1,      OSSL_PKEY_PARAM_RSA_FACTOR2,
+        OSSL_PKEY_PARAM_RSA_EXPONENT1,    OSSL_PKEY_PARAM_RSA_EXPONENT2,
+        OSSL_PKEY_PARAM_RSA_COEFFICIENT1,
+    };
+    static const CK_ATTRIBUTE_TYPE req_types[] = {
+        CKA_MODULUS,
+        CKA_PUBLIC_EXPONENT,
+        CKA_PRIVATE_EXPONENT,
+    };
+    static const CK_ATTRIBUTE_TYPE opt_types[] = {
+        CKA_PRIME_1,    CKA_PRIME_2,     CKA_EXPONENT_1,
+        CKA_EXPONENT_2, CKA_COEFFICIENT,
+    };
+    const OSSL_PARAM *p;
     CK_ATTRIBUTE *a;
+    int cnt;
+    CK_RV rv;
 
     if (!obj || p11prov_obj_get_key_type(obj) != CKK_RSA
         || p11prov_obj_get_class(obj) != class) {
@@ -96,6 +140,10 @@ static int p11prov_rsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
         return 8;
 
     case CKO_PRIVATE_KEY:
+        if (!params) {
+            return -1;
+        }
+
         template[2].type = CKA_CLASS;
         template[2].pValue = DISCARD_CONST(&priv_class);
         template[2].ulValueLen = sizeof(CK_OBJECT_CLASS);
@@ -124,7 +172,36 @@ static int p11prov_rsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
         template[8].pValue = DISCARD_CONST(&val_true);
         template[8].ulValueLen = sizeof(CK_BBOOL);
 
-        return 9;
+        cnt = 9;
+
+        /* required params */
+        for (int i = 0; i < 3; i++) {
+            p = OSSL_PARAM_locate_const(params, required[i]);
+            template[cnt].type = req_types[i];
+            rv = p11prov_bn_param_to_attr(p, &template[cnt]);
+            if (rv != CKR_OK) {
+                p11prov_rsa_free_template(obj, class, template, cnt);
+                return -1;
+            }
+            cnt++;
+        }
+
+        /* optional */
+        for (int i = 0; i < 5; i++) {
+            p = OSSL_PARAM_locate_const(params, optional[i]);
+            if (p) {
+                template[cnt].type = opt_types[i];
+                rv = p11prov_bn_param_to_attr(p, &template[cnt]);
+                if (rv == CKR_OK) {
+                    cnt++;
+                }
+            } else {
+                p11prov_rsa_free_template(obj, class, template, cnt);
+                break;
+            }
+        }
+
+        return cnt;
 
     default:
         return -1;
@@ -139,6 +216,7 @@ static void *p11prov_rsa_new(void *provctx)
     key = p11prov_kmgmt_new(provctx, CKK_RSA);
     if (key) {
         p11prov_obj_set_get_template(key, p11prov_rsa_get_template);
+        p11prov_obj_set_free_template(key, p11prov_rsa_free_template);
     }
     return key;
 }

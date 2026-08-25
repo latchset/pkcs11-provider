@@ -30,12 +30,15 @@ _Static_assert(MLDSA_PRIVKEY_TEMPLATE_SIZE <= P11PROV_PRIVKEY_MAX_TEMPLATE_SIZE,
                "ML-DSA private key template size exceeds maximum");
 
 static int p11prov_mldsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
+                                      const OSSL_PARAM *params,
                                       CK_ATTRIBUTE *template)
 {
     static const CK_OBJECT_CLASS pub_class = CKO_PUBLIC_KEY;
     static const CK_OBJECT_CLASS priv_class = CKO_PRIVATE_KEY;
     static const CK_KEY_TYPE mldsa_type = CKK_ML_DSA;
+    const OSSL_PARAM *p;
     CK_ATTRIBUTE *a;
+    int cnt;
 
     if (!obj || p11prov_obj_get_key_type(obj) != CKK_ML_DSA
         || p11prov_obj_get_class(obj) != class) {
@@ -86,6 +89,10 @@ static int p11prov_mldsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
         return 6;
 
     case CKO_PRIVATE_KEY:
+        if (!params) {
+            return -1;
+        }
+
         template[3].type = CKA_CLASS;
         template[3].pValue = DISCARD_CONST(&priv_class);
         template[3].ulValueLen = sizeof(CK_OBJECT_CLASS);
@@ -106,7 +113,25 @@ static int p11prov_mldsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
         template[7].pValue = DISCARD_CONST(&val_true);
         template[7].ulValueLen = sizeof(CK_BBOOL);
 
-        return 8;
+        cnt = 8;
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+        if (!p) {
+            return -1;
+        }
+        template[cnt].type = CKA_VALUE;
+        template[cnt].pValue = p->data;
+        template[cnt].ulValueLen = p->data_size;
+        cnt++;
+
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_ML_DSA_SEED);
+        if (p) {
+            template[cnt].type = CKA_SEED;
+            template[cnt].pValue = p->data;
+            template[cnt].ulValueLen = p->data_size;
+            cnt++;
+        }
+
+        return cnt;
 
     default:
         return -1;
