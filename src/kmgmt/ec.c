@@ -300,6 +300,172 @@ static int p11prov_ec_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
     }
 }
 
+#define MAX_EC_PUB_KEY_SIZE 150
+static CK_RV p11prov_ec_get_find_attrs(
+    P11PROV_OBJ *obj, CK_OBJECT_CLASS class, const OSSL_PARAM *params,
+    CK_ATTRIBUTE attrs[static MAX_FIND_ATTRS_SIZE], int *out_numattrs)
+{
+    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(obj);
+    EC_GROUP *group = NULL;
+    EC_POINT *point = NULL;
+    BN_CTX *bn_ctx = NULL;
+    const OSSL_PARAM *p;
+    uint8_t pub_data[MAX_EC_PUB_KEY_SIZE];
+    const char *curve_name = NULL;
+    int curve_nid;
+    unsigned char *ecparams = NULL;
+    int ecplen;
+    int numattrs = 0;
+    CK_ULONG bit_size, key_size;
+    CK_RV rv;
+
+    if (!obj || !params || !out_numattrs
+        || p11prov_obj_get_key_type(obj) != CKK_EC) {
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    group = EC_GROUP_new_from_params(params, p11prov_ctx_get_libctx(ctx), NULL);
+    if (!group) {
+        P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Unable to decode ec group");
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    curve_name = p11prov_ec_group_to_curve_name(group, &curve_nid);
+    if (curve_name == NULL && curve_nid != NID_undef) {
+        P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Unknown curve");
+        rv = CKR_KEY_INDIGESTIBLE;
+        goto done;
+    }
+
+    ecplen = i2d_ECPKParameters(group, &ecparams);
+    if (ecplen < 0) {
+        P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Failed to encode EC params");
+        rv = CKR_KEY_INDIGESTIBLE;
+        goto done;
+    }
+
+    switch (class) {
+    case CKO_PUBLIC_KEY:
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PUB_KEY);
+        if (!p) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_PUB_KEY);
+            rv = CKR_KEY_INDIGESTIBLE;
+            goto done;
+        }
+
+        if (((char *)p->data)[0] == '\x02' || ((char *)p->data)[0] == '\x03') {
+            int plen;
+
+            P11PROV_debug(
+                "OpenSSL 3.0.7 BUG - received compressed EC public key");
+
+            point = EC_POINT_new(group);
+            bn_ctx = BN_CTX_new();
+            if (!point || !bn_ctx
+                || !EC_POINT_oct2point(group, point, p->data, p->data_size,
+                                       bn_ctx)) {
+                rv = CKR_KEY_INDIGESTIBLE;
+                goto done;
+            }
+
+            plen =
+                EC_POINT_point2oct(group, point, POINT_CONVERSION_UNCOMPRESSED,
+                                   pub_data, MAX_EC_PUB_KEY_SIZE, bn_ctx);
+            if (!plen) {
+                rv = CKR_KEY_INDIGESTIBLE;
+                goto done;
+            }
+
+            rv = p11prov_kmgmt_param_data_to_attr(
+                attrs, &numattrs, CKA_P11PROV_PUB_KEY, pub_data, plen, false);
+            if (rv != CKR_OK) {
+                goto done;
+            }
+        } else {
+            rv = p11prov_kmgmt_param_data_to_attr(attrs, &numattrs,
+                                                  CKA_P11PROV_PUB_KEY, p->data,
+                                                  p->data_size, false);
+            if (rv != CKR_OK) {
+                goto done;
+            }
+        }
+        break;
+
+    case CKO_PRIVATE_KEY:
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+        if (!p) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_PRIV_KEY);
+            rv = CKR_KEY_INDIGESTIBLE;
+            goto done;
+        }
+
+        if (curve_name) {
+            rv = p11prov_kmgmt_privkey_to_id(
+                ctx, attrs, &numattrs, (uint8_t *)curve_name,
+                strlen(curve_name), (uint8_t *)ecparams, ecplen, p->data,
+                p->data_size);
+        } else {
+            rv = p11prov_kmgmt_privkey_to_id(ctx, attrs, &numattrs,
+                                             (uint8_t *)ecparams, ecplen,
+                                             p->data, p->data_size, NULL, 0);
+        }
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        break;
+
+    default:
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    /* common params */
+    rv = p11prov_kmgmt_param_data_to_attr(attrs, &numattrs, CKA_EC_PARAMS,
+                                          ecparams, ecplen, false);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    rv = p11prov_kmgmt_param_data_to_attr(
+        attrs, &numattrs, CKA_P11PROV_CURVE_NID, (uint8_t *)&curve_nid,
+        sizeof(curve_nid), false);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    if (curve_name) {
+        rv = p11prov_kmgmt_param_data_to_attr(
+            attrs, &numattrs, CKA_P11PROV_CURVE_NAME, (uint8_t *)curve_name,
+            strlen(curve_name) + 1, false);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+    }
+
+    bit_size = EC_GROUP_order_bits(group);
+    key_size = (bit_size + 7) / 8;
+    p11prov_obj_set_key_bits(obj, bit_size, key_size);
+
+    *out_numattrs = numattrs;
+    rv = CKR_OK;
+
+done:
+    if (rv != CKR_OK) {
+        for (int i = 0; i < numattrs; i++) {
+            OPENSSL_free(attrs[i].pValue);
+            attrs[i].pValue = NULL;
+        }
+        *out_numattrs = 0;
+    }
+    OPENSSL_free(ecparams);
+    EC_GROUP_free(group);
+    EC_POINT_free(point);
+    BN_CTX_free(bn_ctx);
+    return rv;
+}
+
 static void *p11prov_ec_new(void *provctx)
 {
     P11PROV_OBJ *key;
@@ -309,6 +475,7 @@ static void *p11prov_ec_new(void *provctx)
     if (key) {
         p11prov_obj_set_get_template(key, p11prov_ec_get_template);
         p11prov_obj_set_free_template(key, p11prov_ec_free_template);
+        p11prov_obj_set_get_find_attrs(key, p11prov_ec_get_find_attrs);
     }
     return key;
 }
@@ -534,6 +701,8 @@ static int p11prov_ec_match(const void *keydata1, const void *keydata2,
 static int p11prov_ec_import(void *keydata, int selection,
                              const OSSL_PARAM params[])
 {
+    p11prov_obj_set_get_find_attrs((P11PROV_OBJ *)keydata,
+                                   p11prov_ec_get_find_attrs);
     return p11prov_kmgmt_import(CKK_EC, CK_UNAVAILABLE_INFORMATION,
                                 OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
                                 params);
@@ -841,6 +1010,117 @@ DISPATCH_KEYMGMT_FN(ed, gettable_params);
 DISPATCH_KEYMGMT_FN(ed, set_params);
 DISPATCH_KEYMGMT_FN(ed, settable_params);
 
+static CK_RV p11prov_ed_get_find_attrs(
+    P11PROV_OBJ *obj, CK_OBJECT_CLASS class, const OSSL_PARAM *params,
+    CK_ATTRIBUTE attrs[static MAX_FIND_ATTRS_SIZE], int *out_numattrs)
+{
+    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(obj);
+    const OSSL_PARAM *p;
+    const char *name;
+    const unsigned char *ecparams = NULL;
+    int ecplen;
+    int numattrs = 0;
+    CK_ULONG bit_size, key_size;
+    CK_RV rv;
+
+    if (!obj || !params || !out_numattrs
+        || p11prov_obj_get_key_type(obj) != CKK_EC_EDWARDS) {
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    switch (class) {
+    case CKO_PUBLIC_KEY:
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PUB_KEY);
+        if (!p) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_PUB_KEY);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        if (p->data_size == ED25519_BYTE_SIZE) {
+            ecparams = ed25519_oid;
+            ecplen = sizeof(ed25519_oid);
+            bit_size = ED25519_BIT_SIZE;
+            key_size = ED25519_BYTE_SIZE;
+        } else if (p->data_size == ED448_BYTE_SIZE) {
+            ecparams = ed448_oid;
+            ecplen = sizeof(ed448_oid);
+            bit_size = ED448_BIT_SIZE;
+            key_size = ED448_BYTE_SIZE;
+        } else {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE,
+                          "Public key of unknown length %lu", p->data_size);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        rv = p11prov_kmgmt_params_to_attr(ctx, attrs, &numattrs, params,
+                                          OSSL_PKEY_PARAM_PUB_KEY,
+                                          CKA_P11PROV_PUB_KEY, false);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        break;
+
+    case CKO_PRIVATE_KEY:
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+        if (!p) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_PRIV_KEY);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        if (p->data_size == ED25519_BYTE_SIZE) {
+            name = "ED25519";
+            ecparams = ed25519_oid;
+            ecplen = sizeof(ed25519_oid);
+            bit_size = ED25519_BIT_SIZE;
+            key_size = ED25519_BYTE_SIZE;
+        } else if (p->data_size == ED448_BYTE_SIZE) {
+            name = "ED448";
+            ecparams = ed448_oid;
+            ecplen = sizeof(ed448_oid);
+            bit_size = ED448_BIT_SIZE;
+            key_size = ED448_BYTE_SIZE;
+        } else {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE,
+                          "Private key of unknown length %lu", p->data_size);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        rv = p11prov_kmgmt_privkey_to_id(ctx, attrs, &numattrs, (uint8_t *)name,
+                                         strlen(name), (uint8_t *)ecparams,
+                                         ecplen, p->data, p->data_size);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        break;
+
+    default:
+        return CKR_GENERAL_ERROR;
+    }
+
+    /* common params */
+    rv = p11prov_kmgmt_param_data_to_attr(attrs, &numattrs, CKA_EC_PARAMS,
+                                          ecparams, ecplen, false);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    p11prov_obj_set_key_bits(obj, bit_size, key_size);
+    *out_numattrs = numattrs;
+    rv = CKR_OK;
+
+done:
+    if (rv != CKR_OK) {
+        for (int i = 0; i < numattrs; i++) {
+            OPENSSL_free(attrs[i].pValue);
+            attrs[i].pValue = NULL;
+        }
+        *out_numattrs = 0;
+    }
+    return rv;
+}
+
 static void *p11prov_ed_new(void *provctx)
 {
     P11PROV_OBJ *key;
@@ -850,6 +1130,7 @@ static void *p11prov_ed_new(void *provctx)
     if (key) {
         p11prov_obj_set_get_template(key, p11prov_ec_get_template);
         p11prov_obj_set_free_template(key, p11prov_ec_free_template);
+        p11prov_obj_set_get_find_attrs(key, p11prov_ed_get_find_attrs);
     }
     return key;
 }
@@ -971,6 +1252,8 @@ static int p11prov_ed_match(const void *keydata1, const void *keydata2,
 static int p11prov_ed_import(void *keydata, int selection,
                              const OSSL_PARAM params[])
 {
+    p11prov_obj_set_get_find_attrs((P11PROV_OBJ *)keydata,
+                                   p11prov_ed_get_find_attrs);
     return p11prov_kmgmt_import(CKK_EC_EDWARDS, CK_UNAVAILABLE_INFORMATION,
                                 OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
                                 params);
@@ -1194,6 +1477,117 @@ DISPATCH_KEYMGMT_FN(x448, query_operation_name);
 DISPATCH_KEYMGMT_FN(ecx, get_params);
 DISPATCH_KEYMGMT_FN(ecx, gettable_params);
 
+static CK_RV p11prov_ecx_get_find_attrs(
+    P11PROV_OBJ *obj, CK_OBJECT_CLASS class, const OSSL_PARAM *params,
+    CK_ATTRIBUTE attrs[static MAX_FIND_ATTRS_SIZE], int *out_numattrs)
+{
+    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(obj);
+    const OSSL_PARAM *p;
+    const char *name;
+    const unsigned char *ecparams = NULL;
+    int ecplen;
+    int numattrs = 0;
+    CK_ULONG bit_size, key_size;
+    CK_RV rv;
+
+    if (!obj || !params || !out_numattrs
+        || p11prov_obj_get_key_type(obj) != CKK_EC_MONTGOMERY) {
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    switch (class) {
+    case CKO_PUBLIC_KEY:
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PUB_KEY);
+        if (!p) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_PUB_KEY);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        if (p->data_size == X25519_BYTE_SIZE) {
+            ecparams = x25519_oid;
+            ecplen = sizeof(x25519_oid);
+            bit_size = X25519_BIT_SIZE;
+            key_size = X25519_BYTE_SIZE;
+        } else if (p->data_size == X448_BYTE_SIZE) {
+            ecparams = x448_oid;
+            ecplen = sizeof(x448_oid);
+            bit_size = X448_BIT_SIZE;
+            key_size = X448_BYTE_SIZE;
+        } else {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE,
+                          "Public key of unknown length %lu", p->data_size);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        rv = p11prov_kmgmt_params_to_attr(ctx, attrs, &numattrs, params,
+                                          OSSL_PKEY_PARAM_PUB_KEY,
+                                          CKA_P11PROV_PUB_KEY, false);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        break;
+
+    case CKO_PRIVATE_KEY:
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+        if (!p) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_PRIV_KEY);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        if (p->data_size == X25519_BYTE_SIZE) {
+            name = "X25519";
+            ecparams = x25519_oid;
+            ecplen = sizeof(x25519_oid);
+            bit_size = X25519_BIT_SIZE;
+            key_size = X25519_BYTE_SIZE;
+        } else if (p->data_size == X448_BYTE_SIZE) {
+            name = "X448";
+            ecparams = x448_oid;
+            ecplen = sizeof(x448_oid);
+            bit_size = X448_BIT_SIZE;
+            key_size = X448_BYTE_SIZE;
+        } else {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE,
+                          "Private key of unknown length %lu", p->data_size);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        rv = p11prov_kmgmt_privkey_to_id(ctx, attrs, &numattrs, (uint8_t *)name,
+                                         strlen(name), (uint8_t *)ecparams,
+                                         ecplen, p->data, p->data_size);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        break;
+
+    default:
+        return CKR_GENERAL_ERROR;
+    }
+
+    /* common params */
+    rv = p11prov_kmgmt_param_data_to_attr(attrs, &numattrs, CKA_EC_PARAMS,
+                                          ecparams, ecplen, false);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    p11prov_obj_set_key_bits(obj, bit_size, key_size);
+    *out_numattrs = numattrs;
+    rv = CKR_OK;
+
+done:
+    if (rv != CKR_OK) {
+        for (int i = 0; i < numattrs; i++) {
+            OPENSSL_free(attrs[i].pValue);
+            attrs[i].pValue = NULL;
+        }
+        *out_numattrs = 0;
+    }
+    return rv;
+}
+
 static void *p11prov_x25519_new(void *provctx)
 {
     P11PROV_OBJ *key;
@@ -1210,6 +1604,7 @@ static void *p11prov_x25519_new(void *provctx)
     p11prov_obj_set_key_bits(key, X25519_BIT_SIZE, X25519_BYTE_SIZE);
     p11prov_obj_set_get_template(key, p11prov_ec_get_template);
     p11prov_obj_set_free_template(key, p11prov_ec_free_template);
+    p11prov_obj_set_get_find_attrs(key, p11prov_ecx_get_find_attrs);
 
     return key;
 }
@@ -1230,6 +1625,7 @@ static void *p11prov_x448_new(void *provctx)
     p11prov_obj_set_key_bits(key, X448_BIT_SIZE, X448_BYTE_SIZE);
     p11prov_obj_set_get_template(key, p11prov_ec_get_template);
     p11prov_obj_set_free_template(key, p11prov_ec_free_template);
+    p11prov_obj_set_get_find_attrs(key, p11prov_ecx_get_find_attrs);
 
     return key;
 }
@@ -1333,6 +1729,8 @@ static int p11prov_ecx_match(const void *keydata1, const void *keydata2,
 static int p11prov_ecx_import(void *keydata, int selection,
                               const OSSL_PARAM params[])
 {
+    p11prov_obj_set_get_find_attrs((P11PROV_OBJ *)keydata,
+                                   p11prov_ecx_get_find_attrs);
     return p11prov_kmgmt_import(CKK_EC_MONTGOMERY, CK_UNAVAILABLE_INFORMATION,
                                 OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
                                 params);

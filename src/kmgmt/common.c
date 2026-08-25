@@ -2,6 +2,7 @@
    SPDX-License-Identifier: Apache-2.0 */
 
 #include "provider.h"
+#include "platform/endian.h"
 #include "kmgmt/internal.h"
 #include "openssl/rand.h"
 
@@ -339,6 +340,78 @@ int p11prov_kmgmt_get_params(void *keydata, OSSL_PARAM params[])
     }
 
     return RET_OSSL_OK;
+}
+
+CK_RV p11prov_kmgmt_param_data_to_attr(
+    CK_ATTRIBUTE attrs[static MAX_FIND_ATTRS_SIZE], int *numattrs,
+    CK_ATTRIBUTE_TYPE type, const uint8_t *data, size_t size, bool byteswap)
+{
+    CK_ATTRIBUTE *dst;
+    CK_ATTRIBUTE tmp;
+    CK_RV rv;
+
+    if (*numattrs >= MAX_FIND_ATTRS_SIZE) {
+        return CKR_GENERAL_ERROR;
+    }
+    dst = &attrs[*numattrs];
+
+    tmp.type = type;
+    tmp.pValue = (void *)data;
+    tmp.ulValueLen = size;
+    rv = p11prov_copy_attr(dst, &tmp);
+    if (rv == CKR_OK) {
+        if (byteswap) {
+            byteswap_buf(dst->pValue, dst->pValue, dst->ulValueLen);
+        }
+        (*numattrs)++;
+    }
+    return rv;
+}
+
+CK_RV p11prov_kmgmt_params_to_attr(
+    P11PROV_CTX *ctx, CK_ATTRIBUTE attrs[static MAX_FIND_ATTRS_SIZE],
+    int *numattrs, const OSSL_PARAM params[], const char *name,
+    CK_ATTRIBUTE_TYPE type, bool byteswap)
+{
+    const OSSL_PARAM *p;
+    CK_RV rv;
+
+    p = OSSL_PARAM_locate_const(params, name);
+    if (p) {
+        rv = p11prov_kmgmt_param_data_to_attr(attrs, numattrs, type, p->data,
+                                              p->data_size, byteswap);
+        if (rv != CKR_OK) {
+            P11PROV_raise(ctx, rv, "param_data_to_attr failed for %s", name);
+        }
+    } else {
+        rv = CKR_KEY_INDIGESTIBLE;
+        P11PROV_raise(ctx, rv, "Missing param: %s", name);
+    }
+
+    return rv;
+}
+
+CK_RV p11prov_kmgmt_privkey_to_id(
+    P11PROV_CTX *ctx, CK_ATTRIBUTE attrs[static MAX_FIND_ATTRS_SIZE],
+    int *numattrs, const uint8_t *data0, size_t len0, const uint8_t *data1,
+    size_t len1, const uint8_t *data2, size_t len2)
+{
+    data_buffer data[5] = {
+        { .data = (uint8_t *)"PrivKey", .length = 7 },
+        { .data = (uint8_t *)data0, .length = len0 },
+        { .data = (uint8_t *)data1, .length = len1 },
+        { .data = (uint8_t *)data2, .length = len2 },
+        { .data = NULL, .length = 0 },
+    };
+    data_buffer digest = { 0 };
+    CK_RV rv;
+
+    rv = p11prov_digest_util(ctx, "sha256", NULL, data, &digest);
+    if (rv == CKR_OK) {
+        rv = p11prov_kmgmt_param_data_to_attr(
+            attrs, numattrs, CKA_ID, digest.data, digest.length, false);
+    }
+    return rv;
 }
 
 void p11prov_kmgmt_gen_cleanup(struct key_generator *ctx)

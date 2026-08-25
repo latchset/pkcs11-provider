@@ -14,6 +14,12 @@
 /* Special value for public key created from a private one */
 #define CKO_P11PROV_PUB_FROM_PRIV_KEY CKA_P11PROV_BASE + 2
 
+#define CKA_P11PROV_CURVE_NAME CKA_P11PROV_BASE + 1
+#define CKA_P11PROV_CURVE_NID CKA_P11PROV_BASE + 2
+#define CKA_P11PROV_PUB_KEY CKA_P11PROV_BASE + 3
+#define CKA_P11PROV_PUB_KEY_X CKA_P11PROV_BASE + 4
+#define CKA_P11PROV_PUB_KEY_Y CKA_P11PROV_BASE + 5
+
 /* Objects */
 CK_RV p11prov_obj_pool_init(P11PROV_CTX *ctx, CK_SLOT_ID id,
                             P11PROV_OBJ_POOL **_pool);
@@ -48,6 +54,16 @@ void p11prov_obj_free_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
                                CK_ATTRIBUTE *template, int tmpl_cnt);
 void p11prov_obj_set_free_template(P11PROV_OBJ *obj,
                                    p11prov_obj_free_template_fn free_template);
+#define MAX_FIND_ATTRS_SIZE 4
+typedef CK_RV (*p11prov_obj_get_find_attrs_fn)(
+    P11PROV_OBJ *obj, CK_OBJECT_CLASS class, const OSSL_PARAM *params,
+    CK_ATTRIBUTE attrs[static MAX_FIND_ATTRS_SIZE], int *numattrs);
+CK_RV p11prov_obj_get_find_attrs(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
+                                 const OSSL_PARAM *params,
+                                 CK_ATTRIBUTE attrs[static MAX_FIND_ATTRS_SIZE],
+                                 int *numattrs);
+void p11prov_obj_set_get_find_attrs(
+    P11PROV_OBJ *obj, p11prov_obj_get_find_attrs_fn get_find_attrs);
 CK_RV p11prov_obj_add_attr(P11PROV_OBJ *obj, CK_ATTRIBUTE *attr);
 bool p11prov_obj_get_bool(P11PROV_OBJ *obj, CK_ATTRIBUTE_TYPE type, bool def);
 CK_KEY_TYPE p11prov_obj_get_key_type(P11PROV_OBJ *obj);

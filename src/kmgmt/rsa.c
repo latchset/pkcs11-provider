@@ -208,6 +208,93 @@ static int p11prov_rsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
     }
 }
 
+static CK_RV p11prov_rsa_get_find_attrs(
+    P11PROV_OBJ *obj, CK_OBJECT_CLASS class, const OSSL_PARAM *params,
+    CK_ATTRIBUTE attrs[static MAX_FIND_ATTRS_SIZE], int *out_numattrs)
+{
+    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(obj);
+    const OSSL_PARAM *N, *E, *D;
+    size_t key_size;
+    int numattrs = 0;
+    CK_RV rv;
+
+    if (!obj || !params || !out_numattrs
+        || p11prov_obj_get_key_type(obj) != CKK_RSA) {
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    switch (class) {
+    case CKO_PUBLIC_KEY:
+        rv = p11prov_kmgmt_params_to_attr(ctx, attrs, &numattrs, params,
+                                          OSSL_PKEY_PARAM_RSA_N, CKA_MODULUS,
+                                          true);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        key_size = attrs[numattrs - 1].ulValueLen;
+
+        rv = p11prov_kmgmt_params_to_attr(ctx, attrs, &numattrs, params,
+                                          OSSL_PKEY_PARAM_RSA_E,
+                                          CKA_PUBLIC_EXPONENT, true);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        break;
+
+    case CKO_PRIVATE_KEY:
+        N = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_N);
+        E = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_E);
+        D = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_D);
+        if (!N || !E || !D) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing parameters");
+            rv = CKR_KEY_INDIGESTIBLE;
+            goto done;
+        }
+
+        rv = p11prov_kmgmt_privkey_to_id(ctx, attrs, &numattrs, N->data,
+                                         N->data_size, E->data, E->data_size,
+                                         D->data, D->data_size);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+
+        rv = p11prov_kmgmt_params_to_attr(ctx, attrs, &numattrs, params,
+                                          OSSL_PKEY_PARAM_RSA_N, CKA_MODULUS,
+                                          true);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+
+        rv = p11prov_kmgmt_params_to_attr(ctx, attrs, &numattrs, params,
+                                          OSSL_PKEY_PARAM_RSA_E,
+                                          CKA_PUBLIC_EXPONENT, true);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+
+        key_size = N->data_size;
+        break;
+
+    default:
+        rv = CKR_GENERAL_ERROR;
+        goto done;
+    }
+
+    p11prov_obj_set_key_bits(obj, key_size * 8, key_size);
+    *out_numattrs = numattrs;
+    rv = CKR_OK;
+
+done:
+    if (rv != CKR_OK) {
+        for (int i = 0; i < numattrs; i++) {
+            OPENSSL_free(attrs[i].pValue);
+            attrs[i].pValue = NULL;
+        }
+        *out_numattrs = 0;
+    }
+    return rv;
+}
+
 static void *p11prov_rsa_new(void *provctx)
 {
     P11PROV_OBJ *key;
@@ -217,6 +304,7 @@ static void *p11prov_rsa_new(void *provctx)
     if (key) {
         p11prov_obj_set_get_template(key, p11prov_rsa_get_template);
         p11prov_obj_set_free_template(key, p11prov_rsa_free_template);
+        p11prov_obj_set_get_find_attrs(key, p11prov_rsa_get_find_attrs);
     }
     return key;
 }
@@ -431,6 +519,8 @@ static int p11prov_rsa_match(const void *keydata1, const void *keydata2,
 static int p11prov_rsa_import(void *keydata, int selection,
                               const OSSL_PARAM params[])
 {
+    p11prov_obj_set_get_find_attrs((P11PROV_OBJ *)keydata,
+                                   p11prov_rsa_get_find_attrs);
     return p11prov_kmgmt_import(CKK_RSA, CK_UNAVAILABLE_INFORMATION,
                                 OSSL_PKEY_PARAM_RSA_D, keydata, selection,
                                 params);

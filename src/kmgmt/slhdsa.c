@@ -158,6 +158,122 @@ static int p11prov_slhdsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
     }
 }
 
+static CK_RV p11prov_slhdsa_get_find_attrs(
+    P11PROV_OBJ *obj, CK_OBJECT_CLASS class, const OSSL_PARAM *params,
+    CK_ATTRIBUTE attrs[static MAX_FIND_ATTRS_SIZE], int *out_numattrs)
+{
+    P11PROV_CTX *ctx = p11prov_obj_get_prov_ctx(obj);
+    CK_ULONG param_set = p11prov_obj_get_key_param_set(obj);
+    const OSSL_PARAM *p;
+    int numattrs = 0;
+    CK_ULONG key_size;
+    CK_RV rv;
+
+    if (!obj || !params || !out_numattrs
+        || p11prov_obj_get_key_type(obj) != CKK_SLH_DSA) {
+        return CKR_ARGUMENTS_BAD;
+    }
+
+    switch (param_set) {
+    case CKP_SLH_DSA_SHA2_128S:
+        key_size = SLH_DSA_SHA2_128S_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHA2_128F:
+        key_size = SLH_DSA_SHA2_128F_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHA2_192S:
+        key_size = SLH_DSA_SHA2_192S_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHA2_192F:
+        key_size = SLH_DSA_SHA2_192F_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHA2_256S:
+        key_size = SLH_DSA_SHA2_256S_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHA2_256F:
+        key_size = SLH_DSA_SHA2_256F_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHAKE_128S:
+        key_size = SLH_DSA_SHAKE_128S_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHAKE_128F:
+        key_size = SLH_DSA_SHAKE_128F_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHAKE_192S:
+        key_size = SLH_DSA_SHAKE_192S_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHAKE_192F:
+        key_size = SLH_DSA_SHAKE_192F_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHAKE_256S:
+        key_size = SLH_DSA_SHAKE_256S_PK_SIZE;
+        break;
+    case CKP_SLH_DSA_SHAKE_256F:
+        key_size = SLH_DSA_SHAKE_256F_PK_SIZE;
+        break;
+    default:
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    switch (class) {
+    case CKO_PUBLIC_KEY:
+        rv = p11prov_kmgmt_params_to_attr(ctx, attrs, &numattrs, params,
+                                          OSSL_PKEY_PARAM_PUB_KEY, CKA_VALUE,
+                                          false);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        if (key_size != attrs[numattrs - 1].ulValueLen) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE,
+                          "Unexpected public key size %lu (expected %lu)",
+                          attrs[0].ulValueLen, key_size);
+            rv = CKR_KEY_INDIGESTIBLE;
+            goto done;
+        }
+        break;
+    case CKO_PRIVATE_KEY:
+        p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+        if (!p) {
+            P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s",
+                          OSSL_PKEY_PARAM_PRIV_KEY);
+            return CKR_KEY_INDIGESTIBLE;
+        }
+
+        rv = p11prov_kmgmt_privkey_to_id(
+            ctx, attrs, &numattrs, (const uint8_t *)"SLH-DSA", 7,
+            (const uint8_t *)&param_set, sizeof(param_set), p->data,
+            p->data_size);
+        if (rv != CKR_OK) {
+            goto done;
+        }
+        break;
+    default:
+        return CKR_GENERAL_ERROR;
+    }
+
+    /* common params */
+    rv = p11prov_kmgmt_param_data_to_attr(attrs, &numattrs, CKA_PARAMETER_SET,
+                                          (uint8_t *)&param_set,
+                                          sizeof(param_set), false);
+    if (rv != CKR_OK) {
+        goto done;
+    }
+
+    p11prov_obj_set_key_bits(obj, key_size * 8, key_size);
+    *out_numattrs = numattrs;
+    rv = CKR_OK;
+
+done:
+    if (rv != CKR_OK) {
+        for (int i = 0; i < numattrs; i++) {
+            OPENSSL_free(attrs[i].pValue);
+            attrs[i].pValue = NULL;
+        }
+        *out_numattrs = 0;
+    }
+    return rv;
+}
+
 static void *p11prov_slhdsa_new_int(void *provctx,
                                     CK_SLH_DSA_PARAMETER_SET_TYPE param_set)
 {
@@ -168,6 +284,7 @@ static void *p11prov_slhdsa_new_int(void *provctx,
     if (key) {
         p11prov_obj_set_key_params(key, param_set);
         p11prov_obj_set_get_template(key, p11prov_slhdsa_get_template);
+        p11prov_obj_set_get_find_attrs(key, p11prov_slhdsa_get_find_attrs);
     }
     return key;
 }
@@ -304,6 +421,8 @@ static int p11prov_slhdsa_match(const void *keydata1, const void *keydata2,
 static int p11prov_slhdsa_import(void *keydata, int selection,
                                  const OSSL_PARAM params[])
 {
+    p11prov_obj_set_get_find_attrs((P11PROV_OBJ *)keydata,
+                                   p11prov_slhdsa_get_find_attrs);
     return p11prov_kmgmt_import(CKK_SLH_DSA, CK_UNAVAILABLE_INFORMATION,
                                 OSSL_PKEY_PARAM_PRIV_KEY, keydata, selection,
                                 params);
