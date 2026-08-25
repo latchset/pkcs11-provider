@@ -1093,38 +1093,13 @@ done:
 
 static CK_RV p11prov_store_rsa_public_key(P11PROV_OBJ *key)
 {
-    CK_BBOOL val_true = CK_TRUE;
-    CK_BBOOL val_false = CK_FALSE;
-    CK_ATTRIBUTE template[] = {
-        { CKA_CLASS, &key->class, sizeof(CK_OBJECT_CLASS) },
-        { CKA_KEY_TYPE, &key->data.key.type, sizeof(CK_KEY_TYPE) },
-        /* we allow all operations as we do not know what is
-         * the purpose of this key at import time */
-        { CKA_ENCRYPT, &val_true, sizeof(val_true) },
-        { CKA_VERIFY, &val_true, sizeof(val_true) },
-        { CKA_WRAP, &val_true, sizeof(val_true) },
-        /* public key part */
-        { CKA_MODULUS, NULL, 0 }, /* 5 */
-        { CKA_PUBLIC_EXPONENT, NULL, 0 }, /* 6 */
-        /* TODO RSA PSS Params */
-        { CKA_TOKEN, &val_false, sizeof(val_false) },
-    };
-    int tmpl_cnt = sizeof(template) / sizeof(CK_ATTRIBUTE);
-    CK_ATTRIBUTE *a;
+    CK_ATTRIBUTE template[8];
+    int tmpl_cnt;
 
-    a = p11prov_obj_get_attr(key, CKA_MODULUS);
-    if (!a) {
+    tmpl_cnt = p11prov_obj_get_template(key, key->class, template);
+    if (tmpl_cnt <= 0) {
         return CKR_GENERAL_ERROR;
     }
-    template[5].pValue = a->pValue;
-    template[5].ulValueLen = a->ulValueLen;
-
-    a = p11prov_obj_get_attr(key, CKA_PUBLIC_EXPONENT);
-    if (!a) {
-        return CKR_GENERAL_ERROR;
-    }
-    template[6].pValue = a->pValue;
-    template[6].ulValueLen = a->ulValueLen;
 
     return store_key(key, NULL, template, tmpl_cnt);
 }
@@ -1435,34 +1410,6 @@ static CK_RV p11prov_store_rsa_private_key(P11PROV_OBJ *key,
                                            struct pool_find_ctx *findctx,
                                            const OSSL_PARAM params[])
 {
-    CK_BBOOL val_true = CK_TRUE;
-    CK_BBOOL val_false = CK_FALSE;
-    CK_ATTRIBUTE template[] = {
-        { CKA_CLASS, &findctx->class, sizeof(CK_OBJECT_CLASS) },
-        { CKA_KEY_TYPE, &findctx->type, sizeof(CK_KEY_TYPE) },
-        { CKA_ID, findctx->attrs[0].pValue,
-          findctx->attrs[0].ulValueLen }, /* 2 */
-        { CKA_SENSITIVE, &val_true, sizeof(val_true) },
-        { CKA_EXTRACTABLE, &val_false, sizeof(val_false) },
-        { CKA_TOKEN, &val_false, sizeof(val_false) },
-        /* we allow all operations as we do not know what is
-         * the purpose of this key at import time */
-        { CKA_DECRYPT, &val_true, sizeof(val_true) },
-        { CKA_SIGN, &val_true, sizeof(val_true) },
-        { CKA_UNWRAP, &val_true, sizeof(val_true) },
-        /* public key part */
-        { CKA_MODULUS, NULL, 0 }, /* 9 */
-        { CKA_PUBLIC_EXPONENT, NULL, 0 }, /* 10 */
-        /* private key part */
-        { CKA_PRIVATE_EXPONENT, NULL, 0 },
-        { CKA_PRIME_1, NULL, 0 }, /* optional from here */
-        { CKA_PRIME_2, NULL, 0 },
-        { CKA_EXPONENT_1, NULL, 0 },
-        { CKA_EXPONENT_2, NULL, 0 },
-        { CKA_COEFFICIENT, NULL, 0 },
-        /* TODO RSA PSS Params */
-    };
-    int tmpl_cnt = 9; /* minimum will be 12, up to 17 */
     const char *required[] = {
         OSSL_PKEY_PARAM_RSA_N,
         OSSL_PKEY_PARAM_RSA_E,
@@ -1473,12 +1420,47 @@ static CK_RV p11prov_store_rsa_private_key(P11PROV_OBJ *key,
         OSSL_PKEY_PARAM_RSA_EXPONENT1,    OSSL_PKEY_PARAM_RSA_EXPONENT2,
         OSSL_PKEY_PARAM_RSA_COEFFICIENT1,
     };
+    const CK_ATTRIBUTE_TYPE req_types[] = {
+        CKA_MODULUS,
+        CKA_PUBLIC_EXPONENT,
+        CKA_PRIVATE_EXPONENT,
+    };
+    const CK_ATTRIBUTE_TYPE opt_types[] = {
+        CKA_PRIME_1,    CKA_PRIME_2,     CKA_EXPONENT_1,
+        CKA_EXPONENT_2, CKA_COEFFICIENT,
+    };
+    CK_ATTRIBUTE template[17];
+    int tmpl_cnt;
+    int base_cnt;
     const OSSL_PARAM *p;
     CK_RV rv = CKR_GENERAL_ERROR;
+
+    key->data.key.size = findctx->key_size;
+    key->data.key.bit_size = findctx->bit_size;
+    key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * 3);
+    if (!key->attrs) {
+        rv = CKR_HOST_MEMORY;
+        goto done;
+    }
+
+    tmpl_cnt = p11prov_obj_get_template(key, findctx->class, template);
+    if (tmpl_cnt <= 0) {
+        return CKR_GENERAL_ERROR;
+    }
+    base_cnt = tmpl_cnt;
+
+    for (int i = 0; i < tmpl_cnt; i++) {
+        if (template[i].type == CKA_ID) {
+            template[i].pValue = findctx->attrs[0].pValue;
+            template[i].ulValueLen = findctx->attrs[0].ulValueLen;
+            break;
+        }
+    }
 
     /* required params */
     for (int i = 0; i < 3; i++) {
         p = OSSL_PARAM_locate_const(params, required[i]);
+        template[tmpl_cnt].type = req_types[i];
         rv = get_bn(p, &template[tmpl_cnt]);
         if (rv != CKR_OK) {
             goto done;
@@ -1490,6 +1472,7 @@ static CK_RV p11prov_store_rsa_private_key(P11PROV_OBJ *key,
     for (int i = 0; i < 5; i++) {
         p = OSSL_PARAM_locate_const(params, optional[i]);
         if (p) {
+            template[tmpl_cnt].type = opt_types[i];
             rv = get_bn(p, &template[tmpl_cnt]);
             if (rv == CKR_OK) {
                 tmpl_cnt++;
@@ -1511,33 +1494,26 @@ static CK_RV p11prov_store_rsa_private_key(P11PROV_OBJ *key,
         goto done;
     }
 
-    key->data.key.size = findctx->key_size;
-    key->data.key.bit_size = findctx->bit_size;
-    key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE) * 3);
-    if (!key->attrs) {
-        rv = CKR_HOST_MEMORY;
-        goto done;
-    }
     key->numattrs = 0;
     /* cka_id */
-    rv = p11prov_copy_attr(&key->attrs[key->numattrs], &template[2]);
+    rv = p11prov_copy_attr(&key->attrs[key->numattrs], &findctx->attrs[0]);
     if (rv != CKR_OK) {
         goto done;
     }
     key->numattrs += 1;
-    /* steal modulus */
-    key->attrs[key->numattrs] = template[9];
-    template[9].pValue = NULL;
+    /* steal modulus (at base_cnt) */
+    key->attrs[key->numattrs] = template[base_cnt];
+    template[base_cnt].pValue = NULL;
     key->numattrs += 1;
-    /* steal public exponent */
-    key->attrs[key->numattrs] = template[10];
-    template[10].pValue = NULL;
+    /* steal public exponent (at base_cnt + 1) */
+    key->attrs[key->numattrs] = template[base_cnt + 1];
+    template[base_cnt + 1].pValue = NULL;
     key->numattrs += 1;
 
     rv = CKR_OK;
 
 done:
-    for (int i = 9; i < tmpl_cnt; i++) {
+    for (int i = base_cnt; i < tmpl_cnt; i++) {
         OPENSSL_clear_free(template[i].pValue, template[i].ulValueLen);
     }
     return rv;
