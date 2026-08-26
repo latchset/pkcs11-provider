@@ -286,9 +286,6 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
     case CKO_PUBLIC_KEY:
     case CKO_PRIVATE_KEY:
     case CKO_SECRET_KEY:
-        obj->get_template = tmp->get_template;
-        obj->free_template = tmp->free_template;
-        obj->get_find_attrs = tmp->get_find_attrs;
         obj->data.key = tmp->data.key;
         break;
     default:
