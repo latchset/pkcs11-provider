@@ -133,7 +133,7 @@ static int p11prov_ec_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
     CK_KEY_TYPE type;
     const OSSL_PARAM *p;
     CK_ATTRIBUTE *a;
-    int cnt;
+    int cnt = 0;
     CK_RV rv;
 
     if (!obj || p11prov_obj_get_class(obj) != class) {
@@ -166,54 +166,63 @@ static int p11prov_ec_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
         }
     }
 
-    template[0].type = CKA_KEY_TYPE;
-    template[0].pValue = DISCARD_CONST(ktype);
-    template[0].ulValueLen = sizeof(CK_KEY_TYPE);
+    template[cnt].type = CKA_KEY_TYPE;
+    template[cnt].pValue = DISCARD_CONST(ktype);
+    template[cnt].ulValueLen = sizeof(CK_KEY_TYPE);
+    cnt++;
 
-    template[1].type = CKA_TOKEN;
-    template[1].pValue = DISCARD_CONST(&val_false);
-    template[1].ulValueLen = sizeof(CK_BBOOL);
+    template[cnt].type = CKA_TOKEN;
+    template[cnt].pValue = DISCARD_CONST(&val_false);
+    template[cnt].ulValueLen = sizeof(CK_BBOOL);
+    cnt++;
 
     a = p11prov_obj_get_attr(obj, CKA_EC_PARAMS);
     if (!a) {
         return -1;
     }
-    template[2] = *a;
+    template[cnt] = *a;
+    cnt++;
 
     switch (class) {
     case CKO_PUBLIC_KEY:
-        template[3].type = CKA_CLASS;
-        template[3].pValue = DISCARD_CONST(&pub_class);
-        template[3].ulValueLen = sizeof(CK_OBJECT_CLASS);
+        template[cnt].type = CKA_CLASS;
+        template[cnt].pValue = DISCARD_CONST(&pub_class);
+        template[cnt].ulValueLen = sizeof(CK_OBJECT_CLASS);
+        cnt++;
 
         a = p11prov_obj_get_attr(obj, CKA_EC_POINT);
         if (!a) {
             return -1;
         }
-        template[4] = *a;
+        template[cnt] = *a;
+        cnt++;
 
         switch (type) {
         case CKK_EC:
-            template[5].type = CKA_DERIVE;
-            template[5].pValue = DISCARD_CONST(&val_true);
-            template[5].ulValueLen = sizeof(CK_BBOOL);
+            template[cnt].type = CKA_DERIVE;
+            template[cnt].pValue = DISCARD_CONST(&val_true);
+            template[cnt].ulValueLen = sizeof(CK_BBOOL);
+            cnt++;
 
-            template[6].type = CKA_VERIFY;
-            template[6].pValue = DISCARD_CONST(&val_true);
-            template[6].ulValueLen = sizeof(CK_BBOOL);
-            return 7;
+            template[cnt].type = CKA_VERIFY;
+            template[cnt].pValue = DISCARD_CONST(&val_true);
+            template[cnt].ulValueLen = sizeof(CK_BBOOL);
+            cnt++;
+            return cnt;
 
         case CKK_EC_EDWARDS:
-            template[5].type = CKA_VERIFY;
-            template[5].pValue = DISCARD_CONST(&val_true);
-            template[5].ulValueLen = sizeof(CK_BBOOL);
-            return 6;
+            template[cnt].type = CKA_VERIFY;
+            template[cnt].pValue = DISCARD_CONST(&val_true);
+            template[cnt].ulValueLen = sizeof(CK_BBOOL);
+            cnt++;
+            return cnt;
 
         case CKK_EC_MONTGOMERY:
-            template[5].type = CKA_DERIVE;
-            template[5].pValue = DISCARD_CONST(&val_true);
-            template[5].ulValueLen = sizeof(CK_BBOOL);
-            return 6;
+            template[cnt].type = CKA_DERIVE;
+            template[cnt].pValue = DISCARD_CONST(&val_true);
+            template[cnt].ulValueLen = sizeof(CK_BBOOL);
+            cnt++;
+            return cnt;
 
         default:
             return -1;
@@ -224,50 +233,56 @@ static int p11prov_ec_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
             return -1;
         }
 
-        template[3].type = CKA_CLASS;
-        template[3].pValue = DISCARD_CONST(&priv_class);
-        template[3].ulValueLen = sizeof(CK_OBJECT_CLASS);
+        template[cnt].type = CKA_CLASS;
+        template[cnt].pValue = DISCARD_CONST(&priv_class);
+        template[cnt].ulValueLen = sizeof(CK_OBJECT_CLASS);
+        cnt++;
 
-        template[4].type = CKA_ID;
-        template[4].pValue = NULL;
-        template[4].ulValueLen = 0;
+        template[cnt].type = CKA_SENSITIVE;
+        template[cnt].pValue = DISCARD_CONST(&val_true);
+        template[cnt].ulValueLen = sizeof(CK_BBOOL);
+        cnt++;
 
-        template[5].type = CKA_SENSITIVE;
-        template[5].pValue = DISCARD_CONST(&val_true);
-        template[5].ulValueLen = sizeof(CK_BBOOL);
-
-        template[6].type = CKA_EXTRACTABLE;
-        template[6].pValue = DISCARD_CONST(&val_false);
-        template[6].ulValueLen = sizeof(CK_BBOOL);
+        template[cnt].type = CKA_EXTRACTABLE;
+        template[cnt].pValue = DISCARD_CONST(&val_false);
+        template[cnt].ulValueLen = sizeof(CK_BBOOL);
+        cnt++;
 
         switch (type) {
         case CKK_EC:
-            template[7].type = CKA_DERIVE;
-            template[7].pValue = DISCARD_CONST(&val_true);
-            template[7].ulValueLen = sizeof(CK_BBOOL);
+            template[cnt].type = CKA_DERIVE;
+            template[cnt].pValue = DISCARD_CONST(&val_true);
+            template[cnt].ulValueLen = sizeof(CK_BBOOL);
+            cnt++;
 
-            template[8].type = CKA_SIGN;
-            template[8].pValue = DISCARD_CONST(&val_true);
-            template[8].ulValueLen = sizeof(CK_BBOOL);
-            cnt = 9;
+            template[cnt].type = CKA_SIGN;
+            template[cnt].pValue = DISCARD_CONST(&val_true);
+            template[cnt].ulValueLen = sizeof(CK_BBOOL);
+            cnt++;
             break;
 
         case CKK_EC_EDWARDS:
-            template[7].type = CKA_SIGN;
-            template[7].pValue = DISCARD_CONST(&val_true);
-            template[7].ulValueLen = sizeof(CK_BBOOL);
-            cnt = 8;
+            template[cnt].type = CKA_SIGN;
+            template[cnt].pValue = DISCARD_CONST(&val_true);
+            template[cnt].ulValueLen = sizeof(CK_BBOOL);
+            cnt++;
             break;
 
         case CKK_EC_MONTGOMERY:
-            template[7].type = CKA_DERIVE;
-            template[7].pValue = DISCARD_CONST(&val_true);
-            template[7].ulValueLen = sizeof(CK_BBOOL);
-            cnt = 8;
+            template[cnt].type = CKA_DERIVE;
+            template[cnt].pValue = DISCARD_CONST(&val_true);
+            template[cnt].ulValueLen = sizeof(CK_BBOOL);
+            cnt++;
             break;
 
         default:
             return -1;
+        }
+
+        a = p11prov_obj_get_attr(obj, CKA_ID);
+        if (a) {
+            template[cnt] = *a;
+            cnt++;
         }
 
         p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
