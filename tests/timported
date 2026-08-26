@@ -48,11 +48,17 @@ if [[ "${SUPPORT_X25519}" = "1" ]]; then
     ossl 'genpkey -algorithm X25519 -out ${TMPPDIR}/file.x25519.key.pem'
     ossl 'pkey -in ${TMPPDIR}/file.x25519.key.pem
                -pubout -out ${TMPPDIR}/file.x25519.pub.key.pem'
+    ossl 'genpkey -algorithm X25519 -out ${TMPPDIR}/peer.x25519.key.pem'
+    ossl 'pkey -in ${TMPPDIR}/peer.x25519.key.pem
+               -pubout -out ${TMPPDIR}/peer.x25519.pub.key.pem'
 fi
 if [[ "${SUPPORT_X448}" = "1" ]]; then
     ossl 'genpkey -algorithm X448 -out ${TMPPDIR}/file.x448.key.pem'
     ossl 'pkey -in ${TMPPDIR}/file.x448.key.pem
                -pubout -out ${TMPPDIR}/file.x448.pub.key.pem'
+    ossl 'genpkey -algorithm X448 -out ${TMPPDIR}/peer.x448.key.pem'
+    ossl 'pkey -in ${TMPPDIR}/peer.x448.key.pem
+               -pubout -out ${TMPPDIR}/peer.x448.pub.key.pem'
 fi
 if [[ "${SUPPORT_ML_DSA}" = "1" ]]; then
     ossl 'genpkey -algorithm ML-DSA-65 -out ${TMPPDIR}/file.ml-dsa.key.pem'
@@ -63,6 +69,11 @@ if [[ "${SUPPORT_ML_KEM}" = "1" ]]; then
     ossl 'genpkey -algorithm ML-KEM-1024 -out ${TMPPDIR}/file.ml-kem.key.pem'
     ossl 'pkey -in ${TMPPDIR}/file.ml-kem.key.pem
                -pubout -out ${TMPPDIR}/file.ml-kem.pub.key.pem'
+fi
+if [[ "${SUPPORT_SLH_DSA}" = "1" ]]; then
+    ossl 'genpkey -algorithm SLH-DSA-SHAKE-128s -out ${TMPPDIR}/file.slh-dsa.key.pem'
+    ossl 'pkey -in ${TMPPDIR}/file.slh-dsa.key.pem
+               -pubout -out ${TMPPDIR}/file.slh-dsa.pub.key.pem'
 fi
 
 
@@ -134,6 +145,19 @@ if [[ "${SUPPORT_ML_DSA}" = "1" ]]; then
                   -sigfile ${TMPPDIR}/file.ml-dsa.sig.bin
                   -in ${TMPPDIR}/sha256.bin'
 fi
+if [[ "${SUPPORT_SLH_DSA}" = "1" ]]; then
+    title LINE "Test Signing with private SLH-DSA key imported from file"
+    ossl 'pkeyutl -sign -rawin
+                  -inkey ${TMPPDIR}/file.slh-dsa.key.pem
+                  -in ${TMPPDIR}/sha256.bin
+                  -out ${TMPPDIR}/file.slh-dsa.sig.bin'
+
+    title LINE "Test Verifying with public SLH-DSA key imported from file"
+    ossl 'pkeyutl -verify -rawin -pubin
+                  -inkey ${TMPPDIR}/file.slh-dsa.pub.key.pem
+                  -sigfile ${TMPPDIR}/file.slh-dsa.sig.bin
+                  -in ${TMPPDIR}/sha256.bin'
+fi
 
 ## KEM
 
@@ -182,6 +206,37 @@ fi
 #                   -secret ${TMPPDIR}/file.x448.secret2'
 #     diff "${TMPPDIR}/file.x448.secret"{1,2}
 # fi
+
+## ECDH
+
+if [[ "${SUPPORT_X25519}" = "1" ]]; then
+    title LINE "Test ECDH derive with private X25519 key imported from file"
+    ossl 'pkeyutl -derive
+                  -inkey ${TMPPDIR}/file.x25519.key.pem
+                  -peerkey ${TMPPDIR}/peer.x25519.pub.key.pem
+                  -out ${TMPPDIR}/file.x25519.secret1'
+
+    title LINE "Test ECDH derive with peer private X25519 key imported from file"
+    ossl 'pkeyutl -derive
+                  -inkey ${TMPPDIR}/peer.x25519.key.pem
+                  -peerkey ${TMPPDIR}/file.x25519.pub.key.pem
+                  -out ${TMPPDIR}/file.x25519.secret2'
+    diff "${TMPPDIR}/file.x25519.secret"{1,2}
+fi
+if [[ "${SUPPORT_X448}" = "1" ]]; then
+    title LINE "Test ECDH derive with private X448 key imported from file"
+    ossl 'pkeyutl -derive
+                  -inkey ${TMPPDIR}/file.x448.key.pem
+                  -peerkey ${TMPPDIR}/peer.x448.pub.key.pem
+                  -out ${TMPPDIR}/file.x448.secret1'
+
+    title LINE "Test ECDH derive with peer private X448 key imported from file"
+    ossl 'pkeyutl -derive
+                  -inkey ${TMPPDIR}/peer.x448.key.pem
+                  -peerkey ${TMPPDIR}/file.x448.pub.key.pem
+                  -out ${TMPPDIR}/file.x448.secret2'
+    diff "${TMPPDIR}/file.x448.secret"{1,2}
+fi
 
 OPENSSL_CONF=${ORIG_OPENSSL_CONF}
 
