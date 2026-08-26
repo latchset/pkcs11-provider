@@ -380,10 +380,6 @@ static int p11prov_mldsa_import(void *keydata, int selection,
                                 params);
 }
 
-#ifndef OSSL_PKEY_PARAM_ML_DSA_SEED
-#define OSSL_PKEY_PARAM_ML_DSA_SEED "seed"
-#endif
-
 static const OSSL_PARAM *p11prov_mldsa_import_types(int selection)
 {
     static const OSSL_PARAM p11prov_mldsa_imp_key_types[] = {
