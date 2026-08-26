@@ -603,14 +603,6 @@ static CK_RV p11prov_obj_import_private_key(P11PROV_OBJ *key,
         goto done;
     }
 
-    for (int i = 0; i < tmpl_cnt; i++) {
-        if (template[i].type == CKA_ID) {
-            template[i].pValue = findctx.attrs[0].pValue;
-            template[i].ulValueLen = findctx.attrs[0].ulValueLen;
-            break;
-        }
-    }
-
     rv = store_key(key, NULL, template, tmpl_cnt);
     if (rv != CKR_OK) {
         goto done;
