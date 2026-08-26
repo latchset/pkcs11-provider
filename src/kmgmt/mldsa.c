@@ -40,20 +40,9 @@ static int p11prov_mldsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
     CK_ATTRIBUTE *a;
     int cnt = 0;
 
-    if (!obj || p11prov_obj_get_key_type(obj) != CKK_ML_DSA
+    if (!obj || !template || p11prov_obj_get_key_type(obj) != CKK_ML_DSA
         || p11prov_obj_get_class(obj) != class) {
         return -1;
-    }
-
-    if (!template) {
-        switch (class) {
-        case CKO_PUBLIC_KEY:
-            return MLDSA_PUBKEY_TEMPLATE_SIZE;
-        case CKO_PRIVATE_KEY:
-            return MLDSA_PRIVKEY_TEMPLATE_SIZE;
-        default:
-            return -1;
-        }
     }
 
     template[cnt].type = CKA_KEY_TYPE;

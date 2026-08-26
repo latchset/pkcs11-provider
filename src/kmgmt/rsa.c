@@ -83,20 +83,9 @@ static int p11prov_rsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
     int cnt = 0;
     CK_RV rv;
 
-    if (!obj || p11prov_obj_get_key_type(obj) != CKK_RSA
+    if (!obj || !template || p11prov_obj_get_key_type(obj) != CKK_RSA
         || p11prov_obj_get_class(obj) != class) {
         return -1;
-    }
-
-    if (!template) {
-        switch (class) {
-        case CKO_PUBLIC_KEY:
-            return RSA_PUBKEY_TEMPLATE_SIZE;
-        case CKO_PRIVATE_KEY:
-            return RSA_PRIVKEY_TEMPLATE_SIZE;
-        default:
-            return -1;
-        }
     }
 
     template[cnt].type = CKA_KEY_TYPE;

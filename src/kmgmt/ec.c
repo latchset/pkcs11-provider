@@ -136,7 +136,7 @@ static int p11prov_ec_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
     int cnt = 0;
     CK_RV rv;
 
-    if (!obj || p11prov_obj_get_class(obj) != class) {
+    if (!obj || !template || p11prov_obj_get_class(obj) != class) {
         return -1;
     }
 
@@ -153,17 +153,6 @@ static int p11prov_ec_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
         break;
     default:
         return -1;
-    }
-
-    if (!template) {
-        switch (class) {
-        case CKO_PUBLIC_KEY:
-            return EC_PUBKEY_TEMPLATE_SIZE;
-        case CKO_PRIVATE_KEY:
-            return EC_PRIVKEY_TEMPLATE_SIZE;
-        default:
-            return -1;
-        }
     }
 
     template[cnt].type = CKA_KEY_TYPE;
