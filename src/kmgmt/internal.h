@@ -3,6 +3,17 @@
 
 #include "kmgmt/keymgmt.h"
 
+/* In older versions of OpenSSL the headers do not define these parameters */
+#ifndef OSSL_PKEY_PARAM_SLH_DSA_SEED
+#define OSSL_PKEY_PARAM_SLH_DSA_SEED "seed"
+#endif
+#ifndef OSSL_PKEY_PARAM_ML_DSA_SEED
+#define OSSL_PKEY_PARAM_ML_DSA_SEED "seed"
+#endif
+#ifndef OSSL_PKEY_PARAM_ML_KEM_SEED
+#define OSSL_PKEY_PARAM_ML_KEM_SEED "seed"
+#endif
+
 struct key_generator {
     P11PROV_CTX *provctx;
 
