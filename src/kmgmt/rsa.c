@@ -190,6 +190,7 @@ static int p11prov_rsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
         }
 
         /* optional */
+        int saved_cnt = cnt;
         for (int i = 0; i < 5; i++) {
             p = OSSL_PARAM_locate_const(params, optional[i]);
             if (p) {
@@ -197,11 +198,13 @@ static int p11prov_rsa_get_template(P11PROV_OBJ *obj, CK_OBJECT_CLASS class,
                 rv = p11prov_bn_param_to_attr(p, &template[cnt]);
                 if (rv == CKR_OK) {
                     cnt++;
+                    continue;
                 }
-            } else {
-                p11prov_rsa_free_template(obj, class, template, cnt);
-                break;
             }
+            p11prov_rsa_free_template(obj, class, &template[saved_cnt],
+                                      cnt - saved_cnt);
+            cnt = saved_cnt;
+            break;
         }
 
         return cnt;

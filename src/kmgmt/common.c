@@ -403,7 +403,11 @@ CK_RV p11prov_kmgmt_privkey_to_id(
         { .data = (uint8_t *)data2, .length = len2 },
         { .data = NULL, .length = 0 },
     };
-    data_buffer digest = { 0 };
+    uint8_t digest_buf[SHA256_DIGEST_LENGTH];
+    data_buffer digest = {
+        .data = digest_buf,
+        .length = sizeof(digest_buf),
+    };
     CK_RV rv;
 
     rv = p11prov_digest_util(ctx, "sha256", NULL, data, &digest);
