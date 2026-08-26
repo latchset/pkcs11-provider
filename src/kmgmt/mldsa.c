@@ -179,7 +179,7 @@ static CK_RV p11prov_mldsa_get_find_attrs(
         if (key_size != attrs[numattrs - 1].ulValueLen) {
             P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE,
                           "Unexpected public key size %lu (expected %lu)",
-                          attrs[0].ulValueLen, key_size);
+                          attrs[numattrs - 1].ulValueLen, key_size);
             rv = CKR_KEY_INDIGESTIBLE;
             goto done;
         }
