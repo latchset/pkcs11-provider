@@ -314,7 +314,6 @@ static CK_RV p11prov_ec_get_find_attrs(
     EC_POINT *point = NULL;
     BN_CTX *bn_ctx = NULL;
     const OSSL_PARAM *p;
-    uint8_t pub_data[MAX_EC_PUB_KEY_SIZE];
     const char *curve_name = NULL;
     int curve_nid;
     unsigned char *ecparams = NULL;
@@ -358,7 +357,9 @@ static CK_RV p11prov_ec_get_find_attrs(
             goto done;
         }
 
+#if OPENSSL_VERSION_NUMBER <= 0x30000070L
         if (((char *)p->data)[0] == '\x02' || ((char *)p->data)[0] == '\x03') {
+            uint8_t pub_data[MAX_EC_PUB_KEY_SIZE];
             int plen;
 
             P11PROV_debug(
@@ -386,7 +387,9 @@ static CK_RV p11prov_ec_get_find_attrs(
             if (rv != CKR_OK) {
                 goto done;
             }
-        } else {
+        } else
+#endif
+        {
             rv = p11prov_kmgmt_param_data_to_attr(attrs, &numattrs,
                                                   CKA_P11PROV_PUB_KEY, p->data,
                                                   p->data_size, false);
