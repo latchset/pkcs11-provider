@@ -126,6 +126,27 @@ Default: 5
 Example:
 .PP
 \f[CR]pkcs11\-module\-cache\-sessions = 0\f[R] (Disables caching)
+.SS pkcs11\-module\-encode\-provider\-uri\-to\-pem
+Whether the pkcs11 provider registers a PEM encoder for private keys.
+It encodes private keys in PEM files that contain a PKCS#11 URI
+referencing the key.
+The PEM files use the non\-standard \f[CR]PKCS#11 PROVIDER URI\f[R]
+header/trailer.
+.PP
+This encoder is necessary for non\-extractable keys, as otherwise
+OpenSSL will fail to export such keys (for example, during
+\f[CR]openssl genpkey\f[R]).
+It is also necessary for legacy applications that require keys to be
+passed as PEM files instead of as PKCS#11 URIs (see USE IN OLDER
+APPLICATIONS).
+.PP
+The corresponding PEM decoder is always registered.
+.PP
+Default: false
+.PP
+Example:
+.PP
+\f[CR]pkcs11\-module\-encode\-provider\-uri\-to\-pem = true\f[R]
 .SS pkcs11\-module\-login\-behavior
 Whether the pkcs11 provider will attempt to login to the token when a
 public key is being requested.
@@ -166,7 +187,7 @@ immediately at application startup)
 Workarounds that may be needed to deal with some tokens and cannot be
 autodetcted yet are not appropriate defaults.
 .SS luna\-non\-standard\-cku\-user
-Use the non-standard Crypto User (user type 0x80000001) available in
+Use the non\-standard Crypto User (user type 0x80000001) available in
 Thales Luna HSMs instead of the normal Crypto Officer (CKU_USER).
 .SS no\-deinit
 It prevents de\-initing when OpenSSL winds down the provider.
@@ -227,6 +248,36 @@ Default: False
 Example:
 .PP
 \f[CR]pkcs11\-module\-assume\-fips = true\f[R]
+.SS pkcs11\-module\-default\-slot\-id
+The default slot ID for new objects.
+.PP
+The default slot is used for any objects that do not have an explicitly
+selected slot.
+Such objects include, for example, public keys.
+.PP
+This option is useful when multiple slots with different PINs are used.
+In such cases, it allows you to ensure that pkcs11\-module\-token\-pin
+points to the expected slot.
+.PP
+If no value is specified, the first listed slot is used.
+.PP
+Default: none
+.PP
+\f[CR]pkcs11\-module\-default\-slot\-id = 12345\f[R]
+.SS pkcs11\-max\-pin\-length
+Set the maximum length (in bytes) allowed for token PINs when reading
+PINs from files or pin sources.
+.PP
+If not explicitly set, it defaults to 256.
+During provider slot initialization, if any token reports a larger
+maximum PIN length (\f[CR]ulMaxPinLen\f[R]), the limit is automatically
+adjusted to match the maximum value reported across available tokens.
+.PP
+Default: 256
+.PP
+Example:
+.PP
+\f[CR]pkcs11\-max\-pin\-length = 512\f[R]
 .SH ENVIRONMENT VARIABLES
 Environment variables recognized by the provider
 .SS PKCS11_PROVIDER_MODULE
@@ -277,6 +328,9 @@ URI and produce a PEM file that references it.
 Note that storing PINs within these PEM files is not secure.
 These files are not encrypted.
 .PP
+To register an encoder for such PEM files with OpenSSL, see
+\f[CR]pkcs11\-module\-encode\-provider\-uri\-to\-pem\f[R].
+.PP
 The following command can be used to list all keys on a token and print
 their identifying URI:
 .IP
@@ -305,7 +359,7 @@ activate = 1
 [pkcs11_sect]
 module = /usr/lib64/ossl\-modules/pkcs11.so
 pkcs11\-module\-path = /usr/lib64/pkcs11/vendor_pkcs11.so
-pkcs11\-module\-token\-pin = /etc/ssl/pinfile.txt
+pkcs11\-module\-token\-pin = file:/etc/ssl/pinfile.txt
 activate = 1
 .EE
 .SH SEE ALSO
