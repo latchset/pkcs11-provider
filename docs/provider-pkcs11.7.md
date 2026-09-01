@@ -142,6 +142,25 @@ Example:
 ```pkcs11-module-cache-sessions = 0```
 (Disables caching)
 
+## pkcs11-module-encode-provider-uri-to-pem
+
+Whether the pkcs11 provider registers a PEM encoder for private keys.
+It encodes private keys in PEM files that contain a PKCS#11 URI referencing the key.
+The PEM files use the non-standard `PKCS#11 PROVIDER URI` header/trailer.
+
+This encoder is necessary for non-extractable keys, as otherwise OpenSSL will
+fail to export such keys (for example, during `openssl genpkey`).
+It is also necessary for legacy applications that require keys to be passed as
+PEM files instead of as PKCS#11 URIs (see USE IN OLDER APPLICATIONS).
+
+The corresponding PEM decoder is always registered.
+
+Default: false
+
+Example:
+
+```pkcs11-module-encode-provider-uri-to-pem = true```
+
 ## pkcs11-module-login-behavior
 Whether the pkcs11 provider will attempt to login to the token when a
 public key is being requested.
@@ -335,6 +354,9 @@ OpenSSL is used.
 In tools/uri2pem.py there is a sample python script that can take a key
 URI and produce a PEM file that references it. Note that storing PINs
 within these PEM files is not secure. These files are not encrypted.
+
+To register an encoder for such PEM files with OpenSSL,
+see `pkcs11-module-encode-provider-uri-to-pem`.
 
 The following command can be used to list all keys on a token and print
 their identifying URI:
