@@ -332,6 +332,8 @@ Examples:
 
 ```PKCS11_PROVIDER_DEBUG=file:/dev/stderr,level:2```
 
+PINs can also be provided in PKCS#11 URIs via environment variables using the `env:` schema (e.g., `pin-source=env:VARIABLE_NAME`).
+
 
 USE IN OLDER APPLICATIONS (URIs in PEM files)
 =============================================

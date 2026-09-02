@@ -3,6 +3,7 @@
 
 #include "provider.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include "platform/endian.h"
@@ -225,31 +226,13 @@ done:
     return ret;
 }
 
-static int get_pin_file(P11PROV_CTX *ctx, const char *str, size_t len,
-                        void **output)
+static int get_pin_file(P11PROV_CTX *ctx, const char *filename, void **output)
 {
     CK_ULONG max_pin_len = p11prov_ctx_max_pin_length(ctx);
     char *pin = NULL;
-    char *pinfile = NULL;
-    char *filename;
     BIO *fp;
     char extra;
     int ret;
-
-    ret = parse_attr(str, len, (uint8_t **)&pinfile, NULL);
-    if (ret != 0) {
-        return ret;
-    }
-
-    if (strncmp((const char *)pinfile, "file:", 5) == 0) {
-        filename = pinfile + 5;
-    } else if (*pinfile == '|') {
-        ret = EINVAL;
-        goto done;
-    } else {
-        /* missing 'file:' is accepted */
-        filename = pinfile;
-    }
 
     pin = OPENSSL_zalloc(max_pin_len + 1);
     if (pin == NULL) {
@@ -305,7 +288,61 @@ done:
     if (pin != NULL) {
         OPENSSL_clear_free(pin, max_pin_len + 1);
     }
-    OPENSSL_free(pinfile);
+    return ret;
+}
+
+static int get_pin_env(P11PROV_CTX *ctx, const char *envvar, void **output)
+{
+    CK_ULONG max_pin_len = p11prov_ctx_max_pin_length(ctx);
+    const char *val;
+    char *pin;
+    size_t len;
+
+    val = getenv(envvar);
+    if (val == NULL) {
+        P11PROV_debug("Failed to get pin from %s (env var not found)", envvar);
+        return ENOENT;
+    }
+
+    len = strlen(val);
+    if (len > max_pin_len) {
+        P11PROV_debug(
+            "Failed to get pin from %s, pin is longer than max length (%lu)",
+            envvar, max_pin_len);
+        return EINVAL;
+    }
+
+    pin = OPENSSL_strdup(val);
+    if (pin == NULL) {
+        return ENOMEM;
+    }
+
+    *output = pin;
+    return 0;
+}
+
+static int get_pin_source(P11PROV_CTX *ctx, const char *str, size_t len,
+                          void **output)
+{
+    char *pinsource = NULL;
+    int ret;
+
+    ret = parse_attr(str, len, (uint8_t **)&pinsource, NULL);
+    if (ret != 0) {
+        return ret;
+    }
+
+    if (strncmp((const char *)pinsource, "file:", 5) == 0) {
+        ret = get_pin_file(ctx, pinsource + 5, output);
+    } else if (strncmp((const char *)pinsource, "env:", 4) == 0) {
+        ret = get_pin_env(ctx, pinsource + 4, output);
+    } else if (*pinsource == '|') {
+        ret = EINVAL;
+    } else {
+        /* missing 'file:' is accepted */
+        ret = get_pin_file(ctx, pinsource, output);
+    }
+    OPENSSL_free(pinsource);
     return ret;
 }
 
@@ -540,7 +577,7 @@ P11PROV_URI *p11prov_parse_uri(P11PROV_CTX *ctx, const char *uri)
         DECL_ATTR_COMP(type, parse_class),
         { "pin-value", sizeof("pin-value") - 1, parse_utf8str,
           (void **)&u.pin },
-        { "pin-source", sizeof("pin-source") - 1, get_pin_file,
+        { "pin-source", sizeof("pin-source") - 1, get_pin_source,
           (void **)&u.pin },
         { "object-type", sizeof("object-type") - 1, parse_class,
           (void **)&u.type },
@@ -926,7 +963,10 @@ CK_RV p11prov_uri_match_token(P11PROV_URI *uri, CK_SLOT_ID slot_id,
 int p11prov_get_pin(P11PROV_CTX *ctx, const char *in, char **out)
 {
     if (strncmp(in, "file:", 5) == 0) {
-        return get_pin_file(ctx, in, strlen(in), (void **)out);
+        return get_pin_file(ctx, in + 5, (void **)out);
+    }
+    if (strncmp(in, "env:", 4) == 0) {
+        return get_pin_env(ctx, in + 4, (void **)out);
     }
 
     *out = OPENSSL_strdup(in);
