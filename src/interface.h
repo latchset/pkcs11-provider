@@ -107,6 +107,8 @@ CK_RV p11prov_DigestInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                          CK_MECHANISM_PTR pMechanism);
 CK_RV p11prov_DigestUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                            CK_BYTE_PTR pPart, CK_ULONG ulPartLen);
+CK_RV p11prov_DigestKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                        CK_OBJECT_HANDLE hKey);
 CK_RV p11prov_DigestFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                           CK_BYTE_PTR pDigest, CK_ULONG_PTR pulDigestLen);
 CK_RV p11prov_SignInit(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
