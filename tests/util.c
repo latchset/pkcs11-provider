@@ -176,7 +176,8 @@ void unhexify(unsigned char *out, size_t *outlen, const char *in)
     OPENSSL_hexstr2buf_ex(out, *outlen, outlen, in, '\0');
 }
 
-EVP_PKEY *util_gen_key(const char *type, const char *label)
+EVP_PKEY *util_gen_key_ex(OSSL_LIB_CTX *libctx, const char *type,
+                          const char *label)
 {
     unsigned char id[16];
     char idhex[16 * 3 + 1];
@@ -250,7 +251,7 @@ EVP_PKEY *util_gen_key(const char *type, const char *label)
 
     params[pnum++] = OSSL_PARAM_construct_end();
 
-    ctx = EVP_PKEY_CTX_new_from_name(NULL, name, "provider=pkcs11");
+    ctx = EVP_PKEY_CTX_new_from_name(libctx, name, "provider=pkcs11");
     if (ctx == NULL) {
         PRINTERROSSL("Failed to init PKEY context\n");
         exit(EXIT_FAILURE);
@@ -273,6 +274,11 @@ EVP_PKEY *util_gen_key(const char *type, const char *label)
 
     free(uri);
     return key;
+}
+
+EVP_PKEY *util_gen_key(const char *type, const char *label)
+{
+    return util_gen_key_ex(NULL, type, label);
 }
 
 unsigned char *util_read_file(const char *path, size_t *size)
@@ -325,3 +331,111 @@ unsigned char *util_read_test_file(const char *filename, size_t *size)
     snprintf(path, sizeof(path), "%s/%s", test_path, filename);
     return util_read_file(path, size);
 }
+
+OSSL_LIB_CTX *util_load_default_libctx(OSSL_PROVIDER **prov)
+{
+    OSSL_LIB_CTX *libctx = OSSL_LIB_CTX_new();
+    if (!libctx) {
+        PRINTERROSSL("Failed to create default libctx\n");
+        exit(EXIT_FAILURE);
+    }
+    OSSL_PROVIDER *p = OSSL_PROVIDER_load(libctx, "default");
+    if (!p) {
+        PRINTERROSSL("Failed to load default provider in default libctx\n");
+        OSSL_LIB_CTX_free(libctx);
+        exit(EXIT_FAILURE);
+    }
+    if (prov) {
+        *prov = p;
+    }
+    return libctx;
+}
+
+#if CAN_LOAD_PKCS11_PROVIDER
+OSSL_PROVIDER *util_load_pkcs11_provider(OSSL_LIB_CTX *libctx,
+                                         const OSSL_PARAM *extra_params)
+{
+    OSSL_PROVIDER *pp = NULL;
+    OSSL_PARAM params[16];
+    const char *module = getenv("PKCS11_PROVIDER_MODULE");
+    const char *pin = getenv("PINVALUE");
+    const char *libspath = getenv("LIBSPATH");
+    int p = 0;
+
+    if (module == NULL) {
+        module = getenv("P11LIB");
+    }
+    if (module == NULL) {
+        PRINTERR("PKCS11_PROVIDER_MODULE environment variable is absent\n");
+        exit(EXIT_FAILURE);
+    }
+    if (libspath == NULL) {
+        libspath = ".";
+    }
+
+    params[p++] = OSSL_PARAM_construct_utf8_string("pkcs11-module-path",
+                                                   (char *)module, 0);
+    if (pin) {
+        params[p++] = OSSL_PARAM_construct_utf8_string(
+            "pkcs11-module-token-pin", (char *)pin, 0);
+    }
+    params[p++] = OSSL_PARAM_construct_utf8_string(
+        "pkcs11-module-load-behavior", (char *)"early", 0);
+
+    if (extra_params) {
+        for (const OSSL_PARAM *ep = extra_params;
+             ep->key != NULL
+             && p < (int)(sizeof(params) / sizeof(params[0]) - 1);
+             ep++) {
+            params[p++] = *ep;
+        }
+    }
+    params[p] = OSSL_PARAM_construct_end();
+
+    OSSL_PROVIDER_set_default_search_path(libctx, libspath);
+    pp = OSSL_PROVIDER_load_ex(libctx, "pkcs11", params);
+    if (!pp) {
+        PRINTERROSSL("Failed to load pkcs11 provider\n");
+    }
+    return pp;
+}
+
+OSSL_LIB_CTX *util_load_pkcs11_libctx(OSSL_PROVIDER **def_prov,
+                                      OSSL_PROVIDER **p11_prov,
+                                      const OSSL_PARAM *extra_params)
+{
+    OSSL_LIB_CTX *libctx = NULL;
+    OSSL_PROVIDER *dp = NULL;
+    OSSL_PROVIDER *pp = NULL;
+
+    libctx = OSSL_LIB_CTX_new();
+    if (!libctx) {
+        PRINTERROSSL("Failed to create pkcs11 libctx\n");
+        exit(EXIT_FAILURE);
+    }
+
+    dp = OSSL_PROVIDER_load(libctx, "default");
+    if (!dp) {
+        PRINTERROSSL("Failed to load default provider in pkcs11 libctx\n");
+        OSSL_LIB_CTX_free(libctx);
+        exit(EXIT_FAILURE);
+    }
+
+    pp = util_load_pkcs11_provider(libctx, extra_params);
+    if (!pp) {
+        PRINTERROSSL("Failed to load pkcs11 provider in pkcs11 libctx\n");
+        OSSL_PROVIDER_unload(dp);
+        OSSL_LIB_CTX_free(libctx);
+        exit(EXIT_FAILURE);
+    }
+
+    if (def_prov) {
+        *def_prov = dp;
+    }
+    if (p11_prov) {
+        *p11_prov = pp;
+    }
+
+    return libctx;
+}
+#endif

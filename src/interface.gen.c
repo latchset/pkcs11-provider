@@ -980,6 +980,34 @@ CK_RV p11prov_DigestUpdate(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
     return ret;
 }
 
+CK_RV p11prov_DigestKey(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
+                        CK_OBJECT_HANDLE hKey)
+{
+    P11PROV_INTERFACE *intf = p11prov_ctx_get_interface(ctx);
+    CK_RV ret = CKR_GENERAL_ERROR;
+    if (!intf) {
+        P11PROV_raise(ctx, ret, "Can't get module interfaces");
+        return ret;
+    }
+    if (p11prov_ctx_is_call_blocked(ctx, P11PROV_BLOCK_DigestKey)) {
+        P11PROV_debug("C_%s is blocked", "DigestKey");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    if (!intf->DigestKey) {
+        P11PROV_debug("C_%s is not available", "DigestKey");
+        return CKR_FUNCTION_NOT_SUPPORTED;
+    }
+    P11PROV_debug("Calling C_"
+                  "DigestKey");
+    ret = intf->DigestKey(hSession, hKey);
+    if (ret != CKR_OK) {
+        P11PROV_debug("Error %ld returned by C_"
+                      "DigestKey",
+                      ret);
+    }
+    return ret;
+}
+
 CK_RV p11prov_DigestFinal(P11PROV_CTX *ctx, CK_SESSION_HANDLE hSession,
                           CK_BYTE_PTR pDigest, CK_ULONG_PTR pulDigestLen)
 {

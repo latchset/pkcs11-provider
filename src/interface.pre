@@ -201,6 +201,9 @@ IMPL_INTERFACE_FN_2_ARG(DigestInit, CK_SESSION_HANDLE, hSession,
 IMPL_INTERFACE_FN_3_ARG(DigestUpdate, CK_SESSION_HANDLE, hSession, CK_BYTE_PTR,
                         pPart, CK_ULONG, ulPartLen)
 
+IMPL_INTERFACE_FN_2_ARG(DigestKey, CK_SESSION_HANDLE, hSession,
+                        CK_OBJECT_HANDLE, hKey)
+
 IMPL_INTERFACE_FN_3_ARG(DigestFinal, CK_SESSION_HANDLE, hSession, CK_BYTE_PTR,
                         pDigest, CK_ULONG_PTR, pulDigestLen)
 

@@ -100,6 +100,16 @@ foreach h : headers
   endif
 endforeach
 
+functions = [
+  'OSSL_PROVIDER_load_ex',
+]
+
+foreach f : functions
+  if cc.has_function(f, dependencies: libcrypto)
+    conf.set('HAVE_' + f.underscorify().to_upper(), 1)
+  endif
+endforeach
+
 configure_file(output: 'config.h', configuration: conf)
 
 meson.add_dist_script('scripts/clean-dist.sh')
