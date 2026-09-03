@@ -50,6 +50,7 @@ DISPATCH_HKDF_FN(derive_skey);
 struct p11prov_sshkdf_ctx {
     P11PROV_CTX *provctx;
     P11PROV_OBJ *key;
+    bool from_skey;
     CK_MECHANISM_TYPE hash_mech;
     uint8_t *xcghash;
     size_t xcghashlen;
@@ -1194,10 +1195,79 @@ static int p11prov_sshkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
     return RET_OSSL_OK;
 }
 
+static CK_RV p11prov_sshkdf_fallback_session(P11PROV_SSHKDF_CTX *kctx,
+                                             P11PROV_SESSION **_session,
+                                             P11PROV_OBJ **_key)
+{
+    CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
+    P11PROV_SESSION *session = NULL;
+    P11PROV_OBJ *ephemeral_key = NULL;
+    CK_ATTRIBUTE *value;
+    CK_RV ret;
+
+    P11PROV_debug("sshkdf fallback for mech %lu", kctx->hash_mech);
+
+    ret =
+        p11prov_get_session(kctx->provctx, &slotid, NULL, NULL, kctx->hash_mech,
+                            NULL, NULL, false, false, &session);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+
+    value = p11prov_obj_get_attr(kctx->key, CKA_VALUE);
+    if (!value || !value->pValue || value->ulValueLen == 0) {
+        /* If not cached on the object, check if CKA_VALUE can be read from token */
+        P11PROV_SESSION *orig_session = NULL;
+        struct fetch_attrs attrs[1];
+        int num = 0;
+
+        ret = p11prov_try_session_ref(kctx->key, CK_UNAVAILABLE_INFORMATION,
+                                      false, false, &orig_session);
+        if (ret == CKR_OK) {
+            FA_SET_BUF_ALLOC(attrs, num, CKA_VALUE, false);
+            ret = p11prov_fetch_attributes(kctx->provctx, orig_session,
+                                           p11prov_obj_get_handle(kctx->key),
+                                           attrs, num);
+            if (ret == CKR_OK && attrs[0].attr.pValue
+                && attrs[0].attr.ulValueLen > 0) {
+                ret = p11prov_obj_add_attr(kctx->key, &attrs[0].attr);
+                if (ret == CKR_OK) {
+                    value = p11prov_obj_get_attr(kctx->key, CKA_VALUE);
+                } else {
+                    p11prov_fetch_attrs_free(attrs, num);
+                }
+            } else {
+                p11prov_fetch_attrs_free(attrs, num);
+            }
+            p11prov_return_session(orig_session);
+        }
+    }
+
+    if (!value || !value->pValue || value->ulValueLen == 0) {
+        p11prov_return_session(session);
+        return CKR_MECHANISM_INVALID;
+    }
+
+    ephemeral_key = p11prov_create_secret_key(
+        kctx->provctx, session, CKF_DERIVE, true,
+        (unsigned char *)value->pValue, value->ulValueLen);
+    if (!ephemeral_key) {
+        p11prov_return_session(session);
+        return CKR_KEY_HANDLE_INVALID;
+    }
+
+    *_session = session;
+    *_key = ephemeral_key;
+    return CKR_OK;
+}
+
 static int p11prov_sshkdf_derive(void *ctx, unsigned char *key, size_t keylen,
                                  const OSSL_PARAM params[])
 {
     P11PROV_SSHKDF_CTX *kctx = (P11PROV_SSHKDF_CTX *)ctx;
+    P11PROV_SESSION *session = NULL;
+    P11PROV_OBJ *ephemeral_key = NULL;
+    P11PROV_OBJ *key_obj = NULL;
     CK_OBJECT_HANDLE key_handle;
     CK_SESSION_HANDLE session_handle;
     CK_MECHANISM mechanism = { 0 };
@@ -1254,23 +1324,40 @@ static int p11prov_sshkdf_derive(void *ctx, unsigned char *key, size_t keylen,
     if (kctx->session == NULL) {
         ret = p11prov_try_session_ref(kctx->key, kctx->hash_mech, false, false,
                                       &kctx->session);
+        if (ret == CKR_MECHANISM_INVALID && kctx->from_skey) {
+            /* if the key was provided via set_skey it may have been
+             * created on the wrong slot, try the fallback which will
+             * attempt to rectify the situation */
+            ret =
+                p11prov_sshkdf_fallback_session(kctx, &session, &ephemeral_key);
+            if (ret == CKR_OK) {
+                key_obj = ephemeral_key;
+            }
+        }
         if (ret != CKR_OK) {
             P11PROV_raise(kctx->provctx, ret, "Failed to acquire session");
             return RET_OSSL_ERR;
         }
     }
 
-    session_handle = p11prov_session_handle(kctx->session);
-    key_handle = p11prov_obj_get_handle(kctx->key);
+    if (session == NULL) {
+        session = kctx->session;
+        key_obj = kctx->key;
+    }
+
+    session_handle = p11prov_session_handle(session);
+    key_handle = p11prov_obj_get_handle(key_obj);
     if (key_handle == CK_INVALID_HANDLE) {
         ERR_raise(ERR_LIB_PROV, PROV_R_MISSING_KEY);
-        return RET_OSSL_ERR;
+        ret = CKR_KEY_HANDLE_INVALID;
+        goto done;
     }
 
     ret = p11prov_digest_get_digest_size(kctx->hash_mech, &digest_size);
     if (ret != CKR_OK || digest_size == 0) {
         P11PROV_raise(kctx->provctx, ret, "Invalid digest size");
-        return RET_OSSL_ERR;
+        ret = CKR_GENERAL_ERROR;
+        goto done;
     }
 
     mechanism.mechanism = kctx->hash_mech;
@@ -1280,20 +1367,20 @@ static int p11prov_sshkdf_derive(void *ctx, unsigned char *key, size_t keylen,
         ret = p11prov_DigestInit(kctx->provctx, session_handle, &mechanism);
         if (ret != CKR_OK) {
             P11PROV_raise(kctx->provctx, ret, "DigestInit failed");
-            return RET_OSSL_ERR;
+            goto done;
         }
 
         ret = p11prov_DigestKey(kctx->provctx, session_handle, key_handle);
         if (ret != CKR_OK) {
             P11PROV_raise(kctx->provctx, ret, "DigestKey failed");
-            return RET_OSSL_ERR;
+            goto done;
         }
 
         ret = p11prov_DigestUpdate(kctx->provctx, session_handle, kctx->xcghash,
                                    kctx->xcghashlen);
         if (ret != CKR_OK) {
             P11PROV_raise(kctx->provctx, ret, "DigestUpdate failed");
-            return RET_OSSL_ERR;
+            goto done;
         }
 
         if (cursize == 0) {
@@ -1301,21 +1388,21 @@ static int p11prov_sshkdf_derive(void *ctx, unsigned char *key, size_t keylen,
                                        (CK_BYTE_PTR)&kctx->type, 1);
             if (ret != CKR_OK) {
                 P11PROV_raise(kctx->provctx, ret, "DigestUpdate failed");
-                return RET_OSSL_ERR;
+                goto done;
             }
 
             ret = p11prov_DigestUpdate(kctx->provctx, session_handle,
                                        kctx->session_id, kctx->session_id_len);
             if (ret != CKR_OK) {
                 P11PROV_raise(kctx->provctx, ret, "DigestUpdate failed");
-                return RET_OSSL_ERR;
+                goto done;
             }
         } else {
             ret = p11prov_DigestUpdate(kctx->provctx, session_handle, key,
                                        cursize);
             if (ret != CKR_OK) {
                 P11PROV_raise(kctx->provctx, ret, "DigestUpdate failed");
-                return RET_OSSL_ERR;
+                goto done;
             }
         }
 
@@ -1324,7 +1411,7 @@ static int p11prov_sshkdf_derive(void *ctx, unsigned char *key, size_t keylen,
                                   &digest_len);
         if (ret != CKR_OK) {
             P11PROV_raise(kctx->provctx, ret, "DigestFinal failed");
-            return RET_OSSL_ERR;
+            goto done;
         }
 
         size_t to_copy = digest_len;
@@ -1335,8 +1422,15 @@ static int p11prov_sshkdf_derive(void *ctx, unsigned char *key, size_t keylen,
         cursize += to_copy;
     }
 
+    ret = CKR_OK;
+
+done:
+    if (ephemeral_key) {
+        p11prov_obj_free(ephemeral_key);
+        p11prov_return_session(session);
+    }
     OPENSSL_cleanse(dgst, sizeof(dgst));
-    return RET_OSSL_OK;
+    return (ret == CKR_OK) ? RET_OSSL_OK : RET_OSSL_ERR;
 }
 
 #if defined(OSSL_FUNC_KDF_DERIVE_SKEY)
@@ -1353,6 +1447,7 @@ static int p11prov_sshkdf_set_skey(void *ctx, void *skeydata,
 
     p11prov_obj_free(kctx->key);
     kctx->key = p11prov_obj_ref(key);
+    kctx->from_skey = true;
 
     return RET_OSSL_OK;
 }
