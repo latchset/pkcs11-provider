@@ -965,9 +965,6 @@ int p11prov_get_pin(P11PROV_CTX *ctx, const char *in, char **out)
     if (strncmp(in, "file:", 5) == 0) {
         return get_pin_file(ctx, in + 5, (void **)out);
     }
-    if (strncmp(in, "env:", 4) == 0) {
-        return get_pin_env(ctx, in + 4, (void **)out);
-    }
 
     *out = OPENSSL_strdup(in);
     if (!*out) {
