@@ -1,6 +1,6 @@
 #!/bin/bash
 # Parses LCOV tracefiles and annotates PRs with missing code coverage.
-# Usage: ./annotate_coverage.sh <path_to_lcov_file>
+# Usage: ./coverage_report.sh <path_to_lcov_file>
 
 set -euo pipefail
 
@@ -103,17 +103,22 @@ BEGIN {
 }
 /^DA:/ {
     line = $2; hits = $3
-    # Only track if the line is uncovered AND modified in this PR
-    if (rel_file != "" && changed_lines[rel_file ":" line] == 1 && hits == 0) {
-        if (start_line == 0) {
-            start_line = line
-            prev_line = line
-        } else if (line == prev_line + 1) {
-            prev_line = line # Extend the block
-        } else {
-            flush_block()    # Gap found! Print current block and start a new one
-            start_line = line
-            prev_line = line
+    if (rel_file != "") {
+        # Check if the line is uncovered AND modified in this PR
+        if (changed_lines[rel_file ":" line] == 1 && hits == 0) {
+            if (start_line == 0) {
+                start_line = line
+                prev_line = line
+            # Allow a gap of up to 5 lines (to bridge string literals / formatting)
+            } else if (line <= prev_line + 5) {
+                prev_line = line # Extend the block
+            } else {
+                flush_block()    # Gap too large! Print block and start a new one
+                start_line = line
+                prev_line = line
+            }
+        } else if (start_line != 0 && line > prev_line) {
+            flush_block()
         }
     }
 }
