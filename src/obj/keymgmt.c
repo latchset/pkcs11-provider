@@ -514,8 +514,10 @@ static int cmp_bn_attr(P11PROV_OBJ *key1, P11PROV_OBJ *key2,
         return rc;
     }
 
-    bx1 = BN_native2bn(x1->pValue, x1->ulValueLen, NULL);
-    bx2 = BN_native2bn(x2->pValue, x2->ulValueLen, NULL);
+    /* PKCS#11 values, like modulus and public exponent, are of type "Big
+       integer", unsigned integer most-significant byte first. */
+    bx1 = BN_bin2bn(x1->pValue, x1->ulValueLen, NULL);
+    bx2 = BN_bin2bn(x2->pValue, x2->ulValueLen, NULL);
 
     if (BN_cmp(bx1, bx2) == 0) {
         rc = RET_OSSL_OK;
