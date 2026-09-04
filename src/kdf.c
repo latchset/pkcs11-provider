@@ -135,6 +135,28 @@ static void p11prov_hkdf_reset(void *ctx)
     hkdfctx->provctx = provctx;
 }
 
+static CK_RV p11prov_create_secret_key_fallback(P11PROV_CTX *provctx,
+                                                P11PROV_SESSION **session,
+                                                CK_MECHANISM_TYPE mech_type,
+                                                CK_FLAGS usage, const void *key,
+                                                size_t keylen,
+                                                P11PROV_OBJ **keyobj)
+{
+    CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
+    CK_RV ret;
+
+    p11prov_return_session(*session);
+    *session = NULL;
+
+    ret = p11prov_get_session(provctx, &slotid, NULL, NULL, mech_type, NULL,
+                              NULL, true, false, session);
+    if (ret != CKR_OK) {
+        return ret;
+    }
+    return p11prov_create_secret_key(provctx, *session, usage, true,
+                                     (void *)key, keylen, keyobj);
+}
+
 /* The mechanism is used only to ensure the token can perform the request
  * operation, for the HKDF case it doesn't really matter whether the
  * CKM_HKDF_DERIVE or the CKM_HKDF_DATA mechanisms are requested, any token
@@ -158,10 +180,20 @@ static CK_RV inner_pkcs11_key(P11PROV_KDF_CTX *hkdfctx,
         return CKR_SESSION_HANDLE_INVALID;
     }
 
-    *keyobj = p11prov_create_secret_key(hkdfctx->provctx, hkdfctx->session,
-                                        CKF_DERIVE, true, (void *)key, keylen);
-    if (*keyobj == NULL) {
-        return CKR_KEY_HANDLE_INVALID;
+    p11prov_set_error_mark(hkdfctx->provctx);
+    ret = p11prov_create_secret_key(hkdfctx->provctx, hkdfctx->session,
+                                    CKF_DERIVE, true, (void *)key, keylen,
+                                    keyobj);
+    if (ret == CKR_USER_NOT_LOGGED_IN) {
+        p11prov_pop_error_to_mark(hkdfctx->provctx);
+        ret = p11prov_create_secret_key_fallback(
+            hkdfctx->provctx, &hkdfctx->session, mech_type, CKF_DERIVE, key,
+            keylen, keyobj);
+    } else {
+        p11prov_clear_last_error_mark(hkdfctx->provctx);
+    }
+    if (ret != CKR_OK) {
+        return ret;
     }
     return CKR_OK;
 }
@@ -1122,6 +1154,8 @@ static int p11prov_sshkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         const void *secret = NULL;
         size_t secret_len;
         CK_SLOT_ID slotid = CK_UNAVAILABLE_INFORMATION;
+        CK_MECHANISM_TYPE mech_type =
+            kctx->hash_mech ? kctx->hash_mech : CK_UNAVAILABLE_INFORMATION;
         CK_RV rv;
 
         ret = OSSL_PARAM_get_octet_string_ptr(p, &secret, &secret_len);
@@ -1133,19 +1167,27 @@ static int p11prov_sshkdf_set_ctx_params(void *ctx, const OSSL_PARAM params[])
         kctx->key = NULL;
 
         if (kctx->session == NULL) {
-            rv = p11prov_get_session(
-                kctx->provctx, &slotid, NULL, NULL,
-                kctx->hash_mech ? kctx->hash_mech : CK_UNAVAILABLE_INFORMATION,
-                NULL, NULL, false, false, &kctx->session);
+            rv = p11prov_get_session(kctx->provctx, &slotid, NULL, NULL,
+                                     mech_type, NULL, NULL, false, false,
+                                     &kctx->session);
             if (rv != CKR_OK) {
                 return RET_OSSL_ERR;
             }
         }
 
-        kctx->key = p11prov_create_secret_key(kctx->provctx, kctx->session,
-                                              CKF_DERIVE | CKF_SIGN, true,
-                                              (void *)secret, secret_len);
-        if (kctx->key == NULL) {
+        p11prov_set_error_mark(kctx->provctx);
+        rv = p11prov_create_secret_key(kctx->provctx, kctx->session, CKF_DERIVE,
+                                       true, (void *)secret, secret_len,
+                                       &kctx->key);
+        if (rv == CKR_USER_NOT_LOGGED_IN) {
+            p11prov_pop_error_to_mark(kctx->provctx);
+            rv = p11prov_create_secret_key_fallback(
+                kctx->provctx, &kctx->session, mech_type, CKF_DERIVE, secret,
+                secret_len, &kctx->key);
+        } else {
+            p11prov_clear_last_error_mark(kctx->provctx);
+        }
+        if (rv != CKR_OK) {
             return RET_OSSL_ERR;
         }
     }
@@ -1248,10 +1290,10 @@ static CK_RV p11prov_sshkdf_fallback_session(P11PROV_SSHKDF_CTX *kctx,
         return CKR_MECHANISM_INVALID;
     }
 
-    ephemeral_key = p11prov_create_secret_key(
-        kctx->provctx, session, CKF_DERIVE, true,
-        (unsigned char *)value->pValue, value->ulValueLen);
-    if (!ephemeral_key) {
+    ret = p11prov_create_secret_key(kctx->provctx, session, CKF_DERIVE, true,
+                                    (unsigned char *)value->pValue,
+                                    value->ulValueLen, &ephemeral_key);
+    if (ret != CKR_OK) {
         p11prov_return_session(session);
         return CKR_KEY_HANDLE_INVALID;
     }
