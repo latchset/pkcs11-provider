@@ -3,19 +3,24 @@
 
 #include "obj/internal.h"
 
-P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
-                                       P11PROV_SESSION *session, CK_FLAGS usage,
-                                       bool session_key, unsigned char *secret,
-                                       size_t secretlen)
+CK_RV p11prov_create_secret_key(P11PROV_CTX *provctx, P11PROV_SESSION *session,
+                                CK_FLAGS usage, bool session_key,
+                                unsigned char *secret, size_t secretlen,
+                                P11PROV_OBJ **key)
 {
-    P11PROV_OBJ *key = NULL;
+    P11PROV_OBJ *k = NULL;
     CK_RV ret;
+
+    if (!key) {
+        return CKR_ARGUMENTS_BAD;
+    }
+    *key = NULL;
 
     P11PROV_debug("Creating secret key (secret:%p[%zu])", secret, secretlen);
 
-    ret = p11prov_store_symmetric_key(provctx, session, CKK_GENERIC_SECRET,
-                                      session_key, secret, secretlen, usage,
-                                      &key);
+    ret =
+        p11prov_store_symmetric_key(provctx, session, CKK_GENERIC_SECRET,
+                                    session_key, secret, secretlen, usage, &k);
     if (ret != CKR_OK) {
         goto done;
     }
@@ -25,28 +30,30 @@ P11PROV_OBJ *p11prov_create_secret_key(P11PROV_CTX *provctx,
         CK_ATTRIBUTE value = { CKA_VALUE, (void *)secret, secretlen };
 
         /* destroy the session object when obj is freed */
-        key->owns_key = true;
+        k->owns_key = true;
 
-        key->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE));
-        if (key->attrs == NULL) {
+        k->attrs = OPENSSL_zalloc(sizeof(CK_ATTRIBUTE));
+        if (k->attrs == NULL) {
             ret = CKR_HOST_MEMORY;
             goto done;
         }
-        ret = p11prov_copy_attr(&key->attrs[0], &value);
+        ret = p11prov_copy_attr(&k->attrs[0], &value);
         if (ret != CKR_OK) {
             goto done;
         }
-        key->numattrs = 1;
-        key->usage = usage;
+        k->numattrs = 1;
+        k->usage = usage;
     }
+
+    *key = k;
+    k = NULL;
 
 done:
     if (ret != CKR_OK) {
         P11PROV_raise(provctx, ret, "Failed to create secret key");
-        p11prov_obj_free(key);
-        key = NULL;
+        p11prov_obj_free(k);
     }
-    return key;
+    return ret;
 }
 
 CK_RV p11prov_derive_key(P11PROV_OBJ *key, CK_MECHANISM *mechanism,
