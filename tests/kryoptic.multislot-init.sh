@@ -48,13 +48,15 @@ pkcs11-tool --module "${P11LIB}" --slot "${SLOTID2}" --pin "${PIN2VALUE}" \
     --keypairgen --key-type="RSA:2048" --id="$KEYID" \
     --label="testKey" 2>&1
 
-export BASEURI2WITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PINVALUE}"
+export BASEURI2WITHPINVALUE="pkcs11:id=${URIKEYID}?pin-value=${PIN2VALUE}"
+export PRIURI2WITHPINVALUE="pkcs11:type=private;id=${URIKEYID};slot-id=${SLOTID2}?pin-value=${PIN2VALUE}"
 export BASEURI2="pkcs11:id=${URIKEYID}"
 export PUBURI2="pkcs11:type=public;id=${URIKEYID}"
 export PRIURI2="pkcs11:type=private;id=${URIKEYID}"
 
 title LINE "RSA PKCS11 URIS"
 echo "${BASEURI2WITHPINVALUE}"
+echo "${PRIURI2WITHPINVALUE}"
 echo "${BASEURI2}"
 echo "${PUBURI2}"
 echo "${PRIURI2}"

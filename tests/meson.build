@@ -106,6 +106,7 @@ test_programs = {
   'tcmpkeys': ['tcmpkeys.c', 'util.c'],
   'tcachekeys': ['tcachekeys.c', 'util.c'],
   'tfork': ['tfork.c', 'util.c'],
+  'tforkslot': ['tforkslot.c', 'util.c'],
   'tstorepubkey': ['tstorepubkey.c', 'util.c'],
   'tstorepubkeyfree': ['tstorepubkeyfree.c', 'util.c'],
   'tpkey': ['tpkey.c', 'util.c'],
@@ -191,6 +192,7 @@ tests = {
   'aead': {'suites': ['softokn', 'kryoptic', 'kryoptic.nss']},
   'op_state': {'suites': all_suites},
   'defaultslot': {'suites': ['kryoptic.multislot']},
+  'slotpin': {'suites': ['kryoptic.multislot']},
 }
 
 test_wrapper = find_program('test-wrapper')
