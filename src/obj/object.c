@@ -306,10 +306,9 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
     p11prov_obj_free(tmp);
     obj->raf = false;
 
-    /* Refresh the associated object too if there is one */
-    if (obj->assoc_obj && obj->assoc_obj->raf) {
-        p11prov_obj_refresh(obj->assoc_obj);
-    }
+    /* The associated object is refreshed on demand when its handle is
+     * requested, doing it here could require a login (if it is a private
+     * key) that is not needed for the current operation */
 
 done:
     p11prov_return_session(session);
