@@ -21,7 +21,7 @@ CK_RV p11prov_try_session_ref(P11PROV_OBJ *obj, CK_MECHANISM_TYPE mechtype,
                               bool reqlogin, bool rw,
                               P11PROV_SESSION **_session);
 CK_RV p11prov_take_login_session(P11PROV_CTX *provctx, CK_SLOT_ID slotid,
-                                 P11PROV_SESSION **_session);
+                                 bool no_login, P11PROV_SESSION **_session);
 void p11prov_return_session(P11PROV_SESSION *session);
 void p11prov_session_ref(P11PROV_SESSION *session);
 void p11prov_session_deref(P11PROV_SESSION *session);
