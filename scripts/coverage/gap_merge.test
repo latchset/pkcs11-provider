@@ -1,0 +1,13 @@
+/* EXPECTED
+### 🔍 Missing code coverage for this PR
+| File | Lines | Snippet |
+|---|---|---|
+| src/test.c | 3-5 | `            PRINTERR("Failed to compute default reference for '%s'\n",`<br>`                     tc->name);`<br>`            exit(EXIT_FAILURE);` |
+*/
+  | void test_func() {
++1|         if (derive_default_sshkdf(def_libctx, tc, expected, tc->out_len) != 0) {
++0|             PRINTERR("Failed to compute default reference for '%s'\n",
++ |                      tc->name);
++0|             exit(EXIT_FAILURE);
++ |         }
+  | }

@@ -475,6 +475,12 @@ jobs:
               git fetch origin ${{ github.base_ref }} --depth=1
           fi
 
+      - name: Test the Test Script
+        run: |
+          python3 scripts/coverage/run_tests.py \
+            scripts/coverage_report.sh \
+            scripts/coverage/
+
       - name: Merge coverage reports
         run: |
           # Find all downloaded .info files and build the merge arguments

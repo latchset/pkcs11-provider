@@ -1,0 +1,12 @@
+/* EXPECTED
+### 🔍 Missing code coverage for this PR
+| File | Lines | Snippet |
+|---|---|---|
+| src/test.c | 2 | `    int uncovered_1 = 1;` |
+| src/test.c | 4 | `    int uncovered_2 = 2;` |
+*/
+  | void test_func() {
++0|     int uncovered_1 = 1;
++1|     int covered = 1;
++0|     int uncovered_2 = 2;
+  | }
