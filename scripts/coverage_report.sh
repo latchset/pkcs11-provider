@@ -60,7 +60,6 @@ function flush_block() {
         cmd = "sed -n \"" start_line "," prev_line "p\" " rel_file
         code_text = ""
         while ((cmd | getline seq_line) > 0) {
-            sub(/^[ \t]+/, "", seq_line)      # Strip leading whitespace
             sub(/[ \t]+$/, "", seq_line)      # Strip trailing whitespace
             gsub(/\|/, "\\|", seq_line)       # Escape table pipes
             gsub(/`/, "\x27", seq_line)       # Escape backticks
