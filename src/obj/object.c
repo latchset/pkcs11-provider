@@ -36,7 +36,8 @@ static void destroy_key_cache(P11PROV_OBJ *obj, P11PROV_SESSION *session)
     if (session) {
         sess = p11prov_session_handle(session);
     } else {
-        ret = p11prov_take_login_session(obj->ctx, obj->slotid, &_session);
+        ret =
+            p11prov_take_login_session(obj->ctx, obj->slotid, true, &_session);
         if (ret != CKR_OK) {
             P11PROV_debug("Failed to get login session. Error %lx", ret);
             return;
@@ -138,10 +139,14 @@ static void cache_key(P11PROV_OBJ *obj)
         return;
     }
 
-    ret = p11prov_take_login_session(obj->ctx, obj->slotid, &session);
+    /* caching is only an optimization, never trigger a login for it and
+     * never leak errors to the caller */
+    p11prov_set_error_mark(obj->ctx);
+
+    ret = p11prov_take_login_session(obj->ctx, obj->slotid, true, &session);
     if (ret != CKR_OK || session == NULL) {
-        P11PROV_debug("Failed to get login session. Error %lx", ret);
-        return;
+        P11PROV_debug("No usable login session for caching. Error %lx", ret);
+        goto done;
     }
 
     /* If already cached, release and re-cache */
@@ -168,7 +173,9 @@ static void cache_key(P11PROV_OBJ *obj)
     }
 
     p11prov_return_session(session);
-    return;
+
+done:
+    p11prov_pop_error_to_mark(obj->ctx);
 }
 
 static void p11prov_obj_refresh(P11PROV_OBJ *obj)
@@ -299,10 +306,9 @@ static void p11prov_obj_refresh(P11PROV_OBJ *obj)
     p11prov_obj_free(tmp);
     obj->raf = false;
 
-    /* Refresh the associated object too if there is one */
-    if (obj->assoc_obj && obj->assoc_obj->raf) {
-        p11prov_obj_refresh(obj->assoc_obj);
-    }
+    /* The associated object is refreshed on demand when its handle is
+     * requested, doing it here could require a login (if it is a private
+     * key) that is not needed for the current operation */
 
 done:
     p11prov_return_session(session);

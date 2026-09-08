@@ -1,0 +1,20 @@
+#!/bin/bash -e
+# Copyright (C) 2026 Jakub Zelenka <jakub.openssl@gmail.com>
+# SPDX-License-Identifier: Apache-2.0
+
+source "${TESTSSRCDIR}/helpers.sh"
+
+title PARA "Test public key ops on a non-default slot after fork"
+
+# The configured token PIN belongs to the default slot while the key is in
+# the second slot, so no login may be attempted without the URI PIN
+DBGFILE="${TMPPDIR}/slotpin-debug.log"
+rm -f "${DBGFILE}"
+PKCS11_PROVIDER_DEBUG="file:${DBGFILE}" $CHECKER "${TESTBLDDIR}/tforkslot"
+
+title LINE "Check no login with a wrong PIN was attempted"
+# 160 is CKR_PIN_INCORRECT
+if grep -q "Error 160 returned by C_Login" "${DBGFILE}"; then
+    echo "A login with a wrong PIN was attempted"
+    exit 1
+fi
